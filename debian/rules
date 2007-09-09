@@ -1,0 +1,108 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# These are used for cross-compiling and for saving the configure script
+# from having to guess our platform (since we know it already)
+DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+
+#CFLAGS = -Wall -g
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	CFLAGS += -O0
+else
+	CFLAGS += -O2
+endif
+
+config.status: configure
+	dh_testdir
+
+	# Configuring package
+	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man
+
+build: build-stamp
+build-stamp: config.status
+	dh_testdir
+
+	# Building package
+	$(MAKE)
+
+	touch build-stamp
+
+clean:
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp
+
+	# Cleaning package
+	[ ! -f Makefile ] || $(MAKE) distclean
+	rm -rf user
+ifneq "$(wildcard /usr/share/misc/config.sub)" ""
+	cp -f /usr/share/misc/config.sub config.sub
+endif
+ifneq "$(wildcard /usr/share/misc/config.guess)" ""
+	cp -f /usr/share/misc/config.guess config.guess
+endif
+
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+
+	# Installing package
+	$(MAKE) DESTDIR=$(CURDIR)/debian/open-vm-tools install
+
+	cp -a vmware-user user
+	mv user/vmware-user user/user
+
+	set -e; for SBIN in checkvm guestd hgfsmounter; \
+	do \
+		install -D -m 0755 $$SBIN/$$SBIN debian/open-vm-tools/usr/sbin/vmware-$$SBIN; \
+	done
+
+	set -e; for BIN in hgfsclient user toolbox; \
+	do \
+		install -D -m 0755 $$BIN/$$BIN debian/open-vm-tools/usr/bin/vmware-$$BIN; \
+	done
+
+	ln -s hgfsmounter debian/open-vm-tools/usr/sbin/mount.vmhgfs
+
+	# Installing configuration files
+	install -D -m 0644 debian/config/xautostart.conf debian/open-vm-tools/etc/vmware-tools/xautostart.conf
+	install -D -m 0644 debian/config/vmware-guestd debian/open-vm-tools/etc//pam.d/vmware-guestd
+	install -D -m 0644 debian/config/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
+	install -D -m 0644 debian/config/vmware-user.desktop debian/open-vm-tools/usr/share/autostart/vmware-user.desktop
+
+	# Installing lintian overrides
+	set -e; for LINTIAN in debian/lintian/*; \
+	do \
+		install -D -m 0644 $$LINTIAN debian/`basename $$LINTIAN`/usr/share/lintian/overrides/`basename $$LINTIAN`; \
+	done
+
+binary-indep: build install
+
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs
+	dh_installdocs
+	dh_install
+#	dh_installinit
+	dh_link
+	dh_strip
+	dh_compress
+	dh_fixperms
+	dh_makeshlibs
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install

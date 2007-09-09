@@ -1,0 +1,5 @@
+open-vm-tools (2007.09.04-56574-1) experimental; urgency=low
+
+  * Initial release (Closes: #441905).
+
+ -- Daniel Baumann <daniel@debian.org>  Sun,  9 Sep 2007 16:53:00 +0200

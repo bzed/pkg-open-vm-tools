@@ -1,0 +1,3 @@
+open-vm-tools: non-dev-pkg-with-shlib-symlink
+open-vm-tools: desktop-entry-missing-required-key
+open-vm-tools: package-name-doesnt-match-sonames
