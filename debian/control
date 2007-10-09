@@ -1,12 +1,12 @@
 Source: open-vm-tools
-Section: admin
+Section: contrib/admin
 Priority: extra
 Maintainer: Daniel Baumann <daniel@debian.org>
 Build-Depends: debhelper (>= 5), autotools-dev, libgtk2.0-dev, libpam0g-dev, libx11-dev, libxinerama-dev, libxtst-dev
 Standards-Version: 3.7.2
 
 Package: open-vm-tools
-Architecture: any
+Architecture: amd64 i386
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: ethtool, xserver-xorg-input-vmmouse, xserver-xorg-video-vmware
 Description: tools and components for VMware guest systems

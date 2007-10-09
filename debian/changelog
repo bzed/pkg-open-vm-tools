@@ -1,3 +1,10 @@
+open-vm-tools (2007.09.04-56574-2) experimental; urgency=low
+
+  * Moving package to contrib (Closes: #445439).
+  * Limiting architectures to amd64 and i386 (Closes: #445374).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue,  9 Oct 2007 10:05:00 +0200
+
 open-vm-tools (2007.09.04-56574-1) experimental; urgency=low
 
   * Initial release (Closes: #441905).
