@@ -20,6 +20,7 @@ noinst_LTLIBRARIES = libString.la
 libString_la_SOURCES =
 libString_la_SOURCES += ../bsd_output_shared.c
 libString_la_SOURCES += ../bsd_vsnprintf.c
+libString_la_SOURCES += ../bsd_vsnwprintf.c
 libString_la_SOURCES += ../str.c
 
 AM_CFLAGS =

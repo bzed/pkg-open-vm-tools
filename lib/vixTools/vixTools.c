@@ -1,7 +1,5 @@
-/* **********************************************************
- * Copyright 2007 VMware, Inc.  All rights reserved.
- * 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2007 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * vixTools.c --
@@ -131,7 +130,6 @@ extern int WinRegistry_WriteInteger(char *pathName, int value);
 extern int WinRegistry_ReadString(char *pathName, char **resultValue);
 extern int WinRegistry_WriteString(char *pathName, char *value);
 extern int WinRegistry_KeyExists(char *pathName);
-extern PIP_ADAPTER_INFO NetUtilGetAdaptersInfo(void);
 #endif /* _WIN32 */
 
 static VixError VixToolsGetFileInfo(VixCommandRequestHeader *requestMsg,
@@ -431,7 +429,8 @@ VixToolsRunProgramImpl(char *requestName,      // IN
     * check for it and return a specific error code in this case.
     *
     */
-   programExists = File_Exists(startProgramFileName);
+
+   programExists = FileUTF8_Exists(startProgramFileName);
    programIsExecutable = 
       (FileIO_Access(startProgramFileName, FILEIO_ACCESS_EXEC) == 
                                                        FILEIO_SUCCESS);
@@ -2192,7 +2191,7 @@ VixToolsPrintFileInfo(char *filePathName,     // IN
    if (FileUTF8_IsDirectory(filePathName)) {
       fileProperties |= VIX_FILE_ATTRIBUTES_DIRECTORY;
    } else {
-      if (File_IsSymLink(filePathName)) {
+      if (FileUTF8_IsSymLink(filePathName)) {
          fileProperties |= VIX_FILE_ATTRIBUTES_SYMLINK;
       }
       fileSize = File_GetSize(filePathName);
@@ -2794,7 +2793,7 @@ VixToolsFreeRunProgramState(VixToolsRunProgramState *asyncState) // IN
    }
 
    if (NULL != asyncState->tempScriptFilePath) {
-      File_Unlink(asyncState->tempScriptFilePath);
+      FileUTF8_UnlinkIfExists(asyncState->tempScriptFilePath);
    }
    if (NULL != asyncState->procState) {
       ProcMgr_Free(asyncState->procState);
@@ -3003,28 +3002,55 @@ abort:
 VixError 
 VixToolsGetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg,   // IN
                                  char **resultBuffer,                   // OUT
-                                 size_t *resultBufferLength)               // OUT
+                                 size_t *resultBufferLength)            // OUT
 {
    VixError err = VIX_OK;
    VixPropertyListImpl propList;
    char *serializedBuffer = NULL;
    size_t serializedBufferLength = 0;
+   NicEntry *nicEntry = NULL;
+   VmIpAddressEntry *ipAddr;
 
    ASSERT(NULL != requestMsg);
    ASSERT(NULL != resultBuffer);
    ASSERT(NULL != resultBufferLength);
 
    VixPropertyList_Initialize(&propList);
-   
+
+   nicEntry = NetUtil_GetPrimaryNicEntry();
+   if (NULL == nicEntry) {
+      err = FoundryToolsDaemon_TranslateSystemErr();
+      goto abort;
+   }
+
+   ipAddr = DblLnkLst_Container(nicEntry->ipAddressList.next, 
+                                VmIpAddressEntry, 
+                                links);
    /*
-    * Now, record these values in a property list.
+    *  Now, record these values in a property list.
     */
    err = VixPropertyList_SetString(&propList,
                                    VIX_PROPERTY_VM_IP_ADDRESS,
-                                   NetUtil_GetPrimaryIP());
+                                   ipAddr->ipEntryProto.ipAddress);
    if (VIX_OK != err) {
       goto abort;
    }
+
+#if defined(_WIN32)
+   err = VixPropertyList_SetBool(&propList,
+                                 VIX_PROPERTY_VM_DHCP_ENABLED,
+                                 ipAddr->ipEntryProto.dhcpEnabled);
+   if (VIX_OK != err) {
+      goto abort;
+   }
+
+   err = VixPropertyList_SetString(&propList,
+                                   VIX_PROPERTY_VM_SUBNET_MASK,
+                                   ipAddr->ipEntryProto.subnetMask);
+   if (VIX_OK != err) {
+      goto abort;
+   }
+#endif
 
    /*
     * Serialize the property list to buffer then encode it.
@@ -3045,6 +3071,8 @@ VixToolsGetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg,   // IN
 
 abort:
    VixPropertyList_RemoveAllWithoutHandles(&propList);
+   GuestInfo_FreeDynamicMemoryInNic(nicEntry);
+   free(nicEntry);
 
    return err;
 } // VixToolsGetGuestNetworkingConfig
@@ -3065,6 +3093,7 @@ abort:
  *
  *-----------------------------------------------------------------------------
  */
+
 VixError 
 VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
 {
@@ -3137,6 +3166,8 @@ VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
 
 
 abort:
+   VixPropertyList_RemoveAllWithoutHandles(&propList);
+
    if (impersonatingVMWareUser) {
       VixToolsUnimpersonateUser(userToken);
    }
@@ -3334,16 +3365,17 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
                                                 &resultValueLength);
          if (VIX_FAILED(err)) {
             /*
-             * VixToolsGetGuestNetworkingConfig() failed, so resultVal is still NULL,   
-             * so let it get replaced with the empty string at the abort label. 
-             */ 
-            goto abort; 
+             * VixToolsGetGuestNetworkingConfig() failed, so resultVal is still NULL, 
+             * so let it get replaced with the empty string at the abort label.  
+             */
+            goto abort;
          }
 
-         /* 
+         /*
           * resultVal always points to something heap-allocated after this point
           */
          deleteResultValue = TRUE;
+         mustSetResultValueLength = FALSE;
          break;
 
       ////////////////////////////////////

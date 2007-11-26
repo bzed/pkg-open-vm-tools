@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998-2004 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998-2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /*
  * @VMKAPIMOD_LICENSE@
@@ -73,7 +73,7 @@ typedef unsigned int       vmk_uint32;
 typedef long               vmk_int64;
 typedef unsigned long      vmk_uint64;
 typedef vmk_uint64         vmk_VirtAddr;
-#else 
+#else
 typedef long long          vmk_int64;
 typedef unsigned long long vmk_uint64;
 typedef vmk_uint32         vmk_VirtAddr;
@@ -92,5 +92,18 @@ typedef union {
    vmk_VirtAddr addr;
    void *ptr;
 } vmk_AddrCookie __attribute__ ((__transparent_union__));
+
+/**
+ *  \brief Wrapper for 64 bit signed and unsigned constants
+ */
+#if defined(__ia64__) || defined(__x86_64__)
+#define VMK_CONST64(c)     c##L
+#define VMK_CONST64U(c)    c##UL
+#else
+#define VMK_CONST64(c)     c##LL
+#define VMK_CONST64U(c)    c##ULL
+#endif
+
+
 
 #endif //_VMKAPI_TYPES_H_

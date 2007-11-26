@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * file.h --
@@ -48,8 +48,20 @@
 #define FILE_SEARCHPATHTOKEN ";"
 
 #if __APPLE__
-EXTERN Bool File_UnmountDev(const char *devName, Bool isFullPath,
-                            Bool wholeDev, Bool eject);
+typedef enum {
+   FILEMACOS_UNMOUNT_SUCCESS,
+   FILEMACOS_UNMOUNT_SUCCESS_ALREADY,
+   FILEMACOS_UNMOUNT_ERROR,
+} FileMacosUnmountStatus;
+
+EXTERN FileMacosUnmountStatus FileMacos_UnmountDev(char const *bsdDev,
+                                                   Bool wholeDev, Bool eject);
+EXTERN void FileMacos_MountDevAsyncNoResult(char const *bsdSliceDev, Bool su);
+
+EXTERN Bool FileMacos_IsOnExternalDevice(char const *path);
+EXTERN Bool FileMacos_IsOnSparseDmg(char const *path);
+
+EXTERN char *FileMacos_DiskDevToDiskName(char const *bsdDiskDev);
 #endif
 
 EXTERN Bool File_Exists(const char *name);
@@ -96,11 +108,16 @@ EXTERN int File_MakeTempEx(const char *dir,
 EXTERN int64 File_GetModTime(const char *fileName);
 EXTERN char *File_GetModTimeString(const char *fileName);
 EXTERN char *File_GetUniqueFileSystemID(const char *fileName);
+EXTERN Bool File_GetTimes(const char *fileName,
+                          VmTimeType *createTime,
+                          VmTimeType *accessTime,
+                          VmTimeType *writeTime,
+                          VmTimeType *attrChangeTime);
 EXTERN Bool File_SetTimes(const char *fileName,
-                          VmTimeType createTime,      // IN: Windows NT time format
-                          VmTimeType accessTime,      // IN: Windows NT time format
-                          VmTimeType writeTime,       // IN: Windows NT time format
-                          VmTimeType attrChangeTime); // IN: ignored
+                          VmTimeType createTime,
+                          VmTimeType accessTime,
+                          VmTimeType writeTime,
+                          VmTimeType attrChangeTime);
 EXTERN Bool File_SupportsFileSize(const char *pathname, uint64 fileSize);
 EXTERN Bool File_SupportsLargeFiles(const char *pathname);
 

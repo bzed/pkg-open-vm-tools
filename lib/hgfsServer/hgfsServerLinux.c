@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * hgfsServerLinux.c --
@@ -48,22 +48,37 @@
 #include "util.h"
 #include "syncMutex.h"
 #include "su.h"
+#include "codeset.h"
+
+#if defined(linux) && !defined(SYS_getdents64)
+/* For DT_UNKNOWN */
+#   include <dirent.h>
+#endif
 
 #ifndef VMX86_TOOLS
-#include "config.h"
+#   include "config.h"
 #endif
 
 #define LOGLEVEL_MODULE hgfs
 #include "loglevel_user.h"
 
-/* ALLPERMS (mode 07777) is not defined in the Solaris version of sys/stat.h. */
+#if defined(__APPLE__)
+#include <CoreServices/CoreServices.h> // for the alias manager
+#include <CoreFoundation/CoreFoundation.h> // for CFString and CFURL
+#endif
+
+/* 
+ * ALLPERMS (mode 07777) and ACCESSPERMS (mode 0777) are not defined in the
+ * Solaris version of <sys/stat.h>.
+ */
 #ifdef sun
-#define ALLPERMS (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)
+#   define ACCESSPERMS (S_IRWXU|S_IRWXG|S_IRWXO)
+#   define ALLPERMS (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)
 #endif
 
 #ifdef HGFS_OPLOCKS
-#include <signal.h>
-#include "sig.h"
+#   include <signal.h>
+#   include "sig.h"
 #endif
 
 #if defined(linux) && !defined(GLIBC_VERSION_21)
@@ -82,25 +97,66 @@ _llseek(unsigned int fd,
 #endif
 
 /* 
- * On Linux, we must wrap getdents64, as glibc does not wrap it for us. We use
- * getdents64 (rather than getdents) because with the latter, we'll get 64-bit
- * offsets and inode numbers. Note that getdents64 isn't supported everywhere,
- * in particular, kernels older than 2.4.1 do not implement it, but none of the
- * supported guests are that old.
+ * On Linux, we must wrap getdents64, as glibc does not wrap it for us. We use getdents64
+ * (rather than getdents) because with the latter, we'll get 64-bit offsets and inode
+ * numbers. Note that getdents64 isn't supported everywhere, in particular, kernels older
+ * than 2.4.1 do not implement it. On those older guests, we try using getdents(), and
+ * translating the results to our DirectoryEntry structure...
  *
- * On FreeBSD and Mac platforms, getdents is implemented as getdirentries, and 
- * takes an additional parameter which returns the position of the block read,
- * which we don't care about.
+ * On FreeBSD and Mac platforms, getdents is implemented as getdirentries, and takes an
+ * additional parameter which returns the position of the block read, which we don't care
+ * about.
  */
 #if defined(linux)
-static INLINE int 
-getdents64(unsigned int fd,
-           DirectoryEntry *dirp,
-           unsigned int count)
+static INLINE int
+getdents_linux(unsigned int fd,
+               DirectoryEntry *dirp,
+               unsigned int count)
 {
+#   if defined(SYS_getdents64)
    return syscall(SYS_getdents64, fd, dirp, count);
+#   else
+   /*
+    * Fall back to regular getdents on older Linux systems that don't have
+    * getdents64. Because glibc does translation between the kernel's "struct dirent" and
+    * the libc "struct dirent", this structure matches the one in linux/dirent.h, rather
+    * than us using the libc 'struct dirent' directly
+    */
+   struct linux_dirent {
+      long d_ino;
+      long d_off; /* __kernel_off_t expands to long on RHL 6.2 */
+      unsigned short d_reclen;
+      char d_name[NAME_MAX];
+   } *dirp_temp;
+   int retval;
+
+   dirp_temp = alloca((sizeof *dirp_temp) * count);
+
+   retval = syscall(SYS_getdents, fd, dirp_temp, count);
+
+   if (retval > 0) {
+      int i;
+
+      /*
+       * Translate from the Linux 'struct dirent' to the hgfs DirectoryEntry, since
+       * they're not always the same layout.
+       */
+      for (i = 0; i < count; i++) {
+         dirp[i].d_ino = dirp_temp[i].d_ino;
+         dirp[i].d_off = dirp_temp[i].d_off;
+         dirp[i].d_reclen = dirp_temp[i].d_reclen;
+         dirp[i].d_type = DT_UNKNOWN;
+         memcpy(dirp[i].d_name, dirp_temp[i].d_name,
+                ((sizeof dirp->d_name) < (sizeof dirp_temp->d_name))
+                ? (sizeof dirp->d_name)
+                : (sizeof dirp_temp->d_name));
+      }
+   }
+
+   return retval;
+#   endif
 }
-#define getdents getdents64
+#      define getdents getdents_linux
 #elif defined(__FreeBSD__) || defined(__APPLE__)
 #define getdents(fd, dirp, count)                                             \
 ({                                                                            \
@@ -193,6 +249,9 @@ static const int HgfsServerOpenMode[] = {
 
 /* Local functions. */
 static HgfsInternalStatus HgfsConvertFromNameStatus(HgfsNameStatus status);
+
+static HgfsInternalStatus HgfsGetattrResolveAlias(char const *fileName,
+                                                  char **targetName);
 
 static HgfsInternalStatus HgfsGetattrFromName(char const *fileName,
                                               HgfsFileAttrInfo *attr,
@@ -1021,6 +1080,126 @@ HgfsAcquireServerLock(fileDesc fileDesc,            // IN: OS handle
 /*
  *-----------------------------------------------------------------------------
  *
+ * HgfsGetattrResolveAlias --
+ *
+ *    Mac OS defines a special file type known as an alias which behaves like a
+ *    symlink when viewed through the Finder, but is actually a regular file
+ *    otherwise. Unlike symlinks, aliases cannot be broken; if the target file
+ *    is deleted, so is the alias.
+ *
+ *    If the given filename is (or contains) an alias, this function will 
+ *    resolve it completely and set targetName to something non-NULL.
+ *
+ * Results:
+ *    Zero on success. targetName is allocated if the file was an alias, and
+ *    NULL otherwise.
+ *    Non-zero on failure. targetName is unmodified.
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static HgfsInternalStatus 
+HgfsGetattrResolveAlias(char const *fileName,       // IN:  Input filename
+                        char **targetName)          // OUT: Target filename
+{
+#ifndef __APPLE__
+   *targetName = NULL;
+   return 0;
+#else
+   char *myTargetName = NULL;
+   HgfsInternalStatus status = HGFS_INTERNAL_STATUS_ERROR;
+   CFURLRef resolvedRef = NULL;
+   CFStringRef resolvedString;
+   FSRef fileRef;
+   Boolean targetIsFolder;
+   Boolean wasAliased;
+   OSStatus osStatus;
+   
+   /* 
+    * Create and resolve an FSRef of the desired path. We pass FALSE to
+    * resolveAliasChains because aliases to aliases should behave as
+    * symlinks to symlinks. If the file is an alias, wasAliased will be set to
+    * TRUE and fileRef will reference the target file.
+    */
+   osStatus = FSPathMakeRef(fileName, &fileRef, NULL);
+   if (osStatus != noErr) {
+      LOG(4, ("HgfsGetattrResolveAlias: could not create file reference: "
+              "error %lu\n", osStatus));
+      goto exit;      
+   }
+   osStatus = FSResolveAliasFile(&fileRef, FALSE, &targetIsFolder,
+                                 &wasAliased);
+   if (osStatus != noErr) {
+      LOG(4, ("HgfsGetattrResolveAlias: could not resolve reference: error "
+              "%lu\n", osStatus));
+      goto exit;
+   }
+   
+   if (wasAliased) {
+      CFIndex maxPath;
+
+      /* 
+       * This is somewhat convoluted. We create a CFURL from the FSRef because
+       * we want to call CFURLGetFileSystemRepresentation() to get a UTF-8
+       * string representing the target of the alias. But to call
+       * CFStringGetMaximumSizeOfFileSystemRepresentation(), we need a
+       * CFString, so we make one from the CFURL. Once we've got the max number
+       * of bytes for a filename on the filesystem, we allocate some memory
+       * and convert the CFURL to a basic UTF-8 string using a call to
+       * CFURLGetFileSystemRepresentation().
+       */
+      resolvedRef = CFURLCreateFromFSRef(NULL, &fileRef);
+      if (resolvedRef == NULL) {
+         LOG(4, ("HgfsGetattrResolveAlias: could not create resolved URL "
+                 "reference from resolved filesystem reference\n"));
+         goto exit;
+      }
+      resolvedString = CFURLGetString(resolvedRef);
+      if (resolvedString == NULL) {
+         LOG(4, ("HgfsGetattrResolveAlias: could not create resolved string "
+                 "reference from resolved URL reference\n"));
+         goto exit;
+      }
+      maxPath = CFStringGetMaximumSizeOfFileSystemRepresentation(resolvedString);
+      myTargetName = malloc(maxPath);
+      if (myTargetName == NULL) {
+         LOG(4, ("HgfsGetattrResolveAlias: could not allocate %"FMTSZ"d bytes "
+                 "of memory for target name storage\n", maxPath));
+         goto exit;
+      }
+      if (!CFURLGetFileSystemRepresentation(resolvedRef, FALSE, myTargetName, 
+                                            maxPath)) {
+         LOG(4, ("HgfsGetattrResolveAlias: could not convert and copy "
+                 "resolved URL reference into allocated buffer\n"));
+         goto exit;
+      }
+
+      *targetName = myTargetName;
+      LOG(4, ("HgfsGetattrResolveAlias: file was an alias\n"));
+   } else {
+      *targetName = NULL;
+      LOG(4, ("HgfsGetattrResolveAlias: file was not an alias\n"));
+   }
+   status = 0;
+
+  exit:
+   if (status != 0) {
+      free(myTargetName);
+   }
+
+   if (resolvedRef != NULL) {
+      CFRelease(resolvedRef);
+   }
+   return status;
+#endif
+}
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * HgfsGetHiddenAttr --
  *
  *    For Mac hosts and Linux hosts, if a guest is Windows we force the "dot",
@@ -1101,8 +1280,9 @@ HgfsGetattrFromName(char const *fileName,       // IN:  Input filename
    }
 
    /*
-    * For now, everything that isn't a directory or symlink is a regular
-    * file.
+    * Deal with the file type returned from lstat(2). We currently support
+    * regular files, directories, and symlinks. On Mac OS, we'll additionally
+    * treat finder aliases as symlinks.
     */
    if (S_ISDIR(stats.st_mode)) {
       attr->type = HGFS_FILE_TYPE_DIRECTORY;
@@ -1145,8 +1325,42 @@ HgfsGetattrFromName(char const *fileName,       // IN:  Input filename
          *targetName = myTargetName;
       }
    } else {
-      attr->type = HGFS_FILE_TYPE_REGULAR;
+      char *myTargetName = NULL;
+
+      /* 
+       * Now is a good time to check if the file was an alias. If so, we'll
+       * treat it as a symlink.
+       */
       LOG(4, ("HgfsGetattrFromName: NOT a directory or symlink\n"));
+      status = HgfsGetattrResolveAlias(fileName, &myTargetName);
+      if (status != 0) {
+         LOG(4, ("HgfsGetattrFromName: could not resolve file aliases\n"));
+         goto exit;
+      }
+      if (myTargetName != NULL) {
+         /* 
+          * Let's mangle the permissions and size of the file so that it more
+          * closely resembles a symlink. The size should be the length of the
+          * target name (not including the nul-terminator), and the permissions
+          * should be 777.
+          */
+         stats.st_size = strlen(myTargetName);
+         stats.st_mode |= ACCESSPERMS;
+         
+         /* 
+          * Note that the caller may not actually care about the alias's 
+          * target filename (though it still wants to know that the file is an 
+          * alias).
+          */
+         if (targetName != NULL) {
+            *targetName = myTargetName;
+         } else {
+            free(myTargetName);
+         }
+         attr->type = HGFS_FILE_TYPE_SYMLINK;
+      } else {
+         attr->type = HGFS_FILE_TYPE_REGULAR;
+      }
    }
 
    HgfsStat(&stats, attr);
@@ -1666,12 +1880,25 @@ HgfsSetattrFromFd(HgfsHandle file,         // IN: file descriptor
    Bool idChanged = FALSE;
    int fd;
    HgfsServerLock serverLock;
+   HgfsOpenMode shareMode;
 
    ASSERT(file != HGFS_INVALID_HANDLE);
 
    status = HgfsGetFd(file, FALSE, &fd);
    if (status != 0) {
       LOG(4, ("HgfsSetattrFromFd: Could not get file descriptor\n"));
+      goto exit;
+   }
+
+   if (!HgfsHandle2ShareMode(file, &shareMode)) {
+      LOG(4, ("HgfsSetattrFromFd: could not get share mode fd %u\n",
+              fd));
+      status = EBADF;
+      goto exit;
+   }
+
+   if (shareMode == HGFS_OPEN_MODE_READ_ONLY) {
+      status = EACCES;
       goto exit;
    }
 
@@ -2755,18 +2982,54 @@ HgfsServerSearchRead(char const *packetIn, // IN: incoming packet
       }
 
       free(search.utf8Dir);
-      LOG(4, ("HgfsServerSearchRead: dent name is \"%s\" len = %d\n",
-              dent->d_name, length));
 
-      /*
-       * XXX: HgfsPackSearchReadReply will error out if the dent we
-       * give it is too large for the packet. Prior to
-       * HgfsPackSearchReadReply, we'd skip the dent and return the next
-       * one with success. Now we return an error. This may be a non-issue
-       * since what filesystems allow dent lengths as high as 6144 bytes?
-       */
-      status = HgfsPackSearchReadReply(dent->d_name, length, &attr,
-                                       packetOut, packetSize) ? 0 : EPROTO;
+      {
+         size_t entryNameLen;
+         char *entryName = NULL;
+         Bool freeEntryName = FALSE;
+
+#if defined(__APPLE__)
+
+         /* 
+          * HGFS clients receive names in unicode normal form C,
+          * (precomposed) so Mac hosts must convert from normal form D
+          * (decomposed).
+          */
+         if (!CodeSet_Utf8FormDToUtf8FormC((const char *)dent->d_name,
+                                           length,
+                                           &entryName,
+                                           &entryNameLen)) {
+            LOG(4, ("HgfsServerSearchRead: Unable to normalize form C \"%s\"\n",
+                    dent->d_name));
+            /* Skip this entry and continue. */
+            free(dent);
+            continue;
+         }
+
+         freeEntryName = TRUE;
+#else /* defined(__APPLE__) */
+         entryName = dent->d_name;
+         entryNameLen = length;
+#endif /* defined(__APPLE__) */
+
+         LOG(4, ("HgfsServerSearchRead: dent name is \"%s\" len = %"FMTSZ"u\n",
+                 entryName, entryNameLen));
+
+         /*
+          * XXX: HgfsPackSearchReadReply will error out if the dent we
+          * give it is too large for the packet. Prior to
+          * HgfsPackSearchReadReply, we'd skip the dent and return the next
+          * one with success. Now we return an error. This may be a non-issue
+          * since what filesystems allow dent lengths as high as 6144 bytes?
+          */
+         status = HgfsPackSearchReadReply(entryName, entryNameLen, &attr,
+                                          packetOut, packetSize) ? 0 : EPROTO;
+
+         if (freeEntryName) {
+            free(entryName);
+         }
+      }
+
       free(dent);
       return status;
    }

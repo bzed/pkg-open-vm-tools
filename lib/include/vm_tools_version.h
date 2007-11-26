@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 1998-2005 VMware, Inc. All Rights Reserved 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998-2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 #ifndef VM_TOOLS_VERSION_H
@@ -662,9 +662,42 @@ typedef uint32 ToolsVersion;
 #define   TOOLS_VERSION_ESX310_BETA1_V_MNR     4
 #define   TOOLS_VERSION_ESX310_BETA1_V_BASE    0
 
-#define   TOOLS_VERSION_CURRENT        TOOLS_VERSION_ESX310_BETA1
-#define   TOOLS_VERSION_CURRENT_STR    TOOLS_VERSION_TO_STR(TOOLS_VERSION_ESX310_BETA1)
-#define   TOOLS_VERSION_CURRENT_CSV    TOOLS_VERSION_TO_CSV(TOOLS_VERSION_ESX310_BETA1)
+#ifndef RC_INVOKED
+#define   TOOLS_VERSION_ESX310_BETA2     TOOLS_VERSION_TO_UINT(TOOLS_VERSION_ESX310_BETA2_V)
+#endif /* RC_INVOKED */
+#define   TOOLS_VERSION_ESX310_BETA2_V_MJR     7
+#define   TOOLS_VERSION_ESX310_BETA2_V_MNR     4
+#define   TOOLS_VERSION_ESX310_BETA2_V_BASE    1
+
+#ifndef RC_INVOKED
+#define   TOOLS_VERSION_ESX310_RC1     TOOLS_VERSION_TO_UINT(TOOLS_VERSION_ESX310_RC1_V)
+#endif /* RC_INVOKED */
+#define   TOOLS_VERSION_ESX310_RC1_V_MJR     7
+#define   TOOLS_VERSION_ESX310_RC1_V_MNR     4
+#define   TOOLS_VERSION_ESX310_RC1_V_BASE    2
+
+#ifndef RC_INVOKED
+#define   TOOLS_VERSION_SERVER20_FF     TOOLS_VERSION_TO_UINT(TOOLS_VERSION_SERVER20_FF_V)
+#endif /* RC_INVOKED */
+#define   TOOLS_VERSION_SERVER20_FF_V_MJR     7
+#define   TOOLS_VERSION_SERVER20_FF_V_MNR     5
+#define   TOOLS_VERSION_SERVER20_FF_V_BASE    0
+
+#define   TOOLS_VERSION_FUSION11_BETA1     TOOLS_VERSION_TO_UINT(TOOLS_VERSION_FUSION11_BETA1_V)
+#define   TOOLS_VERSION_FUSION11_BETA1_V_MJR     7
+#define   TOOLS_VERSION_FUSION11_BETA1_V_MNR     6
+#define   TOOLS_VERSION_FUSION11_BETA1_V_BASE    0
+
+#ifndef RC_INVOKED
+#define   TOOLS_VERSION_FUSION11_RELEASE     TOOLS_VERSION_TO_UINT(TOOLS_VERSION_FUSION11_RELEASE_V)
+#endif /* RC_INVOKED */
+#define   TOOLS_VERSION_FUSION11_RELEASE_V_MJR     7
+#define   TOOLS_VERSION_FUSION11_RELEASE_V_MNR     6
+#define   TOOLS_VERSION_FUSION11_RELEASE_V_BASE    1
+
+#define   TOOLS_VERSION_CURRENT        TOOLS_VERSION_FUSION11_RELEASE
+#define   TOOLS_VERSION_CURRENT_STR    TOOLS_VERSION_TO_STR(TOOLS_VERSION_FUSION11_RELEASE)
+#define   TOOLS_VERSION_CURRENT_CSV    TOOLS_VERSION_TO_CSV(TOOLS_VERSION_FUSION11_RELEASE)
 
 /*
  * The extended Tools version is the current Tools version with the build number

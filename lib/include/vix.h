@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (c) 2004-2007 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2004-2007 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * This is the C interface to the VIX API.
@@ -137,8 +137,11 @@ enum {
    VIX_E_UNRECOGNIZED_COMMAND_IN_GUEST          = 3025,
    VIX_E_CONSOLE_GUEST_OPERATIONS_PROHIBITED    = 3026,
    VIX_E_MUST_BE_CONSOLE_USER                   = 3027,
-   VIX_E_NOT_ALLOWED_DURING_VM_RECORDING        = 3028,
-   VIX_E_NOT_ALLOWED_DURING_VM_REPLAY           = 3029,
+   VIX_E_VMX_MSG_DIALOG_AND_NO_UI               = 3028,
+   VIX_E_NOT_ALLOWED_DURING_VM_RECORDING        = 3029,
+   VIX_E_NOT_ALLOWED_DURING_VM_REPLAY           = 3030,
+   VIX_E_OPERATION_NOT_ALLOWED_FOR_LOGIN_TYPE   = 3031,
+   VIX_E_LOGIN_TYPE_NOT_SUPPORTED               = 3032,
 
    /* VM Errors */ 
    VIX_E_VM_NOT_FOUND                           = 4000,

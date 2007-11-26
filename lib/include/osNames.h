@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2007 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2007 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * osNames.h --
@@ -117,6 +117,8 @@
 #define STR_OS_WIN_NET_COMPCLUSTER_FULL "Windows Server 2003 Compute Cluster Edition"
 #define STR_OS_WIN_NET_STORAGESERVER "winNetStorageSvr"
 #define STR_OS_WIN_NET_STORAGESERVER_FULL "Windows Storage Server 2003"
+#define STR_OS_WIN_NET_DC_FULL "Windows Server 2003 Datacenter Edition"
+#define STR_OS_WIN_NET_DC "winNetDatacenter"
 #define STR_OS_WIN_LONG "longhorn"
 #define STR_OS_WIN_LONG_FULL "Longhorn (experimental)"
 #define STR_OS_WIN_VISTA "winVista"
@@ -132,5 +134,7 @@
 
 /* All */
 #define STR_OS_64BIT_SUFFIX "-64"
+#define STR_OS_64BIT_SUFFIX_FULL " (64 bit)"
+#define STR_OS_EMPTY ""
 
 #endif // _OS_NAMES_H_

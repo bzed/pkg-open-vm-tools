@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2007 VMware, Inc.  All rights reserved. 
- * *********************************************************
+/*********************************************************
+ * Copyright (C) 2007 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * fileInt.h --
@@ -29,11 +29,11 @@
 #include "includeCheck.h"
 #include "fileLock.h"
 
-#if defined(linux)
+#if defined __linux__
 /*
  * These magic constants are used only for parsing Linux statfs data.
- * So they make sense only for Linux build. If you need them on
- * Windows, MAC, Solaris, FreeBSD or NetWare, think once more.
+ * So they make sense only for Linux build. If you need them on other OSes,
+ * think once more.
  */
 
 #define AFFS_SUPER_MAGIC      0xADFF
@@ -92,6 +92,12 @@ typedef struct lock_values
 
 #define FILELOCK_DATA_SIZE 512
 
+#if defined(_WIN32)
+typedef HANDLE FILELOCK_FILE_HANDLE;
+#else
+typedef int FILELOCK_FILE_HANDLE;
+#endif
+
 EXTERN const char *FileLockGetMachineID(void);
 
 EXTERN Bool FileLockMachineIDMatch(char *host,
@@ -101,12 +107,40 @@ EXTERN Bool FileLockMachineIDMatch(char *host,
 EXTERN int FileLockMemberValues(const char *lockDir, 
                                 const char *fileName,
                                 char *buffer,
-                                size_t size,
+                                uint32 size,
                                 LockValues *memberValues);
 
 EXTERN int FileLockHackVMX(const char *machineID,
                            const char *executionID,
                            const char *filePathName);
+
+EXTERN int FileLockOpenFile(const char *path,
+                            int flags,
+                            FILELOCK_FILE_HANDLE *handle);
+
+EXTERN int FileLockCloseFile(FILELOCK_FILE_HANDLE handle);
+EXTERN int FileLockDeleteFile(const char *path);
+EXTERN int FileLockCreateDirectory(const char *path);
+EXTERN int FileLockDeleteDirectory(const char *path);
+
+EXTERN int FileLockRenameFile(const char *from,
+                              const char *to);
+
+EXTERN int FileLockFileSize(FILELOCK_FILE_HANDLE handle,
+                            uint32 *fileSize);
+
+EXTERN int FileLockFileType(const char *path,
+                            int *type);
+
+EXTERN int FileLockReadFile(FILELOCK_FILE_HANDLE handle,
+                            void *buf,
+                            uint32 requestedBytes,
+                            uint32 *resultantBytes);
+
+EXTERN int FileLockWriteFile(FILELOCK_FILE_HANDLE handle,
+                             void *buf,
+                             uint32 requestedBytes,
+                             uint32 *resultantBytes);
 
 EXTERN void *FileLockIntrinsic(const char *machineID,
                                const char *executionID,
@@ -126,6 +160,9 @@ EXTERN Bool FileLockValidOwner(const char *executionID,
 
 EXTERN Bool FileLockValidName(const char *fileName);
 
+#ifndef _WIN32
+char *FilePosixGetBlockDevice(char const *path);
+#endif
 
 #if defined(__APPLE__)
 EXTERN int PosixFileOpener(const char *path,

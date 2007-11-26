@@ -1,7 +1,5 @@
-/* **********************************************************
- * Copyright 2003 VMware, Inc.  All rights reserved.
- * 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2003 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /*
  * vm_basic_defs.h --
@@ -152,8 +151,6 @@ Max(int a, int b)
 #ifndef PAGE_SHIFT // {
 #if defined VM_I386
    #define PAGE_SHIFT    12
-#elif defined VM_IA64
-   #define PAGE_SHIFT    14	// On IA-64, the default page size is 16K
 #elif defined __APPLE__
    #define PAGE_SHIFT    12
 #else
@@ -382,6 +379,31 @@ typedef int pid_t;
 
 #endif // }
 
+#ifndef va_copy
+#ifdef _WIN32
+
+/*
+ * Windows needs va_copy. This works for both 32 and 64-bit Windows
+ * based on inspection of how varags.h from the Visual C CRTL is
+ * implemented. (Future versions of the RTL may break this).
+ */
+
+#define va_copy(dest, src) ((dest) = (src))
+
+#endif // _WIN32
+
+#if defined(__APPLE__) && defined(KERNEL)
+
+/*
+ * MacOS kernel-mode needs va_copy. Based on inspection of stdarg.h
+ * from the MacOSX10.4u.sdk kernel framework, this should work.
+ * (Future versions of the SDK may break this).
+ */
+
+#define va_copy(dest, src) ((dest) = (src))
+
+#endif // __APPLE__ && KERNEL
+#endif // va_copy
 
 /*
  * This one is outside USERLEVEL because it's used by

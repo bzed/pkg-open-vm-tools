@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 2005 VMware, Inc. All Rights Reserved 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * cpNameUtil.c
@@ -32,6 +32,7 @@
 #include "util.h"
 #include "vm_assert.h"
 #include "str.h"
+#include "cpNameUtilInt.h"
 
 #define WIN_DIRSEPC     '\\'
 #define WIN_DIRSEPS     "\\"
@@ -196,6 +197,80 @@ CPNameUtil_WindowsConvertToRoot(char const *nameIn, // IN:  buf to convert
    free(fullName);
 
    return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * CPNameUtil_Utf8FormHostToUtf8FormC --
+ *
+ *    Convert CPname to form C (precomposed) which is used by the HGFS
+ *    protocol from host preferred format. On Mac hosts the current format
+ *    is unicode form D, so conversion is required, others the current
+ *    format is the same.
+ *
+ *    Input/output name lengths include the nul-terminator so that the 
+ *    conversion routine will include the final character when breaking
+ *    up the CPName into it's individual components.
+ *
+ *
+ * Results:
+ *    TRUE if success result string is in form C format, FALSE otherwise.
+ *
+ * Side effects:
+ *    None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+Bool
+CPNameUtil_Utf8FormHostToUtf8FormC(const char *cpNameToConvert,   // IN:
+                                   size_t cpNameToConvertLen,     // IN: includes nul
+                                   char **cpUtf8FormCName,        // OUT:
+                                   size_t *cpUtf8FormCNameLen)    // OUT: includes nul
+{
+   return CPNameUtilConvertUtf8FormCAndD(cpNameToConvert,
+                                         cpNameToConvertLen,
+                                         TRUE,
+                                         cpUtf8FormCName,
+                                         cpUtf8FormCNameLen);
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * CPNameUtil_Utf8FormCToUtf8FormHost --
+ *
+ *    Convert from CP unicode form C (decomposed) name  used by the HGFS
+ *    protocol to the host preferred format. On Mac OS X is unicode form D 
+ *    (precomposed), everyone else this stays as form C (precomposed).
+ *
+ *    Input/output name lengths include the nul-terminator so that the 
+ *    conversion routine will include the final character when breaking
+ *    up the CPName into it's individual components.
+ *
+ * Results:
+ *    TRUE if success result string is in CP format, FALSE otherwise.
+ *
+ * Side effects:
+ *    None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+Bool
+CPNameUtil_Utf8FormCToUtf8FormHost(const char *cpUtf8FormCName,   // IN:
+                                   size_t cpUtf8FormCNameLen,     // IN: includes nul 
+                                   char **cpConvertedName,        // OUT:
+                                   size_t *cpConvertedNameLen)    // OUT: includes nul
+{
+   return CPNameUtilConvertUtf8FormCAndD(cpUtf8FormCName,
+                                         cpUtf8FormCNameLen,
+                                         FALSE,
+                                         cpConvertedName,
+                                         cpConvertedNameLen);
 }
 
 

@@ -1,7 +1,5 @@
-/* **********************************************************
- * Copyright 2004 VMware, Inc.  All rights reserved. 
- * 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /*
  * net_dist.h --
@@ -56,9 +55,10 @@ typedef struct PktList PktList;
  * (e.g. sizeof(esskaybee_or_whatever))
  */
 #ifdef VM_X86_64
+
 #define NET_MAX_IMPL_PKT_OVHD   (616)
 #else
-#define NET_MAX_IMPL_PKT_OVHD   (432)
+#define NET_MAX_IMPL_PKT_OVHD   (436)
 #endif
 
 /*

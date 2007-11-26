@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 2005 VMware, Inc.  All Rights Reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 #ifndef __COMPAT_SLAB_H__
 #   define __COMPAT_SLAB_H__
@@ -40,7 +40,10 @@
 #endif
 
 /*
- * Destructor is gone since 2.6.23-pre1.
+ * Up to 2.6.22 kmem_cache_create has 6 arguments - name, size, alignment, flags,
+ * constructor, and destructor.  Then for some time kernel was asserting that
+ * destructor is NULL, and since 2.6.23-pre1 kmem_cache_create takes only 5
+ * arguments - destructor is gone.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22) || defined(VMW_KMEMCR_HAS_DTOR)
 #define compat_kmem_cache_create(name, size, align, flags, ctor) \
@@ -48,6 +51,20 @@
 #else
 #define compat_kmem_cache_create(name, size, align, flags, ctor) \
 		kmem_cache_create(name, size, align, flags, ctor)
+#endif
+
+/*
+ * Up to 2.6.23 kmem_cache constructor has three arguments - pointer to block to
+ * prepare (aka "this"), from which cache it came, and some unused flags.  After
+ * 2.6.23 flags were removed, and order of "this" and cache parameters was swapped...
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(VMW_KMEMCR_CTOR_HAS_3_ARGS)
+#  define VMW_KMEMCR_CTOR_HAS_3_ARGS
+#endif
+#ifdef VMW_KMEMCR_CTOR_HAS_3_ARGS
+typedef void compat_kmem_cache_ctor(void *, compat_kmem_cache *, unsigned long);
+#else
+typedef void compat_kmem_cache_ctor(compat_kmem_cache *, void *);
 #endif
 
 #endif /* __COMPAT_SLAB_H__ */

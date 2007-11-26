@@ -1,7 +1,5 @@
-/*
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- *
- *
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -49,6 +48,12 @@
 #include <time.h>
 #include <grp.h>
 #include <sys/syscall.h>
+#if defined(linux) || defined(HAVE_SYS_USER_H)
+// sys/param.h is required on FreeBSD before sys/user.h
+#   include <sys/param.h>
+// Pull in PAGE_SIZE/PAGE_SHIFT defines ahead of vm_basic_defs.h
+#   include <sys/user.h>
+#endif
 
 #include "vmware.h"
 #include "procMgr.h"

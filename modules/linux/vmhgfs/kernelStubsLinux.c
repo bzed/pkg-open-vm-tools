@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /*
  * kernelStubsLinux.c
@@ -193,6 +193,8 @@ Str_Vasprintf(size_t *length,       // OUT
        * XXX Yes, this could overflow and spin forever when you get near 2GB
        *     allocations. I don't care. --rrdharan
        */
+      va_list args2;
+
       bufSize *= 2;
       buf = realloc(buf, bufSize);
 
@@ -200,8 +202,9 @@ Str_Vasprintf(size_t *length,       // OUT
          return NULL;
       }
 
-      retval = Str_Vsnprintf(buf, bufSize, format, arguments);
-
+      va_copy(args2, arguments);
+      retval = Str_Vsnprintf(buf, bufSize, format, args2);
+      va_end(args2);
    } while (retval == -1);
 
    if (length) {

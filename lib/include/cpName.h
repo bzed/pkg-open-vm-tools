@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * cpName.h --
@@ -30,9 +30,18 @@
 #ifdef __KERNEL__
 #include "driver-config.h"
 #include <linux/string.h>
-#elif !defined(sun)
+#elif !defined(sun) && !defined(__FreeBSD__)
 #include <stdlib.h>
 #include <string.h>
+#endif
+
+#if defined(__FreeBSD__)
+#   if defined(_KERNEL)
+#      include <sys/libkern.h>
+#      define strchr(s,c)       index(s,c)
+#   else
+#      include <string.h>
+#   endif
 #endif
 
 #include "vm_basic_types.h"

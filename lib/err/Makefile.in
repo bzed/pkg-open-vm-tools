@@ -61,7 +61,7 @@ LIBRARIES = $(noinst_LIBRARIES)
 ARFLAGS = cru
 libErr_a_AR = $(AR) $(ARFLAGS)
 libErr_a_LIBADD =
-am_libErr_a_OBJECTS = err.$(OBJEXT)
+am_libErr_a_OBJECTS = err.$(OBJEXT) errPosix.$(OBJEXT)
 libErr_a_OBJECTS = $(am_libErr_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -102,6 +102,9 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DNET_CFLAGS = @DNET_CFLAGS@
+DNET_CONFIG = @DNET_CONFIG@
+DNET_LIBS = @DNET_LIBS@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -136,6 +139,8 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MODULES = @MODULES@
+MODULES_OS = @MODULES_OS@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -209,7 +214,7 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LIBRARIES = libErr.a
-libErr_a_SOURCES = err.c
+libErr_a_SOURCES = err.c errPosix.c
 AM_CFLAGS = @COMMON_CFLAGS@
 all: all-am
 
@@ -259,6 +264,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/err.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/errPosix.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

@@ -23,3 +23,4 @@ libGuestInfo_a_SOURCES += guestInfoPosix.c
 
 AM_CFLAGS =
 AM_CFLAGS += @COMMON_CFLAGS@
+AM_CFLAGS += $(DNET_CFLAGS)

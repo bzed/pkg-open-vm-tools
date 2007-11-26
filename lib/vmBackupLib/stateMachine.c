@@ -1,6 +1,5 @@
-/* *************************************************************************
- * Copyright 2007 VMware, Inc.  All rights reserved. 
- * *************************************************************************
+/*********************************************************
+ * Copyright (C) 2007 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * stateMachine.c --
@@ -48,6 +48,7 @@
 #include "rpcin.h"
 #include "rpcout.h"
 #include "str.h"
+#include "strutil.h"
 #include "util.h"
 
 typedef enum {
@@ -304,7 +305,14 @@ VmBackupAsyncCallback(void *clientData)   // IN
             goto exit;
          }
       } else {
-         finalize = TRUE;
+         /*
+          * Finalize the backup operation, unless the sync provider is still
+          * active. In which case, delay finalization until after the sync
+          * provider is finished cleaning up after itself.
+          */
+         finalize = gBackupState->syncProviderFailed ||
+                    !gBackupState->syncProviderRunning;
+         gBackupState->syncProviderFailed = gBackupState->syncProviderRunning;
       }
    }
 
@@ -315,20 +323,25 @@ VmBackupAsyncCallback(void *clientData)   // IN
     * event.
     */
    if (gBackupState->syncProviderRunning &&
-       gBackupState->snapshotDone &&
+       (gBackupState->snapshotDone ||
+        gBackupState->syncProviderFailed ||
+        gBackupState->clientAborted) &&
        gBackupState->callback == NULL) {
       gBackupState->syncProviderRunning = FALSE;
       gBackupState->pollPeriod = 100;
-      finalize = !VmBackupThaw();
+      finalize = (gBackupState->syncProviderFailed ||
+                  gBackupState->clientAborted ||
+                  !VmBackupThaw());
       goto exit;
    }
 
    /*
-    * If the sync provider is not running anymore, and we don't have
-    * any callbacks to call anymore, it must mean we're finished.
+    * If the sync provider is not running anymore, and either the operation
+    * was aborted by the remote client or we don't have any callbacks to
+    * process anymore, it must mean we're finished.
     */
    finalize = (!gBackupState->syncProviderRunning &&
-               gBackupState->callback == NULL);
+               (gBackupState->callback == NULL || gBackupState->clientAborted));
 
 exit:
    if (finalize) {
@@ -417,7 +430,16 @@ VmBackupStart(char const **result,     // OUT
    gBackupState->pollPeriod = 100;
 
    if (argsSize > 0) {
-      gBackupState->volumes = Util_SafeStrdup(args);
+      int generateManifests = 0;
+      int index = 0;
+
+      if (StrUtil_GetNextIntToken(&generateManifests, &index, args, " ")) {
+         gBackupState->generateManifests = generateManifests;
+      }
+
+      if (args[index] != '\0') {
+         gBackupState->volumes = Util_SafeStrdup(args + index);
+      }
    }
 
    gBackupState->SendEvent(VMBACKUP_EVENT_RESET, VMBACKUP_SUCCESS, "");
@@ -478,10 +500,10 @@ VmBackupAbort(char const **result,     // OUT
          gSyncProvider->abort(gBackupState, gSyncProvider->clientData);
       }
 
+      gBackupState->clientAborted = TRUE;
       gBackupState->SendEvent(VMBACKUP_EVENT_REQUESTOR_ABORT,
                               VMBACKUP_REMOTE_ABORT,
                               "Remote abort.");
-      VmBackupFinalize();
 
       return RpcIn_SetRetVals(result, resultLen, "", TRUE);
    } else {
@@ -518,10 +540,10 @@ VmBackupSnapshotDone(char const **result,    // OUT
    if (gBackupState != NULL) {
       Debug("*** %s\n", __FUNCTION__);
       if (!gSyncProvider->snapshotDone(gBackupState, gSyncProvider->clientData)) {
+         gBackupState->syncProviderFailed = TRUE;
          gBackupState->SendEvent(VMBACKUP_EVENT_REQUESTOR_ERROR,
                                  VMBACKUP_SYNC_ERROR,
                                  "Error when notifying the sync provider.");
-         VmBackupFinalize();
       } else {
          gBackupState->snapshotDone = TRUE;
       }

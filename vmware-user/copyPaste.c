@@ -1,6 +1,5 @@
-/* **************************************************************************
- * Copyright (C) 2005 VMware, Inc. All Rights Reserved 
- * **************************************************************************
+/*********************************************************
+ * Copyright (C) 2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * copyPaste.c --
@@ -279,19 +279,40 @@ CopyPaste_RequestSelection(void)
 
    /* Only send out request if we are not the owner. */
    if (!gIsOwner) {
+      /* Try to get utf8 text from primary and clipboard. */
       gWaitingOnGuestSelection = TRUE;
       gtk_selection_convert(gUserMainWidget,
                             GDK_SELECTION_PRIMARY,
-                            GDK_SELECTION_TYPE_STRING,
+                            GDK_SELECTION_TYPE_UTF8_STRING,
                             GDK_CURRENT_TIME);
       while (gWaitingOnGuestSelection) gtk_main_iteration();
 
       gWaitingOnGuestSelection = TRUE;
       gtk_selection_convert(gUserMainWidget,
                             GDK_SELECTION_CLIPBOARD,
-                            GDK_SELECTION_TYPE_STRING,
+                            GDK_SELECTION_TYPE_UTF8_STRING,
                             GDK_CURRENT_TIME);
       while (gWaitingOnGuestSelection) gtk_main_iteration();
+
+      if (gGuestSelPrimaryBuf[0] == '\0' && gGuestSelClipboardBuf[0] == '\0') {
+         /*
+          * If we cannot get utf8 text, try to get localized text from primary
+          * and clipboard.
+          */
+         gWaitingOnGuestSelection = TRUE;
+         gtk_selection_convert(gUserMainWidget,
+                               GDK_SELECTION_PRIMARY,
+                               GDK_SELECTION_TYPE_STRING,
+                               GDK_CURRENT_TIME);
+         while (gWaitingOnGuestSelection) gtk_main_iteration();
+
+         gWaitingOnGuestSelection = TRUE;
+         gtk_selection_convert(gUserMainWidget,
+                               GDK_SELECTION_CLIPBOARD,
+                               GDK_SELECTION_TYPE_STRING,
+                               GDK_CURRENT_TIME);
+         while (gWaitingOnGuestSelection) gtk_main_iteration();
+      }
    }
    /* Send text to host. */
    Debug("CopyPaste_RequestSelection: Prim is [%s], Clip is [%s]\n",

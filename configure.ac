@@ -24,7 +24,7 @@
 
 AC_INIT(
    [open-vm-tools],
-   [2007.09.04-56574],
+   [2007.11.21-64693],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -64,6 +64,14 @@ case "$host_cpu" in
       ;;
 esac
 
+# Turn the uname output into something we can run comparisons on.
+getOsVersion() {
+   major_version="`uname -r | cut -f1 -d. | cut -f1 -d-`"
+   minor_version="`uname -r | cut -f2 -d. | cut -f1 -d-`"
+   micro_version="`uname -r | cut -f3 -d. | cut -f1 -d-`"
+   printf '%02d%02d%03d' $major_version $minor_version $micro_version
+}
+
 case "$host_os" in
    [linux*])
       os="linux"
@@ -73,22 +81,17 @@ case "$host_os" in
       ;;
    [solaris*])
       os="solaris"
-      case "$host_os" in
-         # We treat 10 and 11/OpenSolaris the same.
-         [solaris2.1[01]*])
-         osVersion="10"
-         ;;
-      esac
       ;;
    [*])
-      AC_MSG_ERROR([Unported Operating System.])
+      AC_MSG_WARN([This is an untested and unsupported Operating System. Proceed at your own peril.])
       ;;
 esac
+osVersion="`getOsVersion`"
 
 AC_ARG_ENABLE(
    multimon,
    AS_HELP_STRING(
-      [--disable-multimon], 
+      [--disable-multimon],
       [Disables multimon, enabled by default]),
    [MULTIMON_ENABLED="$enableval"],
    [MULTIMON_ENABLED="yes"])
@@ -101,10 +104,6 @@ AM_INIT_AUTOMAKE
 # These need to be declared after initialization.
 
 CFLAGS="$CFLAGS -DUSING_AUTOCONF=1"
-
-AC_PATH_XTRA
-LIBS="$LIBS $X_LIBS"
-CFLAGS="$CFLAGS $X_CFLAGS"
 
 ###
 ### Programs
@@ -129,41 +128,129 @@ fi
 ### Libraries
 ###
 
-COMMON_XLIBS="-lX11"
-COMMON_XLIBS="-lXext $COMMON_XLIBS"
+AC_PATH_XTRA
 
-if test "$MULTIMON_ENABLED" != "no"; then
+# If the user explicitly disables X11, then don't try to detect the X-related libraries
+if test "$have_x" = "disabled"; then
+   MULTIMON_ENABLED="no"
+elif test "$have_x" != "yes"; then
+   AC_MSG_ERROR(
+      [The X11 libraries were not found. Please configure without X11 (using --without-x), or install the libX11 devel package(s).])
+else
+   LIBS="$LIBS $X_LIBS"
+   CFLAGS="$CFLAGS $X_CFLAGS"
+   COMMON_XLIBS="-lX11"
+   COMMON_XLIBS="-lXext $COMMON_XLIBS"
+
+   if test "$MULTIMON_ENABLED" != "no"; then
+      AC_CHECK_LIB(
+	 [Xinerama],
+	 [XineramaQueryVersion],
+	 [COMMON_XLIBS="-lXinerama $COMMON_XLIBS"],
+	 [AC_MSG_ERROR(
+	    [libXinerama not found. Please configure without multimon (using --disable-multimon), configure without X11 (using --without-x), or install the libXinerama devel package(s).])],
+	 [$COMMON_XLIBS])
+   fi
+
    AC_CHECK_LIB(
-      [Xinerama],
-      [XineramaQueryVersion],
-      [COMMON_XLIBS="-lXinerama $COMMON_XLIBS"],
+      [Xrandr],
+      [XRRQueryVersion],
+      [COMMON_XLIBS="-lXrandr $COMMON_XLIBS"
+       COMMON_XLIBS="-lXrender $COMMON_XLIBS"],
       [AC_MSG_ERROR(
-         [libXinerama not found. Please configure without multimon (using --disable-multimon) or install the libXinerama devel package(s).])],
+	 [libXrandr not found. Please configure without X11 (using --without-x) or install the libXrandr devel package(s).])],
+      [-lXrender $COMMON_XLIBS])
+
+   AC_CHECK_LIB(
+      [Xtst],
+      [XTestQueryExtension],
+      [COMMON_XLIBS="-lXtst $COMMON_XLIBS"],
+      [AC_MSG_ERROR(
+	 [libXtst not found. Please configure without X11 (using --without-x) or install the libXtst devel package(s).])],
       [$COMMON_XLIBS])
-fi
 
-AC_CHECK_LIB(
-   [Xrandr],
-   [XRRQueryVersion],
-   [COMMON_XLIBS="-lXrandr $COMMON_XLIBS"
-    COMMON_XLIBS="-lXrender $COMMON_XLIBS"],
-   [AC_MSG_ERROR(
-      [libXrandr not found. Please install the libXrandr devel package(s).])],
-   [-lXrender $COMMON_XLIBS])
-# The other XRR functions we use are XRRGetScreenInfo, XRRConfigSizes,
-# XRRConfigCurrentConfiguration, XRRSetScreenConfig, and XRRFreeScreenConfigInfo.
+   if test -n "$CUSTOM_GTK_CFLAGS" -o -n "$CUSTOM_GTK_LIBS"; then
+   # Check to see if we have some version of GTK. gtk_accel_group_add
+   # is a random function that is present in Gtk 1.2 but not Gtk
+   # 2.0. Similarly, gtk_tree_view_new is a random function in Gtk 2.0
+   # which is not present in Gtk 1.2.
+      AC_CHECK_LIB(
+	 [gtk],
+	 [gtk_accel_group_add],
+	 [HAVE_GTK1="yes"],,
+	 [$CUSTOM_GTK_LIBS])
+      AC_CHECK_LIB(
+	 [gtk-x11-2.0],
+	 [gtk_tree_view_new],
+	 [HAVE_GTK2="yes"],,
+	 [$CUSTOM_GTK_LIBS])
+   fi
 
-AC_CHECK_LIB(
-   [Xtst],
-   [XTestQueryExtension],
-   [COMMON_XLIBS="-lXtst $COMMON_XLIBS"],
-   [AC_MSG_ERROR(
-      [libXtst not found. Please install the libXtst devel package(s).])],
-   [$COMMON_XLIBS])
-# The other XTest functions we user are XTestFakeMotionEvent, XTestFakeButtonEvent,
-# and XTestFakeKeyEvent.
+   # Sometimes pkg-config can find stuff that AC_CHECK_LIB can't, so we use that as well.
+   if test "$HAVE_PKG_CONFIG" = "yes"; then
+      AC_MSG_CHECKING([for Gtk+ 2.0 (via pkg-config)])
+      if pkg-config --exists gtk+-2.0; then
+	 HAVE_GTK2="yes"
+         AC_MSG_RESULT([yes])
+      else
+         AC_MSG_RESULT([no])
+      fi
 
-AC_SUBST([COMMON_XLIBS])
+      AC_MSG_CHECKING([for Gtk+ 1.x (via pkg-config)])
+      # The latter half of the test is because pkg-config's fallback
+      # to gtk-config is broken on systems such as Ubuntu that use
+      # bash-completion for unknown commands. (On Ubuntu, typing
+      # 'gtk-config' on a system that doesn't have libgtk1.2-dev
+      # installed outputs hints about using apt-get, in addition to the
+      # regular bash "command not found" message.)
+      if pkg-config --exists gtk+ \
+	 && test -n "`pkg-config --libs gtk+ 2>/dev/null | grep -v '^ *$'`"; then
+	 HAVE_GTK1="yes"
+         AC_MSG_RESULT([yes])
+      else
+         AC_MSG_RESULT([no])
+      fi
+   fi
+
+   if test "$HAVE_GTK1" = "yes" -o "$HAVE_GTK2" = "yes"; then
+      # This bit is to fix builds on OpenSolaris B71, where
+      # 'pkg-config --cflags gtk+-2.0' gives an error.
+      if test "$HAVE_GTK2" = "yes" -a "$HAVE_PKG_CONFIG" = "yes" \
+	 && ! pkg-config --exists gtk+-2.0 \
+	 && test -z "$CUSTOM_GTK_CFLAGS" -a -z "$CUSTOM_GTK_LIBS"; then
+         HAVE_GTK2="no"
+      fi
+
+      if test "$HAVE_GTK2" = "yes"; then
+      # Gtk 2.0
+	 GTK_CFLAGS="$GTK_CFLAGS -DGTK2"
+	 gtkPackageName="gtk+-2.0"
+      elif test "$HAVE_GTK1" = "yes"; then
+      # Gtk 1.2
+	 gtkPackageName="gtk+"
+      else
+      # We found Gtk+ 2.0 that turned out to have a non-working
+      # pkg-config setup, AND Gtk 1.2 wasn't installed.
+	 AC_MSG_ERROR([The Gtk+ library installed on your system is not fully functional. Please contact your OS vendor.])
+      fi
+
+      # Prefer flags specified, in the environment, by the user.
+      if test -n "$CUSTOM_GTK_CFLAGS" -o -n "$CUSTOM_GTK_LIBS"; then
+	 GTK_CFLAGS="$GTK_CFLAGS $CUSTOM_GTK_CFLAGS"
+	 GTK_LIBS="$GTK_LIBS $CUSTOM_GTK_LIBS"
+      # Use pkg-config if available and there are no user-specified flags.
+      elif test "$HAVE_PKG_CONFIG" = "yes"; then
+	 GTK_CFLAGS="$GTK_CFLAGS $(pkg-config --cflags $gtkPackageName)"
+	 GTK_LIBS="$GTK_LIBS $(pkg-config --libs $gtkPackageName)"
+      # Otherwise, we have a problem.
+      else
+	 AC_MSG_ERROR([pkg-config not found. Get pkg-config or set CUSTOM_GTK_CFLAGS and CUSTOM_GTK_LIBS to specify gtk header file and library locations.])
+      fi
+
+   else
+      AC_MSG_ERROR([libgtk not found. Please install the gtk devel package(s).])
+   fi
+fi # End of checks for X libraries
 
 AC_CHECK_LIB(
    [crypt],
@@ -194,60 +281,48 @@ AC_CHECK_LIB(
    [AC_MSG_ERROR(
       [libpthread not found. Please install the libc/libpthread devel package(s).])])
 
-# Check to see if we have some version of GTK. gtk_drag_get_data was chosen as the
-# test funtion largely at random.
-AC_CHECK_LIB(
-   [gtk],
-   [gtk_drag_get_data],
-   [HAVE_SOME_GTK="yes"])
-AC_CHECK_LIB(
-   [gtk-x11-2.0],
-   [gtk_drag_get_data],
-   [HAVE_SOME_GTK="yes"])
-if test "$HAVE_SOME_GTK" = "yes"; then
-   # Now test specifically for a function found only in gtk2.
-   AC_CHECK_LIB(
-      [gdk-x11-2.0],
-      [gdk_x11_atom_to_xatom],
-      [HAVE_GTK2="yes"])
+if test "$os" = "solaris"; then
+   # libdnet is needed on Solaris to build guestInfoPosix.c.
 
-   if test "$HAVE_GTK2" = "yes"; then
-      GTK_CFLAGS="$GTK_CFLAGS -DGTK2"
+   AC_PATH_PROG(
+      [DNET_CONFIG],
+      [dnet-config],
+      [no])
 
-      gtkPackageName="gtk+-2.0"
-   # It must be gtk1.2 otherwise.
-   else
-      gtkPackageName="gtk+"
+   if test "$DNET_CONFIG" = "no"; then
+      AC_MSG_ERROR(
+	 [dnet-config was not found on your PATH. libdnet must be installed in order to build open-vm-tools on Solaris. See http://libdnet.sourceforge.net/])
    fi
 
-   # Prefer flags specified, in the environment, by the user.
-   if test -n "$CUSTOM_GTK_CFLAGS" || test -n "$CUSTOM_GTK_LIBS"; then
-      GTK_CFLAGS="$GTK_CFLAGS $CUSTOM_GTK_CFLAGS"
-      GTK_LIBS="$GTK_LIBS $CUSTOM_GTK_LIBS"
-   # Use pkg-config if available and there are no user-specified flags.
-   elif test "$HAVE_PKG_CONFIG" = "yes"; then
-      GTK_CFLAGS="$GTK_CFLAGS $(pkg-config --cflags $gtkPackageName)"
-      GTK_LIBS="$GTK_LIBS $(pkg-config --libs $gtkPackageName)"
-   # Otherwise, we have a problem.
-   else
-      AC_MSG_ERROR([pkg-config not found. Get pkg-config or set CUSTOM_GTK_CFLAGS and CUSTOM_GTK_LIBS to specify gtk header file and library locations.])
-   fi
+   DNET_CFLAGS="`$DNET_CONFIG --cflags`"
+   DNET_LIBS="`$DNET_CONFIG --libs`"
 
-   AC_SUBST([GTK_CFLAGS])
-   AC_SUBST([GTK_LIBS])
-else
-   AC_MSG_ERROR([libgtk not found. Please install the gtk devel package(s).])
+   GUESTD_LDFLAGS="$GUESTD_LDFLAGS $DNET_LIBS"
+   VMWARE_USER_LDFLAGS="$VMWARE_USER_LDFLAGS $DNET_LIBS"
 fi
 
 ###
 ### Headers
 ###
 
-AC_CHECK_HEADERS([wchar.h])
-AC_CHECK_HEADERS([inttypes.h])
 AC_CHECK_HEADERS([crypt.h])
+AC_CHECK_HEADERS([inttypes.h])
+AC_CHECK_HEADERS([stdint.h])
+AC_CHECK_HEADERS([stdlib.h])
+AC_CHECK_HEADERS([wchar.h])
+AC_CHECK_HEADERS([sys/inttypes.h])
 AC_CHECK_HEADERS([sys/io.h])
+AC_CHECK_HEADERS([sys/param.h]) # Required to make the sys/user.h check work correctly on FreeBSD
 AC_CHECK_HEADERS([sys/sysinfo.h])
+AC_CHECK_HEADERS([sys/types.h])
+AC_CHECK_HEADERS([sys/user.h],
+   [],
+   [],
+   [
+#ifdef HAVE_SYS_PARAM_H
+#   include <sys/param.h>
+#endif
+   ])
 AC_CHECK_HEADERS([sys/vfs.h])
 AC_CHECK_HEADERS([syslimits.h])
 
@@ -348,28 +423,25 @@ if test "$os" = "linux"; then
    AC_MSG_RESULT($HAVE_SETRESUID)
 fi
 
-# GCC will fail if it doesn't know about the -Wno-pointer-sign flag.
-AC_MSG_CHECKING([for GCC flag -Wno-pointer-sign])
-CFLAGS="$CFLAGS -Wno-pointer-sign"
-AC_TRY_COMPILE(
-   [],
-   [
-      return 0;
-   ],
-   [HAVE_W_NO_POINTER_SIGN="yes"],
-   [HAVE_W_NO_POINTER_SIGN="no"])
-CFLAGS="$ORIGINAL_CFLAGS"
-AC_MSG_RESULT($HAVE_W_NO_POINTER_SIGN)
-
 ### General flags / actions
-
 COMMON_CFLAGS="$COMMON_CFLAGS -Wall"
 COMMON_CFLAGS="$COMMON_CFLAGS -Werror"
+
 # -Wno-unknown-pragmas is due to gcc not understanding '#pragma ident' in Xlib.h on OpenSolaris.
-COMMON_CFLAGS="$COMMON_CFLAGS -Wno-unknown-pragmas"
-COMMON_CFLAGS="$COMMON_CFLAGS -Wno-uninitialized"
-COMMON_CFLAGS="$COMMON_CFLAGS -fno-strict-aliasing"
-COMMON_CFLAGS="$COMMON_CFLAGS -Wno-unused-value"
+for TEST_CFLAG in -Wno-pointer-sign -Wno-unused-value -fno-strict-aliasing \
+    -Wno-unknown-pragmas -Wno-uninitialized; do
+    AC_MSG_CHECKING([for GCC flag $TEST_CFLAG])
+    CFLAGS="$CFLAGS $TEST_CFLAG"
+    AC_TRY_COMPILE(
+       [],
+       [
+	return 0;
+       ],
+   [COMMON_CFLAGS="$COMMON_CFLAGS $TEST_CFLAG"
+    AC_MSG_RESULT(yes)],
+   [AC_MSG_RESULT(no)])
+   CFLAGS="$ORIGINAL_CFLAGS"
+done
 COMMON_CFLAGS="$COMMON_CFLAGS -DVMX86_TOOLS"
 
 INCLUDE_DIR="`cd $srcdir; pwd`/lib/include"
@@ -377,16 +449,40 @@ COMMON_CFLAGS="$COMMON_CFLAGS -I$INCLUDE_DIR"
 
 ### OS/arch-specific flags / actions
 
+MODULES=""
+MODULES_OS="$os"
+buildHgfsmounter=no
+
 if test "$os" = "linux"; then
    COMMON_CFLAGS="$COMMON_CFLAGS -D_FILE_OFFSET_BITS=64"
    COMMON_CFLAGS="$COMMON_CFLAGS -D_LARGEFILE64_SOURCE"
    COMMON_CFLAGS="$COMMON_CFLAGS -D_XOPEN_SOURCE=500"
    COMMON_CFLAGS="$COMMON_CFLAGS -D_BSD_SOURCE"
    COMMON_CFLAGS="$COMMON_CFLAGS -D_SVID_SOURCE"
+
+   if test "$osVersion" -ge 202000; then
+      MODULES="$MODULES vmxnet vmmemctl"
+   fi
+   if test "$osVersion" -ge 204000; then
+      MODULES="$MODULES vmhgfs vmblock"
+      buildHgfsmounter=yes
+   fi
+   if test "$osVersion" -ge 206006; then
+      MODULES="$MODULES vmsync"
+   fi
 fi
 
-if test "$os$osVersion" = "solaris10"; then
-   COMMON_CFLAGS="$COMMON_CFLAGS -DSOL10"
+if test "$os" = "freebsd"; then
+   if test "$osVersion" -gt 302000; then
+      MODULES="$MODULES vmmemctl"
+   fi
+   if test "$osVersion" -gt 409000; then
+      MODULES="$MODULES vmxnet"
+   fi
+   if test "$osVersion" -gt 600000; then
+      MODULES="$MODULES vmhgfs vmblock"
+      buildHgfsmounter=yes
+   fi
 fi
 
 if test "$os" = "solaris"; then
@@ -401,11 +497,18 @@ if test "$os" = "solaris"; then
    VMWARE_USER_LDFLAGS="$VMWARE_USER_LDFLAGS -lX11"
    VMWARE_USER_LDFLAGS="$VMWARE_USER_LDFLAGS -lsocket"
    VMWARE_USER_LDFLAGS="$VMWARE_USER_LDFLAGS -lnsl"
+
+   # uname -r on Solaris 10 reports "5.10"
+   if test "$osVersion" -ge 510000; then
+      COMMON_CFLAGS="$COMMON_CFLAGS -DSOL10"
+   fi
 fi
 
+AM_CONDITIONAL(BUILD_HGFSMOUNTER, test "$buildHgfsmounter" = "yes")
 AM_CONDITIONAL(LINUX, test "$os" = "linux")
 AM_CONDITIONAL(SOLARIS, test "$os" = "solaris")
 AM_CONDITIONAL(THIRTY_TWO_BIT_USERSPACE, test "$userSpaceBitness" = "32")
+AM_CONDITIONAL(HAVE_X11, test "$have_x" = "yes")
 
 ### Feature-specific flags / actions
 # Combine where possible
@@ -417,7 +520,7 @@ if test "$MULTIMON_ENABLED" = "no"; then
    AC_DEFINE([NO_MULTIMON], 1)
 fi
 
-if test "$os$userSpaceBitness" = "linux64" || test "$HAVE_SYS_SETUID" = "yes" ; then
+if test "$os$userSpaceBitness" = "linux64" || test "$HAVE_SYS_SETUID" = "yes"; then
    LIB_MISC_CFLAGS="$LIB_MISC_CFLAGS -DGLIBC_VERSION_21"
 fi
 
@@ -442,14 +545,17 @@ if test "$HAVE_WCHAR_H" = "yes"; then
    LIB_STRING_CFLAGS="$LIB_STRING_CFLAGS -DGLIBC_VERSION_22"
 fi
 
-if test "$HAVE_W_NO_POINTER_SIGN" = "yes"; then
-   COMMON_CFLAGS="$COMMON_CFLAGS -Wno-pointer-sign"
-fi
-
 ### General substs
 
+AC_SUBST([MODULES_OS])
+AC_SUBST([MODULES])
 AC_SUBST([COMMON_CFLAGS])
 AC_SUBST([COMMON_PROG_CFLAGS])
+AC_SUBST([COMMON_XLIBS])
+AC_SUBST([GTK_CFLAGS])
+AC_SUBST([GTK_LIBS])
+AC_SUBST([DNET_CFLAGS])
+AC_SUBST([DNET_LIBS])
 
 ### Lib substs
 
@@ -533,6 +639,8 @@ AC_CONFIG_FILES([                      \
    hgfsmounter/Makefile                \
    checkvm/Makefile                    \
    libguestlib/Makefile                \
+   xferlogs/Makefile                   \
+   modules/Makefile                    \
 ])
 
 ###

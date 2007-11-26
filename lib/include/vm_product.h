@@ -1,7 +1,5 @@
-/* **********************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved.
- * 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 #ifndef VM_PRODUCT_H
@@ -97,6 +96,9 @@
 #define PRODUCT_VMLS_SHORT_NAME "VMLS"
 #define PRODUCT_VMLS_NAME MAKE_NAME("License Server")
 
+#define PRODUCT_LICENSE_SHORT_NAME "LICENSE"
+#define PRODUCT_LICENSE_NAME MAKE_NAME("License Infrastructure")
+
 #define PRODUCT_P2V_SHORT_NAME "P2V"
 #define PRODUCT_P2V_NAME MAKE_NAME("P2V Assistant")
 
@@ -121,8 +123,6 @@
 #define PRODUCT_WBC_NAME MAKE_NAME("WebCenter")
 
 #define PRODUCT_SDK_NAME MAKE_NAME("SDK")
-
-#define PRODUCT_DTX_NAME MAKE_NAME("DTX")
 
 #define PRODUCT_DDK_NAME MAKE_NAME("ESX DDK")
 
@@ -157,8 +157,8 @@
       || defined(VMX86_SYSIMAGE) \
       || defined(VMX86_VCB)      \
       || defined(VMX86_VMLS)     \
+      || defined(VMX86_LICENSE)  \
       || defined(VMX86_P2V)      \
-      || defined(VMX86_DTX)      \
       || defined(VMX86_DDK))
 #   if defined(_WIN32)
       /*
@@ -218,8 +218,8 @@
 # define PRODUCT_SHORT_NAME PRODUCT_VCB_NAME
 #elif defined(VMX86_VMLS)
 # define PRODUCT_SHORT_NAME PRODUCT_VMLS_NAME
-#elif defined(VMX86_DTX)
-# define PRODUCT_SHORT_NAME PRODUCT_DTX_NAME
+#elif defined(VMX86_LICENSE)
+# define PRODUCT_SHORT_NAME PRODUCT_LICENSE_NAME
 #elif defined(VMX86_DDK)
 # define PRODUCT_SHORT_NAME PRODUCT_DDK_NAME
 #endif

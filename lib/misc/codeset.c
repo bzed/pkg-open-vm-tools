@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * codeset.c --
@@ -48,6 +48,7 @@
 #      endif
 #      if defined(__APPLE__)
 #         define CURRENT_IS_UTF8
+#         include <CoreFoundation/CoreFoundation.h> /* for CFString */
 #      endif
 #   endif
 #endif
@@ -521,6 +522,105 @@ CodeSetUtf16leToCurrent(char const *bufIn,     // IN
    return CodeSetDynBufFinalize(ok, &db, bufOut, sizeOut);
 }
 #endif
+
+
+#if defined(__APPLE__)
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * CodeSetUtf8Normalize --
+ *
+ *    Convert the content of a buffer (that uses the UTF-8 encoding) into
+ *    another buffer (that uses the UTF-8 encoding) that is in precomposed
+      (Normalization Form C) or decomposed (Normalization Form D).
+ *
+ * Results:
+ *    TRUE on success: '*bufOut' contains a NUL terminated buffer.
+ *                     If not NULL, '*sizeOut' contains the size of the buffer
+ *                     (excluding the NUL terminator)
+ *    FALSE on failure
+ *
+ * Side effects:
+ *    '*bufOut' contains the allocated, NUL terminated buffer.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+CodeSetUtf8Normalize(char const *bufIn,     // IN
+                     size_t sizeIn,         // IN
+                     Bool precomposed,      // IN
+                     DynBuf *db)            // OUT
+{
+   Bool ok = FALSE;
+   CFStringRef str = NULL;
+   CFMutableStringRef mutStr = NULL;
+   CFIndex len, lenMut;
+   size_t initialSize = DynBuf_GetSize(db);
+
+   str = CFStringCreateWithCString(NULL,
+                                   bufIn,
+                                   kCFStringEncodingUTF8);
+   if (str == NULL) {
+      goto exit;
+   }
+
+   mutStr = CFStringCreateMutableCopy(NULL, 0, str);
+   if (mutStr == NULL) {
+      goto exit;
+   }
+
+   /*
+    * Normalize the string, Form C - precomposed or D, not.
+    */
+   CFStringNormalize(mutStr, 
+                     (precomposed ? kCFStringNormalizationFormC :
+                     kCFStringNormalizationFormD));
+
+   /* 
+    * Get the number (in terms of UTF-16 code units) 
+    * of characters in a string.
+    */
+   lenMut = CFStringGetLength(mutStr);
+
+   /*
+    * Retrieve the maximum number of bytes a string of a 
+    * specified length (in UTF-16 code units) will take up 
+    * if encoded in a specified encoding.
+    */
+   len = CFStringGetMaximumSizeForEncoding(lenMut,
+                                           kCFStringEncodingUTF8);
+   if (len + 1 > initialSize) {
+      if (DynBuf_Enlarge(db, len + 1 - initialSize) == FALSE) {
+         ok = FALSE;
+         goto exit;
+      }
+   }
+
+   /*
+    * Copies the character contents of a string to a local C 
+    * string buffer after converting the characters to UTF-8.
+    */
+   ok = CFStringGetCString(mutStr, 
+                           (char *)DynBuf_Get(db),
+                           len + 1, 
+                           kCFStringEncodingUTF8);
+   if (ok) {
+      /* Remove the NUL terminator that the above includes. */
+      DynBuf_SetSize(db, strlen((char *)DynBuf_Get(db)));
+   }
+
+exit:
+   if (str) {
+      CFRelease(str);
+   }
+   if (mutStr) {
+      CFRelease(mutStr);
+   }
+
+   return ok;
+}
+#endif /* defined(__APPLE__) */
 
 
 #ifdef USE_ICONV
@@ -1104,6 +1204,86 @@ CodeSet_Utf8ToUtf16le(char const *bufIn,     // IN
    ok = CodeSetUtf8ToUtf16le(bufIn, sizeIn, &db);
 #endif
    return CodeSetDynBufFinalize(ok, &db, bufOut, sizeOut);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * CodeSet_Utf8FormDToUtf8FormC  --
+ *
+ *    Convert the content of a buffer (that uses the UTF-8 encoding) 
+ *    which is in normal form D (decomposed) into another buffer
+ *    (that uses the UTF-8 encoding) and is normalized as
+ *    precomposed (Normalization Form C).
+ *
+ * Results:
+ *    TRUE on success: '*bufOut' contains a NUL terminated buffer.
+ *                     If not NULL, '*sizeOut' contains the size of the buffer
+ *                     (excluding the NUL terminator)
+ *    FALSE on failure
+ *
+ * Side effects:
+ *    '*bufOut' contains the allocated, NUL terminated buffer.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+CodeSet_Utf8FormDToUtf8FormC(char const *bufIn,     // IN
+                             size_t sizeIn,         // IN
+                             char **bufOut,         // OUT
+                             size_t *sizeOut)       // OUT
+{
+#if defined(__APPLE__)
+   DynBuf db;
+   Bool ok;
+   DynBuf_Init(&db);
+   ok = CodeSetUtf8Normalize(bufIn, sizeIn, TRUE, &db);
+   return CodeSetDynBufFinalize(ok, &db, bufOut, sizeOut);
+#else
+   NOT_IMPLEMENTED();
+#endif
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * CodeSet_Utf8FormCToUtf8FormD  --
+ *
+ *    Convert the content of a buffer (that uses the UTF-8 encoding) 
+ *    which is in normal form C (precomposed) into another buffer
+ *    (that uses the UTF-8 encoding) and is normalized as
+ *    decomposed (Normalization Form D).
+ *
+ * Results:
+ *    TRUE on success: '*bufOut' contains a NUL terminated buffer.
+ *                     If not NULL, '*sizeOut' contains the size of the buffer
+ *                     (excluding the NUL terminator)
+ *    FALSE on failure
+ *
+ * Side effects:
+ *    '*bufOut' contains the allocated, NUL terminated buffer.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+CodeSet_Utf8FormCToUtf8FormD(char const *bufIn,     // IN
+                             size_t sizeIn,         // IN
+                             char **bufOut,         // OUT
+                             size_t *sizeOut)       // OUT
+{
+#if defined(__APPLE__)
+   DynBuf db;
+   Bool ok;
+   DynBuf_Init(&db);
+   ok = CodeSetUtf8Normalize(bufIn, sizeIn, FALSE, &db);
+   return CodeSetDynBufFinalize(ok, &db, bufOut, sizeOut);
+#else
+   NOT_IMPLEMENTED();
+#endif
 }
 
 

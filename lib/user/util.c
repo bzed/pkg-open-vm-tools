@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * util.c --
@@ -517,10 +517,14 @@ UtilDoTildeSubst(char *user)  // IN - name of user
  *-----------------------------------------------------------------------------
  */
 
-static INLINE 
+static INLINE
 pid_t gettid(void)
 {
+#if defined(SYS_gettid)
    return (pid_t)syscall(SYS_gettid);
+#else
+   return -1;
+#endif
 }
 #endif
 

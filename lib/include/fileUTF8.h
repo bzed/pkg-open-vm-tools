@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved. - 
- * *********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * fileUTF8.h --
@@ -58,11 +58,17 @@ EXTERN Bool FileUTF8_IsSymLink(char const *utf8Name);
 
 EXTERN Bool FileUTF8_Exists(const char *name);
 
+EXTERN Bool FileUTF8_GetTimes(const char *fileName,
+                              VmTimeType *createTime,
+                              VmTimeType *accessTime,
+                              VmTimeType *writeTime,
+                              VmTimeType *attrChangeTime);
+
 EXTERN Bool FileUTF8_SetTimes(const char *fileName,
-                              VmTimeType createTime,      // IN: Windows NT time format
-                              VmTimeType accessTime,      // IN: Windows NT time format
-                              VmTimeType writeTime,       // IN: Windows NT time format
-                              VmTimeType attrChangeTime); // IN: ignored
+                              VmTimeType createTime,
+                              VmTimeType accessTime,
+                              VmTimeType writeTime,
+                              VmTimeType attrChangeTime);
 
 EXTERN Bool FileUTF8_DeleteDirectoryTree(char const *utf8Name);
 

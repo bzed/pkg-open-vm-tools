@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * vm_atomic.h --
@@ -152,6 +152,7 @@ AtomicEpilogue(void)
 {
 // The freebsd assembler doesn't know the lfence instruction
 #if defined(__GNUC__) &&                                                \
+     __GNUC__ >= 3 &&                                                   \
     !defined(BSD_VERSION) &&                                            \
     (!defined(MODULE) || defined(__VMKERNEL_MODULE__)) &&               \
     !defined(__APPLE__) /* PR136775 */
@@ -1435,6 +1436,20 @@ Atomic_CMPXCHG64(Atomic_uint64 *var,   // IN/OUT
 #else /* 32-bit version */
    int dummy1, dummy2;
 #   if defined __PIC__ && !vm_x86_64 // %ebx is reserved by the compiler.
+#      if defined __GNUC__ && __GNUC__ < 3 // Part of #188541 - for RHL 6.2 etc.
+   __asm__ __volatile__(
+      "xchg %%ebx, %6\n\t"
+      "mov (%%ebx), %%ecx\n\t"
+      "mov (%%ebx), %%ebx\n\t"
+      "lock; cmpxchg8b (%3)\n\t"
+      "xchg %%ebx, %6\n\t"
+      "sete %0"
+      : "=a" (equal), "=d" (dummy2), "=D" (dummy1)
+      : "S" (var), "0" (((S_uint64 const *)oldVal)->lowValue),
+        "1" (((S_uint64 const *)oldVal)->highValue), "D" (newVal)
+      : "ecx", "cc", "memory"
+      );
+#      else
    __asm__ __volatile__(
       "xchgl %%ebx, %6"      "\n\t"
       // %3 is a register to make sure it cannot be %ebx-relative.
@@ -1453,6 +1468,7 @@ Atomic_CMPXCHG64(Atomic_uint64 *var,   // IN/OUT
         "c" (((S_uint64 const *)newVal)->highValue)
       : "cc", "memory"
    );
+#      endif
 #   else
    __asm__ __volatile__(
       "lock; cmpxchg8b %0" "\n\t"

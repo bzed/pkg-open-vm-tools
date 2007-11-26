@@ -1,7 +1,5 @@
-/*
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- *
- *
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -68,6 +67,7 @@
 #include "debug.h"
 #include "guestApp.h"
 #include "util.h"
+#include "str.h"
 
 #define MAX_IFACES      4
 #define LOOPBACK        "lo"
@@ -238,3 +238,54 @@ NetUtil_GetPrimaryIP(void)
    return (ipstr[0] == '\0') ? NULL : strdup(ipstr);
 }
 #endif /* } */
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NetUtil_GetPrimaryNicEntry --
+ *
+ *      Get the primary Nic entry for this machine. Primary Nic is the 
+ *      first interface that comes up when you do a ifconfig.
+ *
+ * Results:
+ *      The primary NIC entry or NULL if an error occurred. In nicEntry
+ *      returned, only IP address is retuend. All other fields remain zero. 
+ *
+ * Side effects:
+ *      Memory is allocated for the returned NicEntry. Caller is 
+ *      supposed to free it after use.
+ *
+ *----------------------------------------------------------------------
+ */
+
+NicEntry *
+NetUtil_GetPrimaryNicEntry(void)
+{
+   NicEntry *nicEntry = NULL;
+   VmIpAddressEntry *ipAddressEntry;
+   char *ipstr;
+
+   ipstr = NetUtil_GetPrimaryIP();
+   if (NULL == ipstr) {
+      goto abort;
+   }
+
+   nicEntry = Util_SafeCalloc(1, sizeof *nicEntry);
+   DblLnkLst_Init(&nicEntry->ipAddressList);
+   ipAddressEntry = Util_SafeCalloc(1, sizeof *ipAddressEntry);
+   DblLnkLst_Init(&ipAddressEntry->links);
+   DblLnkLst_LinkLast(&nicEntry->ipAddressList, &ipAddressEntry->links);
+
+   /*
+    *  Now, record these values in nicEntry.
+    */
+   Str_Strcpy(ipAddressEntry->ipEntryProto.ipAddress, 
+              ipstr,
+              sizeof ipAddressEntry->ipEntryProto.ipAddress);
+
+   free(ipstr);
+
+abort:
+   return nicEntry;
+}

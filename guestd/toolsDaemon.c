@@ -1,6 +1,5 @@
-/*
- * Copyright 2001 VMware, Inc.  All rights reserved. 
- *
+/*********************************************************
+ * Copyright (C) 2001 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -959,6 +959,11 @@ ToolsDaemonTcloCapReg(char const **result,     // OUT
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_set 1")) {
       Debug("ToolsDaemonTcloCapReg: Unable to register resolution set capability\n");
    }
+   /* Tell the VMX to send resolution updates to the tools daemon */
+   if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_server %s 1",
+		       TOOLS_DAEMON_NAME)) {
+      Debug("ToolsDaemonTcloCapReg: Unable to register resolution server capability\n");
+   }
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.display_topology_set 1")) {
       Debug("ToolsDaemonTcloCapReg: Unable to register display topology set "
             "capability\n");
@@ -1536,31 +1541,38 @@ ToolsDaemon_Cleanup(ToolsDaemon_Data *data) // IN
 {
 #ifdef _WIN32
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_set 0")) {
-      Debug("ToolsDaemon_Cleanup: Unable to unregister resolution set capability\n");
+      Debug("%s: Unable to unregister resolution set capability\n",
+	    __FUNCTION__);
+   }
+   if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_server %s 0",
+		       TOOLS_DAEMON_NAME)) {
+      Debug("%s: Unable to unregister resolution server capability\n",
+	    __FUNCTION__);
    }
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.display_topology_set 0")) {
-      Debug("ToolsDaemon_Cleanup: Unable to unregister display topology "
-            "set capability\n");
+      Debug("%s: Unable to unregister display topology set capability\n",
+	    __FUNCTION__);
    }
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.color_depth_set 0")) {
-      Debug("ToolsDaemon_Cleanup: Unable to unregister color depth set "
-            "capability\n");
+      Debug("%s: Unable to unregister color depth set capability\n",
+	    __FUNCTION__);
    }
 
    /*
     * Clear the minimum resolution limitation.
     */
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_min 0 0")) {
-      Debug("ToolsDaemon_Cleanup: Unable to clear minimum resolution\n");
+      Debug("%s: Unable to clear minimum resolution\n", __FUNCTION__);
    }
 #endif
 
 #if defined(_WIN32) || defined(linux)
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.auto_upgrade 0")) {
-      Debug("ToolsDaemon_Cleanup: Unable to clear auto-upgrading capability.\n");
+      Debug("%s: Unable to clear auto-upgrading capability.\n", __FUNCTION__);
    }
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.guest_temp_directory 0")) {
-      Debug("ToolsDaemon_Cleanup: Unable to clear guest temp directory capability.\n");
+      Debug("%s: Unable to clear guest temp directory capability.\n",
+	    __FUNCTION__);
    }
 #endif
 
@@ -1609,42 +1621,50 @@ Bool
 ToolsDaemon_CheckReset(ToolsDaemon_Data *data,  // IN/OUT
                        uint64 *sleepUsecs)      // IN/OUT
 {
-   static int channelTimeout = -1;
+   static int channelTimeoutAttempts = -1;
    char *tmp = NULL;
                                                                                 
    ASSERT(data);
                                                                                 
-   if (channelTimeout < 0) {
-      Debug("Attempting to retrieve channel timeout from vmx\n");
+   if (channelTimeoutAttempts < 0) {
+      Debug("Attempting to retrieve number of channel timeout attempts "
+            "from vmx\n");
       /*
        * Currenly, we still use the 'guestinfo' alias. When the main branches
        * are synced up and the 'guestvars' code becomes stable, we'll move to
        * using the un-prefixed key.
        */
       if (RpcOut_sendOne(&tmp, NULL,
-                         "info-get guestinfo.guest_rpc.tclo.timeout") &&
-          tmp) {
-         Debug("Retrieved channel timeout from vmx: %s\n", tmp);
-         channelTimeout = atoi(tmp);
+                         "info-get guestinfo.guest_rpc.tclo.timeout") && tmp) {
+         Debug("Retrieved channel timeout attempts from vmx: %s\n", tmp);
+         channelTimeoutAttempts = atoi(tmp);
       }
       free(tmp);
-      /*
-       * Safe-guard channelTimeout against negative and too high-values
-       */
-      if (channelTimeout <= 0) {
-         channelTimeout = 60;
-         Debug("Assuming channel timeout is %d\n", channelTimeout);
-      } else if (channelTimeout > 180) {
-         channelTimeout = 180;
-         Debug("Limiting channel timeout to %d\n", channelTimeout);
+      /* Safe-guard attempts against negative and too high-values. */
+      if (channelTimeoutAttempts <= 0) {
+         channelTimeoutAttempts = 60;
+         Debug("Assuming %d channel timeout attempts\n",
+               channelTimeoutAttempts);
+      } else if (channelTimeoutAttempts > 180) {
+         channelTimeoutAttempts = 180;
+         Debug("Limiting to %d channel timeout attempts\n",
+               channelTimeoutAttempts);
       }
-      channelTimeout += 5;  // plus grace period
-      Debug("Backdoor resetting will be attemped %d times, at the most\n",
-            channelTimeout);
+      /*
+       * Double it.  This handles the case where the host is heavily loaded and
+       * host (real) and guest (virtual) times diverge to the point where the
+       * guest process timeouts before the VMX can reset the channel.  This
+       * makes the guest process wait sufficiently long.  Note that since the
+       * max above is 180 attempts, it is possible to wait 360 * sleepUsecs,
+       * which by default is 360 seconds.
+       */
+      channelTimeoutAttempts *= 2;
+      Debug("Backdoor resetting will be attemped at most %d times\n",
+            channelTimeoutAttempts);
    }
                                                                                 
    if (data->inError) {
-      if (++(data->errorCount) > channelTimeout) {
+      if (++(data->errorCount) > channelTimeoutAttempts) {
          Warning("Failed to reset backdoor after %d attempts\n",
                  data->errorCount - 1);
          return FALSE;

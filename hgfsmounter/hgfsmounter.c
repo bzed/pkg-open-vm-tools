@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,15 +13,17 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * hgfsmounter.c --
  *
- *      Helper app for mounting HGFS shares on Linux. We need this because
- *      we must pass a binary blob through mount(2) to the HGFS driver, in
- *      order to properly communicate the share name that we're interested
- *      in mounting.
+ *      Helper app for mounting HGFS shares on Linux and FreeBSD. On Linux, we need this
+ *      because we must pass a binary blob through mount(2) to the HGFS driver, in order
+ *      to properly communicate the share name that we're interested in mounting. On
+ *      FreeBSD, we need this because FreeBSD requires that each filesystem type have a
+ *      separate mount program installed as /sbin/mount_fstype
  */
 
 #define _GNU_SOURCE
@@ -31,15 +32,49 @@
 #include <errno.h>
 #include <getopt.h>
 #include <grp.h>
-#include <mntent.h>
+#if defined(linux)
+#   include <mntent.h>
+#endif
+#if defined(__FreeBSD__)
+#   include <sys/uio.h>
+#   include <sys/param.h>
+#   define MS_MANDLOCK 0
+#   define MS_RDONLY MNT_RDONLY
+#   define MS_SYNCHRONOUS MNT_SYNCHRONOUS
+#   define MS_NOEXEC MNT_NOEXEC
+#   define MS_NOSUID MNT_NOSUID
+#   define MS_NODEV MNT_NODEV
+#   define MS_UNION MNT_UNION
+#   define MS_ASYNC MNT_ASYNC
+#   define MS_SUIDDIR MNT_SUIDDIR
+#   define MS_SOFTDEP MNT_SOFTDEP
+#   define MS_NOSYMFOLLOW MNT_NOSYMFOLLOW
+#   define MS_JAILDEVFS MNT_JAILDEVFS
+#   define MS_MULTILABEL MNT_MULTILABEL
+#   define MS_ACLS MNT_ACLS
+#   define MS_NOATIME MNT_NOATIME
+#   define MS_NODIRATIME 0
+#   define MS_NOCLUSTERR MNT_NOCLUSTERR
+#   define MS_NOCLUSTERW MNT_NOCLUSTERW
+#   define MS_REMOUNT MNT_RELOAD
+#endif
+#include <sys/mount.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#ifdef MOUNTED // defined in mntent.h
+/*
+ * If VM_HAVE_MTAB is set, hgfsmounter will update /etc/mtab. This is not necessary on
+ * systems such as FreeBSD (and possibly Solaris) that don't have a mtab or the mntent.h
+ * routines.
+ */
+#   define VM_HAVE_MTAB 1
+#endif
 
 #include "hgfsDevLinux.h"
 #include "vm_basic_types.h"
@@ -63,7 +98,12 @@ VM_EMBED_VERSION(HGFSMOUNTER_VERSION_STRING);
 
 #define MOUNT_OPTS_BUFFER_SIZE 256
 
+#if defined(__GNUC__) && __GNUC__ < 3
+/* __VA_ARGS__ isn't supported by old gcc's, so hack around the situation */
+#define LOG(format...) (beVerbose ? printf(format) : 0)
+#else
 #define LOG(format, ...) (beVerbose ? printf(format, ##__VA_ARGS__) : 0)
+#endif
 
 static char *thisProgram;
 static char *thisProgramBase;
@@ -77,15 +117,17 @@ static size_t GetPathMax(const char *path);
 static Bool ParseShareName(const char *shareName,
                            const char **shareNameHost,
                            const char **shareNameDir);
-static Bool ParseUid(const char *uidString, 
+static Bool ParseUid(const char *uidString,
                      uid_t *uid);
 static Bool ParseGid(const char *gidString,
                      gid_t *gid);
 static Bool ParseOptions(const char *optionString,
                          HgfsMountInfo *mountInfo,
                          int *flags);
+#ifdef VM_HAVE_MTAB
 static void UpdateMtab(HgfsMountInfo *mountInfo,
                        int flags);
+#endif
 
 /*
  *-----------------------------------------------------------------------------
@@ -607,6 +649,7 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
 }
 
 
+#ifdef VM_HAVE_MTAB
 /*
  *-----------------------------------------------------------------------------
  *
@@ -661,6 +704,8 @@ UpdateMtab(HgfsMountInfo *mountInfo,  // IN: Info to write into mtab
    mountEnt.mnt_passno = 0;
    mountEnt.mnt_opts = malloc(MOUNT_OPTS_BUFFER_SIZE);
    if (mountEnt.mnt_opts) {
+      char *ttlString;
+
       memset(mountEnt.mnt_opts, 0, MOUNT_OPTS_BUFFER_SIZE);
 
       /* 
@@ -700,7 +745,7 @@ UpdateMtab(HgfsMountInfo *mountInfo,  // IN: Info to write into mtab
          Str_Strcat(mountEnt.mnt_opts, userName, MOUNT_OPTS_BUFFER_SIZE);
       }
 
-      char *ttlString = Str_Asprintf(NULL, "%u", mountInfo->ttl);
+      ttlString = Str_Asprintf(NULL, "%u", mountInfo->ttl);
       if (ttlString != NULL) {
          Str_Strcat(mountEnt.mnt_opts, ",ttl=", MOUNT_OPTS_BUFFER_SIZE);
          Str_Strcat(mountEnt.mnt_opts, ttlString, MOUNT_OPTS_BUFFER_SIZE);
@@ -718,8 +763,9 @@ UpdateMtab(HgfsMountInfo *mountInfo,  // IN: Info to write into mtab
    endmntent(mountFile);
    if (mountEnt.mnt_opts) {
       free(mountEnt.mnt_opts);
-   }   
+   }
 }
+#endif
 
 
 /*
@@ -743,9 +789,11 @@ int
 main(int argc,          // IN
      char *argv[])      // IN
 {
+#ifdef VM_HAVE_MTAB
    Bool doMtab = TRUE;
+#endif
    char c;
-   int i, result = EXIT_FAILURE, flags = 0;
+   int i, result = EXIT_FAILURE, flags = 0, mntRes = -1;
    char *optionString = NULL;
    const char *shareNameHost, *shareNameDir;
    struct stat statBuf;
@@ -773,9 +821,11 @@ main(int argc,          // IN
       case '?':
       case 'h':
          PrintUsage();
+#ifdef VM_HAVE_MTAB
       case 'n':
          doMtab = FALSE;
          break;
+#endif
       case 'o':
          optionString = strdup(optarg);
          if (optionString == NULL) {
@@ -805,10 +855,9 @@ main(int argc,          // IN
    mountPoint = argv[optind + 1];
 
    /* 
-    * We canonicalize the mount point to avoid any discrepancies between the
-    * actual mount point and the listed mount point in /etc/mtab (such
-    * discrepancies could prevent umount(8) from removing the mount point from
-    * /etc/mtab.
+    * We canonicalize the mount point to avoid any discrepancies between the actual mount
+    * point and the listed mount point in /etc/mtab (such discrepancies could prevent
+    * umount(8) from removing the mount point from /etc/mtab).
     */ 
    pathMax = GetPathMax(mountPoint);
    canonicalizedPath = malloc(pathMax * sizeof *canonicalizedPath);
@@ -871,19 +920,32 @@ main(int argc,          // IN
    }
 
    /* Go! */
-   if (mount(shareName, mountPoint, HGFS_NAME, flags, &mountInfo)) {
+#if defined(linux)
+   mntRes = mount(shareName, mountPoint, HGFS_NAME, flags, &mountInfo);
+#elif defined(__FreeBSD__)
+   {
+      struct iovec iov[] = {{"fstype", sizeof("fstype")},
+                            {HGFS_NAME, sizeof(HGFS_NAME)},
+                            {"target", sizeof("target")},
+                            {shareName, strlen(shareName) + 1},
+                            {"fspath", sizeof("fspath")},
+                            {(void *)mountPoint, strlen(mountPoint) + 1}};
+
+      mntRes = nmount(iov, ARRAYSIZE(iov), flags);
+   }
+#endif
+   if (mntRes) {
       perror("Error: cannot mount filesystem");
       goto out;
    }
    result = EXIT_SUCCESS;
 
-   /* 
-    * XXX: If this app is ever ported to Solaris, note that we don't need to
-    * do this.
-    */
+#ifdef VM_HAVE_MTAB
    if (doMtab) {
       UpdateMtab(&mountInfo, flags);
    }
+#endif
+
   out:
    free(optionString);
    free(canonicalizedPath);

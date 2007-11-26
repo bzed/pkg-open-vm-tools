@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 2006 VMware, Inc.  All Rights Reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * mntinfo.h --
@@ -88,7 +88,7 @@
                                         struct mnttab *name = &__ ## name
 # define OPEN_MNTFILE(mode)             fopen(MNTFILE, mode)
 # define GETNEXT_MNTINFO(fp, mnt)       (getmntent(fp, mnt) == 0)
-# define CLOSE_MNTFILE(fp)              (void) (fclose(fp) == 0)
+# define CLOSE_MNTFILE(fp)              (fclose(fp) == 0)
 # define MNTINFO_NAME(mnt)              mnt->mnt_special
 # define MNTINFO_FSTYPE(mnt)            mnt->mnt_fstype
 # define MNTINFO_MNTPT(mnt)             mnt->mnt_mountp
@@ -146,7 +146,11 @@ struct mntHandle {
    boolVal;                                                             \
 })
 
-# define CLOSE_MNTFILE(mntHandle)       free(mntHandle)
+# define CLOSE_MNTFILE(mntHandle)                                       \
+({                                                                      \
+   free(mntHandle);                                                     \
+   TRUE;                                                                \
+})
 # define MNTINFO_NAME(mnt)              mnt->f_mntfromname
 # define MNTINFO_FSTYPE(mnt)            mnt->f_fstypename
 # define MNTINFO_MNTPT(mnt)             mnt->f_mntonname

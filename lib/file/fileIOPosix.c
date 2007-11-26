@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * fileIOPosix.c --
@@ -36,7 +36,10 @@
 #include <string.h>
 #include <sys/types.h>
 #if !defined(N_PLAT_NLM) && defined(linux)
-#include <linux/unistd.h>
+/* These headers are needed to get __USE_LARGEFILE, __USE_LARGEFILE64, and SYS__llseek. */
+#   include <features.h>
+#   include <linux/unistd.h>
+#   include <syscall.h>
 #endif
 #include <sys/stat.h>
 #include "su.h"
@@ -118,6 +121,14 @@ FileIOErrno2Result(int error) // IN: errno to convert
       return FILEIO_NO_PERMISSION;
    case ENAMETOOLONG:
       return FILEIO_FILE_NAME_TOO_LONG;
+   case ENOSPC:
+      return FILEIO_WRITE_ERROR_NOSPC;
+   case EFBIG:
+      return FILEIO_WRITE_ERROR_FBIG;
+#ifdef EDQUOT
+   case EDQUOT:
+      return FILEIO_WRITE_ERROR_DQUOT;
+#endif
    default:
       return FILEIO_ERROR;
    }
@@ -657,7 +668,7 @@ FileIO_Open(FileIODescriptor *file,     // OUT
 
    ASSERT(!FileIO_IsValid(file));
    ASSERT(file->lockToken == NULL);
-   ASSERT(FILEIO_ERROR_LAST < 16); /* See comment in fileIO.h */
+   ASSERT_ON_COMPILE(FILEIO_ERROR_LAST < 16); /* See comment in fileIO.h */
 
 #if !defined(__FreeBSD__) && !defined(sun) && !defined(N_PLAT_NLM)
    /*
@@ -807,10 +818,14 @@ error:
  *----------------------------------------------------------------------
  */
 
-#if defined(linux) && !defined(GLIBC_VERSION_21) && !defined(N_PLAT_NLM) 
+#if defined(linux) && !defined(N_PLAT_NLM) && defined(SYS__llseek)
 /*
- * Implements the system call for non-LFS glibc
+ * If the llseek system call exists, use it to provide a version of 64-bit lseek()
+ * functionality, for FileIO_Seek() to use if appropriate.
  */
+
+#define VM_HAVE__LLSEEK 1
+
 static INLINE int
 _llseek(unsigned int fd,
         unsigned long offset_high,
@@ -827,7 +842,26 @@ FileIO_Seek(const FileIODescriptor *file, // IN
             int64 distance,               // IN
             FileIOSeekOrigin origin)      // IN
 {
-#if defined(linux) && !defined(GLIBC_VERSION_21) && !defined(N_PLAT_NLM) 
+   /*
+    * The goal is to use the best lseek-type function with support for 64-bit file
+    * offsets (aka large file support, or LFS).
+    *
+    * __USE_LARGEFILE implies that lseek() has LFS
+    * VM_HAVE__LLSEEK tells us that we have the _llseek() routine available
+    * __USE_LARGEFILE64 implies that lseek64() is available
+    *
+    * All three of these defines only come into play on Linux systems. On any other OS,
+    * they won't be present, and we go straight for lseek() since that's the only known
+    * alternative.
+    */
+#if defined(VM_HAVE__LLSEEK) && !defined(__USE_LARGEFILE) && !defined(__USE_LARGEFILE64)
+   /*
+    * This is a Linux system that doesn't have a glibc with any large-file support (LFS),
+    * but does have the llseek system call. On Linux, this is the least desirable option
+    * because the API is a bit grotty (e.g. the casting of negative offsets into unsigned
+    * offset_hi and offset_lo), and because doing system calls directly from our code is
+    * more likely to break than using libc.
+    */
 
    loff_t res;
    if (_llseek(file->posix, distance >> 32, distance & 0xFFFFFFFF,
@@ -836,7 +870,25 @@ FileIO_Seek(const FileIODescriptor *file, // IN
    }
    return res;
 
-#else // either not linux or linux w/ LFS glibc
+#elif defined(__USE_LARGEFILE64) && !defined(__USE_LARGEFILE)
+   /*
+    * This is a Linux system with glibc that has lseek64 available, but not a lseek with
+    * LFS.
+    *
+    * lseek64 is a bit cleaner than _llseek (because glibc provides it, we know the API
+    * won't break) but still not as portable as plain old lseek.
+    */
+
+    return lseek64(file->posix, distance, FileIO_SeekOrigins[origin]);
+
+#else
+    /*
+     * We're taking this route because either we know lseek() can support 64-bit file
+     * offsets (__USE_LARGEFILE is set) or because llseek and lseek64 are both unavailable.
+     *
+     * This means this a Linux/glibc system with transparent LFS support, an old Linux
+     * system without llseek, or another POSIX system.
+     */
 
     return lseek(file->posix, distance, FileIO_SeekOrigins[origin]);
 
@@ -877,6 +929,7 @@ FileIO_Write(FileIODescriptor *fd,      // IN
 {
    const uint8 *buf = (const uint8 *)bufIn;
    size_t initial_requested;
+   FileIOResult fret = FILEIO_SUCCESS;
 
    STAT_INST_INC(fd->stats, NumWrites);
    STAT_INST_INC_BY(fd->stats, BytesWritten, requested);
@@ -896,38 +949,14 @@ FileIO_Write(FileIODescriptor *fd,      // IN
 
       if (res == -1) {
          int error = errno;
-         FileIOResult fret;
 
-         switch (error) {
-         case EINTR:
+         if (error == EINTR) {
             NOT_TESTED();
             continue;
-
-         case ENOSPC:
-            fret = FILEIO_WRITE_ERROR_NOSPC;
-            break;
-
-         case EFBIG:
-            fret = FILEIO_WRITE_ERROR_FBIG;
-            break;
-
-#ifdef EDQUOT
-         case EDQUOT:
-            fret = FILEIO_WRITE_ERROR_DQUOT;
-            break;
-#endif
-     
-         default:
-            fret = FILEIO_ERROR;
          }
-
          Log(LGPFX" %s failed %d.\n", __FUNCTION__, error);
-            
-         if (actual) {
-            *actual = initial_requested - requested;
-         }
-
-         return fret;
+         fret = FileIOErrno2Result(error);
+         break;
       }
 
       buf += res;
@@ -935,9 +964,9 @@ FileIO_Write(FileIODescriptor *fd,      // IN
    }
 
    if (actual) {
-      *actual = initial_requested;
+      *actual = initial_requested - requested;
    }
-   return FILEIO_SUCCESS;
+   return fret;
 }
 
 
@@ -970,6 +999,7 @@ FileIO_Read(FileIODescriptor *fd,       // IN
 {
    uint8 *buf = (uint8 *)bufIn;
    size_t initial_requested;
+   FileIOResult fret = FILEIO_SUCCESS;
 
    STAT_INST_INC(fd->stats, NumReads);
    STAT_INST_INC_BY(fd->stats, BytesRead, requested);
@@ -991,18 +1021,13 @@ FileIO_Read(FileIODescriptor *fd,       // IN
             NOT_TESTED();
             continue;
          }
-
-         if (actual) {
-            *actual = initial_requested - requested;
-         }
-         return FILEIO_ERROR;
+         fret = FileIOErrno2Result(errno);
+         break;
       }
 
       if (res == 0) {
-         if (actual) {
-            *actual = initial_requested - requested;
-         }
-         return FILEIO_READ_ERROR_EOF;
+         fret = FILEIO_READ_ERROR_EOF;
+         break;
       }
 
       buf += res;
@@ -1010,9 +1035,9 @@ FileIO_Read(FileIODescriptor *fd,       // IN
    }
 
    if (actual) {
-      *actual = initial_requested;
+      *actual = initial_requested - requested;
    }
-   return FILEIO_SUCCESS;
+   return fret;
 }
 
 
@@ -1274,12 +1299,20 @@ FileIO_Readv(FileIODescriptor *fd,      // IN
       STATS_ONLY(fd->readvDirect++;)
       retval = readv(fd->posix, vPtr, numVec);
       if (retval == -1) {
-         fret = FILEIO_ERROR;
+         if (errno == EINTR) {
+            NOT_TESTED();
+            continue;
+         }
+         fret = FileIOErrno2Result(errno);
          break;
       }
       bytesRead += retval;
       if (bytesRead == totalSize) {
          fret =  FILEIO_SUCCESS;
+         break;
+      }
+      if (retval == 0) {
+         fret = FILEIO_READ_ERROR_EOF;
          break;
       }
       /*
@@ -1290,11 +1323,6 @@ FileIO_Readv(FileIODescriptor *fd,      // IN
        * ambiguity handling may need to change.
        * --Ganesh, 08/15/2001.
        */
-      if (retval == 0) {
-         // Got 0, meaning EOF
-         fret = FILEIO_READ_ERROR_EOF;
-         break;
-      }
       for (; sum <= bytesRead; vPtr++, numVec--) {
          sum += vPtr->iov_len;
          /*
@@ -1384,7 +1412,7 @@ FileIO_Writev(FileIODescriptor *fd,     // IN
       STATS_ONLY(fd->writevDirect++;)
       retval = writev(fd->posix, vPtr, numVec);
       if (retval == -1) {
-         fret = FILEIO_ERROR;
+         fret = FileIOErrno2Result(errno);
          break;
       }
 
@@ -1403,7 +1431,7 @@ FileIO_Writev(FileIODescriptor *fd,     // IN
        * out of space.  Just call it an error. --probin
        */
       if (sum != bytesWritten) {
-         fret = FILEIO_ERROR;
+         fret = FILEIO_WRITE_ERROR_NOSPC;
          break;
       }
    }
@@ -1452,7 +1480,7 @@ FileIO_Preadv(FileIODescriptor *fd,    // IN: File descriptor
    struct iovec coV;
    int count;
    uint64 fileOffset;
-   FileIOResult fret = FILEIO_ERROR;
+   FileIOResult fret;
    Bool didCoalesce;
 
    ASSERT(fd);
@@ -1493,7 +1521,7 @@ FileIO_Preadv(FileIODescriptor *fd,    // IN: File descriptor
                NOT_TESTED_ONCE();
                continue;
             }
-
+            fret = FileIOErrno2Result(errno);
             goto exit;
          }
 
@@ -1511,12 +1539,9 @@ FileIO_Preadv(FileIODescriptor *fd,    // IN: File descriptor
       count--;
       vPtr++;
    }
+   fret = FILEIO_SUCCESS;
 
 exit:
-   if (sum == totalSize) {
-      fret = FILEIO_SUCCESS;
-   }
-
    if (didCoalesce) {
       FileIODecoalesce(&coV, entries, numEntries, sum, FALSE);
    }
@@ -1557,7 +1582,7 @@ FileIO_Pwritev(FileIODescriptor *fd,   // IN: File descriptor
    int count;
    size_t sum = 0;
    uint64 fileOffset;
-   FileIOResult fret = FILEIO_ERROR;
+   FileIOResult fret;
 
    ASSERT(fd);
    ASSERT(entries);
@@ -1597,10 +1622,14 @@ FileIO_Pwritev(FileIODescriptor *fd,   // IN: File descriptor
                NOT_TESTED_ONCE();
                continue;
             }
-
+            fret = FileIOErrno2Result(errno);
             goto exit;
          }
-
+         if (retval == 0) {
+            NOT_TESTED();
+            fret = FILEIO_WRITE_ERROR_NOSPC;
+            goto exit;
+         }
          if (retval < leftToWrite) {
             LOG_ONCE((LGPFX" %s wrote %"FMTSZ"d out of %"FMTSZ"u bytes.\n",
                       __FUNCTION__, retval, leftToWrite));
@@ -1616,11 +1645,8 @@ FileIO_Pwritev(FileIODescriptor *fd,   // IN: File descriptor
       vPtr++;
    }
 
+   fret = FILEIO_SUCCESS;
 exit:
-   if (sum == totalSize) {
-      fret = FILEIO_SUCCESS;
-   }
-
    if (didCoalesce) {
       FileIODecoalesce(&coV, entries, numEntries, sum, TRUE);
    }

@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * util.c --
@@ -392,6 +392,12 @@ Util_GetLowerCaseCanonicalPath(const char* path) // IN
  *      canonical. This function exists to mask platform differences in 
  *      path case-sensitivity.
  *
+ *      XXX: This implementation makes assumptions about the host filesystem's
+ *           case sensitivity without any regard to what filesystem the provided
+ *           paths actually use. There are many ways to break this assumption,
+ *           on any of our supported host OSes! The return value of this function
+ *           cannot be trusted.
+ *
  * Results:
  *      TRUE if the paths are equivalenr, FALSE if they are not.
  *
@@ -411,6 +417,8 @@ Util_CanonicalPathsIdentical(const char *path1, // IN
    return (strcmp(path1, path2) == 0);
 #elif defined(_WIN32)
    return (_stricmp(path1, path2) == 0);
+#elif defined(__APPLE__)
+   return (strcasecmp(path1, path2) == 0);
 #else
    NOT_IMPLEMENTED();
 #endif

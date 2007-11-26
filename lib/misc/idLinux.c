@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * idLinux.c --
@@ -36,9 +36,16 @@
 
 #if defined(__linux__)
 #ifndef GLIBC_VERSION_21
-/* SYS_ constants for glibc 2.0 */
+/*
+ * SYS_ constants for glibc 2.0, some of which may already be defined on some of those
+ * older systems.
+ */
+#ifndef SYS_setresuid
 #define SYS_setresuid          164
+#endif
+#ifndef SYS_setresgid
 #define SYS_setresgid          170
+#endif
 #define SYS_setreuid32         203
 #define SYS_setregid32         204
 #define SYS_setresuid32        208
@@ -548,7 +555,34 @@ IdAuthGet(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * Id_AuthGet --
+ * Id_AuthGetLocal --
+ *
+ *      Get a local ref to the process' Authorization session.
+ *
+ *      Not thread-safe.
+ *
+ * Results:
+ *      On success: The ref.
+ *      On failure: NULL.
+ *
+ * Side effects:
+ *      If the process' Authorization session does not exist yet, it is
+ *      created.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void *
+Id_AuthGetLocal(void)
+{
+   return (void *)IdAuthGet();
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Id_AuthGetExternal --
  *
  *      Get a cross-process ref to the process' Authorization session.
  *
@@ -565,7 +599,7 @@ IdAuthGet(void)
  */
 
 void *
-Id_AuthGet(size_t *size) // OUT
+Id_AuthGetExternal(size_t *size) // OUT
 {
    AuthorizationRef auth;
    AuthorizationExternalForm *ext;

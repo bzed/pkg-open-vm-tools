@@ -1,6 +1,5 @@
-/*
- * Copyright 2006 VMware, Inc.  All rights reserved. 
- *
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -132,7 +132,14 @@ VmCheck_GetVersion(uint32 *version, // OUT
     * our special pattern will still be there. --hpreg
     */
 
-   *type = (bp.in.cx.halfs.high == 0xFFFF) ? VMX_TYPE_UNSET : bp.out.cx.word;
+   /* 
+    * Need to expand this out since the toolchain's gcc doesn't like mixing
+    * integral types and enums in the same trinary operator.
+    */
+   if (bp.in.cx.halfs.high == 0xFFFF)
+      *type = VMX_TYPE_UNSET;
+   else
+      *type = bp.out.cx.word;
 
    return TRUE;
 }

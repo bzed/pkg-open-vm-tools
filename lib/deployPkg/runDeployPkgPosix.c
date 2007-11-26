@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * runDeployPkgPosix.cpp --
@@ -57,12 +57,15 @@ DeployPkgDeployPkgInGuest(const char* pkgFile, // IN: the package filename
                           int errBufSize)      // IN: size of errBuf
 {
    ToolsDeployPkgError ret = TOOLSDEPLOYPKG_ERROR_SUCCESS;
+   void* handle;
+   DeployPkgFromFileFn fn;
+   DeployPkgSetLogFn logFn;
 
    /* Init the logger */
    DeployPkgLog_Open();
 
    /* open the so module */
-   void* handle = dlopen(LIBPATH_DEPLOYPKG, RTLD_LOCAL | RTLD_LAZY);
+   handle = dlopen(LIBPATH_DEPLOYPKG, RTLD_LOCAL | RTLD_LAZY);
    if (handle == NULL) {
       const char* error = dlerror();
       Str_Snprintf(errBuf, errBufSize, "Failed to load " LIBPATH_DEPLOYPKG ": %s",
@@ -75,9 +78,9 @@ DeployPkgDeployPkgInGuest(const char* pkgFile, // IN: the package filename
 
 
    /* Find the address of the function */
-   DeployPkgFromFileFn fn = 
+   fn =
       (DeployPkgFromFileFn)dlsym(handle, FNAME_DEPLOYPKGFROMFILE);
-   DeployPkgSetLogFn logFn =
+   logFn =
       (DeployPkgSetLogFn)dlsym(handle, FNAME_SETLOGGER);
 
    if (fn == NULL || logFn == NULL) {

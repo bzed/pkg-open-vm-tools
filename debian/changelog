@@ -1,3 +1,9 @@
+open-vm-tools (2007.11.21-64693-1) experimental; urgency=low
+
+  * New upstream release.
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 26 Nov 2007 11:07:00 +0100
+
 open-vm-tools (2007.09.04-56574-2) experimental; urgency=low
 
   * Moving package to contrib (Closes: #445439).

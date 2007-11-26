@@ -1,6 +1,5 @@
-/*
- * Copyright 2003 VMware, Inc.  All rights reserved. 
- *
+/*********************************************************
+ * Copyright (C) 2003 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * foundryToolsDaemon.c --
@@ -1789,7 +1789,8 @@ abort:
     * If this is a binary result, then we put a # at the end of the ascii to
     * mark the end of ascii and the start of the binary data. 
     */
-   if (requestMsg->commonHeader.commonFlags & VIX_COMMAND_GUEST_RETURNS_BINARY) {
+   if ((NULL != requestMsg)
+         && (requestMsg->commonHeader.commonFlags & VIX_COMMAND_GUEST_RETURNS_BINARY)) {
       *(destPtr++) = '#';
       *resultLen = destPtr - tcloBuffer + sizeof '#' + resultValueLength;
    }
@@ -1803,7 +1804,8 @@ abort:
    /*
     * If this is not binary data, then it should be a NULL terminated string.
     */
-   if (!(requestMsg->commonHeader.commonFlags & VIX_COMMAND_GUEST_RETURNS_BINARY)) {
+   if ((NULL == requestMsg)
+         || !(requestMsg->commonHeader.commonFlags & VIX_COMMAND_GUEST_RETURNS_BINARY)) {
       *(destPtr++) = 0;
       *resultLen = strlen(tcloBuffer);
    }

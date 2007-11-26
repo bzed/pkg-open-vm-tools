@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 1998-2004 VMware, Inc. All Rights Reserved 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998-2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 #ifndef VM_VERSION_H
@@ -108,10 +108,10 @@
 #endif
 
 
-/* 
+/*
  * Used in .rc files on the Win32 platform.
- * 
- * When building the Tools, we make an effort to follow the "internal" Tools 
+ *
+ * When building the Tools, we make an effort to follow the "internal" Tools
  * version. Otherwise we use a hard-coded value for Workstation and a different
  * hard-coded value for every other product.
  */
@@ -205,10 +205,11 @@
 #define SDK_VERSION "e.x.p"
 #define FOUNDRY_VERSION "e.x.p"
 #define VMLS_VERSION "e.x.p"
-#define DTX_VERSION "e.x.p"
+#define LICENSE_VERSION "e.x.p"
 #define DDK_VERSION "e.x.p"
 #define VIM_API_VERSION "2.0.0"
-#define TOOLS_VERSION "2007.09.04"
+#define VIPERL_VERSION "1.5.0"
+#define TOOLS_VERSION "2007.11.21"
 
 #ifdef VMX86_VPX
 #define VIM_API_TYPE "VirtualCenter"
@@ -246,6 +247,8 @@
 #  define PRODUCT_VERSION_NUMBER P2V_VERSION
 #elif defined(VMX86_V2V)
 #  define PRODUCT_VERSION_NUMBER V2V_VERSION
+#elif defined(VMX86_VIPERL)
+#  define PRODUCT_VERSION_NUMBER VIPERL_VERSION
 #elif defined(VMX86_SYSIMAGE)
 #  define PRODUCT_VERSION_NUMBER SYSIMAGE_VERSION
 #elif defined(VMX86_VCB)
@@ -254,8 +257,8 @@
 #  define PRODUCT_VERSION_NUMBER FOUNDRY_VERSION
 #elif defined(VMX86_VMLS)
 #  define PRODUCT_VERSION_NUMBER VMLS_VERSION
-#elif defined(VMX86_DTX)
-#  define PRODUCT_VERSION_NUMBER DTX_VERSION
+#elif defined(VMX86_LICENSE)
+#  define PRODUCT_VERSION_NUMBER LICENSE_VERSION
 #elif defined(VMX86_DDK)
 #  define PRODUCT_VERSION_NUMBER DDK_VERSION
 #elif defined(VMX86_TOOLS)
@@ -308,7 +311,7 @@
  * (i.e. PRODUCT=xxx when running makefile), we can not used the
  * generic PRODUCT_LICENSE_VERSION and PRODUCT_VERSION_STRING_FOR_LICENSE
  * definition.
- * As a result, the specific ACE_MGMT_SERVER_VERSION_STRING_FOR_LICENSE 
+ * As a result, the specific ACE_MGMT_SERVER_VERSION_STRING_FOR_LICENSE
  * is used instead.
  * A similar reason is used also for the PRODUCT_NAME_FOR_LICENSE definition
  * in the vm_product.h

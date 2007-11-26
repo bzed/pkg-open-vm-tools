@@ -1,20 +1,21 @@
 #!/usr/bin/make -f
-#############################################################
-# Copyright 2006 VMware, Inc.  All rights reserved. 
-#############################################################
-####
-#### This program is free software; you can redistribute it and/or modify it
-#### under the terms of the GNU General Public License as published by the
-#### Free Software Foundation version 2 and no later version.
-####
-#### This program is distributed in the hope that it will be useful, but
-#### WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-#### or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-#### for more details.
-####
-#### You should have received a copy of the GNU General Public License along
-#### with this program; if not, write to the Free Software Foundation, Inc.,
-#### 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+##########################################################
+# Copyright (C) 2006 VMware, Inc. All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation version 2 and no later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+#
+##########################################################
 
 ####
 ####  VMware vmblock Makefile to be distributed externally
@@ -99,20 +100,20 @@ OBJS := $(LINUX_OBJS)
 ####
 
 driver: setup deps
-	$(MAKE) -C $(DESTDIR) -f ../Makefile SRCROOT=../$(SRCROOT) $(DRIVERNAME) \
+	$(MAKE) -C $(DESTDIR) -f ../Makefile SRCROOT=../$(SRCROOT) $(DRIVER).o \
 		INCLUDE_DEPS=1
 
 setup:
 	@if [ -d $(DESTDIR) ] ; then true ; else mkdir $(DESTDIR); chmod 755 $(DESTDIR) ; fi
 
-$(DRIVER): $(DRIVERNAME)
+$(DRIVER) $(DRIVER).o: $(DRIVERNAME)
 	cp -f $< $@
 
 $(DRIVERNAME): $(OBJS)
-	$(ECHO) "Building $(DRIVERNAME)"   
+	$(ECHO) "Building $(DRIVERNAME)"
 	ld -r -o $(DRIVERNAME) $^
 
-auto-build: 
+auto-build:
 	$(MAKE) driver QUIET=1
 	cp -f $(DESTDIR)/$(DRIVERNAME) $(SRCROOT)/../$(DRIVER).o
 

@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 #ifndef _X86CPUID_H_
 #define _X86CPUID_H_
@@ -239,6 +239,7 @@ FLAGDEFA(  1, ECX, COMMON, 13,  1, CMPX16,              HOST,    0, CMPX16)    \
 FLAGDEF(   1, ECX, INTEL,  14,  1, xPPR,                MASK,    0)            \
 FLAGDEF(   1, ECX, INTEL,  15,  1, PERF_MSR,            MASK,    0)            \
 FLAGDEF(   1, ECX, INTEL,  16,  1, NDA16,               MASK,    0)            \
+FLAGDEF(   1, ECX, INTEL,  18,  1, DCA,                 MASK,    0)            \
 FLAGDEFA(  1, ECX, INTEL,  19,  1, SSE41,               HOST,    0, SSE41)     \
 FLAGDEFA(  1, ECX, INTEL,  20,  1, SSE42,               HOST,    0, SSE42)     \
 FLAGDEFA(  1, ECX, COMMON, 23,  1, POPCNT,              HOST,    0, POPCNT)    \
@@ -372,7 +373,8 @@ FIELDDEF( 8A, ECX, AMD,     0, 32, SVMECX_RSVD,         MASK,    0)            \
 FLAGDEF(  8A, EDX, AMD,     0,  1, SVM_NP,              MASK,    0)            \
 FLAGDEF(  8A, EDX, AMD,     1,  1, SVM_LBR,             MASK,    0)            \
 FLAGDEF(  8A, EDX, AMD,     2,  1, SVM_LOCK,            MASK,    0)            \
-FIELDDEF( 8A, EDX, AMD,     3, 29, SVMEDX_RSVD,         MASK,    0)
+FLAGDEF(  8A, EDX, AMD,     3,  1, SVM_NRIP,            MASK,    0)            \
+FIELDDEF( 8A, EDX, AMD,     4, 28, SVMEDX_RSVD,         MASK,    0)
 
 #define CPUID_FIELD_DATA                                              \
    CPUID_FIELD_DATA_LEVEL_0                                           \
@@ -515,20 +517,32 @@ FIELD_FUNC(NUM_PMCS,         CPUID_INTEL_IDAEAX_NUM_PMCS)
  */
 
 /* Effective Intel CPU Families */
-#define CPUID_FAMILY_486     4
-#define CPUID_FAMILY_P5      5
-#define CPUID_FAMILY_P6      6
-#define CPUID_FAMILY_P4      15
+#define CPUID_FAMILY_486      4
+#define CPUID_FAMILY_P5       5
+#define CPUID_FAMILY_P6       6
+#define CPUID_FAMILY_P4       15
 
 /* Effective AMD CPU Families */
-#define CPUID_FAMILY_5x86    4
-#define CPUID_FAMILY_K5      5
-#define CPUID_FAMILY_K6      5
-#define CPUID_FAMILY_K7      6
-#define CPUID_FAMILY_K8      15
-#define CPUID_FAMILY_K8L     16
-
+#define CPUID_FAMILY_5x86     4
+#define CPUID_FAMILY_K5       5
+#define CPUID_FAMILY_K6       5
+#define CPUID_FAMILY_K7       6
+#define CPUID_FAMILY_K8       15
+#define CPUID_FAMILY_K8L      16
+#define CPUID_FAMILY_K8MOBILE 17
 #define CPUID_FAMILY_EXTENDED 15
+
+/* Intel model information */
+#define CPUID_MODEL_PPRO       1
+#define CPUID_MODEL_PII_3      3
+#define CPUID_MODEL_PII_5      5
+#define CPUID_MODEL_CELERON_6  6
+#define CPUID_MODEL_PIII_7     7
+#define CPUID_MODEL_PIII_8     8
+#define CPUID_MODEL_PM         9
+#define CPUID_MODEL_PIII_A     10
+#define CPUID_MODEL_CORE       14
+#define CPUID_MODEL_CORE2      15
 
 static INLINE uint32
 CPUID_EFFECTIVE_FAMILY(uint32 v) /* %eax from CPUID with %eax=1. */
@@ -583,7 +597,8 @@ static INLINE Bool
 CPUID_FAMILY_IS_CORE(uint32 v) // IN: %eax from CPUID with %eax=1.
 {
    /* Assumes the CPU manufacturer is Intel. */
-   return CPUID_FAMILY_IS_P6(v) && CPUID_EFFECTIVE_MODEL(v) > 13;
+   return CPUID_FAMILY_IS_P6(v) &&
+          CPUID_EFFECTIVE_MODEL(v) >= CPUID_MODEL_CORE;
 }
 
 
@@ -617,23 +632,23 @@ CPUID_FAMILY_IS_K8L(uint32 _eax)
 }
 
 static INLINE Bool
-CPUID_FAMILY_IS_K8STAR(uint32 _eax)
+CPUID_FAMILY_IS_K8MOBILE(uint32 _eax)
 {
-   /* Read function name as "K8*", as in wildcard.  Matches K8 or K8L */
-   return CPUID_FAMILY_IS_K8(_eax) || CPUID_FAMILY_IS_K8L(_eax);
+   /* Essentially a K8 (not K8L) part, but with mobile features. */
+   return CPUID_EFFECTIVE_FAMILY(_eax) == CPUID_FAMILY_K8MOBILE;
 }
 
-#define CPUID_MODEL_PPRO       1
-#define CPUID_MODEL_PII_3      3
-#define CPUID_MODEL_PII_5      5
-#define CPUID_MODEL_CELERON_6  6
-#define CPUID_MODEL_PIII_7     7
-#define CPUID_MODEL_PIII_8     8
-#define CPUID_MODEL_PM         9
-#define CPUID_MODEL_PIII_A     10
-#define CPUID_MODEL_CORE       14
-#define CPUID_MODEL_CORE2      15
-#define CPUID_MODEL_EXTENDED   15
+static INLINE Bool
+CPUID_FAMILY_IS_K8STAR(uint32 _eax)
+{
+   /*
+    * Read function name as "K8*", as in wildcard.
+    * Matches K8 or K8L or K8MOBILE
+    */
+   return CPUID_FAMILY_IS_K8(_eax) || CPUID_FAMILY_IS_K8L(_eax) ||
+          CPUID_FAMILY_IS_K8MOBILE(_eax);
+}
+
 
 #define CPUID_TYPE_PRIMARY     0
 #define CPUID_TYPE_OVERDRIVE   1
@@ -656,9 +671,20 @@ static INLINE Bool
 CPUID_FullyWritableTSC(Bool isIntel, // IN
                        uint32 v)     // IN: %eax from CPUID with %eax=1.
 {
-   return (isIntel && CPUID_FAMILY_IS_CORE(v)) ||
-          (CPUID_FAMILY(v) == CPUID_FAMILY_EXTENDED &&
-           !(isIntel && CPUID_FAMILY_IS_PENTIUM4(v) && CPUID_MODEL(v) < 3));
+   /*
+    * Returns FALSE if:
+    *   - Intel && P6 (pre-core) or
+    *   - Intel && P4 (model < 3) or
+    *   - !Intel && pre-K8 Opteron
+    * Otherwise, returns TRUE.
+    */
+   return !((isIntel &&
+             ((CPUID_FAMILY_IS_P6(v) &&
+               CPUID_EFFECTIVE_MODEL(v) < CPUID_MODEL_CORE) ||
+              (CPUID_FAMILY_IS_PENTIUM4(v) &&
+               CPUID_EFFECTIVE_MODEL(v) < 3))) ||
+            (!isIntel &&
+             CPUID_FAMILY(v) < CPUID_FAMILY_K8));
 }
 
 /*

@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (c) 1998-2007 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998-2007 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /*
  *
@@ -63,10 +63,6 @@ typedef char           Bool;
 #define VM_I386
 #endif
 
-#ifdef __ia64__
-#define VM_IA64
-#endif
-
 #ifdef _WIN64
 #define __x86_64__
 #endif
@@ -84,10 +80,6 @@ typedef char           Bool;
 #ifdef _WIN32
 /* safe assumption for a while */
 #define VM_I386
-#endif
-
-#if defined VM_I386 && defined VM_IA64
-#error "Only one CPU platform is allowed."
 #endif
 
 #ifdef _MSC_VER
@@ -109,7 +101,7 @@ typedef signed __int64 int64;
 #elif __GNUC__
 /* The Xserver source compiles with -ansi -pendantic */
 #ifndef __STRICT_ANSI__
-#if defined(VM_IA64) || defined(VM_X86_64)
+#if defined(VM_X86_64)
 typedef unsigned long uint64;
 typedef long int64;
 #else
@@ -140,54 +132,71 @@ typedef char      int8;
  * This applies to Solaris as well.
  */
 
-#if defined(__FreeBSD__) || defined(sun)
-#   ifdef KLD_MODULE
-#      include <sys/types.h>
-#   else
-#      if (BSD_VERSION >= 50) || defined(HAVE_INTTYPES_H)
-#         include <inttypes.h>
+/*
+ * Before trying to do the includes based on OS defines, see if we can use
+ * feature-based defines to get as much functionality as possible
+ */
+
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_INTTYPES_H
+#include <sys/inttypes.h>
+#endif
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#if !defined(USING_AUTOCONF)
+#   if defined(__FreeBSD__) || defined(sun)
+#      ifdef KLD_MODULE
 #         include <sys/types.h>
 #      else
-#         include <sys/inttypes.h>
+#         if (BSD_VERSION >= 50)
+#            include <inttypes.h>
+#            include <sys/types.h>
+#         else
+#            include <sys/inttypes.h>
+#         endif
 #      endif
-#   endif
-#elif defined __APPLE__
-#   if KERNEL
-#       include <sys/types.h> /* mostly for size_t */
-#       include <stdint.h>
+#   elif defined __APPLE__
+#      if KERNEL
+#         include <sys/unistd.h>
+#         include <sys/types.h> /* mostly for size_t */
+#         include <stdint.h>
+#      else
+#         include <unistd.h>
+#         include <inttypes.h>
+#         include <stdlib.h>
+#         include <stdint.h>
+#      endif
 #   else
-#       include <inttypes.h>
-#       include <stdlib.h>
-#       include <stdint.h>
-#   endif
-#else
-#   if !defined(__intptr_t_defined) && !defined(intptr_t)
-#      define __intptr_t_defined
-#      define intptr_t  intptr_t
-#      ifdef VM_I386
-#         ifdef VM_X86_64
-             typedef int64     intptr_t;
-#         else
-             typedef int32     intptr_t;
+#      if !defined(__intptr_t_defined) && !defined(intptr_t)
+#         define __intptr_t_defined
+#         define intptr_t  intptr_t
+#         ifdef VM_I386
+#            ifdef VM_X86_64
+typedef int64     intptr_t;
+#            else
+typedef int32     intptr_t;
+#            endif
 #         endif
 #      endif
 
-#      ifdef VM_IA64
-          typedef int64     intptr_t;
-#      endif
-#   endif
-
-#   ifndef _STDINT_H
-#      ifdef VM_I386
-#         ifdef VM_X86_64
-             typedef uint64    uintptr_t;
-#         else
-             typedef uint32    uintptr_t;
+#      ifndef _STDINT_H
+#         ifdef VM_I386
+#            ifdef VM_X86_64
+typedef uint64    uintptr_t;
+#            else
+typedef uint32    uintptr_t;
+#            endif
 #         endif
-#      endif
-
-#      ifdef VM_IA64
-          typedef uint64    uintptr_t;
 #      endif
 #   endif
 #endif
@@ -233,10 +242,20 @@ typedef int64 VmTimeVirtualClock;  /* Virtual Clock kept in CPU cycles */
          #define FMTSZ  ""
          #define FMTPD  ""
       #endif
-   #else
+   #elif (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) \
+      || (defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112L) \
+      || (defined(_POSIX2_VERSION) && _POSIX2_VERSION >= 200112L)
       /* BSD/Darwin, Linux */
       #define FMTSZ     "z"
       #define FMTPD     "t"
+   #else
+      /* Systems with a pre-C99 libc */
+      #define FMTSZ     "Z"
+      #ifdef VM_X86_64
+         #define FMTPD  "l"
+      #else
+         #define FMTPD  ""
+      #endif
    #endif
    #ifdef VM_X86_64
       #define FMT64     "l"
@@ -618,6 +637,16 @@ typedef void * UserVA;
 #define ALIGNED(n)
 #endif
 
+/*
+ * __func__ is a stringified function name that is part of the C99 standard. The block
+ * below defines __func__ on older systems where the compiler does not support that
+ * macro.
+ */
+#if defined(__GNUC__) \
+   && ((__GNUC__ == 2 && __GNUC_MINOR < 96) \
+       || (__GNUC__ < 2))
+#   define __func__ __FUNCTION__
+#endif
 
 /*
  * Once upon a time, this was used to silence compiler warnings that
@@ -642,9 +671,6 @@ typedef void * UserVA;
 #         endif
 #      endif /* VM_I386 */
 
-#      ifdef VM_IA64
-             typedef uint64 size_t;
-#      endif
 #   endif
 #else
 #   ifndef _SIZE_T
@@ -657,9 +683,6 @@ typedef void * UserVA;
 #         endif
 #      endif /* VM_I386 */
 
-#      ifdef VM_IA64
-             typedef uint64 size_t;
-#      endif
 #   endif
 #   if !defined(FROBOS) && !defined(_SSIZE_T) && !defined(ssize_t)  && !defined(__ssize_t_defined) && !defined(_SSIZE_T_DECLARED)
 #      define _SSIZE_T
@@ -673,9 +696,6 @@ typedef void * UserVA;
 #         endif
 #      endif /* VM_I386 */
 
-#      ifdef VM_IA64
-             typedef int64 ssize_t;
-#      endif
 #   endif
 #endif
 
@@ -722,6 +742,19 @@ typedef void * UserVA;
 #   endif
 #else
 # define FMTMODE "o"
+#endif
+
+/*
+ * Format modifier for printing time_t. Most platforms define a time_t to be
+ * a long int, but on FreeBSD (as of 5.0, it seems), the time_t is a signed
+ * size quantity. Refer to the definition of FMTSZ to see why we need silly
+ * preprocessor arithmetic.
+ * Use this like this: printf("The mode is %"FMTTIME".\n", time);
+ */
+#if defined(__FreeBSD__) && (__FreeBSD__ + 0) && ((__FreeBSD__ + 0) >= 5)
+#   define FMTTIME FMTSZ"d"
+#else
+#   define FMTTIME "ld"
 #endif
 
 #endif  /* _VM_BASIC_TYPES_H_ */

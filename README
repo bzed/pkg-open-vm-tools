@@ -38,13 +38,10 @@ project the following configure command will display a list of help options:
 	When using configure in the steps below it is only necessary to call
 "./configure" once unless there was a problem after the first invocation.
 
-(*)Building Linux kernel modules:
-1) ./configure
-2) make modules
-
 (*)Building Unix user-space programs:
-1) ./configure
-2) make
+1) "./configure"
+2) Run "make" to build Unix userland programs
+3) Run "make modules" to build kernel modules
 
 (*)Why is there no "make install" make target?
 	In their current state, the various Tools applications and modules require a
@@ -69,6 +66,17 @@ General Build note:
 there are no libXinerama libraries installed, or you do not want to enable multi
 monitor support.
 
+	Your operating system version will influence which kernel
+modules can be built. Here are the minimum OS versions for each
+module:
+
+|------------------------------------------------------------------------------|
+| vmsync        | vmblock        | vmxnet       | vmmemctl       | vmhgfs      |
+|---------------|----------------|--------------|----------------|-------------|
+| Linux 2.6.6   | Linux 2.4.0    | Linux 2.2.0  | Linux 2.2.0    | Linux 2.4.0 |
+| FreeBSD N/A   | FreeBSD 6.0    | FreeBSD 4.9  | FreeBSD 3.2    | FreeBSD 6.0 |
+|------------------------------------------------------------------------------|
+
 (*)Suse Enterprise 10.1 (i386 & x86_64):
 i386:
 ./configure LDFLAGS="-L/opt/gnome/lib"
@@ -77,11 +85,16 @@ x86_64:
 ./configure LDFLAGS="-L/opt/gnome/lib64"
 
 (*)OpenSolaris "Nevada" (i386 & x86_64):
-	Make sure that the GNU tools are in your shell's path.  The default GNU tools
-location on OpenSolaris is: "/usr/sfw/bin".  Once the path is set in your build
-shell then the following configure command should work: 
+	Before building open-vm-tools on Solaris, you will need to make 
+sure that libdnet (http://libdnet.sourceforge.net/) is installed and 
+that the 'dnet-config' script is on your shell's PATH.
 
-./configure --disable-multimon 
+	Make sure that the GNU tools are in your shell's PATH. The 
+default GNU tools location on OpenSolaris is: "/usr/sfw/bin". Once the 
+PATH is set in your build shell then the following configure command 
+should work:
+
+./configure --disable-multimon
 
 (*)FreeBSD 6.2 (i386 & x86_64):
 ./configure LDFLAGS="-L/usr/local/lib"
@@ -100,43 +113,30 @@ obtain them.  If you want to obtain them separately, they can be downloaded at:
 ================================================================================
 Guest operating systems used to test on this release:
 
-(*)Fedora Core 6 (i386 & x86_64)
-(*)Fedora Core 7 (i386 & x86_64)
-(*)Suse Enterprise 10.0 (i386 & x86_64)
-(*)Suse Enterprise 10.1 (i386 & x86_64)
-(*)Open Suse 10.3 (i386 & x86_64)
+(*)Fedora Core 8 (i386 & x86_64)
 (*)Redhat 9.0 (i386)
+(*)Redhat Enterprise 4 U5 (i386 & x86_64)
 (*)Redhat Enterprise 5 (i386 & x86_64)
-(*)Redhat Enterprise 4 (i386 & x86_64)
+(*)FreeBSD 5.4 (i386 & x86_64)
 (*)FreeBSD 6.2 (i386 & x86_64)
 (*)OpenSolaris 10 "Nevada" (i386 & x86_64)
-(*)Ubuntu Feisty 7.04 (i386 & x86_64)
-(*)Ubuntu Dapper 6.06 (i386 & x86_64)
+(*)Open SuSE 10.3 (i386 & x86_64)
+(*)Ubuntu 6.04 (i386 & x86_64)
+(*)Ubuntu 7.10 (i386 & x86_64)
 
 ===============================================================================
 Known issues:
 
-(*)When building kernel modules for any 2.4.x kernel the module binaries that
-are created have unexpected names.  The current build system names all kernel modules in this format: "<module name>-<kernel version>".  Below is an example of where to find the built modules:
+(*) When using HGFS on FreeBSD, the 'cp' command will fail if the source 
+file is on the HGFS share. This is because mmap() does not yet work with 
+the FreeBSD port of HGFS. One workaround is to use 'cat 
+/mnt/hgfs/foo/bar > /tmp/baz' instead of 'cp /mnt/hgfs/foo/bar 
+/tmp/baz'.
 
-All built kernel modules are located in subdirectories of "<sourcefiles>/modules/linux" directory.
-
-vmblock:
-	"vmblock/driver-<kernel version>/vmblock-xxx-<kernel version>"
-
-vmhgfs:
-	"vmhgfs/vmhgfs-<kernel version>"
-
-vmmemctl:
-	"vmmemctl/vmmemctl-<kernel version>"
-
-vmxnet:
-	"vmxnet/vmxnet-<kernel version>"
-
-
-(*)Building with GCC versions before 3.0 will fail.  GCC will complain that
-"-fno-strict-aliasing -Wno-unused-value are invalid options", and fails to
-build "vm_atomic.h" saying that "a forbidden register was spilled", or
-"-Wno-unused-value does not exist".
+(*) When using HGFS on FreeBSD, if your current working directory is the 
+top-level HGFS mount (e.g. '/mnt/hgfs') and you run 'ls', you will 
+receive an "Invalid argument" error. The workaround is to change to 
+another directory and then run 'ls /mnt/hgfs'. Running 'ls' in 
+subdirectories of /mnt/hgfs works as expected.
 
 ===============================================================================
