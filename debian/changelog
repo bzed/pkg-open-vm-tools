@@ -1,3 +1,10 @@
+open-vm-tools (2007.11.21-64693-2) unstable; urgency=low
+
+  * Adding open-vm-source package for module source.
+  * Upload to unstable.
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 26 Nov 2007 11:08:00 +0100
+
 open-vm-tools (2007.11.21-64693-1) experimental; urgency=low
 
   * New upstream release.

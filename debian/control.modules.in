@@ -1,0 +1,22 @@
+Source: open-vm-tools
+Section: contrib/admin
+Priority: extra
+Maintainer: Daniel Baumann <daniel@debian.org>
+Build-Depends: debhelper (>= 5)
+Standards-Version: 3.7.2
+Homepage: http://open-vm-tools.sourceforge.net/
+
+Package: open-vm-modules-_KVERS_
+Architecture: any
+Provides: open-vm-modules
+Depends: linux-modules-_KVERS_ | linux-image-_KVERS_
+Description: open-vm modules for Linux (kernel _KVERS_).
+ This package contains the set of loadable kernel modules for the
+ VMware guest systems driver.
+ .
+ This package contains the compiled kernel modules for _KVERS_
+ .
+ If you have compiled your own kernel, you will most likely need to build
+ your own open-vm-modules. The open-vm-source package has been
+ provided for use with the Debian's module-assistant or kernel-package
+ utilities to produce a version of open-vm-modules for your kernel.
