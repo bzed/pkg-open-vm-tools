@@ -23,6 +23,7 @@ libMisc_a_SOURCES += codeset.c
 libMisc_a_SOURCES += dbllnklst.c
 libMisc_a_SOURCES += dynbuf.c
 libMisc_a_SOURCES += escape.c
+libMisc_a_SOURCES += hash.c
 libMisc_a_SOURCES += hostinfo_misc.c
 libMisc_a_SOURCES += hostname.c
 libMisc_a_SOURCES += idLinux.c

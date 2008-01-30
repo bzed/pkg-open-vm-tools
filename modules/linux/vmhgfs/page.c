@@ -31,6 +31,9 @@
 #include "compat_page-flags.h"
 #include "compat_fs.h"
 #include "compat_kernel.h"
+#ifdef HGFS_ENABLE_WRITEBACK
+#include <linux/writeback.h>
+#endif
 
 #include "cpName.h"
 #include "hgfsProto.h"
@@ -90,6 +93,9 @@ struct address_space_operations HgfsAddressSpaceOperations = {
    .writepage     = HgfsWritepage,
    .prepare_write = HgfsPrepareWrite,
    .commit_write  = HgfsCommitWrite,
+#ifdef HGFS_ENABLE_WRITEBACK
+   .set_page_dirty = __set_page_dirty_nobuffers,
+#endif
 };
 
 
@@ -406,7 +412,8 @@ HgfsDoWritepage(HgfsHandle handle,  // IN: Handle to use for writing
    int result = 0;
    char *buffer = kmap(page) + pageFrom;
    loff_t curOffset = ((loff_t)page->index << PAGE_CACHE_SHIFT) + pageFrom;
-   size_t nextCount, actualCount = 0, remainingCount = pageTo - pageFrom;
+   size_t nextCount;
+   size_t remainingCount = pageTo - pageFrom;
    struct inode *inode;
 
    ASSERT(page->mapping);
@@ -429,7 +436,6 @@ HgfsDoWritepage(HgfsHandle handle,  // IN: Handle to use for writing
          goto out;
       }
       remainingCount -= result;
-      actualCount += result;
       curOffset += result;
       buffer += result;
 
@@ -439,13 +445,6 @@ HgfsDoWritepage(HgfsHandle handle,  // IN: Handle to use for writing
       }
    } while ((result > 0) && (remainingCount > 0));
 
-   /* 
-    * Only mark the page up to date if we wrote the whole thing, otherwise
-    * pieces of it may still be out of date.
-    */
-   if (actualCount == PAGE_CACHE_SIZE) {
-      SetPageUptodate(page);
-   }
    result = 0;
 
   out:
@@ -620,7 +619,7 @@ HgfsWritepage(struct page *page)             // IN: Page to write from
  *
  *      Called by the generic write path to set up a write request for a page.
  *      We're expected to do any pre-allocation and housekeeping prior to
- *      receiving the write. In our case, there's nothing to do.
+ *      receiving the write. 
  *
  * Results:
  *      Always zero.
@@ -634,9 +633,33 @@ HgfsWritepage(struct page *page)             // IN: Page to write from
 static int 
 HgfsPrepareWrite(struct file *file,  // IN: Ignored
                  struct page *page,  // IN: Page to prepare
-                 unsigned ppageFrom, // IN: Ignored
-                 unsigned pageTo)    // IN: Ignored
+                 unsigned pageFrom,  // IN: Beginning page offset
+                 unsigned pageTo)    // IN: Ending page offset
 {
+#ifdef HGFS_ENABLE_WRITEBACK
+   loff_t offset = (loff_t)page->index << PAGE_CACHE_SHIFT;
+   loff_t currentFileSize = compat_i_size_read(page->mapping->host);
+
+   /*
+    * If we are doing a partial write into a new page (beyond end of
+    * file), then intialize it. This allows other writes to this page
+    * to accumulate before we need to write it to the server.
+    */
+   if ((offset >= currentFileSize) ||
+       ((pageFrom == 0) && (offset + pageTo) >= currentFileSize)) {
+      void *kaddr = kmap_atomic(page, KM_USER0);
+	
+      if (pageFrom) {
+         memset(kaddr, 0, pageFrom);
+      }
+      if (pageTo < PAGE_CACHE_SIZE) {
+         memset(kaddr + pageTo, 0, PAGE_CACHE_SIZE - pageTo);
+      }
+      kunmap_atomic(kaddr, KM_USER0);
+      flush_dcache_page(page);
+   }
+#endif
+
    /* 
     * Prior to 2.4.10, our caller expected to call page_address(page) between 
     * the calls to prepare_write() and commit_write(). This meant filesystems
@@ -681,15 +704,57 @@ HgfsCommitWrite(struct file *file, // IN: File we're writing to
                 unsigned pageTo)   // IN: Ending page offset
 {
    HgfsHandle handle;
+   struct inode *inode;
+   loff_t currentFileSize;
+   loff_t offset;
+   loff_t writeTo;
 
    ASSERT(file);
    ASSERT(page);
+   inode = page->mapping->host;
+   currentFileSize = compat_i_size_read(inode);
+   offset = (loff_t)page->index << PAGE_CACHE_SHIFT;
+   writeTo = offset + pageTo;
 
    /* See coment in HgfsPrepareWrite. */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 10)
    kunmap(page);
 #endif
 
+   if (writeTo > currentFileSize) {
+      compat_i_size_write(inode, writeTo);
+   }
+   
+   /* We wrote a complete page, so it is up to date. */
+   if ((pageTo - pageFrom) == PAGE_CACHE_SIZE) {
+      SetPageUptodate(page);
+   }
+
+#ifdef HGFS_ENABLE_WRITEBACK
+   /* 
+    * Check if this is a partial write to a new page, which was 
+    * initialized in HgfsPrepareWrite.
+    */
+   if ((offset >= currentFileSize) ||
+       ((pageFrom == 0) && (writeTo >= currentFileSize))) {
+      SetPageUptodate(page);
+   }
+
+   /*
+    * If the page is uptodate, then just mark it dirty and let
+    * the page cache write it when it wants to.
+    */
+   if (PageUptodate(page)) {
+      set_page_dirty(page);
+      return 0;
+   }
+#endif
+   /*
+    * We've recieved a partial write to page that is not uptodate, so
+    * do the write now while the page is still locked.  Another
+    * alternative would be to read the page in HgfsPrepareWrite, which
+    * would make it uptodate (ie a complete cached page).
+    */
    handle = FILE_GET_FI_P(file)->handle;
    LOG(6, (KERN_DEBUG "VMware hgfs: HgfsCommitWrite: writing to handle %u\n", 
            handle));   

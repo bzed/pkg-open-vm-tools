@@ -28,6 +28,7 @@ HEADERS += bus_if.h
 HEADERS += pci_if.h
 SRCS    = $(CSRCS) $(HEADERS)
 KMOD	= vmxnet
+PROG    = ../$(KMOD).ko
 NOMAN	= t
 NO_MAN  = t
 KLDMOD	= t
@@ -35,8 +36,6 @@ KLDMOD	= t
 # Don't print a warning that the object dir wasn't specified
 NOOBJ   = 1
 NO_OBJ  = 1
-
-default: vmxnet.ko
 
 .include <bsd.kmod.mk>
 

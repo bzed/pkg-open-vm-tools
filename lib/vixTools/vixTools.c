@@ -34,7 +34,9 @@
 #endif
 
 #ifdef _WIN32
+#include <WTypes.h>
 #include <io.h>
+#include "wminic.h"
 #else
 #include <unistd.h>
 #endif
@@ -83,6 +85,10 @@ Bool Impersonate_Undo(void) { return FALSE; }
 #include "vixOpenSource.h"
 #include "vixTools.h"
 
+#ifdef _WIN32
+#include "registryWin32.h"
+#endif /* _WIN32 */
+
 #define SECONDS_BETWEEN_POLL_TEST_FINISHED     1
 
 #define PROCESS_CREATOR_USER_TOKEN       ((void *)1)
@@ -122,15 +128,6 @@ static Bool thisProcessRunsAsRoot = FALSE;
 static Bool allowConsoleUserOps = FALSE;
 static DblLnkLst_Links *globalEventQueue;   // event queue for main event loop
 VixToolsReportProgramDoneProcType reportProgramDoneProc = NULL;
-
-
-#ifdef _WIN32
-extern int WinRegistry_ReadInteger(char *pathName, int *result);
-extern int WinRegistry_WriteInteger(char *pathName, int value);
-extern int WinRegistry_ReadString(char *pathName, char **resultValue);
-extern int WinRegistry_WriteString(char *pathName, char *value);
-extern int WinRegistry_KeyExists(char *pathName);
-#endif /* _WIN32 */
 
 static VixError VixToolsGetFileInfo(VixCommandRequestHeader *requestMsg,
                                     char **result);
@@ -183,7 +180,8 @@ static VixError VixToolsKillProcess(VixCommandRequestHeader *requestMsg);
 static VixError VixToolsCreateDirectory(VixCommandRequestHeader *requestMsg);
 
 static VixError VixToolsRunScript(VixCommandRequestHeader *requestMsg,
-                                  char *requestName);
+                                  char *requestName,
+                                  char **result);
 
 static VixError VixToolsOpenUrl(VixCommandRequestHeader *requestMsg);
 
@@ -197,11 +195,21 @@ static VixError VixToolsProcessHgfsPacket(VixCommandHgfsSendPacket *requestMsg,
 static VixError VixToolsGetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg,
                                                  char **resultBuffer,
                                                  size_t *resultBufferLength);
+#endif
 
+#if defined(_WIN32)
 static VixError VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg);
 #endif
 
 static VixError VixTools_Base64EncodeBuffer(char **resultValuePtr, size_t *resultValLengthPtr);
+
+#if defined(_WIN32)
+static HRESULT VixToolsEnableDHCPOnPrimary(void);
+
+static HRESULT VixToolsEnableStaticOnPrimary(const char *ipAddr,
+                                             const char *subnetMask);
+#endif
+
 
 /*
  *-----------------------------------------------------------------------------
@@ -350,7 +358,7 @@ abort:
    }
    VixToolsLogoutUser(userToken);
 
-   Str_Sprintf(resultBuffer, sizeof(resultBuffer), "%"FMT64"d", (int64) pid);
+   Str_Sprintf(resultBuffer, sizeof(resultBuffer), "%"FMT64"d", pid);
    *result = resultBuffer;
 
    return err;
@@ -1027,7 +1035,7 @@ VixToolsReadRegistry(VixCommandRequestHeader *requestMsg,  // IN
    }
 
    if (VIX_PROPERTYTYPE_INTEGER == registryRequest->expectedRegistryKeyType) {
-      errResult = WinRegistry_ReadInteger(registryPathName, &valueInt);
+      errResult = Registry_ReadInteger(registryPathName, &valueInt);
       if (ERROR_SUCCESS != errResult) {
          err = Vix_TranslateSystemError(errResult);
          goto abort;
@@ -1039,7 +1047,7 @@ VixToolsReadRegistry(VixCommandRequestHeader *requestMsg,  // IN
          goto abort;
       }
    } else if (VIX_PROPERTYTYPE_STRING == registryRequest->expectedRegistryKeyType) {
-      errResult = WinRegistry_ReadString(registryPathName, &valueStr);
+      errResult = Registry_ReadString(registryPathName, &valueStr);
       if (ERROR_SUCCESS != errResult) {
          err = Vix_TranslateSystemError(errResult);
          goto abort;
@@ -1119,13 +1127,13 @@ VixToolsWriteRegistry(VixCommandRequestHeader *requestMsg) // IN
    if (VIX_PROPERTYTYPE_INTEGER == registryRequest->expectedRegistryKeyType) {
       intValue = *((int *) registryData);
 
-      errResult = WinRegistry_WriteInteger(registryPathName, intValue);
+      errResult = Registry_WriteInteger(registryPathName, intValue);
       if (ERROR_SUCCESS != errResult) {
          err = Vix_TranslateSystemError(errResult);
          goto abort;
       }
    } else if (VIX_PROPERTYTYPE_STRING == registryRequest->expectedRegistryKeyType) {
-      errResult = WinRegistry_WriteString(registryPathName, registryData);
+      errResult = Registry_WriteString(registryPathName, registryData);
       if (ERROR_SUCCESS != errResult) {
          err = Vix_TranslateSystemError(errResult);
          goto abort;
@@ -1337,7 +1345,7 @@ VixToolsObjectExists(VixCommandRequestHeader *requestMsg,  // IN
    ///////////////////////////////////////////
    } else if (VIX_COMMAND_REGISTRY_KEY_EXISTS == requestMsg->opCode) {
 #ifdef _WIN32
-      resultInt = WinRegistry_KeyExists(pathName);
+      resultInt = Registry_KeyExists(pathName);
 #else
       resultInt = 0;
       err = VIX_E_OP_NOT_SUPPORTED_ON_GUEST;
@@ -1669,6 +1677,7 @@ VixToolsMoveFile(VixCommandRequestHeader *requestMsg)        // IN
    Bool impersonatingVMWareUser = FALSE;
    void *userToken = NULL;
    VixCommandRenameFileRequest *renameRequest;
+   Bool pathsAreSameFile;
 
    renameRequest = (VixCommandRenameFileRequest *) requestMsg;
    srcFilePathName = ((char *) renameRequest) + sizeof(*renameRequest);
@@ -1684,6 +1693,46 @@ VixToolsMoveFile(VixCommandRequestHeader *requestMsg)        // IN
          err = VIX_E_GUEST_USER_PERMISSIONS;
          goto abort;
       }
+   }
+
+   /*
+    * Be careful. Renaming a file to itself can cause it to be deleted.
+    * This should be a no-op anyway.
+    *
+    * TEMPORARY FIX (waiting for FileUtf8_IsSameFile).
+    *
+    * Ideally, we would use a FileUtf8_IsSameFile, but that doesn't exist (yet).
+    * However, we need to catch the case of symlinks, or on Windows the case
+    * of a long file name and a truncated 8.3 form of the same name.
+    * So, we use both a File_IsSameFile test and a strcmp.
+    *
+    * The strcmp will catch any identical paths, even if they are utf-8.
+    * The File_IsSameFile will consider any non-ASCII files different, but
+    * it will work with symlinks and long/short file names. 
+    *
+    * So, if you have 2 different strings that are non-ASCII names for
+    * the same file, then we won't catch it and can delete the file.
+    * This is a data loss bug, the most severe kind. We need to fix this
+    * test soon.
+    */
+   pathsAreSameFile = FALSE;
+#if defined(_WIN32)
+   if (0 == Str_Strcasecmp(srcFilePathName, destFilePathName)) {
+#else
+   if (0 == strcmp(srcFilePathName, destFilePathName)) {
+#endif  
+      pathsAreSameFile = TRUE;
+   }
+
+   if (!pathsAreSameFile) {
+#if !defined(sun) && !defined(__FreeBSD__)
+      pathsAreSameFile = File_IsSameFile(srcFilePathName, destFilePathName);
+#endif
+   } // if (!pathsAreSameFile)
+
+   if (pathsAreSameFile) {
+      err = VIX_OK;
+      goto abort;
    }
 
    /*
@@ -2265,7 +2314,8 @@ abort:
 
 VixError
 VixToolsRunScript(VixCommandRequestHeader *requestMsg,  // IN
-                  char *requestName)                    // IN
+                  char *requestName,                    // IN
+                  char **result)                        // OUT
 {
    VixError err = VIX_OK;
    char *propertiesString = NULL;
@@ -2283,6 +2333,8 @@ VixToolsRunScript(VixCommandRequestHeader *requestMsg,  // IN
    int writeResult;
    Bool programExists;
    Bool programIsExecutable;
+   int64 pid = (int64) -1;
+   static char resultBuffer[32];
 #if defined(_WIN32) && !defined(WIN9XCOMPAT)
    Bool forcedRoot = FALSE;
 #endif
@@ -2492,6 +2544,8 @@ if (0 == *interpreterName) {
       goto abort;
    }
 
+   pid = (int64) ProcMgr_GetPid(asyncState->procState);
+
    /*
     * Start a periodic procedure to check the app periodically.
     * We always run this (regardless of whether the VIX_RUNPROGRAM_RETURN_IMMEDIATELY
@@ -2525,6 +2579,9 @@ abort:
    free(fullCommandLine);
    free(tempDirPath);
    free(tempScriptFilePath);
+
+   Str_Sprintf(resultBuffer, sizeof(resultBuffer), "%"FMT64"d", pid);
+   *result = resultBuffer;
 
    return err;
 } // VixToolsRunScript
@@ -3076,6 +3133,7 @@ abort:
 
    return err;
 } // VixToolsGetGuestNetworkingConfig
+#endif
 
 
 /*
@@ -3094,6 +3152,7 @@ abort:
  *-----------------------------------------------------------------------------
  */
 
+#if defined(_WIN32)
 VixError 
 VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
 {
@@ -3104,8 +3163,15 @@ VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
    VixPropertyListImpl propList;
    VixPropertyValue *propertyPtr = NULL;
    char *messageBody = NULL;
+   char ipAddr[IP_ADDR_SIZE]; 
+   char subnetMask[IP_ADDR_SIZE];
+   Bool dhcpEnabled = FALSE;
+   HRESULT hrErr;
 
    ASSERT(NULL != requestMsg);
+
+   ipAddr[0] = '\0';  
+   subnetMask[0] = '\0';
 
    if (thisProcessRunsAsRoot) {
       impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
@@ -3115,19 +3181,6 @@ VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
       }
    }
 
-#if !defined(_WIN32)
-      /*
-       * On Linux, we only allow root to set environment variables.
-       * On Windows we can put ACLs on the registry keys, but we can't do that
-       * on Linux. The threat is if an unpriveleged user changes path or lib
-       * settings, which could cause a later call from a priveleged user
-       * to RunProgramInGuest to misbehave by using compromised libs or environment.
-       */
-      if (1 != Util_HasAdminPriv()) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
-         goto abort;
-      }
-#endif 
    setGuestNetworkingConfigRequest = (VixMsgSetGuestNetworkingConfigRequest *)requestMsg;
    messageBody = (char *) requestMsg + sizeof(*setGuestNetworkingConfigRequest);
 
@@ -3142,28 +3195,65 @@ VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
    propertyPtr = propList.properties;
    while (propertyPtr != NULL) {
       switch (propertyPtr->propertyID) {
+      ///////////////////////////////////////////
       case VIX_PROPERTY_VM_DHCP_ENABLED:
+         if (propertyPtr->value.boolValue) { 
+            dhcpEnabled = TRUE;
+         }
          break;
+
+      /////////////////////////////////////////// 
       case VIX_PROPERTY_VM_IP_ADDRESS:
-         // Set guest IP address
+         if (strlen(propertyPtr->value.strValue) < sizeof ipAddr) {
+            Str_Strcpy(ipAddr,
+                       propertyPtr->value.strValue, 
+                       sizeof ipAddr);
+            } else {
+               err = VIX_E_INVALID_ARG;
+               goto abort;
+            }
          break;
+
+      ///////////////////////////////////////////
       case VIX_PROPERTY_VM_SUBNET_MASK:
-         break;
-      case VIX_PROPERTY_VM_DEFAULT_GATEWAY:
-         break;
-      case VIX_PROPERTY_VM_DNS_SERVER_DHCP_ENABLED:
-         break;
-      case VIX_PROPERTY_VM_DNS_SERVER:
-         break;
+         if (strlen(propertyPtr->value.strValue) < sizeof subnetMask) {
+            Str_Strcpy(subnetMask, 
+                       propertyPtr->value.strValue,
+                       sizeof subnetMask); 
+         } else {
+            err = VIX_E_INVALID_ARG;
+            goto abort;
+         }
+         break;   
+         
+      ///////////////////////////////////////////
       default:
-         // something is wrong
-         err = VIX_E_INVALID_ARG;
+         /*
+          * Be more tolerant.  Igonore unknown properties.
+          */
          break;
-      }
+      } // switch 
 
       propertyPtr = propertyPtr->next;
    } // while {propList.properties != NULL)
 
+   if (dhcpEnabled) {
+      hrErr = VixToolsEnableDHCPOnPrimary();
+   } else {
+      if (('\0' != ipAddr[0]) ||
+          ('\0' != subnetMask[0])) { 
+         hrErr = VixToolsEnableStaticOnPrimary(ipAddr, subnetMask);
+      } else {
+         goto abort;
+      }
+   }
+   if (S_OK != hrErr) {
+      if (FACILITY_WIN32 != HRESULT_FACILITY(hrErr)) {
+         err = Vix_TranslateCOMError(hrErr);
+      } else {
+         err = Vix_TranslateSystemError(hrErr);
+      } 
+   }
 
 abort:
    VixPropertyList_RemoveAllWithoutHandles(&propList);
@@ -3311,7 +3401,8 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
 
       ////////////////////////////////////
       case VIX_COMMAND_RUN_SCRIPT_IN_GUEST:
-         err = VixToolsRunScript(requestMsg, requestName);
+         err = VixToolsRunScript(requestMsg, requestName, &resultValue);
+         // resultValue is static. Do not free it.
          break;
 
       ////////////////////////////////////
@@ -3377,7 +3468,9 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
          deleteResultValue = TRUE;
          mustSetResultValueLength = FALSE;
          break;
+#endif
 
+#if defined(_WIN32)
       ////////////////////////////////////
       case VIX_COMMAND_SET_GUEST_NETWORKING_CONFIG:
          err = VixToolsSetGuestNetworkingConfig(requestMsg);
@@ -3523,4 +3616,125 @@ abort:
    return err;
 
 } // VixTools_Base64EncodeBuffer
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VixToolsEnableDHCPOnPrimary --
+ *      
+ *      Enable DHCP on primary NIC. A primary NIC is the
+ *      first interface you get using ipconfig. You can change the order
+ *      of NIC cards on a computer via Windows GUI.
+ *
+ * Results:
+ *      S_OK on success.  COM error codes on failure.
+ *
+ * Side effects:
+ *      None.
+ * 
+ *-----------------------------------------------------------------------------
+ */
+
+#if defined(_WIN32)
+HRESULT
+VixToolsEnableDHCPOnPrimary(void)
+{
+   HRESULT ret;
+   NicEntry *primaryNic;
+
+   primaryNic = NetUtil_GetPrimaryNicEntry();
+   if (NULL == primaryNic) {
+      return HRESULT_FROM_WIN32(GetLastError());
+   }
+
+   ret = WMI_EnableDHCP(primaryNic->nicEntryProto.macAddress);
+   
+   GuestInfo_FreeDynamicMemoryInNic(primaryNic);
+
+   return ret;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VixToolsEnableStaticOnPrimary --
+ *      
+ *      Set the IP address and/or subnet mask of the primary NIC. A primary NIC 
+ *      is the first interface you get using ipconfig. You can change the order
+ *      of NIC cards on a computer via Windows GUI.  
+ *
+ * Results:
+ *      S_OK on success.  COM error codes on failure.
+ *
+ * Side effects:
+ *      None.
+ * 
+ *-----------------------------------------------------------------------------
+ */
+
+HRESULT
+VixToolsEnableStaticOnPrimary(const char *ipAddr,       // IN
+                              const char *subnetMask)   // IN
+{
+   HRESULT ret;
+   NicEntry *primaryNic;
+   VmIpAddressEntry *primaryIpEntry;
+   char actualIpAddress[IP_ADDR_SIZE];
+   char actualSubnetMask[IP_ADDR_SIZE];
+
+   if ((NULL == ipAddr) || 
+       (NULL == subnetMask)) {
+      return E_INVALIDARG;
+   }
+
+   actualIpAddress[0] = '\0';
+   actualSubnetMask[0] = '\0';
+
+   primaryNic = NetUtil_GetPrimaryNicEntry();
+   if (NULL == primaryNic) {
+      return HRESULT_FROM_WIN32(GetLastError());
+   }
+
+   /*
+    * Set IP address if client provides it.
+    */
+   primaryIpEntry = DblLnkLst_Container(primaryNic->ipAddressList.next,
+                                        VmIpAddressEntry, 
+                                        links);
+ 
+   if ('\0' != ipAddr[0]) {
+      Str_Strcpy(actualIpAddress,
+                 ipAddr,
+                 sizeof actualIpAddress);
+   } else {
+      Str_Strcpy(actualIpAddress,
+                 primaryIpEntry->ipEntryProto.ipAddress,
+                 sizeof actualIpAddress);
+   }
+
+   /*
+    * Set subnet mask if client provides it.
+    */
+   if ('\0' != subnetMask[0]) {
+      Str_Strcpy(actualSubnetMask,
+                 subnetMask, 
+                 sizeof actualSubnetMask);
+   } else {
+      Str_Strcpy(actualSubnetMask,
+                 primaryIpEntry->ipEntryProto.subnetMask, 
+                 sizeof actualSubnetMask);
+   }
+
+   ret = WMI_EnableStatic(primaryNic->nicEntryProto.macAddress, 
+                          actualIpAddress, 
+                          actualSubnetMask);
+   
+   GuestInfo_FreeDynamicMemoryInNic(primaryNic);
+
+   return ret;
+}
+#endif
+
 

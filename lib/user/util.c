@@ -93,6 +93,29 @@ struct UtilVector {
 static int UtilTokenHasGroup(HANDLE token, SID *group);
 #endif
 
+#ifdef VM_X86_64
+#   if defined(__GNUC__) && (!defined(USING_AUTOCONF) || defined(HAVE_UNWIND_H))
+#      define UTIL_BACKTRACE_USE_UNWIND
+#   endif
+#endif
+
+#ifdef UTIL_BACKTRACE_USE_UNWIND
+#include <unwind.h>
+
+struct UtilBacktraceFromPointerData {
+   uintptr_t        basePtr;
+   Util_OutputFunc  outFunc;
+   void            *outFuncData;
+   unsigned int     frameNr;
+};
+
+struct UtilBacktraceToBufferData {
+   uintptr_t        basePtr;
+   uintptr_t       *buffer;
+   size_t           len;
+};
+#endif /* UTIL_BACKTRACE_USE_UNWIND */
+
 
 /*
  *----------------------------------------------------------------------
@@ -114,7 +137,7 @@ Bool
 Util_Init(void)
 {
 #ifdef VMX86_DEVEL
-   /* 
+   /*
     * Sanity check Str_Snprintf so that we're never thrown off guard
     * by a change in the underlying libraries that Str_Snprintf doesn't
     * catch and wrap properly.
@@ -174,25 +197,23 @@ uint32
 Util_Checksum(uint8 *buf, int len)
 {
    uint32 checksum;
-   int remainder;
+   int remainder, shift;
 
    remainder = len % 4;
    len -= remainder;
 
    checksum = Util_Checksum32((uint32 *)buf, len);
 
-   if (remainder) {
-      uint32 scratch = 0;
-      uint8 *ptr = buf + len;
-
-      switch (remainder) {
-         case 1: scratch = (*(uint8 *) ptr)<<24; break;
-         case 2: scratch = (*(uint16 *) ptr)<<16; break;
-         case 3: scratch = (*(uint8 *) ptr)<<24;
-                 scratch |= (*(uint16 *) (ptr+1))<<8; break;
-      }
-      checksum ^= scratch;
+   buf += len;
+   shift = 0;
+   while (remainder--) {
+      /*
+       * Note: this is little endian.
+       */
+      checksum ^= (*buf++ << shift);
+      shift += 8;
    }
+
    return checksum;
 }
 
@@ -214,12 +235,19 @@ Util_Checksumv(void *iov,      // IN
 {
    uint32 checksum = 0;
    struct UtilVector *vector = (struct UtilVector *) iov;
+   uint32 partialChecksum;
+   int bytesSoFar = 0;
+   int rotate;
 
-   ASSERT(numEntries > 0);
-   do {
-      checksum ^= Util_Checksum(vector->base, vector->len);
+   while (numEntries-- > 0) {
+      partialChecksum = Util_Checksum(vector->base, vector->len);
+      rotate = (bytesSoFar & 3) * 8;
+      checksum ^= ((partialChecksum << rotate) |
+                   (partialChecksum >> (32 - rotate)));
+      bytesSoFar += vector->len;
       vector++;
-   } while (--numEntries > 0);
+   }
+
    return checksum;
 }
 
@@ -229,8 +257,8 @@ Util_Checksumv(void *iov,      // IN
  *
  * Util_ShortenPath --
  *
- *    Check the input path length agains the maxLength parameter. If 
- *    the path is too long, prepend "..." and shorten it to the 
+ *    Check the input path length agains the maxLength parameter. If
+ *    the path is too long, prepend "..." and shorten it to the
  *    appropriate length.
  *
  *----------------------------------------------------------------------
@@ -243,11 +271,11 @@ Util_ShortenPath(char *dst,       // OUT
 {
    if (strlen(src) >= maxLength - 4) {
       Str_Strcpy(dst, "...", maxLength);
-      Str_Strcat(dst, 
+      Str_Strcat(dst,
                  src + strlen(src) - maxLength + 4,
                  maxLength);
    } else {
-      Str_Strcpy(dst, src, maxLength);   
+      Str_Strcpy(dst, src, maxLength);
    }
 }
 
@@ -272,7 +300,7 @@ Util_LogWrapper(void *ignored, const char *fmt, ...)
 {
    va_list ap;
    char thisLine[UTIL_BACKTRACE_LINE_LEN];
-   
+
    va_start(ap, fmt);
    Str_Vsnprintf(thisLine, UTIL_BACKTRACE_LINE_LEN-1, fmt, ap);
    thisLine[UTIL_BACKTRACE_LINE_LEN-1] = '\0';
@@ -280,6 +308,96 @@ Util_LogWrapper(void *ignored, const char *fmt, ...)
 
    Log("%s", thisLine);
 }
+
+
+#ifdef UTIL_BACKTRACE_USE_UNWIND
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * UtilBacktraceToBufferCallback --
+ *
+ *      Callback from _Unwind_Backtrace to add one entry to the backtrace
+ *      buffer.
+ *
+ * Results:
+ *      _URC_NO_REASON : Please continue with backtrace.
+ *      _URC_END_OF_STACK : Abort backtrace, we run out of space (*).
+ *
+ *          (*) Caller does not care.  Anything else than NO_REASON is fatal
+ *              and forces _Unwind_Backtrace to report PHASE1 error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static _Unwind_Reason_Code
+UtilBacktraceToBufferCallback(struct _Unwind_Context *ctx, // IN: Unwind context
+                              void *cbData)                // IN/OUT: Our data
+{
+   struct UtilBacktraceToBufferData *data = cbData;
+   uintptr_t cfa = _Unwind_GetCFA(ctx);
+
+   /*
+    * Stack grows down.  So if we are below basePtr, do nothing...
+    */
+   if (cfa >= data->basePtr) {
+      if (data->len) {
+         *data->buffer++ = _Unwind_GetIP(ctx);
+         data->len--;
+      } else {
+         return _URC_END_OF_STACK;
+      }
+   }
+   return _URC_NO_REASON;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * UtilBacktraceFromPointerCallback --
+ *
+ *      Callback from _Unwind_Backtrace to print one backtrace entry
+ *      to the backtrace output.
+ *
+ * Results:
+ *      _URC_NO_REASON : Please continue with backtrace.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static _Unwind_Reason_Code
+UtilBacktraceFromPointerCallback(struct _Unwind_Context *ctx, // IN: Unwind context
+                                 void *cbData)                // IN/OUT: Our status
+{
+   struct UtilBacktraceFromPointerData *data = cbData;
+   uintptr_t cfa = _Unwind_GetCFA(ctx);
+
+   /*
+    * Stack grows down.  So if we are below basePtr, do nothing...
+    */
+   if (cfa >= data->basePtr) {
+#ifndef VM_X86_64
+#   error You should not build this on 32bit - there is no eh_frame there.
+#endif
+      /* Do output without leading '0x' to save some horizontal space... */
+      data->outFunc(data->outFuncData,
+                    "Backtrace[%u] %016lx rip=%016lx rbx=%016lx rbp=%016lx "
+                    "r12=%016lx r13=%016lx r14=%016lx r15=%016lx\n",
+                    data->frameNr, cfa, _Unwind_GetIP(ctx),
+                    _Unwind_GetGR(ctx, 3), _Unwind_GetGR(ctx, 6),
+                    _Unwind_GetGR(ctx, 12), _Unwind_GetGR(ctx, 13),
+                    _Unwind_GetGR(ctx, 14), _Unwind_GetGR(ctx, 15));
+      data->frameNr++;
+   }
+   return _URC_NO_REASON;
+}
+#endif
 
 
 /*
@@ -290,7 +408,7 @@ Util_LogWrapper(void *ignored, const char *fmt, ...)
  *      log the stack backtrace given a frame pointer
  *
  * Results:
- *      
+ *
  *      void
  *
  * Side effects:
@@ -329,6 +447,15 @@ Util_BacktraceFromPointerWithFunc(uintptr_t *basePtr,
                                   Util_OutputFunc outFunc,
                                   void *outFuncData)
 {
+#if defined(UTIL_BACKTRACE_USE_UNWIND)
+   struct UtilBacktraceFromPointerData data;
+
+   data.basePtr = (uintptr_t)basePtr;
+   data.outFunc = outFunc;
+   data.outFuncData = outFuncData;
+   data.frameNr = 0;
+   _Unwind_Backtrace(UtilBacktraceFromPointerCallback, &data);
+#elif !defined(VM_X86_64)
    uintptr_t *x = basePtr;
    int i;
 
@@ -340,6 +467,51 @@ Util_BacktraceFromPointerWithFunc(uintptr_t *basePtr,
       outFunc(outFuncData, "Backtrace[%d] %#08x eip %#08x \n", i, x[0], x[1]);
       x = (uintptr_t *) x[0];
    }
+#endif
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Util_BacktraceToBuffer --
+ *
+ *      Output a backtrace from the given frame pointer to supplied buffer.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      See above.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+Util_BacktraceToBuffer(uintptr_t *basePtr,
+                       uintptr_t *buffer,
+                       int len)
+{
+#if defined(UTIL_BACKTRACE_USE_UNWIND)
+   struct UtilBacktraceToBufferData data;
+
+   data.basePtr = (uintptr_t)basePtr;
+   data.buffer = buffer;
+   data.len = len;
+   _Unwind_Backtrace(UtilBacktraceToBufferCallback, &data);
+#elif !defined(VM_X86_64)
+   uintptr_t *x = basePtr;
+   int i;
+
+   for (i = 0; i < 256 && i < len; i++) {
+      if (x < basePtr ||
+	  (uintptr_t) x - (uintptr_t) basePtr > 0x8000) {
+         break;
+      }
+      buffer[i] = x[1];
+      x = (uintptr_t *) x[0];
+   }
+#endif
 }
 
 
@@ -387,7 +559,7 @@ Util_Data2Buffer(char *buf,         // OUT
  *      log the stack backtrace for a particular bug number
  *
  * Results:
- *      
+ *
  *      void
  *
  * Side effects:
@@ -440,7 +612,7 @@ Util_BacktraceWithFunc(int bugNr, Util_OutputFunc outFunc, void *outFuncData)
 #endif
 }
 
-   
+
 #if !defined(_WIN32) && !defined(N_PLAT_NLM)
 /*
  *----------------------------------------------------------------------
@@ -474,7 +646,7 @@ UtilDoTildeSubst(char *user)  // IN - name of user
          Log("Could not expand environment variable HOME.\n");
       } else {
          str = strdup(dir);
-         if (str == NULL) { 
+         if (str == NULL) {
 	    MSG_POST_NOMEM();
 	 }
       }
@@ -486,7 +658,7 @@ UtilDoTildeSubst(char *user)  // IN - name of user
          Log("Could not get information for user '%s'.\n",user);
       } else {
          str = strdup(pwPtr->pw_dir);
-         if (str == NULL) { 
+         if (str == NULL) {
             MSG_POST_NOMEM();
          }
          endpwent();
@@ -659,7 +831,7 @@ Util_ExpandString(const char *fileName)
 
    nchunk = 0;
    for (cp = copy; *cp;) {
-      int len;
+      size_t len;
       if (*cp == '$') {
 	 char *p;
 	 for (p = cp + 1; isalnum(*p & 0xFF) || *p == '_'; p++) {
@@ -679,7 +851,7 @@ Util_ExpandString(const char *fileName)
 	 goto out;
       }
       chunks[nchunk] = cp;
-      chunkSize[nchunk] = len;
+      chunkSize[nchunk] = (int) len;
       freeChunk[nchunk] = FALSE;
       nchunk++;
       cp += len;
@@ -705,8 +877,8 @@ Util_ExpandString(const char *fileName)
          freeChunk[0] = TRUE;
       }
    }
-#endif 
-   
+#endif
+
    /*
     * Expand $
     */
@@ -798,10 +970,10 @@ Util_ExpandString(const char *fileName)
 		    expand, fileName);
 	 goto out;
       }
-      chunkSize[i] = strlen(expand);
+      chunkSize[i] = (int) strlen(expand);
       freeChunk[i] = TRUE;
    }
- 
+
    /*
     * Put all the chunks back together.
     */
@@ -851,7 +1023,7 @@ out:
  * Util_MakeSureDirExists --
  *
  *    Make sure a directory exists
- *      
+ *
  * Results:
  *    TRUE on success
  *    FALSE on failure
@@ -868,7 +1040,7 @@ Util_MakeSureDirExistsAndAccessible(char const *path,  // IN
 {
    char *epath;
    struct stat statbuf;
-   
+
    epath = Util_ExpandString(path);
    if (epath == NULL) {
       return FALSE;
@@ -900,7 +1072,7 @@ Util_MakeSureDirExistsAndAccessible(char const *path,  // IN
       return FALSE;
    }
    free(epath);
-   
+
    return TRUE;
 }
 #endif
@@ -1027,8 +1199,8 @@ Util_CompareDotted(const char *s1, const char *s2)
  *-----------------------------------------------------------------------------
  */
 
-static int 
-UtilTokenHasGroup(HANDLE token, 
+static int
+UtilTokenHasGroup(HANDLE token,
 		  SID *group)
 {
    /*
@@ -1137,7 +1309,7 @@ UtilTokenHasGroup(HANDLE token,
       ret = -10;
       goto end;
    }
-   
+
    if (SetSecurityDescriptorOwner(&sd, group, FALSE) == 0) {
       ret = -11;
       goto end;
@@ -1208,7 +1380,7 @@ Util_TokenHasAdminPriv(HANDLE token)
     */
 
    if (AllocateAndInitializeSid(&sidIdentAuth, 2, SECURITY_BUILTIN_DOMAIN_RID,
-			        DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, 
+			        DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0,
 				&adminGrp) == 0) {
       ret = -4;
       goto end;
@@ -1255,7 +1427,7 @@ Util_TokenHasInteractPriv(HANDLE token)
     */
 
    if (AllocateAndInitializeSid(&sidIdentAuth, 1, SECURITY_INTERACTIVE_RID,
-			        0, 0, 0, 0, 0, 0, 0, 
+			        0, 0, 0, 0, 0, 0, 0,
 				&interactiveGrp) == 0) {
       ret = -4;
       goto end;
@@ -1356,7 +1528,7 @@ end:
  *      This function returns a pointer to the result
  *
  * Results:
- *      Pointer to string (on success, caller should free string), 
+ *      Pointer to string (on success, caller should free string),
  *      otherwise NULL.
  *
  * Side effects:
@@ -1401,19 +1573,19 @@ Util_DeriveFileName(const char *source, // IN: path to dict file (incl filename)
       if (!Util_IsAbsolutePath(name) && strlen(path) > 0 &&
           strcmp(path, ".") != 0) {
 	 if (ext == NULL) {
-	    returnResult = Str_Asprintf(NULL, "%s%s%s", 
+	    returnResult = Str_Asprintf(NULL, "%s%s%s",
 					path, DIRSEPS, name);
 	 } else {
-	    returnResult = Str_Asprintf(NULL, "%s%s%s.%s", 
+	    returnResult = Str_Asprintf(NULL, "%s%s%s.%s",
 				        path, DIRSEPS, name, ext);
 	 }
       } else {
 
-	 /* 
+	 /*
           * Path is non-existent or is just the current directory (or the
 	  * result from the dictionary is an absolute path), so we
 	  * just need to use the filename (using the DIRSEPS method above
-          * for a non-existent path might result in something undesireable 
+          * for a non-existent path might result in something undesireable
 	  * like "\foobar.vmdk")
 	  */
 
@@ -1439,11 +1611,11 @@ Util_DeriveFileName(const char *source, // IN: path to dict file (incl filename)
 
    /* Combine disk path with parent path */
    if (strlen(path) > 0 && strcmp(path, ".") != 0) {
-      returnResult = Str_Asprintf(NULL, "%s%s%s.%s", 
+      returnResult = Str_Asprintf(NULL, "%s%s%s.%s",
 				  path, DIRSEPS, base, ext);
    } else {
 
-      /* 
+      /*
        * Path is non-existent or is just the current directory, so we
        * just need to use the filename (using the DIRSEPS method might
        * result in something undesireable like "\foobar.vmdk")
@@ -1472,7 +1644,7 @@ end:
  *      A NULL terminated string
  *
  * Side effects:
- *      
+ *
  *      The result string is allocated
  *
  *-----------------------------------------------------------------------------

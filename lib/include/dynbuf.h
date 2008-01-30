@@ -19,13 +19,13 @@
 /*
  * dynbuf.h --
  *
- *    Dynamic buffers --hpreg
+ *    Dynamic buffers
  */
 
 #ifndef __DYNBUF_H__
 #   define __DYNBUF_H__
 
-
+#include <string.h>
 #include "vm_basic_types.h"
 
 
@@ -81,5 +81,36 @@ DynBuf_GetAllocatedSize(DynBuf const *b); // IN
 Bool
 DynBuf_Copy(DynBuf *src,    // IN
             DynBuf *dest);  // OUT
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * DynBuf_AppendString --
+ *
+ *     Append the string to the specified DynBuf object.  Basically a
+ *     fancy strcat().
+ *
+ * Results:
+ *      TRUE on success
+ *      FALSE on failure (not enough memory)
+ *
+ *
+ * Side effects:
+ *     DynBuf may change its size or allocate additional memory.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+static INLINE Bool
+DynBuf_AppendString(DynBuf *buf,         // IN
+                    const char *string)  // IN
+{
+   /*
+    * Make sure to copy the NULL.
+    */
+   return DynBuf_Append(buf, string, strlen(string) + 1);
+}
+
 
 #endif /* __DYNBUF_H__ */

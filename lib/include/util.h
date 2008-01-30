@@ -53,41 +53,19 @@
 
 
 #ifdef __APPLE__
-/* Types used for expressing a dictionary <key, value> tuple. */
-typedef enum ValueType {
-   VALUETYPE_ASCIISTRING,
-   VALUETYPE_NUMBER,
-   VALUETYPE_BOOLEAN
-} ValueType;
-
-typedef struct NumberType {
-   CFNumberType type;
-   const void *numptr;
-} NumberType;
-
-typedef struct DictItem {
-   const char *key;
-   ValueType type;
-   union {
-      const char *str;
-      NumberType num;
-      Bool boolVal;
-   } u;
-} DictItem;
-
 EXTERN char *Util_CFStringToUTF8CString(CFStringRef s);
 EXTERN char *Util_IORegGetStringProperty(io_object_t entry, CFStringRef property);
 EXTERN Bool Util_IORegGetNumberProperty(io_object_t entry, CFStringRef property,
                                         CFNumberType type, void *val);
 EXTERN Bool Util_IORegGetBooleanProperty(io_object_t entry, CFStringRef property,
                                          Bool *boolVal);
-EXTERN CFMutableDictionaryRef Util_CreateDictFromList(const DictItem *list, int cnt);
-EXTERN io_iterator_t Util_IORegGetIter(const char *key, const char *val);
-EXTERN io_object_t Util_IORegGetDeviceObjectByName(const char *deviceName);
-EXTERN char * Util_GetBSDName(const char *deviceName);
-EXTERN char * Util_IORegGetDriveType(const char *deviceName);
-EXTERN char * Util_GetMacOSUserHomeDirectory();
-EXTERN char * Util_GetMacOSDefaultVMPath();
+EXTERN CFMutableDictionaryRef UtilMacos_CreateCFDictionary(
+   unsigned int numPairs, ...);
+EXTERN io_service_t Util_IORegGetDeviceObjectByName(const char *deviceName);
+EXTERN char *Util_GetBSDName(const char *deviceName);
+EXTERN char *Util_IORegGetDriveType(const char *deviceName);
+EXTERN char *Util_GetMacOSUserHomeDirectory();
+EXTERN char *Util_GetMacOSDefaultVMPath();
 #endif // __APPLE__
 
 
@@ -142,6 +120,10 @@ void Util_BacktraceFromPointerWithFunc(uintptr_t *basePtr,
 void Util_BacktraceWithFunc(int bugNr,
                             Util_OutputFunc outFunc,
                             void *outFuncData);
+
+void Util_BacktraceToBuffer(uintptr_t *basePtr,
+                            uintptr_t *buffer, int len);
+
 void Util_LogWrapper(void *ignored, const char *fmt, ...);
 
 int Util_CompareDotted(const char *s1, const char *s2);

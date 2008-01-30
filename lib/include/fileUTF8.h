@@ -40,6 +40,8 @@ EXTERN Bool FileUTF8_Copy(const char *utf8SrcFile, const char *utf8DstFile);
 
 EXTERN Bool FileUTF8_Rename(const char *utf8OldFile, const char *utf8NewFile);
 
+EXTERN int64 FileUTF8_GetSize(const char *utf8Name);
+
 EXTERN Bool FileUTF8_CreateDirectory(char const *utf8Name);
 
 EXTERN Bool FileUTF8_CreateDirectoryHierarchy(char const *utf8Name);

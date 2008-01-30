@@ -46,7 +46,8 @@ extern Bool Hostinfo_GetRatedCpuMhz(int32 cpuNumber,
                                     uint32 *mHz);
 extern char* Hostinfo_GetCpuDescription(uint32 cpuNumber);
 extern void Hostinfo_GetTimeOfDay(VmTimeType *time);
-extern VmTimeType Hostinfo_ReadRealTime(void);
+extern VmTimeType Hostinfo_SystemUpTime(void);
+extern VmTimeType Hostinfo_SystemTimerUS(void);
 extern int Hostinfo_OSVersion(int i);
 extern const char *Hostinfo_OSVersionString(void);
 extern Bool Hostinfo_OSIsSMP(void);
@@ -104,10 +105,9 @@ extern Bool Hostinfo_HTDisabled(void);
 Bool Hostinfo_GetPCFrequency(uint64 *pcHz);
 Bool Hostinfo_GetMhzOfProcessor(int32 processorNumber, 
 				uint32 *currentMhz, uint32 *maxMhz);
-uint64 Hostinfo_GetSystemIdleTime(void);
+uint64 Hostinfo_SystemIdleTime(void);
 Bool Hostinfo_GetAllCpuid(CPUIDResult* info);
 #endif
-VmTimeType Hostinfo_GetSystemUpTime(void);
 void Hostinfo_LogLoadAverage(void);
 Bool Hostinfo_GetLoadAverage(uint32 *l);
 

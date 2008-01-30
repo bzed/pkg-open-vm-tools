@@ -152,5 +152,5 @@ License (everything else):
 On Debian systems, the complete text of the GNU Lesser General Public License
 can be found in /usr/share/common-licenses/LGPL-2.1 file.
 
-The Debian packaging is (C) 2007, Daniel Baumann <daniel@debian.org> and
-is licensed under the GPL, see `/usr/share/common-licenses/GPL-2'.
+The Debian packaging is (C) 2007-2008, Daniel Baumann <daniel@debian.org> and
+is licensed under the GPL, see /usr/share/common-licenses/GPL-2.

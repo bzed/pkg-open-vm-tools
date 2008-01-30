@@ -26,6 +26,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32) && !defined(N_PLAT_NLM)
+#include <strings.h> /* For strncasecmp */
+#endif
 #include "vmware.h"
 #include "strutil.h"
 #include "str.h"
@@ -335,6 +338,99 @@ StrUtil_StrToInt64(int64 *out,   // OUT: The output value
    return ptr[0] == '\0' && errno != ERANGE;
 }
 
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * StrUtil_FormatSizeInBytes --
+ *
+ *      Format a size (in bytes) to a string in a user-friendly way.
+ *
+ *      Example: 160041885696 -> "149.1 GB"
+ *
+ * Results:
+ *      The allocated, NUL-terminated string (not localized).
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+char *
+StrUtil_FormatSizeInBytesUnlocalized(uint64 size) // IN
+{
+   /*
+    * XXX TODO, BUG 199661:
+    * This is a direct copy of Msg_FormatSizeInBytes without localization.
+    * These two functions should ideally share the basic functionality, and just
+    * differ in the string localization
+    */
+   char const *fmt;
+   double sizeInSelectedUnit;
+   unsigned int precision;
+   char *sizeFormat;
+   char *sizeString;
+   char *result;
+   static const double epsilon = 0.01;
+   double delta;
+
+   if (size >= CONST64U(1) << 40 /* 1 TB */) {
+      fmt = "%s TB";
+      sizeInSelectedUnit = (double)size / (CONST64U(1) << 40);
+      precision = 1;
+   } else if (size >= CONST64U(1) << 30 /* 1 GB */) {
+      fmt = "%s GB";
+      sizeInSelectedUnit = (double)size / (CONST64U(1) << 30);
+      precision = 1;
+   } else if (size >= CONST64U(1) << 20 /* 1 MB */) {
+      fmt = "%s MB";
+      sizeInSelectedUnit = (double)size / (CONST64U(1) << 20);
+      precision = 1;
+   } else if (size >= CONST64U(1) << 10 /* 1 KB */) {
+      fmt = "%s KB";
+      sizeInSelectedUnit = (double)size / (CONST64U(1) << 10);
+      precision = 1;
+   } else if (size >= CONST64U(2) /* 2 bytes */) {
+      fmt = "%s bytes";
+      sizeInSelectedUnit = (double)size;
+      precision = 0; // No fractional byte.
+   } else if (size >= CONST64U(1) /* 1 byte */) {
+      fmt = "%s byte";
+      sizeInSelectedUnit = (double)size;
+      precision = 0; // No fractional byte.
+   } else {
+      ASSERT(size == CONST64U(0) /* 0 bytes */);
+      fmt = "%s bytes";
+      sizeInSelectedUnit = (double)size;
+      precision = 0; // No fractional byte.
+   }
+
+   /*
+    * We cast to uint32 instead of uint64 here because of a problem with the
+    * NetWare Tools build. However, it's safe to cast to uint32 since we have
+    * already reduced the range of sizeInSelectedUnit above.
+    */
+   // If it would display with .0, round it off and display the integer value.
+   delta = (uint32)(sizeInSelectedUnit + 0.5) - sizeInSelectedUnit;
+   if (delta < 0) {
+      delta = -delta;
+   }
+   if (delta <= epsilon) {
+      precision = 0;
+      sizeInSelectedUnit = (double)(uint32)(sizeInSelectedUnit + 0.5);
+   }
+
+   sizeFormat = Str_Asprintf(NULL, "%%.%uf", precision);
+   sizeString = Str_Asprintf(NULL, sizeFormat, sizeInSelectedUnit);
+   result = Str_Asprintf(NULL, fmt, sizeString);
+   free(sizeFormat);
+   free(sizeString);
+
+   return result;
+}
+
+
 /*
  *----------------------------------------------------------------------
  *
@@ -380,3 +476,55 @@ StrUtil_GetLongestLineLength(const char *buf,   //IN
 }
 
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * StrUtil_StartsWith --
+ *
+ *      Determines if a string starts with another string.
+ *
+ * Results:
+ *      TRUE if 's' starts with 'prefix', FALSE otherwise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+StrUtil_StartsWith(const char *s,      // IN
+                   const char *prefix) // IN
+{
+   ASSERT(s != NULL);
+   ASSERT(prefix != NULL);
+   return Str_Strncmp(s, prefix, strlen(prefix)) == 0;
+}
+
+
+#ifndef N_PLAT_NLM
+/*
+ *----------------------------------------------------------------------
+ *
+ * StrUtil_CaselessStartsWith --
+ *
+ *      A case-insensitive version of StrUtil_StartsWith.
+ *
+ * Results:
+ *      TRUE if 's' starts with 'prefix', FALSE otherwise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+StrUtil_CaselessStartsWith(const char *s,      // IN
+                           const char *prefix) // IN
+{
+   ASSERT(s != NULL);
+   ASSERT(prefix != NULL);
+   return Str_Strncasecmp(s, prefix, strlen(prefix)) == 0;
+}
+#endif

@@ -30,6 +30,7 @@ SRCS    += backdoorGcc64.c
 SRCS    += backdoorGcc32.c
 .endif
 KMOD	= vmmemctl
+PROG    = ../$(KMOD).ko
 NOMAN	= t
 NO_MAN  = t
 KLDMOD	= t
@@ -37,11 +38,6 @@ KLDMOD	= t
 # Don't print a warning that the object dir wasn't specified
 NOOBJ   = 1
 NO_OBJ  = 1
-
-default: vmmemctl.ko
-
-clean:
-	rm -f vmmemctl.ko vmmemctl.kld machine *.o export_syms @
 
 .include <bsd.kmod.mk>
 

@@ -22,12 +22,13 @@
  *	Things internal to the file library.
  */
 
-#if !defined(_FILELOCK_INTERNAL_H_)
-#define _FILELOCK_INTERNAL_H_
+#if !defined(__FILE_INTERNAL_H__)
+#define __FILE_INTERNAL_H__
 
 #define INCLUDE_ALLOW_USERLEVEL
 #include "includeCheck.h"
 #include "fileLock.h"
+#include "unicodeBase.h"
 
 #if defined __linux__
 /*
@@ -65,12 +66,49 @@
 
 #define LGPFX	"FILE:"
 
+#define FILE_TYPE_REGULAR      0
+#define FILE_TYPE_DIRECTORY    1
+#define FILE_TYPE_BLOCKDEVICE  2
+#define FILE_TYPE_CHARDEVICE   3
+#define FILE_TYPE_SYMLINK      4
+#define FILE_TYPE_UNCERTAIN    5
+
+typedef struct FileData {
+   uint64 fileAccessTime;
+   uint64 fileCreationTime;
+   uint64 fileModificationTime;
+   uint64 fileSize;
+   int    fileType;
+   int    fileMode;
+   int    fileOwner;
+   int    fileGroup;
+} FileData;
+
+EXTERN int FileAttributes(ConstUnicode pathName,
+                          FileData *fileData);
+
+EXTERN int FileRename(ConstUnicode fromPath,
+                      ConstUnicode toPath);
+
+EXTERN int FileDeletion(ConstUnicode pathName,
+                        Bool handleLink);
+
+EXTERN int FileCreateDirectory(ConstUnicode pathName);
+EXTERN int FileRemoveDirectory(ConstUnicode pathName);
+
+#if defined(_WIN32)
+EXTERN int FileMapErrorToErrno(char *functionName,
+                               DWORD status);
+#else
+EXTERN char *FilePosixGetBlockDevice(char const *path);
+#endif
+
 typedef struct active_lock
 {
   struct active_lock *next;
   uint32             age;
   Bool               marked;
-  char               dirName[FILELOCK_OVERHEAD];
+  Unicode            dirName;
 } ActiveLock;
 
 typedef struct lock_values
@@ -79,7 +117,7 @@ typedef struct lock_values
    char         *executionID;
    char         *payload;
    char         *lockType;
-   char         memberName[FILELOCK_OVERHEAD];
+   Unicode      memberName;
    unsigned int lamportNumber;
    uint32       waitTime;
    uint32       msecMaxWaitTime;
@@ -103,34 +141,24 @@ EXTERN const char *FileLockGetMachineID(void);
 EXTERN Bool FileLockMachineIDMatch(char *host,
                                    char *second);
 
-
-EXTERN int FileLockMemberValues(const char *lockDir, 
-                                const char *fileName,
+EXTERN int FileLockMemberValues(ConstUnicode lockDir, 
+                                ConstUnicode fileName,
                                 char *buffer,
                                 uint32 size,
                                 LockValues *memberValues);
 
 EXTERN int FileLockHackVMX(const char *machineID,
                            const char *executionID,
-                           const char *filePathName);
+                           ConstUnicode filePathName);
 
-EXTERN int FileLockOpenFile(const char *path,
+EXTERN int FileLockOpenFile(ConstUnicode pathName,
                             int flags,
                             FILELOCK_FILE_HANDLE *handle);
 
 EXTERN int FileLockCloseFile(FILELOCK_FILE_HANDLE handle);
-EXTERN int FileLockDeleteFile(const char *path);
-EXTERN int FileLockCreateDirectory(const char *path);
-EXTERN int FileLockDeleteDirectory(const char *path);
-
-EXTERN int FileLockRenameFile(const char *from,
-                              const char *to);
 
 EXTERN int FileLockFileSize(FILELOCK_FILE_HANDLE handle,
                             uint32 *fileSize);
-
-EXTERN int FileLockFileType(const char *path,
-                            int *type);
 
 EXTERN int FileLockReadFile(FILELOCK_FILE_HANDLE handle,
                             void *buf,
@@ -145,51 +173,19 @@ EXTERN int FileLockWriteFile(FILELOCK_FILE_HANDLE handle,
 EXTERN void *FileLockIntrinsic(const char *machineID,
                                const char *executionID,
                                const char *payload,
-                               const char *filePathName,
+                               ConstUnicode filePathName,
                                Bool exclusivity,
                                uint32 msecMaxWaitTime,
                                int *err);
 
 EXTERN int FileUnlockIntrinsic(const char *machineID,
                                const char *executionID,
-                               const char *filePathName,
+                               ConstUnicode filePathName,
                                const void *lockToken);
 
 EXTERN Bool FileLockValidOwner(const char *executionID,
                                const char *payload);
 
-EXTERN Bool FileLockValidName(const char *fileName);
-
-#ifndef _WIN32
-char *FilePosixGetBlockDevice(char const *path);
-#endif
-
-#if defined(__APPLE__)
-EXTERN int PosixFileOpener(const char *path,
-                           int flags,
-                           mode_t mode);
-#else
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
-#if defined(_WIN32)
-#include <windows.h>
-#include <io.h>
-#include <direct.h>
-
-typedef int mode_t;
-#endif
-
-static INLINE int
-PosixFileOpener(const char *path,
-                int flags,
-                mode_t mode)
-{
-   return open(path, flags, mode);
-}
-#endif
+EXTERN Bool FileLockValidName(ConstUnicode fileName);
 
 #endif

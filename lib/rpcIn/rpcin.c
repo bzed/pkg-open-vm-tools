@@ -96,6 +96,34 @@ struct RpcIn {
 /*
  *-----------------------------------------------------------------------------
  *
+ * RpcInPingCallback --
+ *
+ *      Replies to a ping message from the VMX.
+ *
+ * Results:
+ *      TRUE.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+RpcInPingCallback(char const **result, // OUT
+                  size_t *resultLen,   // OUT
+                  const char *name,    // IN
+                  const char *args,    // IN
+                  size_t argsSize,     // IN
+                  void *clientData)    // IN
+{
+   return RpcIn_SetRetVals(result, resultLen, "", TRUE);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * RpcIn_Construct --
  *
  *      Constructor for the RpcIn object.
@@ -513,6 +541,8 @@ RpcIn_start(RpcIn *in,                    // IN
    if (resetCallback) {
       RpcIn_RegisterCallback(in, "reset", resetCallback, resetClientData);
    }
+
+   RpcIn_RegisterCallback(in, "ping", RpcInPingCallback, NULL);
 
    return TRUE;
 

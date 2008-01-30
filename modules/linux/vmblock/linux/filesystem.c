@@ -67,8 +67,7 @@ static int FsOpReadSuper(struct super_block *sb, void *rawData, int flags);
 
 
 /* Utility */
-static void InodeCacheCtor(void *slabelem,
-                           compat_kmem_cache *cache, unsigned long flags);
+static compat_kmem_cache_ctor InodeCacheCtor;
 
 
 /* Variables */
@@ -337,10 +336,16 @@ error_inode:
  *----------------------------------------------------------------------------
  */
 
+#ifdef VMW_KMEMCR_CTOR_HAS_3_ARGS
 static void
 InodeCacheCtor(void *slabElem,           // IN: allocated slab item to initialize
                compat_kmem_cache *cache, // IN: cache slab is from
                unsigned long flags)      // IN: flags associated with allocation
+#else
+static void
+InodeCacheCtor(compat_kmem_cache *cache, // IN: cache slab is from
+               void *slabElem)           // IN: allocated slab item to initialize
+#endif
 {
 #ifdef VMW_EMBED_INODE
    VMBlockInodeInfo *iinfo = (VMBlockInodeInfo *)slabElem;

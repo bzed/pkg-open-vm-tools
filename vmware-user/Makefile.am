@@ -51,15 +51,16 @@ vmware_user_LDADD += ../lib/vixTools/libVixTools.a
 vmware_user_LDADD += ../lib/vmCheck/libVmCheck.a
 vmware_user_LDADD += ../lib/vmSignal/libVmSignal.a
 vmware_user_LDADD += ../lib/wiper/libWiper.a
-# In the absence of the linker options --start-group and --end-group (which can't
-# be put in LDADD), we need to bring the following libraries out of the alphebetical
-# order so their symbols are properly resolved.
+# In the absence of the linker options --start-group and --end-group (which
+# can't be put in LDADD), we need to bring the following libraries out of
+# the alphabetical order so their symbols are properly resolved.
 vmware_user_LDADD += ../lib/err/libErr.a
 vmware_user_LDADD += ../lib/foundryMsg/libFoundryMsg.a
 vmware_user_LDADD += ../lib/backdoor/libBackdoor.a
 vmware_user_LDADD += ../lib/dict/libDict.a
 vmware_user_LDADD += ../lib/hgfs/libHgfs.a
 vmware_user_LDADD += ../lib/message/libMessage.a
+vmware_user_LDADD += ../lib/unicode/libUnicode.a
 vmware_user_LDADD += ../lib/misc/libMisc.a
 vmware_user_LDADD += ../lib/fileUtf8/libFileUtf8.a
 vmware_user_LDADD += ../lib/procMgr/libProcMgr.a

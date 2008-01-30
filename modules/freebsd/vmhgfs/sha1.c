@@ -54,6 +54,10 @@ A million repetitions of "a"
 #   endif
 #endif
 
+#if defined(__APPLE__)
+#      include <string.h>
+#endif 
+
 #ifdef USERLEVEL
 #include "vmware.h"
 #endif

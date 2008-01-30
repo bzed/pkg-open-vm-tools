@@ -20,6 +20,7 @@
 #define _LOCALCONFIG_H_
 
 #define INCLUDE_ALLOW_USERLEVEL
+#define INCLUDE_ALLOW_VMCORE
 #include "includeCheck.h"
 
 #include "preference.h"

@@ -144,9 +144,9 @@ VixMsg_InitResponseMsg(VixCommandResponseHeader *responseHeader,  // IN
     */
    responseHeader->commonHeader.magic = VIX_COMMAND_MAGIC_WORD;
    responseHeader->commonHeader.messageVersion = VIX_COMMAND_MESSAGE_VERSION;
-   responseHeader->commonHeader.totalMessageLength = totalMessageSize;
+   responseHeader->commonHeader.totalMessageLength = (uint32) totalMessageSize;
    responseHeader->commonHeader.headerLength = sizeof(VixCommandResponseHeader);
-   responseHeader->commonHeader.bodyLength = responseBodyLength;
+   responseHeader->commonHeader.bodyLength = (uint32) responseBodyLength;
    responseHeader->commonHeader.credentialLength = 0;
    responseHeader->commonHeader.commonFlags = 0;
    if (NULL != requestHeader) {

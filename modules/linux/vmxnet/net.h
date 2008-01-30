@@ -39,8 +39,9 @@
 #define ETHERNET_MTU         1518
 #define ETH_MIN_FRAME_LEN      60
 
-
+#ifndef ETHER_ADDR_LEN
 #define ETHER_ADDR_LEN          6  /* length of MAC address */
+#endif
 #define ETH_HEADER_LEN	       14  /* length of Ethernet header */
 #define IP_ADDR_LEN	        4  /* length of IPv4 address */
 #define IP_HEADER_LEN	       20  /* minimum length of IPv4 header */

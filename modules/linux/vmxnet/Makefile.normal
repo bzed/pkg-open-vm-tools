@@ -70,7 +70,7 @@ LIBS :=
 
 default: all
 
-all: $(DRIVERNAME)
+all: ../$(DRIVER).o
 
 $(DRIVERNAME): $(OBJS)
 	$(LD) -r -o $@ $^
@@ -81,6 +81,6 @@ $(DRIVER) ../$(DRIVER).o: $(DRIVERNAME)
 auto-build: ../$(DRIVER).o
 
 clean:
-	rm -f $(DRIVERNAME) ../$(DRIVERNAME) $(DRIVER) $(OBJS)
+	rm -f $(DRIVERNAME) ../$(DRIVERNAME) $(DRIVER) ../$(DRIVER).o $(DRIVER).o $(OBJS)
 
 .SILENT:

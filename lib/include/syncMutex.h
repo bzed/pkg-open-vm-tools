@@ -30,7 +30,14 @@
 #include "includeCheck.h"
 
 #if !defined(_WIN32)
+#if defined(N_PLAT_NLM)
+#include <nwerrno.h>
+#include <nwadv.h>
+#include <nwthread.h>
+#include <nwsemaph.h>
+#else
 #include <pthread.h>
+#endif
 #endif
 
 #include "syncWaitQ.h"
@@ -43,6 +50,9 @@
 #define MUTEX_MAX_PATH   WAITQ_MAX_PATH
 
 typedef struct SyncMutex {
+#if defined(N_PLAT_NLM)
+   LONG semaphoreHandle;
+#else
    SyncWaitQ wq;
 
    /* Is the mutex unlocked? --hpreg */
@@ -50,9 +60,11 @@ typedef struct SyncMutex {
 #if !defined(_WIN32)
    pthread_mutex_t _mutex;
 #endif
+#endif
 } SyncMutex;
 
-Bool SyncMutex_Init(SyncMutex *that, char const *path);
+Bool SyncMutex_Init(SyncMutex *that,
+                    char const *path);
 void SyncMutex_Destroy(SyncMutex *that);
 Bool SyncMutex_Lock(SyncMutex *that);
 Bool SyncMutex_Unlock(SyncMutex *that);

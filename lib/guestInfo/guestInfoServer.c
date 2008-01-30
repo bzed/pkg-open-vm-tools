@@ -647,7 +647,7 @@ GuestInfoUpdateVmdb(GuestInfoType infoType, // IN: guest information type
          static Bool isCmdV1 = FALSE;
          char request[GUESTMSG_MAX_IN_SIZE]; 
          size_t requestLength = 0;
-         char *reply;
+         char *reply = NULL;
          size_t replyLen;
          Bool status;
 
@@ -675,7 +675,7 @@ GuestInfoUpdateVmdb(GuestInfoType infoType, // IN: guest information type
          } else {
             status = FALSE;
          }
-         if (!status || (strncmp(reply, "", 1) != 0)) {
+         if (!status) {
             /*
              * Could be that we are talking to the old protocol that NicInfo is 
              * still fixed size.  Another try to send the fixed sized Nic info.
@@ -706,7 +706,7 @@ GuestInfoUpdateVmdb(GuestInfoType infoType, // IN: guest information type
                                           &replyLen);
 
                Debug("GuestInfo: Just sent fixed sized nic info message.\n");
-               if (!status || (strncmp(reply, "", 1) != 0)) {
+               if (!status) {
                   Debug("Failed to update fixed sized nic information\n");
                   free(reply);
                   return FALSE;
@@ -1100,7 +1100,7 @@ GuestInfoSerializeNicInfo(NicInfo *nicInfo,                      // IN
    entrySize = sizeof nicInfo->nicInfoProto;  
    
    memcpy(buf, info, entrySize);
-   nicInfo->nicInfoProto.totalInfoSizeOnWire += entrySize;
+   nicInfo->nicInfoProto.totalInfoSizeOnWire += (uint32) entrySize;
 
    buf += entrySize;
    
@@ -1121,8 +1121,8 @@ GuestInfoSerializeNicInfo(NicInfo *nicInfo,                      // IN
        /* to prevent buffer overflow */
       if (buf + entrySize - buffer < GUESTMSG_MAX_IN_SIZE) {
          memcpy(buf, info, entrySize);
-         nicEntry->nicEntryProto.totalNicEntrySizeOnWire += entrySize;
-         nicInfo->nicInfoProto.totalInfoSizeOnWire += entrySize;
+         nicEntry->nicEntryProto.totalNicEntrySizeOnWire += (uint32) entrySize;
+         nicInfo->nicInfoProto.totalInfoSizeOnWire += (uint32) entrySize;
       } else {
          return FALSE;
       }
@@ -1140,9 +1140,12 @@ GuestInfoSerializeNicInfo(NicInfo *nicInfo,                      // IN
             /* to prevent buffer overflow */
             if (buf + entrySize - buffer < GUESTMSG_MAX_IN_SIZE) {
                memcpy(buf, info, entrySize);
-               ipAddressCur->ipEntryProto.totalIpEntrySizeOnWire += entrySize;
-               nicEntry->nicEntryProto.totalNicEntrySizeOnWire += entrySize;
-               nicInfo->nicInfoProto.totalInfoSizeOnWire += entrySize;
+               ipAddressCur->ipEntryProto.totalIpEntrySizeOnWire +=
+                  (uint32) entrySize;
+               nicEntry->nicEntryProto.totalNicEntrySizeOnWire +=
+                  (uint32) entrySize;
+               nicInfo->nicInfoProto.totalInfoSizeOnWire +=
+                  (uint32) entrySize;
             } else {
                return FALSE;
             }
@@ -1519,98 +1522,6 @@ GuestInfoServer_SendUptime(void)
 /*
  *----------------------------------------------------------------------
  *
- * GuestInfo_FreeDynamicMemoryInNic --
- *
- *      Traverse the link list and free all dynamically allocated memory.
- *
- * Results:
- *      None
- *
- * Side effects:
- *	     
- *
- *----------------------------------------------------------------------
- */
-
-void 
-GuestInfo_FreeDynamicMemoryInNic(NicEntry *nicEntry)    // IN
-{
-   VmIpAddressEntry *ipAddressCur;
-   DblLnkLst_Links *sCurrent;
-   DblLnkLst_Links *sNext;
-
-   if (NULL == nicEntry) {
-      return;
-   }
-
-   if (0 == nicEntry->nicEntryProto.numIPs) {
-      return;
-   }
-
-   DblLnkLst_ForEachSafe(sCurrent, sNext, &nicEntry->ipAddressList) {
-
-      ipAddressCur = DblLnkLst_Container(sCurrent,
-                                         VmIpAddressEntry, 
-                                         links);
-
-      DblLnkLst_Unlink1(&ipAddressCur->links);
-      free(ipAddressCur);
-   }
-
-   DblLnkLst_Init(&nicEntry->ipAddressList);
-
-} 
-
-
-/*
- *----------------------------------------------------------------------
- *
- * GuestInfo_FreeDynamicMemoryInNicInfo --
- *
- *      Free all dynamically allocated memory in the struct pointed to 
- *      by nicInfo.
- *
- * Results:
- *      None
- *
- * Side effects:
- *	     
- *
- *----------------------------------------------------------------------
- */
-
-void 
-GuestInfo_FreeDynamicMemoryInNicInfo(NicInfo *nicInfo)
-{
-   NicEntry *nicEntryCur = NULL;
-   DblLnkLst_Links *sCurrent;
-   DblLnkLst_Links *sNext;
-
-   if (NULL == nicInfo) {
-      return;
-   }
-
-   if (0 == nicInfo->nicInfoProto.numNicEntries) {
-      return;
-   }
-
-   DblLnkLst_ForEachSafe(sCurrent, sNext, &nicInfo->nicList) {
-      nicEntryCur = DblLnkLst_Container(sCurrent,
-                                        NicEntry, 
-                                        links);
-
-      GuestInfo_FreeDynamicMemoryInNic(nicEntryCur);
-      DblLnkLst_Unlink1(&nicEntryCur->links);
-      free (nicEntryCur);
-   } 
-
-   DblLnkLst_Init(&nicInfo->nicList);
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
  * NicInfo_AddNicEntry --
  *
  *      Add a Nic entry into NicInfo.  macAddress of the NicEntry is 
@@ -1676,5 +1587,4 @@ NicEntry_AddIpAddress(NicEntry *nicEntry,               // IN/OUT
 
    return ipAddressCur;
 }
-
 

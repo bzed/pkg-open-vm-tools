@@ -179,8 +179,7 @@ freedtoa(void *mem)
    free(mem);
 }
 
-/* XXX TEMP: 64-bit windows uses new compiler but old headers/libs. */
-#if defined _MSC_VER && _MSC_VER < 1400 || defined(_WIN64)
+#if defined _MSC_VER && _MSC_VER < 1400
 /* VC80 has a built-in wmemchar */
 /*
  *-----------------------------------------------------------------------------

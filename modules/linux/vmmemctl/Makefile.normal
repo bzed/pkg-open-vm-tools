@@ -78,7 +78,7 @@ LIBS :=
 
 default: all
 
-all: $(DRIVER).o
+all: ../$(DRIVER).o
 
 $(DRIVERNAME): $(OBJS)
 	$(LD) -r -o $@ $^

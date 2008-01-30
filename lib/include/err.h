@@ -25,7 +25,7 @@
 #ifndef _ERR_H_
 #define _ERR_H_
 
-#if !_WIN32
+#if !defined(_WIN32)
 #include <errno.h>
 #endif
 
@@ -34,14 +34,14 @@
 #include "includeCheck.h"
 
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 extern "C" {
 #endif
 
-#if !_WIN32
-   typedef int Err_Number;
-#else
+#if defined(_WIN32)
    typedef DWORD Err_Number;
+#else
+   typedef int Err_Number;
 #endif
 
 const char *Err_ErrString(void);
@@ -65,10 +65,10 @@ const char *Err_Errno2String(Err_Number errorNumber);
  *----------------------------------------------------------------------
  */
 
-#if !_WIN32
-   #define Err_Errno() errno
-#else
+#if defined(_WIN32)
    #define Err_Errno() GetLastError()
+#else
+   #define Err_Errno() errno
 #endif
 
 
@@ -88,10 +88,10 @@ const char *Err_Errno2String(Err_Number errorNumber);
  *----------------------------------------------------------------------
  */
 
-#if !_WIN32
-   #define Err_SetErrno(e) (errno = (e))
-#else
+#if defined(_WIN32)
    #define Err_SetErrno(e) SetLastError(e)
+#else
+   #define Err_SetErrno(e) (errno = (e))
 #endif
 
 

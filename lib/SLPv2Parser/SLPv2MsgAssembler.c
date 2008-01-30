@@ -101,7 +101,7 @@ SLPv2MsgAssemblerUrl(DynBuf *b,       // IN
    
    urlEntry.reserved = 0;
    urlEntry.lifetime = Portable_htons(lifetime);
-   urlEntry.length   = Portable_htons(strlen(url));
+   urlEntry.length   = (uint16) Portable_htons((uint16) strlen(url));
    
    if (! DynBuf_Append(b, &urlEntry, sizeof urlEntry)) {
       goto abort;
@@ -180,17 +180,17 @@ SLPv2MsgAssembler_ServiceRequest(char **packet,             // OUT
       return FALSE;
    }
 
-   languageTagLen = strlen(languageTag);
+   languageTagLen   = (uint16) strlen(languageTag);
    languageTagLenBE = Portable_htons(languageTagLen);
-   prListLen      = strlen(prList);
+   prListLen        = (uint16) strlen(prList);
    prListLenBE      = Portable_htons(prListLen);
-   serviceTypeLen = strlen(serviceType);
+   serviceTypeLen   = (uint16) strlen(serviceType);
    serviceTypeLenBE = Portable_htons(serviceTypeLen);
-   scopeListLen   = strlen(scopeList);
+   scopeListLen     = (uint16) strlen(scopeList);
    scopeListLenBE   = Portable_htons(scopeListLen);
-   predicateLen   = strlen(predicate);
+   predicateLen     = (uint16) strlen(predicate);
    predicateLenBE   = Portable_htons(predicateLen);
-   spiLen         = strlen(spi);
+   spiLen           = (uint16) strlen(spi);
    spiLenBE         = Portable_htons(spiLen);
 
    len = sizeof (struct SLPv2_Header)
@@ -246,7 +246,7 @@ SLPv2MsgAssembler_ServiceRequest(char **packet,             // OUT
    ASSERT(DynBuf_GetSize(&b) == len);
    DynBuf_Trim(&b);
    if (NULL != packetSize) {
-      *packetSize = DynBuf_GetSize(&b);
+      *packetSize = (int) DynBuf_GetSize(&b);
    }
    if (NULL != packet) {
       *packet = DynBuf_Detach(&b);
@@ -301,7 +301,7 @@ SLPv2MsgAssembler_ServiceReply(char **packet,             // OUT
       return FALSE;
    }
 
-   languageTagLen = strlen(languageTag);
+   languageTagLen = (uint16) strlen(languageTag);
 
    /*
     * Compute the total length of all strings pointed to by "urls".
@@ -310,7 +310,7 @@ SLPv2MsgAssembler_ServiceReply(char **packet,             // OUT
       urlTotalLength = urlEntryCount * 2;
       for (i = 0; i < urlEntryCount; i++) {
          ASSERT(NULL != urls[i]);
-         urlTotalLength += strlen(urls[i]);
+         urlTotalLength += (int) strlen(urls[i]);
       }
    } else {
       /*
@@ -348,7 +348,7 @@ SLPv2MsgAssembler_ServiceReply(char **packet,             // OUT
     */
    urlEntryCount  = Portable_ntohs(urlEntryCount);
    for (i = 0 ; i < urlEntryCount ; i++) {
-      urlStringLength = Portable_htons(strlen(urls[i]));
+      urlStringLength = (uint16) Portable_htons((uint16) strlen(urls[i]));
       if (! DynBuf_Append(&b, &urlStringLength, sizeof urlStringLength)) {
          goto abort;
       }
@@ -361,7 +361,7 @@ SLPv2MsgAssembler_ServiceReply(char **packet,             // OUT
    ASSERT(DynBuf_GetSize(&b) == len);
    DynBuf_Trim(&b);
    if (NULL != packetSize) {
-      *packetSize = DynBuf_GetSize(&b);
+      *packetSize = (uint16) DynBuf_GetSize(&b);
    }
    if (NULL != packet) {
       *packet = DynBuf_Detach(&b);
@@ -439,17 +439,17 @@ SLPv2MsgAssembler_AttributeRequest(char **packet,             // OUT
       return FALSE;
    }
 
-   languageTagLen   = strlen(languageTag);
+   languageTagLen   = (uint16) strlen(languageTag);
    languageTagLenBE = Portable_htons(languageTagLen);
-   prListLen        = strlen(prList);
+   prListLen        = (uint16) strlen(prList);
    prListLenBE      = Portable_htons(prListLen);
-   urlLen           = strlen(url);
+   urlLen           = (uint16) strlen(url);
    urlLenBE         = Portable_htons(urlLen);
-   scopeListLen     = strlen(scopeList);
+   scopeListLen     = (uint16) strlen(scopeList);
    scopeListLenBE   = Portable_htons(scopeListLen);
-   tagListLen       = strlen(tagList);
+   tagListLen       = (uint16) strlen(tagList);
    tagListLenBE     = Portable_htons(tagListLen);
-   spiLen           = strlen(spi);
+   spiLen           = (uint16) strlen(spi);
    spiLenBE         = Portable_htons(spiLen);
 
    len = sizeof (struct SLPv2_Header)
@@ -505,7 +505,7 @@ SLPv2MsgAssembler_AttributeRequest(char **packet,             // OUT
    ASSERT(DynBuf_GetSize(&b) == len);
    DynBuf_Trim(&b);
    if (NULL != packetSize) {
-      *packetSize = DynBuf_GetSize(&b);
+      *packetSize = (int) DynBuf_GetSize(&b);
    }
    if (NULL != packet) {
       *packet = DynBuf_Detach(&b);
@@ -562,9 +562,9 @@ SLPv2MsgAssembler_AttributeReply(char **packet,        // OUT
    }
 
    errorCodeBE        = Portable_htons(errorCode);
-   languageTagLen     = strlen(languageTag);
+   languageTagLen     = (uint16) strlen(languageTag);
    languageTagLenBE   = Portable_htons(languageTagLen);
-   attributeListLen   = strlen(attributeList);
+   attributeListLen   = (uint16) strlen(attributeList);
    attributeListLenBE = Portable_htons(attributeListLen);
 
    len = sizeof (struct SLPv2_Header)
@@ -595,7 +595,7 @@ SLPv2MsgAssembler_AttributeReply(char **packet,        // OUT
    ASSERT(DynBuf_GetSize(&b) == len);
    DynBuf_Trim(&b);
    if (NULL != packetSize) {
-      *packetSize = DynBuf_GetSize(&b);
+      *packetSize = (int) DynBuf_GetSize(&b);
    }
    if (NULL != packet) {
       *packet = DynBuf_Detach(&b);

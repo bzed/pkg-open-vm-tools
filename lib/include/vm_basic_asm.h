@@ -548,12 +548,21 @@ __GET_EDX_FROM_CPUID(int input)
 #endif
 }
 
+#ifdef VM_X86_64
+
+/*
+ * No inline assembly in Win64. Implemented in bora/lib/user in
+ * cpuidMasm64.asm.
+ */
+
+extern uint32
+__GET_EAX_FROM_CPUID4(int inputEcx);
+
+#else // VM_X86_64
+
 static INLINE uint32
 __GET_EAX_FROM_CPUID4(int inputEcx)
 {
-#ifdef VM_X86_64
-   *(int*)0 = 0;   // NOT_IMPLEMENTED();
-#else
    uint32 output;
 
    //NOT_TESTED();
@@ -571,8 +580,9 @@ __GET_EAX_FROM_CPUID4(int inputEcx)
    __asm pop ebx
 
    return output;
-#endif
 }
+
+#endif // VM_X86_64
 
 #else // }
 #error 

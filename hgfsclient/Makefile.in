@@ -70,6 +70,7 @@ hgfsclient_DEPENDENCIES = ../lib/conf/libConf.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/err/libErr.a ../lib/file/libFile.a \
 	../lib/message/libMessage.a ../lib/rpcVmx/libRpcVmx.a \
+	../lib/unicode/libUnicode.a ../lib/sync/libSync.a \
 	../lib/misc/libMisc.a ../lib/atomic/libAtomic.a
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -233,6 +234,7 @@ hgfsclient_LDADD = ../lib/conf/libConf.a ../lib/guestApp/libGuestApp.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/err/libErr.a ../lib/file/libFile.a \
 	../lib/message/libMessage.a ../lib/rpcVmx/libRpcVmx.a \
+	../lib/unicode/libUnicode.a ../lib/sync/libSync.a \
 	../lib/misc/libMisc.a ../lib/atomic/libAtomic.a
 hgfsclient_SOURCES = hgfsclient.c stub.c
 all: all-am

@@ -27,6 +27,9 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef __APPLE__
+#include <sys/utsname.h>
+#endif
 
 #include "vm_assert.h"
 #include "str.h"
@@ -122,14 +125,64 @@ static INLINE void SyncWaitQMakeName(const char *path, uint64 seq,
  * See VMware bug 116441: we workaround Apple bug 4751096 (calling close and
  * dup simultaneously on the same fd makes the Mac OS kernel panic when the
  * application exits) by serializing these calls.
+ *
+ * The bug is fixed in Leopard GA (build 9A581).
  */
+
+enum {
+   WORKAROUND_UNKNOWN,
+   WORKAROUND_NO,
+   WORKAROUND_YES,
+};
+static Atomic_Int workaround = { WORKAROUND_UNKNOWN, };
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * SyncWaitQInit --
+ *
+ *      If the workaround is needed, initialize the wait queue's mutex.
+ *
+ * Results:
+ *      On success: 0.
+ *      On failure: errno.
+ *
+ * Side effects:
+ *      None
+ *
+ *---------------------------------------------------------------------------- 
+ */
+
+static int
+SyncWaitQInit(SyncWaitQ *that) // IN
+{
+   if (UNLIKELY(Atomic_ReadInt(&workaround) == WORKAROUND_UNKNOWN)) {
+      struct utsname u;
+      unsigned int major;
+
+      /*
+       * We purposedly do not use Hostinfo_OSVersion() to avoid introducing a
+       * library dependency just for a workaround.
+       */
+      Atomic_ReadIfEqualWriteInt(&workaround, WORKAROUND_UNKNOWN,
+         (   uname(&u) == -1
+          || sscanf(u.release, "%u.", &major) != 1
+          || major < 9) ? WORKAROUND_YES : WORKAROUND_NO);
+   }
+
+   ASSERT(Atomic_ReadInt(&workaround) != WORKAROUND_UNKNOWN);
+   return Atomic_ReadInt(&workaround) == WORKAROUND_YES
+             ? pthread_mutex_init(&that->mutex, NULL) : 0;
+}
+
 
 /*
  *-----------------------------------------------------------------------------
  *
  * SyncWaitQLock --
  *
- *      Grab the wait queue's mutex.
+ *      If the workaround is needed, grab the wait queue's mutex.
  *
  * Results:
  *      None
@@ -143,10 +196,13 @@ static INLINE void SyncWaitQMakeName(const char *path, uint64 seq,
 static void
 SyncWaitQLock(SyncWaitQ *that) // IN
 {
-   int result;
+   ASSERT(Atomic_ReadInt(&workaround) != WORKAROUND_UNKNOWN);
+   if (Atomic_ReadInt(&workaround) == WORKAROUND_YES) {
+      int result;
 
-   result = pthread_mutex_lock(&that->mutex);
-   ASSERT(!result);
+      result = pthread_mutex_lock(&that->mutex);
+      ASSERT(!result);
+   }
 }
 
 
@@ -155,7 +211,7 @@ SyncWaitQLock(SyncWaitQ *that) // IN
  *
  * SyncWaitQUnlock --
  *
- *      Release the wait queue's mutex.
+ *      If the workaround is needed, release the wait queue's mutex.
  *
  * Results:
  *      None
@@ -169,10 +225,13 @@ SyncWaitQLock(SyncWaitQ *that) // IN
 static void
 SyncWaitQUnlock(SyncWaitQ *that) // IN
 {
-   int result;
+   ASSERT(Atomic_ReadInt(&workaround) != WORKAROUND_UNKNOWN);
+   if (Atomic_ReadInt(&workaround) == WORKAROUND_YES) {
+      int result;
 
-   result = pthread_mutex_unlock(&that->mutex);
-   ASSERT(!result);
+      result = pthread_mutex_unlock(&that->mutex);
+      ASSERT(!result);
+   }
 }
 #endif
 
@@ -267,7 +326,7 @@ SyncWaitQ_Init(SyncWaitQ *that,   // OUT
       if (   fcntl(rwHandles.fd[0], F_SETFL, O_RDONLY | O_NONBLOCK) < 0
           || fcntl(rwHandles.fd[1], F_SETFL, O_WRONLY | O_NONBLOCK) < 0
 #if __APPLE__
-          || pthread_mutex_init(&that->mutex, NULL)
+          || SyncWaitQInit(that)
 #endif
                                                                        ) {
 	 close(rwHandles.fd[0]);
@@ -323,7 +382,8 @@ SyncWaitQ_Destroy(SyncWaitQ *that)
       close(rwHandles.fd[0]);
       close(rwHandles.fd[1]);
 #if __APPLE__
-      {
+      ASSERT(Atomic_ReadInt(&workaround) != WORKAROUND_UNKNOWN);
+      if (Atomic_ReadInt(&workaround) == WORKAROUND_YES) {
          int result;
 
          result = pthread_mutex_destroy(&that->mutex);

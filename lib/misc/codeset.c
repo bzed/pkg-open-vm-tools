@@ -155,7 +155,6 @@ CodeSetDynBufFinalize(Bool          ok,       // IN: Earlier steps succeeded
 }
 
 
-#ifndef _WIN32
 /*
  *-----------------------------------------------------------------------------
  *
@@ -282,7 +281,6 @@ CodeSetUtf8ToUtf16le(const char *bufIn,  // IN
    DynBuf_SetSize(db, currentSize);
    return TRUE;
 }
-#endif
 
 
 #if defined(_WIN32)
@@ -357,9 +355,10 @@ CodeSetGenericToUtf16le(UINT codeIn,         // IN
          result = MultiByteToWideChar(codeIn,
                      flags,
                      bufIn,
-                     sizeIn,
+                     (int) sizeIn,
                      (wchar_t *)((char *)DynBuf_Get(db) + initialSize),
-                     (DynBuf_GetAllocatedSize(db) - initialSize) / sizeof(wchar_t));
+                     (int) ((DynBuf_GetAllocatedSize(db) - initialSize) /
+                            sizeof(wchar_t)));
 
          if (0 == result) {
             error = GetLastError();   // may be ERROR_NO_UNICODE_TRANSLATION
@@ -451,9 +450,9 @@ CodeSetUtf16leToGeneric(char const *bufIn,   // IN
          result = WideCharToMultiByte(codeOut,
                      0,
                      (wchar_t const *)bufIn,
-                     sizeIn / sizeof(wchar_t),
+                     (int) (sizeIn / sizeof(wchar_t)),
                      (char *)DynBuf_Get(db) + initialSize,
-                     DynBuf_GetAllocatedSize(db) - initialSize,
+                     (int) (DynBuf_GetAllocatedSize(db) - initialSize),
                      NULL,
                      /*
                       * XXX We may need to pass that argument
@@ -1198,11 +1197,7 @@ CodeSet_Utf8ToUtf16le(char const *bufIn,     // IN
    Bool ok;
 
    DynBuf_Init(&db);
-#if defined(_WIN32)
-   ok = CodeSetGenericToUtf16le(CP_UTF8, bufIn, sizeIn, &db);
-#else
    ok = CodeSetUtf8ToUtf16le(bufIn, sizeIn, &db);
-#endif
    return CodeSetDynBufFinalize(ok, &db, bufOut, sizeOut);
 }
 

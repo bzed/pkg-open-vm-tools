@@ -83,6 +83,11 @@ extern "C"{
 #ifndef VIX_HIDE_BORA_DEPENDENCIES
 VixError Vix_TranslateSystemError(int systemError);
 VixError Vix_TranslateCryptoError(CryptoError cryptoError);
+
+#ifdef _WIN32
+VixError Vix_TranslateCOMError(HRESULT comError);
+#endif
+
 #endif // VIX_HIDE_BORA_DEPENDENCIES
 
 
@@ -344,6 +349,50 @@ enum {
 };
 
 
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VixDebug --
+ *
+ *      Vix debug macros, to allow conditional printf debugging with file/line
+ *      information.
+ *
+ *      Use as:
+ *
+ *      VIX_DEBUG(("test debug message: %s %d\n", stringArg, intArg));
+ *       
+ *       Output will got to logfile if VIX_DEBUG_PREFERNCE_NAME is non-zero
+ *
+ *      VIX_DEBUG_LEVEL(3, ("test debug message: %s %d\n", stringArg, intArg));
+ *
+ *       Output will got to logfile if VIX_DEBUG_PREFERNCE_NAME is >=
+ *       the first argument to the macro.
+ * 
+ *-----------------------------------------------------------------------------
+ */
+
+#ifndef VIX_HIDE_FROM_JAVA
+
+extern int vixDebugGlobalSpewLevel;
+extern char  *VixAllocDebugString(char *fmt, ...);
+extern void  VixDebugInit(int level);
+
+/*
+ * preference name for client and vmx
+ */
+#define  VIX_DEBUG_PREFERENCE_NAME   "vix.debugLevel"
+
+#define  VIX_DEBUG_LEVEL(logLevel, s) if (logLevel <= vixDebugGlobalSpewLevel) \
+    {  char *debugString = VixAllocDebugString s; \
+       Log("Vix Debug: [%s:%d]: %s", __FILE__, __LINE__, debugString); \
+       free(debugString); }
+
+#define  VIX_DEBUG(s) if (0 !=  vixDebugGlobalSpewLevel) \
+    {  char *debugString = VixAllocDebugString s; \
+       Log("Vix Debug: [%s:%d]: %s", __FILE__, __LINE__, debugString); \
+       free(debugString); }
+
+#endif   // VIX_HIDE_FROM_JAVA
 
 #ifdef __cplusplus
 } // extern "C" {

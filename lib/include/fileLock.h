@@ -28,6 +28,8 @@
 #define INCLUDE_ALLOW_USERLEVEL
 #include "includeCheck.h"
 
+#include "unicodeTypes.h"
+
 #if !defined(_WIN32)
 /*
  * Set the file type config variables for linux.
@@ -36,7 +38,7 @@ EXTERN void FileLock_Init(int lockerPid, Bool userWorld);
 #endif
 
 // Horrible hack that exists to please VMX; should be removed ASAP
-EXTERN int  FileLock_DeleteFileVMX(const char *filePath);
+EXTERN int  FileLock_DeleteFileVMX(ConstUnicode filePath);
 
 // The default time, in msec, to wait for a lock before giving up
 #define	FILELOCK_DEFAULT_WAIT 2500
@@ -55,16 +57,16 @@ EXTERN int  FileLock_DeleteFileVMX(const char *filePath);
 #define	FILELOCK_OVERHEAD 15
 
 // File locking functions
-EXTERN void *FileLock_Lock(const char *filePath,
+EXTERN void *FileLock_Lock(ConstUnicode filePath,
                            const Bool readOnly,
                            const uint32 msecMaxWaitTime,
                            int *err);
 
-EXTERN int FileLock_Unlock(const char *filePath,
+EXTERN int FileLock_Unlock(ConstUnicode filePath,
                            const void *fileLockToken);
 
-EXTERN int FileLock_Remove(const char *filePath);
-EXTERN int FileLock_CleanupVM(const char *cfgfilePath);
+EXTERN int FileLock_Remove(ConstUnicode filePath);
+EXTERN int FileLock_CleanupVM(ConstUnicode cfgfilePath);
 
 // Device locking functions, for compatibility
 EXTERN int FileLock_LockDevice(const char *device);

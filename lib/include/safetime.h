@@ -50,7 +50,7 @@
 #error Use safetime.h instead of time.h, stat.h, and types.h
 #endif
 
-#if (_MSC_VER < 1400) || defined(_WIN64)
+#if (_MSC_VER < 1400)
 
 #define _STAT_DEFINED
 
@@ -152,7 +152,7 @@ struct __stat64 {
 #define wstat(a,b) _wstat64((a),(struct __stat64*)(b))
 #define _wstat(a,b) _wstat64((a),(struct __stat64*)(b))
 
-#else /* (_MSC_VER < 1400) || defined(_WIN64)*/
+#else /* (_MSC_VER < 1400) */
 
 /* 
  * Starting with VC80, we can pick between 32-bit and 64-bit time_t
@@ -170,7 +170,7 @@ struct __stat64 {
 #error Refusing to use 32-bit time_t in safetime.h
 #endif
 
-#endif /* (_MSC_VER < 1400) || defined(_WIN64)*/
+#endif /* (_MSC_VER < 1400) */
 
 #else
 

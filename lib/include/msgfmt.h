@@ -33,6 +33,35 @@
 
 
 /*
+ * Format parser callback functions
+ */
+
+typedef int
+MsgFmt_LitFunc(void *clientData, // IN
+               char const *buf,  // IN
+               int bufSize);     // IN
+
+typedef int
+MsgFmt_SpecFunc(void *clientData,       // IN
+                char const *pos,        // IN
+                unsigned int posSize,   // IN
+                char const *type,       // IN
+                unsigned int typeSize); // IN
+
+
+/*
+ * Format specifier flags from MsgFmt_ParseSpec()
+ */
+
+#define MSGFMT_FLAG_ALT		0x0001
+#define MSGFMT_FLAG_ZERO	0x0002
+#define MSGFMT_FLAG_MINUS	0x0004
+#define MSGFMT_FLAG_SPACE	0x0008
+#define MSGFMT_FLAG_PLUS	0x0010
+#define MSGFMT_FLAG_QUOTE	0x0020
+
+
+/*
  * A format argument
  */
 
@@ -73,8 +102,29 @@ typedef struct MsgFmt_Arg {
  * Global functions
  */
 
+typedef int
+MsgFmt_ParseFunc(MsgFmt_LitFunc *litFunc,    // IN
+                 MsgFmt_SpecFunc *specFunc,  // IN
+                 void *clientData,           // IN
+                 char const *in);            // IN
+
+MsgFmt_ParseFunc MsgFmt_Parse;
+MsgFmt_ParseFunc MsgFmt_ParseWin32;
+
+int
+MsgFmt_ParseSpec(char const *pos,       // IN: n$ location
+                 unsigned int posSize,  // IN: n$ length
+                 char const *type,      // IN: flags, width, etc.
+                 unsigned int typeSize, // IN: size of above
+		 int *position,         // OUT: argument position
+		 int *flags,            // OUT: flags, see MSGFMT_FLAG_*
+		 int *width,            // OUT: width
+		 int *precision,        // OUT: precision
+		 char *lengthMod,       // OUT: length modifier
+		 char *conversion);     // OUT: conversion specifier
+
 Bool MsgFmt_GetArgs(const char *fmt, va_list va,
-                    MsgFmt_Arg **args, int *numArgs);
+                    MsgFmt_Arg **args, int *numArgs, char **error);
 void MsgFmt_FreeArgs(MsgFmt_Arg *args, int numArgs);
 
 #ifdef HAS_BSD_PRINTF

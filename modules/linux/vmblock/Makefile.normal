@@ -100,13 +100,13 @@ OBJS := $(LINUX_OBJS)
 ####
 
 driver: setup deps
-	$(MAKE) -C $(DESTDIR) -f ../Makefile SRCROOT=../$(SRCROOT) $(DRIVER).o \
+	$(MAKE) -C $(DESTDIR) -f ../Makefile SRCROOT=../$(SRCROOT) ../$(DRIVER).o \
 		INCLUDE_DEPS=1
 
 setup:
 	@if [ -d $(DESTDIR) ] ; then true ; else mkdir $(DESTDIR); chmod 755 $(DESTDIR) ; fi
 
-$(DRIVER) $(DRIVER).o: $(DRIVERNAME)
+$(DRIVER) $(DRIVER).o ../$(DRIVER).o: $(DRIVERNAME)
 	cp -f $< $@
 
 $(DRIVERNAME): $(OBJS)
@@ -127,9 +127,9 @@ clean:
 $(LINUX_DEPS): %.d: $(SRCROOT)/linux/%.c
 	$(ECHO) "Dependencies for $<"
 	$(CC) -MM $(CC_OPTS) $(INCLUDE) $< > $@
-	
-deps: setup 
-	$(MAKE) -C $(DESTDIR) -f ../Makefile SRCROOT=../$(SRCROOT) driver_deps 
+
+deps: setup
+	$(MAKE) -C $(DESTDIR) -f ../Makefile SRCROOT=../$(SRCROOT) driver_deps
 
 driver_deps: ${OBJS:.o=.d}
 

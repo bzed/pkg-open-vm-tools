@@ -46,10 +46,14 @@
 #include <sys/resource.h>
 #if defined(__APPLE__)
 #define SYS_NMLN _SYS_NAMELEN
+#include <assert.h>
+#include <CoreServices/CoreServices.h>
 #include <mach-o/dyld.h>
 #include <mach/host_info.h>
 #include <mach/mach_host.h>
 #include <mach/mach_init.h>
+#include <mach/mach.h>
+#include <mach/mach_time.h>
 #include <sys/sysctl.h>
 #else
 #if !defined(USING_AUTOCONF) || defined(HAVE_SYS_VFS_H)
@@ -73,6 +77,7 @@
 #include "log.h"
 #include "file.h"
 #include "backdoor_def.h"
+#include "util.h"
 #include "vmstdio.h"
 #include "su.h"
 #include "vm_atomic.h"
@@ -216,16 +221,17 @@ Hostinfo_LogLoadAverage(void)
    Log("LOADAVG: %.2f %.2f %.2f\n", avg0, avg1, avg2);
 }
 
-
+#if defined(__APPLE__)
 /*
  *-----------------------------------------------------------------------------
  *
- * Hostinfo_GetSystemUpTime --
+ * HostinfoMacAbsTimeNS --
  *
- *      Return system uptime in microseconds.
+ *      Return the Mac OS absolute time.
  *
  * Results:
- *      System uptime in microseconds or zero in case of a failure.
+ *      The absolute time in nanoseconds is returned. This time is documented
+ *      to NEVER go backwards.
  *
  * Side effects:
  *	None.
@@ -233,29 +239,83 @@ Hostinfo_LogLoadAverage(void)
  *-----------------------------------------------------------------------------
  */
 
-VmTimeType
-Hostinfo_GetSystemUpTime(void)
+static inline VmTimeType
+HostinfoMacAbsTimeNS(void)
 {
-   int res;
-#if defined(__APPLE__)
-   VmTimeType t1;
-   struct timeval t0;
-   size_t sz = sizeof t0;
-   int mib[2];
+   VmTimeType raw;
+   mach_timebase_info_data_t *ptr;
+   static Atomic_Ptr atomic; /* Implicitly initialized to NULL. --mbellon */
 
-   mib[0] = CTL_KERN;
-   mib[1] = KERN_BOOTTIME;
-   res = sysctl(mib, 2, &t0, &sz, NULL, 0);
-   if (res != 0) {
-      Warning(LGPFX" sysctl failed: %s\n", Msg_ErrString());
-      return 0;
+#if defined(VMX86_DEBUG)
+   SyncMutex *lck;
+
+   static Atomic_Ptr lckStorage;
+   static VmTimeType lastTimeRead;
+#endif
+
+   /* Insure that the time base values are correct. */
+   ptr = (mach_timebase_info_data_t *) Atomic_ReadPtr(&atomic);
+
+   if (ptr == NULL) {
+      char *p;
+
+      p = Util_SafeMalloc(sizeof(mach_timebase_info_data_t));
+
+      mach_timebase_info((mach_timebase_info_data_t *) p);
+
+      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, p)) {
+         free(p);
+      }
+
+      ptr = (mach_timebase_info_data_t *) Atomic_ReadPtr(&atomic);
    }
 
-   Hostinfo_GetTimeOfDay(&t1);
-  
-   return t1 - ((VmTimeType)t0.tv_sec * 1000 * 1000 + t0.tv_usec);
+#if defined(VMX86_DEBUG)
+   /* assert that mach_absolute_time is always increasing */
+   lck = SyncMutex_CreateSingleton(&lckStorage);
+   SyncMutex_Lock(lck);
+
+   raw = mach_absolute_time();
+
+   ASSERT(raw >= lastTimeRead);
+   lastTimeRead = raw;
+
+   SyncMutex_Unlock(lck);
 #else
-#ifdef VMX86_SERVER
+   raw = mach_absolute_time();
+#endif
+
+   if ((ptr->numer == 1) && (ptr->denom == 1)) {
+      /* The scaling values are unity, save some time/arithmetic */
+      return raw;
+   } else {
+      /* The scaling values are not unity. Prevent overflow when scaling */
+      return ((double) raw) * (((double) ptr->numer) / ((double) ptr->denom));
+   }
+}
+#else
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HostinfoSystemTimerUS --
+ *
+ *      Obtain the system timer for non-Mac systems.
+ *
+ * Results:
+ *      Relative time in microseconds or zero if a failure.
+ *
+ * Side effects:
+ *	None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static VmTimeType
+HostinfoSystemTimerUS(void)
+{
+#if defined(VMX86_SERVER)
    if (HostType_OSIsPureVMK()) {
       uint64 uptime;
       VMK_ReturnStatus status;
@@ -268,6 +328,130 @@ Hostinfo_GetSystemUpTime(void)
       return uptime;
    } else {
 #endif /* ifdef VMX86_SERVER */
+      struct timeval tval;
+
+      /* Read the time from the operating system */
+      if (gettimeofday(&tval, NULL) != 0) {
+         Panic("gettimeofday failed!\n");
+      }
+      /* Convert into microseconds */
+      return (((VmTimeType)tval.tv_sec) * 1000000 + tval.tv_usec);
+#if defined(VMX86_SERVER)
+   }
+#endif /* ifdef VMX86_SERVER */
+}
+#endif
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Hostinfo_SystemTimerUS --
+ *
+ *      This is the routine to use when performing timing measurements. It
+ *      is valid (finish-time - start-time) only within a single process.
+ *      Don't send a time obtained this way to another process and expect
+ *      a relative time measurement to be correct.
+ *
+ * Results:
+ *      Relative time in microseconds or zero if a failure.
+ *
+ *      Please note that the actual resolution of this "clock" is undefined -
+ *      it varies between OSen and OS versions.
+ *
+ * Side effects:
+ *	None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+VmTimeType
+Hostinfo_SystemTimerUS(void)
+{
+#if defined(__APPLE__)
+   return HostinfoMacAbsTimeNS() / 1000ULL;
+#else
+   SyncMutex *lck;
+   VmTimeType curTime;
+   VmTimeType newTime;
+
+   static Atomic_Ptr lckStorage;
+   static VmTimeType lastTimeBase;
+   static VmTimeType lastTimeRead;
+   static VmTimeType lastTimeReset;
+
+   curTime = HostinfoSystemTimerUS();
+
+   if (curTime == 0) {
+      return 0;
+   }
+
+   /* Get and take lock. */
+   lck = SyncMutex_CreateSingleton(&lckStorage);
+   SyncMutex_Lock(lck);
+
+   /*
+    * Don't let time be negative or go backward.  We do this by
+    * tracking a base and moving foward from there.
+    */
+
+   newTime = lastTimeBase + (curTime - lastTimeReset);
+
+   if (newTime < lastTimeRead) {
+      lastTimeReset = curTime;
+      lastTimeBase = lastTimeRead + 1;
+      newTime = lastTimeBase + (curTime - lastTimeReset);
+   }
+
+   lastTimeRead = newTime;
+
+   /* Release lock. */
+   SyncMutex_Unlock(lck);
+
+   return newTime;
+#endif
+}
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Hostinfo_SystemUpTime --
+ *
+ *      Return system uptime in microseconds.
+ *
+ *      Please note that the actual resolution of this "clock" is undefined -
+ *      it varies between OSen and OS versions. Use Hostinfo_SystemTimerUS
+ *      whenever possible.
+ *
+ * Results:
+ *      System uptime in microseconds or zero in case of a failure.
+ *
+ * Side effects:
+ *	None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+VmTimeType
+Hostinfo_SystemUpTime(void)
+{
+#if defined(__APPLE__)
+   return HostinfoMacAbsTimeNS() / 1000ULL;
+#else
+#if defined(VMX86_SERVER)
+   if (HostType_OSIsPureVMK()) {
+      uint64 uptime;
+      VMK_ReturnStatus status;
+
+      status = VMKernel_GetUptimeUS(&uptime);
+      if (status != VMK_OK) {
+	 return 0;
+      }
+
+      return uptime;
+   } else {
+#endif /* ifdef VMX86_SERVER */
+      int res;
       double uptime;
       FILE *f;
 
@@ -284,11 +468,12 @@ Hostinfo_GetSystemUpTime(void)
          return 0;
       }
       return uptime * 1000 * 1000;
-#ifdef VMX86_SERVER
+#if defined(VMX86_SERVER)
    }
 #endif /* ifdef VMX86_SERVER */
 #endif
 }
+
 
 
 /*
@@ -1172,81 +1357,6 @@ Hostinfo_Execute(const char *command,
    } else {
       return 0;
    }
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * Hostinfo_ReadRealTime --
- *
- *      Read time from the host.  This time source is only suitable for
- *      use in relative measurements within a single process.
- *
- * Results:
- *      relative time in microseconds
- *      
- * Side effects:
- *      None.
- *
- *----------------------------------------------------------------------
- */
-
-VmTimeType 
-Hostinfo_ReadRealTime(void) 
-{
-   VmTimeType curTime, newTime;
-   static VmTimeType lastTimeReset, lastTimeBase;
-   static VmTimeType lastTimeRead;
-   static Atomic_Ptr lckStorage;
-   SyncMutex *lck;
-
-#ifdef VMX86_SERVER
-   if (HostType_OSIsVMK()) {
-      VMK_ReturnStatus status;
-      uint64 uptime;
-
-      /* Uptime vs. timeofday, see PR 39168, change # 378431 */
-      status = VMKernel_GetUptimeUS(&uptime);
-      if (status != VMK_OK) {
-	 Panic("getuptime failed: %#x\n", status);
-      }
-
-      curTime = (VmTimeType)uptime;
-   } else {
-#endif
-      struct timeval tval;
-
-      /* Read the time from the operating system */
-      if (gettimeofday(&tval, NULL) != 0) {
-	 Panic("gettimeofday failed!\n");
-      }
-      /* Convert into microseconds */
-      curTime = (((VmTimeType)tval.tv_sec) * 1000000 + tval.tv_usec);
-#ifdef VMX86_SERVER
-   }
-#endif
-
-   /* Get and take lock. */
-   lck = SyncMutex_CreateSingleton(&lckStorage);
-   SyncMutex_Lock(lck);
-
-   /*
-    * Don't let time be negative or go backward.  We do this by
-    * tracking a base and moving foward from there.
-    */
-   newTime = lastTimeBase + (curTime - lastTimeReset);
-   if (newTime < lastTimeRead) {
-      lastTimeReset = curTime;
-      lastTimeBase = lastTimeRead+1;
-      newTime = lastTimeBase + (curTime - lastTimeReset);
-   }
-   lastTimeRead = newTime;
-
-   /* Release lock. */
-   SyncMutex_Unlock(lck);
-
-   return newTime;
 }
 
 

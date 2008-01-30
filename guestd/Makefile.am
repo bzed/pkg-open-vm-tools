@@ -58,12 +58,13 @@ guestd_LDADD += ../lib/vmBackupLib/libVmBackupLib.a
 guestd_LDADD += ../lib/vmCheck/libVmCheck.a
 guestd_LDADD += ../lib/vmSignal/libVmSignal.a
 guestd_LDADD += ../lib/wiper/libWiper.a
-# In the absence of the linker options --start-group and --end-group (which can't
-# be put in LDADD), we need to bring the following libraries out of the alphebetical
-# order so their symbols are properly resolved.
+# In the absence of the linker options --start-group and --end-group (which
+# can't be put in LDADD), we need to bring the following libraries out of the
+# alphabetical order so their symbols are properly resolved.
 guestd_LDADD += ../lib/dict/libDict.a
 guestd_LDADD += ../lib/hgfs/libHgfs.a
 guestd_LDADD += ../lib/message/libMessage.a
+guestd_LDADD += ../lib/unicode/libUnicode.a
 guestd_LDADD += ../lib/misc/libMisc.a
 guestd_LDADD += ../lib/foundryMsg/libFoundryMsg.a
 guestd_LDADD += ../lib/fileUtf8/libFileUtf8.a

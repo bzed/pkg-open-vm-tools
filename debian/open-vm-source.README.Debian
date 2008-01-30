@@ -6,7 +6,7 @@ open-vm-tools package to get the necessary user-space support programs.
 
 The Debian open-vm-source package can be used in several ways,
 
- - Using module-assistant(1) commands provided by the module-assistant Debian
+ - Using module-assistant(8) commands provided by the module-assistant Debian
    package:
 
 	# module-assistant prepare open-vm

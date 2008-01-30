@@ -35,9 +35,11 @@
 #include <linux/autoconf.h>
 #include "compat_version.h"
 
-/* We rely on Kernel Module support.  Check here. */
+/*
+ * We rely on Kernel Module support.  Check here.
+ */
 #ifndef CONFIG_MODULES
-#error "No Module support in this kernel.  Please configure with CONFIG_MODULES"
+#   error "No Module support in this kernel.  Please configure with CONFIG_MODULES"
 #endif
 
 /*
@@ -46,21 +48,31 @@
  */
 
 #ifdef CONFIG_SMP
-   #define __SMP__ 1
+#   define __SMP__ 1
 #endif
 
 #if defined(CONFIG_MODVERSIONS) && defined(KERNEL_2_1)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,60)
-/* MODVERSIONS might be already defined when using kernel's Makefiles */
-#ifndef MODVERSIONS
-#define MODVERSIONS
+#   if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,60)
+/*
+ * MODVERSIONS might be already defined when using kernel's Makefiles.
+ */
+#      ifndef MODVERSIONS
+#         define MODVERSIONS
+#      endif
+#      include <linux/modversions.h>
+#   endif
 #endif
-#include <linux/modversions.h>
-#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
+/*
+ * Force the uintptr_t definition to come from linux/types.h instead of vm_basic_types.h.
+ */
+#   include <linux/types.h>
+#   define _STDINT_H 1
 #endif
 
 #ifndef __KERNEL__
-#define __KERNEL__
+#   define __KERNEL__
 #endif
 
 #endif

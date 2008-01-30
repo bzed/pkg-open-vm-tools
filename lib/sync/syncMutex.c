@@ -22,12 +22,17 @@
  *      Implements a non-recursive mutex in a platform independent way.
  */
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #include <windows.h>
+#elif defined(N_PLAT_NLM)
+#include <nwerrno.h>
+#include <nwadv.h>
+#include <nwthread.h>
+#include <nwsemaph.h>
 #else
 #include <sys/poll.h>
 #include <errno.h>
-#endif // #ifdef _WIN32
+#endif
 
 #include "vm_assert.h"
 #include "syncMutex.h"
@@ -54,11 +59,15 @@ SyncMutex_Init(SyncMutex *that,      // OUT
 {
    ASSERT(that);
 
+#if defined(N_PLAT_NLM)
+   that->semaphoreHandle = OpenLocalSemaphore(0);
+#else
    if (!SyncWaitQ_Init(&that->wq, path)) {
       return FALSE;
    }
 
    Atomic_Write(&that->unlocked, TRUE);
+#endif
 
    return TRUE;
 }
@@ -78,7 +87,14 @@ SyncMutex_Init(SyncMutex *that,      // OUT
 void
 SyncMutex_Destroy(SyncMutex *that) // IN
 {
+   ASSERT(that);
+
+#if defined(N_PLAT_NLM)
+   WaitOnLocalSemaphore(that->semaphoreHandle);
+   CloseLocalSemaphore(that->semaphoreHandle);
+#else
    SyncWaitQ_Destroy(&that->wq);
+#endif
 }
 
 
@@ -98,10 +114,15 @@ SyncMutex_Destroy(SyncMutex *that) // IN
 Bool
 SyncMutex_Lock(SyncMutex *that) // IN
 {
-#ifndef VMX86_DEVEL
-#define RETRY_TIMEOUT_MS 5000 // Workaround for bug #23716
+#if defined(N_PLAT_NLM)
+   ASSERT(that);
+
+   WaitOnLocalSemaphore(that->semaphoreHandle);
 #else
-#define RETRY_TIMEOUT_MS -1 // Infinite time out in devel builds to catch bug #23716
+#if defined(VMX86_DEVEL)
+#define RETRY_TIMEOUT_MS -1 // Infinite time out to catch bug #23716 (devel)
+#else
+#define RETRY_TIMEOUT_MS 5000 // Workaround for bug #23716
 #endif
    
    int handle;
@@ -128,7 +149,7 @@ SyncMutex_Lock(SyncMutex *that) // IN
          break;
       }
 
-#ifdef _WIN32
+#if defined(_WIN32)
       status = WaitForSingleObject((HANDLE) handle, RETRY_TIMEOUT_MS);
       ASSERT(status != WAIT_FAILED);
 #else // #ifdef _WIN32
@@ -158,6 +179,7 @@ SyncMutex_Lock(SyncMutex *that) // IN
          return FALSE;
       }
    }
+#endif
 
    return TRUE;
 }
@@ -181,9 +203,15 @@ SyncMutex_Unlock(SyncMutex *that) // IN
 {
    ASSERT(that);
 
+#if defined(N_PLAT_NLM)
+   SignalLocalSemaphore(that->semaphoreHandle);
+
+   return TRUE;
+#else
    Atomic_Write(&that->unlocked, TRUE);
 
    return SyncWaitQ_WakeUp(&that->wq);
+#endif
 }
 
 

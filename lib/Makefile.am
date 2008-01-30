@@ -54,6 +54,7 @@ SUBDIRS += sync
 SUBDIRS += syncDriver
 SUBDIRS += system
 SUBDIRS += toolsLogger
+SUBDIRS += unicode
 SUBDIRS += user
 SUBDIRS += vixTools
 SUBDIRS += vmBackupLib

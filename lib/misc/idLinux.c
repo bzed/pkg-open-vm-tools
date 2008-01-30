@@ -25,14 +25,17 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
+#include <string.h>
 #include <unistd.h>
 #ifdef __APPLE__
 #include <sys/socket.h>
 #include <Security/Authorization.h>
+#include <Security/AuthorizationTags.h>
 #endif
 
 #include "vmware.h"
 #include "su.h"
+#include "vm_atomic.h"
 
 #if defined(__linux__)
 #ifndef GLIBC_VERSION_21
@@ -89,6 +92,10 @@ static int uid32 = 1;
 
 #if defined(__APPLE__)
 #include <sys/kauth.h>
+
+static AuthorizationRef IdAuthCreate(void);
+static AuthorizationRef IdAuthCreateWithFork(void);
+
 #endif
 
 
@@ -391,13 +398,91 @@ Id_SetSuperUser(Bool yes) // IN: TRUE to acquire super user, FALSE to release
  *      On failure: NULL.
  *
  * Side effects:
- *      The current process is forked.
+ *      See IdAuthCreateWithFork.
  *
  *-----------------------------------------------------------------------------
  */
 
 static AuthorizationRef
 IdAuthCreate(void)
+{
+   /*
+    * Bug 195868: If thread credentials are in use, we need to fork.
+    * Otherwise, avoid forking, as it breaks Apple's detection of
+    * whether the calling process is a GUI process.
+    *
+    * This is needed because AuthorizationRefs created by GUI
+    * processes can be passed to non-GUI processes to allow them to
+    * prompt for authentication with a dialog that automatically
+    * steals focus from the current GUI app.  (This is how the Mac UI
+    * and VMX work today.)
+    *
+    * TODO: How should we handle single-threaded apps where uid !=
+    * euid or gid != egid?  Some callers may expect us to check
+    * against euid, others may expect us to check against uid.
+    */
+   uid_t thread_uid;
+   gid_t thread_gid;
+   int ret;
+
+   ret = syscall(SYS_gettid, &thread_uid, &thread_gid);
+
+   if (ret != -1) {
+      /*
+       * We have per-thread UIDs in use, so Apple's authorization
+       * APIs don't work.  Fork so we can use them.
+       */
+      return IdAuthCreateWithFork();
+   } else {
+      if (errno != ESRCH) {
+         Warning("%s: gettid failed, error %d.\n", __FUNCTION__, errno);
+         return NULL;
+      } else {
+          // Per-thread identities are not in use in this thread.
+         AuthorizationRef auth;
+         OSStatus ret;
+
+         ret = AuthorizationCreate(NULL,
+                                   kAuthorizationEmptyEnvironment,
+                                   kAuthorizationFlagDefaults,
+                                   &auth);
+
+         if (ret == errAuthorizationSuccess) {
+            return auth;
+         } else {
+            Warning("%s: AuthorizationCreate failed, error %ld.\n",
+                    __FUNCTION__, ret);
+            return NULL;
+         }
+      }
+   }
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * IdAuthCreateWithFork --
+ *
+ *      Create an Authorization session.
+ *
+ *      An Authorization session remembers which process name and which
+ *      credentials created it, and how much time has elapsed since it last
+ *      prompted the user at the console to authenticate to grant the
+ *      Authorization session a specific right.
+ *
+ * Results:
+ *      On success: A ref to the Authorization session.
+ *      On failure: NULL.
+ *
+ * Side effects:
+ *      The current process is forked.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static AuthorizationRef
+IdAuthCreateWithFork(void)
 {
    int fds[2] = { -1, -1, };
    pid_t child;
@@ -518,7 +603,7 @@ out:
 }
 
 
-static AuthorizationRef procAuth = NULL;
+static Atomic_Ptr procAuth = { 0 };
 
 
 /*
@@ -527,8 +612,6 @@ static AuthorizationRef procAuth = NULL;
  * IdAuthGet --
  *
  *      Get a ref to the process' Authorization session.
- *
- *      Not thread-safe.
  *
  * Results:
  *      On success: The ref.
@@ -544,11 +627,20 @@ static AuthorizationRef procAuth = NULL;
 static AuthorizationRef
 IdAuthGet(void)
 {
-   if (!procAuth) {
-      procAuth = IdAuthCreate();
+   if (UNLIKELY(Atomic_ReadPtr(&procAuth) == NULL)) {
+      AuthorizationRef newProcAuth = IdAuthCreate();
+
+      if (Atomic_ReadIfEqualWritePtr(&procAuth,
+                                     NULL,
+                                     newProcAuth)) {
+         // Someone else snuck in before we did.  Free the new authorization.
+         AuthorizationFree(newProcAuth, kAuthorizationFlagDefaults);
+      }
    }
 
-   return procAuth;
+   ASSERT(Atomic_ReadPtr(&procAuth) != NULL);
+
+   return Atomic_ReadPtr(&procAuth);
 }
 
 
@@ -558,8 +650,6 @@ IdAuthGet(void)
  * Id_AuthGetLocal --
  *
  *      Get a local ref to the process' Authorization session.
- *
- *      Not thread-safe.
  *
  * Results:
  *      On success: The ref.
@@ -585,8 +675,6 @@ Id_AuthGetLocal(void)
  * Id_AuthGetExternal --
  *
  *      Get a cross-process ref to the process' Authorization session.
- *
- *      Not thread-safe.
  *
  * Results:
  *      On success: An allocated cross-process ref.
@@ -634,8 +722,6 @@ Id_AuthGetExternal(size_t *size) // OUT
  *      Set the process' Authorization session to the Authorization session
  *      referred to by a cross-process ref.
  *
- *      Not thread-safe.
- *
  * Results:
  *      On success: TRUE.
  *      On failure: FALSE.
@@ -650,6 +736,8 @@ Bool
 Id_AuthSet(void const *buf, // IN
            size_t size)     // IN
 {
+   AuthorizationRef newProcAuth;
+
    AuthorizationExternalForm const *ext =
       (AuthorizationExternalForm const *)buf;
 
@@ -658,11 +746,22 @@ Id_AuthSet(void const *buf, // IN
       return FALSE;
    }
 
-   ASSERT(!procAuth);
-   if (AuthorizationCreateFromExternalForm(ext, &procAuth)
+   ASSERT(!Atomic_ReadPtr(&procAuth));
+   if (AuthorizationCreateFromExternalForm(ext, &newProcAuth)
        != errAuthorizationSuccess) {
       Warning("AuthorizationCreateFromExternalForm failed.\n");
       return FALSE;
+   }
+
+   if (Atomic_ReadIfEqualWritePtr(&procAuth,
+                                  NULL,
+                                  newProcAuth)) {
+      /*
+       * This is meant to be called very early on in the life of the
+       * process.  If someone else has snuck in an authorization,
+       * we're toast.
+       */
+      NOT_IMPLEMENTED();
    }
 
    return TRUE;
@@ -674,44 +773,72 @@ Id_AuthSet(void const *buf, // IN
  *
  * Id_AuthCheck --
  *
- *      Check if 'right' is granted to the process' Authorization session.
- *
- *      Not thread-safe.
+ *      Check if 'right' is granted to the process' Authorization
+ *      session, using the specified localized UTF-8 description as
+ *      the prompt if it's non-NULL.
  *
  * Results:
- *      On success: TRUE is granted.
- *      On failure: FALSE if not granted.
+ *      TRUE if the right was granted, FALSE if the user cancelled,
+ *      entered the wrong password three times in a row, or if an
+ *      error was encountered.
  *
  * Side effects:
- *      None
+ *      Displays a dialog to the user.  The dialog grabs keyboard
+ *      focus if Id_AuthSet() was previously called with a
+ *      cross-process ref to a GUI process.
  *
  *-----------------------------------------------------------------------------
  */
 
 Bool
-Id_AuthCheck(char const *right) // IN
+Id_AuthCheck(char const *right,                // IN
+             char const *localizedDescription) // IN: UTF-8
 {
    AuthorizationRef auth;
-   AuthorizationItem items[1];
+   AuthorizationItem rightsItems[1] = { { 0 } };
    AuthorizationRights rights;
+   AuthorizationItem environmentItems[1] = { { 0 } };
+   AuthorizationEnvironment environmentWithDescription = { 0 };
+   const AuthorizationEnvironment *environment =
+      kAuthorizationEmptyEnvironment;
 
    auth = IdAuthGet();
    if (!auth) {
       return FALSE;
    }
 
-   items[0].name = right;
-   items[0].valueLength = 0;
-   items[0].value = NULL;
-   items[0].flags = 0;
-   rights.items = items;
-   rights.count = ARRAYSIZE(items);
+   rightsItems[0].name = right;
+   rights.items = rightsItems;
+   rights.count = ARRAYSIZE(rightsItems);
 
+   /*
+    * By default, the API displays a dialog saying "APPLICATIONNAME
+    * requires that you type your password" (if you're an admin; the
+    * message is different if you're not).
+    *
+    * If the localized description is present, the API uses that
+    * description and appends a space followed by the above string.
+    */
+   if (localizedDescription) {
+      environmentItems[0].name = kAuthorizationEnvironmentPrompt;
+      environmentItems[0].valueLength = strlen(localizedDescription);
+      environmentItems[0].value = (void *)localizedDescription;
+      environmentWithDescription.items = environmentItems;
+      environmentWithDescription.count = ARRAYSIZE(environmentItems);
+      environment = &environmentWithDescription;
+   }
+
+   /*
+    * TODO: Is this actually thread-safe when multiple threads act on
+    * the same AuthorizationRef?  Apple's documentation doesn't
+    * actually say whether it is or is not.
+    */
    return AuthorizationCopyRights(auth, &rights,
-             kAuthorizationEmptyEnvironment,
+             environment,
              kAuthorizationFlagDefaults |
-             kAuthorizationFlagInteractionAllowed | 
+             kAuthorizationFlagInteractionAllowed |
              kAuthorizationFlagExtendRights,
              NULL) == errAuthorizationSuccess;
 }
+
 #endif

@@ -138,8 +138,6 @@ typedef struct _DiskInfo {
    PPartitionEntry partitionList;
 } DiskInfo, *PDiskInfo;
 
-void GuestInfo_FreeDynamicMemoryInNic(NicEntry *nicEntry);
-void GuestInfo_FreeDynamicMemoryInNicInfo(NicInfo *nicInfo);
 
 NicEntry *NicInfo_AddNicEntry(NicInfo *nicInfo, const char macAddress[MAC_ADDR_SIZE]);
 VmIpAddressEntry *NicEntry_AddIpAddress(NicEntry *nicEntry, 
@@ -147,6 +145,97 @@ VmIpAddressEntry *NicEntry_AddIpAddress(NicEntry *nicEntry,
                                         const uint32 af_type); 
 
 NicEntry *NicInfo_FindMacAddress(NicInfo *nicInfo, const char *macAddress);
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * GuestInfo_FreeDynamicMemoryInNic --
+ *
+ *      Traverse the link list and free all dynamically allocated memory.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static INLINE void 
+GuestInfo_FreeDynamicMemoryInNic(NicEntry *nicEntry)        // IN
+{
+   VmIpAddressEntry *ipAddressCur;
+   DblLnkLst_Links *sCurrent;
+   DblLnkLst_Links *sNext;
+
+   if (NULL == nicEntry) {
+      return;
+   }
+
+   if (0 == nicEntry->nicEntryProto.numIPs) {
+      return;
+   }
+
+   DblLnkLst_ForEachSafe(sCurrent, sNext, &nicEntry->ipAddressList) {
+
+      ipAddressCur = DblLnkLst_Container(sCurrent,
+                                         VmIpAddressEntry, 
+                                         links);
+
+      DblLnkLst_Unlink1(&ipAddressCur->links);
+      free(ipAddressCur);
+   }
+
+   DblLnkLst_Init(&nicEntry->ipAddressList);
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * GuestInfo_FreeDynamicMemoryInNicInfo --
+ *
+ *      Free all dynamically allocated memory in the struct pointed to 
+ *      by nicInfo.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static INLINE void 
+GuestInfo_FreeDynamicMemoryInNicInfo(NicInfo *nicInfo)      // IN
+{
+   NicEntry *nicEntryCur = NULL;
+   DblLnkLst_Links *sCurrent;
+   DblLnkLst_Links *sNext;
+
+   if (NULL == nicInfo) {
+      return;
+   }
+
+   if (0 == nicInfo->nicInfoProto.numNicEntries) {
+      return;
+   }
+
+   DblLnkLst_ForEachSafe(sCurrent, sNext, &nicInfo->nicList) {
+      nicEntryCur = DblLnkLst_Container(sCurrent,
+                                        NicEntry, 
+                                        links);
+
+      GuestInfo_FreeDynamicMemoryInNic(nicEntryCur);
+      DblLnkLst_Unlink1(&nicEntryCur->links);
+      free (nicEntryCur);
+   } 
+
+   DblLnkLst_Init(&nicInfo->nicList);
+}
+
 
 #endif // _GUEST_INFO_H_
 

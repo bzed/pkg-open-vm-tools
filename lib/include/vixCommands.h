@@ -61,14 +61,6 @@
 
 #define VIX_SHARED_SECRET_CONFIG_USER_NAME          "__VMware_Vix_Shared_Secret_1__"
 
-/*
- * These are the flags set in responseFlags.
- */
-enum VixResponseFlagsValues {
-   VIX_RESPONSE_SOFT_POWER_OP       = 0x0001,
-   VIX_RESPONSE_EXTENDED_RESULT_V1  = 0x0002,
-   VIX_RESPONSE_TRUNCATED           = 0x0004,
-};
 
 /*
  * This is the port for the server side remote Vix component
@@ -88,14 +80,28 @@ enum VixCommonCommandOptionValues {
    VIX_COMMAND_GUEST_RETURNS_ENCODED_STRING  = 0x20,
    VIX_COMMAND_GUEST_RETURNS_PROPERTY_LIST   = 0x40,
    VIX_COMMAND_GUEST_RETURNS_BINARY          = 0x80,
+   // We cannot add more constants here. This is stored in a uint8,
+   // so it is full. Use requestFlags or responseFlags.
 };
+
 
 /*
  * These are the flags set in the request Flags field.
  */
 enum {
    VIX_REQUESTMSG_ONLY_RELOAD_NETWORKS                = 0x01,
-   VIX_REQUESTMSG_RETURN_ON_INITIATING_TOOLS_UPGRADE  = 0x02
+   VIX_REQUESTMSG_RETURN_ON_INITIATING_TOOLS_UPGRADE  = 0x02,
+   VIX_REQUESTMSG_RUN_IN_ANY_VMX_STATE                = 0x04
+};
+
+
+/*
+ * These are the flags set in responseFlags.
+ */
+enum VixResponseFlagsValues {
+   VIX_RESPONSE_SOFT_POWER_OP       = 0x0001,
+   VIX_RESPONSE_EXTENDED_RESULT_V1  = 0x0002,
+   VIX_RESPONSE_TRUNCATED           = 0x0004,
 };
 
 
@@ -709,14 +715,14 @@ typedef
 #include "vmware_pack_begin.h"
 struct VixMsgHotDiskRequest {
    VixCommandRequestHeader header;
-   int                     hotDiskOptions;
-   int                     adapterTypeLength;
-   int                     typeLength;
-   int                     nameLength;
-   int                     modeLength;
-   int                     deviceTypeLength;
-   int                     adapterNum;
-   int                     targetNum;
+   int32                    hotDiskOptions;
+   int32                    adapterTypeLength;
+   int32                    typeLength;
+   int32                    nameLength;
+   int32                    modeLength;
+   int32                    deviceTypeLength;
+   int32                    adapterNum;
+   int32                    targetNum;
 }
 #include "vmware_pack_end.h"
 VixMsgHotDiskRequest;
@@ -730,10 +736,10 @@ typedef
 #include "vmware_pack_begin.h"
 struct VixMsgHotExtendDiskRequest {
    VixCommandRequestHeader header;
-   int                     hotDiskOptions;
-   int                     typeLength;
-   int                     adapterNum;
-   int                     targetNum;
+   int32                    hotDiskOptions;
+   int32                    typeLength;
+   int32                    adapterNum;
+   int32                    targetNum;
    uint64                  newNumSectors;
 }
 #include "vmware_pack_end.h"
@@ -826,7 +832,6 @@ struct VixMsgVMSnapshotLoggingRequest {
 #include "vmware_pack_end.h"
 VixMsgVMSnapshotLoggingRequest;
 
-
 typedef
 #include "vmware_pack_begin.h"
 struct VixMsgRecordReplayEvent {
@@ -843,11 +848,7 @@ typedef
 #include "vmware_pack_begin.h"
 struct VixMsgGetRecordReplayInfoResponse {
    VixCommandResponseHeader header;
-   
-   uint32 curLogOffset;
-   uint32 logLength;
-   uint64 currentBranches;
-   uint64 totalBranches;
+   uint32                   propertyListSize;
 }     
 #include "vmware_pack_end.h"
 VixMsgGetRecordReplayInfoResponse;
@@ -858,25 +859,39 @@ struct VixMsgVMSnapshotSetReplaySpeedRequest {
    VixCommandRequestHeader    header;
 
    int32                      options;
-   int32                      uSeconds;
+   int32                      timeType;
+   int64                      timeValue;
 }
 #include "vmware_pack_end.h"
 VixMsgVMSnapshotSetReplaySpeedRequest;
 
+typedef uint32 VixReplayStopAtType;
+enum {
+   VIX_REPLAY_STOPAT_EIPECXBRCNT  = 1,
+};
 
-/*
- * Event for Fault Tolerance state changes
- */
 typedef
 #include "vmware_pack_begin.h"
-struct VixMsgFaultToleranceEvent {
-   VixMsgEventHeader          eventHeader;
+struct VixMsgVMSetReplayStopAtRequest {
+   VixCommandRequestHeader    header;
 
-   int32                      state;
-} 
+   int32                      options;
+   VixReplayStopAtType        stopAtType;
+}
 #include "vmware_pack_end.h"
-VixMsgFaultToleranceEvent;
+VixMsgVMSetReplayStopAtRequest;
 
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgVMSetReplayStopAtEipEcxBrCntRequest {
+   VixMsgVMSetReplayStopAtRequest   stopAtCommonRequest;
+   uint32                           mask;
+   uint64                           eip;
+   uint64                           ecx;
+   int64                            brCnt;
+}
+#include "vmware_pack_end.h"
+VixMsgVMSetReplayStopAtEipEcxBrCntRequest;
 
 /*
  * Fault Tolerance Automation
@@ -888,21 +903,11 @@ struct VixMsgFaultToleranceControlRequest {
 
    int32                      command;
    char                       uuid[48];
+   int32                      vmxPathLen;
+   char                       vmxFilePath[1];
 } 
 #include "vmware_pack_end.h"
 VixMsgFaultToleranceControlRequest;
-
-
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgFaultToleranceRegisterRequest {
-   VixCommandRequestHeader    requestHeader;
-
-   char                       uuid[48];
-   char                       vmxFilePath[1];
-}
-#include "vmware_pack_end.h"
-VixMsgFaultToleranceRegisterRequest;
 
 
 
@@ -1019,10 +1024,10 @@ struct VixMsgCaptureScreenRequest {
    VixCommandRequestHeader header;
    
    int32                   format;  // Identifies the requested data format.
-   int                     maxSize; // Max data response size in bytes
+   int32                    maxSize; // Max data response size in bytes
                                     //    (-1 is any size)
 
-   int                     captureScreenOptions;
+   int32                    captureScreenOptions;
 }
 #include "vmware_pack_end.h"
 VixMsgCaptureScreenRequest;
@@ -1254,24 +1259,36 @@ typedef
 #include "vmware_pack_begin.h"
 struct VixMsgGetVProbesResponse {
    VixCommandResponseHeader header;
-   int32                    numVProbes;
+   int32                    numEntries;
 }
 #include "vmware_pack_end.h"
 VixMsgGetVProbesResponse;
 
 /*
  * **********************************************************
- * Load a vprobe script into a given VM. The response is void,
- * and so generic.
+ * Load a vprobe script into a given VM. The request is a string
+ * to be loaded. The response is a collection of warning and error
+ * strings; zero errors indicates success.
  */
 typedef
 #include "vmware_pack_begin.h"
 struct VixMsgVProbeLoadRequest {
    VixCommandResponseHeader header;
-   char   string[1];     /* variable length depending on strlen */
+   char   string[1];             /* variable length */
 } 
 #include "vmware_pack_end.h"
 VixMsgVProbeLoadRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgVProbeLoadResponse {
+   VixCommandResponseHeader header;
+   uint32 numWarnings;
+   uint32 numErrors;
+   char   warningsAndErrors[1]; /* variable length */
+}
+#include "vmware_pack_end.h"
+VixMsgVProbeLoadResponse;
 
 /*
  * **********************************************************
@@ -1415,6 +1432,34 @@ VixMsgSetGuestNetworkingConfigRequest;
 
 
 /*
+ * Query VMX performance data
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgGetPerformanceDataRequest {
+   VixCommandRequestHeader   header;
+
+   // unused for now, but left for future expansion in case we
+   // get such a large list that we want to pass the desired properties.
+   int32                     options;
+   uint32                    sizeOfPropertyList;
+   // This is followed by the buffer of properties we wish to fetch
+}
+#include "vmware_pack_end.h"
+VixMsgGetPerformanceDataRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgGetPerformanceDataResponse {
+   VixCommandResponseHeader   header;
+   int32                      bufferSize;
+   // This is followed by the buffer of serialized properties
+}
+#include "vmware_pack_end.h"
+VixMsgGetPerformanceDataResponse;
+
+
+/*
  * HOWTO: Adding a new Vix Command. Step 3.
  *
  * Add a new struct to pass over the control socket into the VMX.
@@ -1457,6 +1502,249 @@ struct VixMsgSampleCommandResponse {
 VixMsgSampleCommandResponse;
 
 // End of "HOWTO: Adding a new Vix Command. Step 3."
+
+
+
+/*
+ * **********************************************************
+ * Report and manage the state of a Msg_Post dialogs.
+ */
+
+/*
+ * This is used to report a MsgPost is opening.
+ * This is the non-localized version. It passes the original format string
+ * and a list of vararg-style parameters.
+ *
+ * See VixMsgOpenMsgPostEventLocalized for the localized version.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgOpenMsgPostEvent {
+   VixMsgEventHeader          eventHeader;
+
+   int32                      dialogType;
+   uint64                     dialogCookie;
+
+   int32                      severity;
+   int32                      defaultAnswer;
+   int32                      percent;
+   int32                      cancelButton;
+   int32                      hintOptions;
+
+   int32                      numMessages;
+   int32                      numButtons;
+
+   /*
+    * Followed by:
+    *       A list of messages, each is stored in one VixMsgDialogStr.
+    *       A list of button strings (each is a null-terminated string.
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgOpenMsgPostEvent;
+
+
+/*
+ * This is one string in the message. It corresponds to a
+ * single Msg_List object.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgDialogStr {
+   int32          idLength;
+   int32          formatLength;
+   int32          numArgs;
+   /*
+    * Followed by:
+    *       The ID string (with NULL terminator)
+    *       The format string (with NULL terminator)
+    *       A list of arguments, each is one VixMsgDialogStrArg.
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgDialogStr;
+
+
+/*
+ * This is one argument to the message. It corresponds to a
+ * single MsgFmt_Arg object.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgDialogStrArg {
+   int32          argType;
+   int32          argSize;
+   /*
+    * Followed by the actual argument data.
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgDialogStrArg;
+
+
+/*
+ * Vix_WaitForUserActionInGuest Request
+ * VIX_COMMAND_WAIT_FOR_USER_ACTION_IN_GUEST
+ */
+
+enum {
+   // userType
+   VIX_USERTYPE_ANY        = 0,
+};
+
+enum {
+   // userAction
+   VIX_USERACTION_UNKNOWN  = -1,
+   VIX_USERACTION_LOGIN    = 0,
+};
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgWaitForUserActionRequest {
+   VixCommandResponseHeader   header;
+
+   int32                       userType;
+   int32                       userAction;
+
+   int32                       timeoutInSeconds;
+   int32                       options;
+
+   int32                       userNameLength;
+   int32                      propertyBufferSize;
+
+   // This is followed by:
+   //    userName
+   //    buffer of serialized properties
+}
+#include "vmware_pack_end.h"
+VixMsgWaitForUserActionRequest;
+
+
+/*
+ * This is used to report a MsgPost is closing.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgCloseUIDialogEvent {
+   VixMsgEventHeader          eventHeader;
+
+   uint64                     dialogCookie;
+   int32                      numMessages;
+
+   /*
+    * Followed by:
+    *       A list of strings, each is one MsgPost Id.
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgCloseUIDialogEvent;
+
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgWaitForUserActionResponse {
+   VixCommandRequestHeader    header;
+
+   Bool                       actionHappened;
+
+   int32                      bufferSize;
+   // This is followed by the buffer of serialized properties
+}
+#include "vmware_pack_end.h"
+VixMsgWaitForUserActionResponse;
+
+
+
+
+
+
+/*
+ * This is used to report a MsgPost is opening.
+ * This is the localized version. It passes the localized message.
+ *
+ * See VixMsgOpenMsgPostEvent for the non-localized version.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgOpenMsgPostEventLocalized {
+   VixMsgEventHeader          eventHeader;
+
+   int32                      dialogType;
+   uint64                     dialogCookie;
+
+   int32                      severity;
+   int32                      defaultAnswer;
+   int32                      percent;
+   int32                      cancelButton;
+   int32                      hintOptions;
+   
+   int32                      localeStrLength;
+   int32                      numMessages;
+   int32                      numButtons;
+
+   /*
+    * Followed by:
+    *       A locale string (a null-terminated string)
+    *       A list of localized message strings (each is a null-terminated string).
+    *       A list of localized button strings (each is a null-terminated string).
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgOpenMsgPostEventLocalized;
+
+
+/*
+ * Answer a Msg_Post post/hint/question
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgAnswerMsgPost {
+   VixCommandRequestHeader   header;
+
+   uint64                    dialogCookie;
+
+   int32                     options;
+
+   int32                     answer;
+   void                      *progressState;
+
+   uint32                    idStrSize;
+   uint32                    propertyListBufferSize;
+}
+#include "vmware_pack_end.h"
+VixMsgAnswerMsgPost;
+
+
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgSetLocaleRequest {
+   VixCommandRequestHeader header;
+
+   int32                   localeOptions;
+   
+   int32                   localeStrLength;
+   char                    localeStr[1];
+   // This is followed by the country code string.
+}
+#include "vmware_pack_end.h"
+VixMsgSetLocaleRequest;
+
+
+
+/*
+ * This is used to report progress.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgLazyProgressEvent {
+   VixMsgEventHeader          eventHeader;
+
+   uint64                     dialogCookie;
+   int32                      percent;
+}
+#include "vmware_pack_end.h"
+VixMsgLazyProgressEvent;
 
 
 
@@ -1580,6 +1868,7 @@ enum {
    VIX_COMMAND_MOUNT_HGFS_FOLDERS               = 101,
    VIX_COMMAND_HOT_EXTEND_DISK                  = 102,
 
+   VIX_COMMAND_GET_VPROBES_VERSION              = 104,
    VIX_COMMAND_GET_VPROBES                      = 105,
    VIX_COMMAND_VPROBE_GET_GLOBALS               = 106,
    VIX_COMMAND_VPROBE_LOAD                      = 107,
@@ -1598,7 +1887,7 @@ enum {
     *
     * Add a new ID for your new function prototype here. BE CAREFUL. The
     * OFFICIAL list of id's is in the bfg-main tree, in bora/lib/public/vixCommands.h.
-    * When people add new command id'sin different tree, they may collide and use
+    * When people add new command id's in different tree, they may collide and use
     * the same ID values. This can merge without conflicts, and cause runtime bugs.
     */
    VIX_COMMAND_SAMPLE_COMMAND                   = 115,
@@ -1611,10 +1900,24 @@ enum {
    VIX_COMMAND_FAULT_TOLERANCE_CONTROL          = 120,
    VIX_COMMAND_FAULT_TOLERANCE_QUERY_SECONDARY  = 121,
 
-   VIX_COMMAND_PAUSE_SNAPSHOT_LOG_PLAYBACK      = 122,
-   VIX_COMMAND_RESUME_SNAPSHOT_LOG_PLAYBACK     = 123,
+   VIX_COMMAND_VM_PAUSE                         = 122,
+   VIX_COMMAND_VM_UNPAUSE                       = 123,
    VIX_COMMAND_GET_SNAPSHOT_LOG_INFO            = 124,
-   VIX_COMMAND_SET_REPLAY_SPEED_RELATIVE_USECS  = 125,
+   VIX_COMMAND_SET_REPLAY_SPEED                 = 125,
+
+   VIX_COMMAND_ANSWER_USER_MESSAGE              = 126,
+   VIX_COMMAND_SET_CLIENT_LOCALE                = 127,
+
+   VIX_COMMAND_GET_PERFORMANCE_DATA             = 128,
+
+   VIX_COMMAND_REFRESH_RUNTIME_PROPERTIES       = 129,
+
+   VIX_COMMAND_GET_SNAPSHOT_SCREENSHOT          = 130,
+   VIX_COMMAND_SET_REPLAY_STOP_POINT            = 131,
+
+   VIX_COMMAND_WAIT_FOR_USER_ACTION_IN_GUEST    = 132,
+   VIX_COMMAND_VMDB_END_TRANSACTION             = 133,
+   VIX_COMMAND_VMDB_SET                         = 134,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,

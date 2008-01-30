@@ -36,7 +36,10 @@
 #include <string.h>
 #include <sys/types.h>
 #if !defined(N_PLAT_NLM) && defined(linux)
-/* These headers are needed to get __USE_LARGEFILE, __USE_LARGEFILE64, and SYS__llseek. */
+/*
+ * These headers are needed to get __USE_LARGEFILE, __USE_LARGEFILE64,
+ * and SYS__llseek.
+ */
 #   include <features.h>
 #   include <linux/unistd.h>
 #   include <syscall.h>
@@ -54,17 +57,27 @@
 #include <sys/kauth.h>
 #include <sys/param.h>
 #include <sys/mount.h>
+#include <CoreFoundation/CoreFoundation.h>
+#include <dlfcn.h>
 #endif
 
 /* Check for non-matching prototypes */
 #include "vmware.h"
 #include "str.h"
 #include "file.h"
+#include "fileIO.h"
 #include "fileInt.h"
 #include "config.h"
 #include "util.h"
 #include "iovector.h"
 #include "stats_file.h"
+
+#include "unicodeBase.h"
+#include "unicodeOperations.h"
+
+#if defined(__APPLE__)
+#include "hostinfo.h"
+#endif
 
 static const unsigned int FileIO_SeekOrigins[] = {
    SEEK_SET,
@@ -89,6 +102,13 @@ typedef struct FilePosixOptions {
    int countThreshold;
    int sizeThreshold;
 } FilePosixOptions;
+
+#if defined(__APPLE__)
+typedef OSStatus CSBackupSetItemExcludedFunction(CFURLRef item,
+                                                 Boolean exclude,
+                                                 Boolean excludeByPath);
+#endif
+
 
 static FilePosixOptions filePosixOptions;
 
@@ -159,7 +179,7 @@ FileIOErrno2Result(int error) // IN: errno to convert
  */
 
 INLINE void
-FileIO_OptionalSafeInitialize()
+FileIO_OptionalSafeInitialize(void)
 {
    if (!filePosixOptions.initialized) {
       filePosixOptions.enabled =
@@ -192,6 +212,8 @@ FileIO_OptionalSafeInitialize()
 void
 FileIO_Invalidate(FileIODescriptor *fd) // OUT
 {
+   ASSERT(fd);
+
    (memset)(fd, 0, sizeof *fd);
    fd->posix = -1;
 }
@@ -217,6 +239,7 @@ Bool
 FileIO_IsValid(const FileIODescriptor *fd)      // IN
 {
    ASSERT(fd);
+
    return fd->posix != -1;
 }
 
@@ -248,6 +271,7 @@ FileIO_CreateFDPosix(int posix,  // IN: UNIX file descriptor
                      int flags)  // IN: UNIX access flags
 {
    FileIODescriptor fd;
+
    FileIO_Invalidate(&fd);
 
 #if defined(VMX86_STATS)
@@ -274,7 +298,6 @@ FileIO_CreateFDPosix(int posix,  // IN: UNIX file descriptor
 }
 
 
-#if !defined(N_PLAT_NLM)
 /*
  *----------------------------------------------------------------------
  *
@@ -293,14 +316,65 @@ FileIO_CreateFDPosix(int posix,  // IN: UNIX file descriptor
  */
 
 Bool
-FileIO_GetVolumeSectorSize(const char *name,    // IN
-                           uint32 *sectorSize)  // OUT
+FileIO_GetVolumeSectorSize(ConstUnicode pathName,  // IN:
+                           uint32 *sectorSize)     // OUT:
 {
+   ASSERT(sectorSize);
+
    *sectorSize = 0;
 
    return FALSE;
 }
-#endif /* !defined(N_PLAT_NLM) */
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * PosixOpen --
+ *
+ *      Open a file using POSIX open.
+ *
+ * Results:
+ *      -1	error
+ *      >= 0	success (file descriptor)
+ *
+ * Side effects:
+ *      errno is set on error
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+PosixOpen(ConstUnicode pathName,  // IN:
+          int flags,              // IN:
+          int mode)               // IN:
+{
+   int fd;
+   char *path;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      fd = -1;
+      errno = ENOMEM;
+   } else {
+      int err;
+
+      fd = open(path, flags, (mode_t) mode);
+
+      err = errno;
+      free(path);
+      errno = err;
+   }
+
+   return fd;
+}
+
 
 #if defined(__APPLE__)
 /*
@@ -435,15 +509,15 @@ ProxyReceiveResults(int sock_fd,     // IN:
  *      >= 0 on success
  *
  * Side effects:
- *      errno is set
+ *      errno is set on error
  *
  *----------------------------------------------------------------------
  */
 
 static int
-ProxyOpen(const char *path, // IN:
-          int flags,        // IN:
-          mode_t mode)      // IN:
+ProxyOpen(ConstUnicode pathName,  // IN:
+          int flags,              // IN:
+          int mode)               // IN:
 {
    int err;
    pid_t pid;
@@ -451,6 +525,11 @@ ProxyOpen(const char *path, // IN:
    int proxyFD;
 
    int saveErrno = 0;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
 
    err = socketpair(AF_UNIX, SOCK_DGRAM, 0, fds);
    if (err == -1) {
@@ -466,7 +545,7 @@ ProxyOpen(const char *path, // IN:
    }
 
    if (pid == 0) { /* child:  use fd[0] */
-      proxyFD = open(path, flags, mode);
+      proxyFD = PosixOpen(pathName, flags, mode);
 
       ProxySendResults(fds[0], proxyFD, errno);
 
@@ -497,7 +576,7 @@ bail:
  *
  * Results:
  *	0	Success, useProxy is set
- *	> 0	Failure, errno value and useProxy is not set
+ *	> 0	Failure (errno value); useProxy is undefined
  *
  * Side effects:
  *	None
@@ -506,12 +585,18 @@ bail:
  */
 
 static int
-ProxyUse(const char *filePath, Bool *useProxy)
+ProxyUse(ConstUnicode pathName,  // IN:
+         Bool *useProxy)         // IN:
 {
-   char *p = NULL;
-   char *testPath = NULL;
+   int err;
+   char *path;
+   UnicodeIndex index;
    struct statfs sfbuf;
    struct stat statbuf;
+
+   if (pathName == NULL) {
+      return EFAULT;
+   }
 
    /*
     * If the file to be opened exists and is a symbolic link use the
@@ -519,38 +604,56 @@ ProxyUse(const char *filePath, Bool *useProxy)
     * doesn't seem to be worth it.
     */
 
-   if ((lstat(filePath, &statbuf) == 0) && S_ISLNK(statbuf.st_mode)) {
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      return ENOMEM;
+   }
+
+   err = lstat(path, &statbuf);
+
+   free(path);
+
+   if ((err == 0) && S_ISLNK(statbuf.st_mode)) {
       *useProxy = TRUE;
       return 0;
    }
 
    /*
-    * Construct the testPath - the path to the directory that contains
-    * the filePath.
+    * Construct the path to the directory that contains the filePath.
     */
 
-   testPath = malloc(strlen(filePath) + 2);
-   if (testPath == NULL) {
-      return ENOMEM;  // Really out of memory...
-   }
+   index = Unicode_FindLast(pathName, U("/"));
 
-   strcpy(testPath, filePath);
-
-   p = strrchr(testPath, '/');
-   if (p == NULL) {
-      p = testPath;
+   if (index == UNICODE_INDEX_NOT_FOUND) {
+      path = strdup(".");
    } else {
-      p++;
-   }
+      Unicode temp;
+      Unicode testPath;
 
-   strcpy(p, ".");
+      temp = Unicode_Substr(pathName, 0, index + 1);
+      testPath = Unicode_Append(temp, U("."));
+
+      path = Unicode_GetAllocBytes(testPath, STRING_ENCODING_DEFAULT);
+
+      Unicode_Free(temp);
+      Unicode_Free(testPath);
+
+      if (path == NULL) {
+         return ENOMEM;
+      }
+   }
 
    /*
-    * Attempt to obtain information abour the testPath (directory
+    * Attempt to obtain information about the testPath (directory
     * containing filePath).
     */
 
-   if (statfs(testPath, &sfbuf) == 0) {
+   err = statfs(path, &sfbuf);
+
+   free(path);
+
+   if (err == 0) {
       /*
        * The testPath exists; determine proxy usage explicitely.
        */
@@ -564,18 +667,19 @@ ProxyUse(const char *filePath, Bool *useProxy)
       *useProxy = TRUE;
    }
 
-   free(testPath);
-
    return 0;
 }
+#endif
 
 
 /*
  *----------------------------------------------------------------------
  *
- * PosixFileOpener --
+ * FileIO_PosixOpen --
  *
- *      Open a file. Use a proxy when creating a file or on NFS.
+ *      Open a file via POSIX open().
+ *
+ *      Use a proxy when creating a file or on NFS on MacOS X.
  *
  *	Why a proxy? The MacOS X 10.4.* NFS client interacts with our
  *	use of settid() and doesn't send the proper credentials on opens.
@@ -583,22 +687,25 @@ ProxyUse(const char *filePath, Bool *useProxy)
  *	data. The proxy avoids all of this unhappiness.
  *
  * Results:
- *      -1 on error
- *      >= 0 on success
+ *      -1	Error
+ *      >= 0	File descriptor (success)
  *
  * Side effects:
- *      errno is set
+ *      errno is set on error
  *
  *----------------------------------------------------------------------
  */
 
 int
-PosixFileOpener(const char *filePath, // IN:
-                int flags,            // IN:
-                mode_t mode)          // IN:
+FileIO_PosixOpen(ConstUnicode pathName, // IN:
+                 int flags,             // IN:
+                 int mode)              // IN:
 {
+#if defined(__APPLE__)
    Bool useProxy;
+#endif
 
+#if defined(__APPLE__)
    if ((flags & O_ACCMODE) || (flags & O_CREAT)) {
       int err;
 
@@ -606,7 +713,7 @@ PosixFileOpener(const char *filePath, // IN:
        * Open for write and/or O_CREAT. Determine proxy usage.
        */
 
-      err = ProxyUse(filePath, &useProxy);
+      err = ProxyUse(pathName, &useProxy);
       if (err != 0) {
          errno = err;
          return -1;
@@ -619,18 +726,91 @@ PosixFileOpener(const char *filePath, // IN:
       useProxy = FALSE;
    }
 
-   return useProxy ? ProxyOpen(filePath, flags, mode) :
-                     open(filePath, flags, mode);
-}
+   return useProxy ? ProxyOpen(pathName, flags, mode) :
+                     PosixOpen(pathName, flags, mode);
+#else
+   return PosixOpen(pathName, flags, mode);
 #endif
+}
 
 
 /*
  *----------------------------------------------------------------------
  *
- * FileIO_Open --
+ * FileIO_PosixCreat --
  *
- *      Open a file
+ *      Create a file via POSIX creat().
+ *
+ * Results:
+ *      -1	Error
+ *      >= 0	File descriptor (success)
+ *
+ * Side effects:
+ *      errno is set on error
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileIO_PosixCreat(ConstUnicode pathName, // IN:
+                  int mode)              // IN:
+{
+   return FileIO_PosixOpen(pathName, O_CREAT | O_WRONLY | O_TRUNC, mode);
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileIO_PosixFopen --
+ *
+ *      Open a file via POSIX fopen();
+ *
+ * Results:
+ *      -1	Error
+ *      >= 0	File descriptor (success)
+ *
+ * Side effects:
+ *      errno is set on error
+ *
+ *----------------------------------------------------------------------
+ */
+
+FILE *
+FileIO_PosixFopen(ConstUnicode pathName, // IN:
+                  const char *mode)      // IN:
+{
+   int err;
+   char *path;
+   FILE *stream;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return NULL;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      errno = ENOMEM;
+      return NULL;
+   }
+
+   stream = fopen(path, mode);
+   err = errno;
+   free(path);
+   errno = err;
+
+   return stream;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileIO_Create --
+ *
+ *      Open/create a file; specify creation mode
  *
  * Results:
  *      FILEIO_SUCCESS on success: 'file' is set
@@ -645,21 +825,30 @@ PosixFileOpener(const char *filePath, // IN:
  */
 
 FileIOResult
-FileIO_Open(FileIODescriptor *file,     // OUT
-            const char *name,           // IN
-            int access,                 // IN
-            FileIOOpenAction action)    // IN
+FileIO_Create(FileIODescriptor *file,    // OUT:
+              ConstUnicode pathName,     // IN:
+              int access,                // IN:
+              FileIOOpenAction action,   // IN:
+              int mode)                  // IN: mode_t for creation
 {
    Bool su = FALSE;
    int fd = -1;
    int flags = 0;
    int error;
    FileIOResult ret;
+   char *path = NULL;
+
+   ASSERT(file);
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return FILEIO_ERROR;
+   }
 
 #if defined(VMX86_STATS)
    {
       char *tmp;
-      File_SplitName(name, NULL, NULL, &tmp);
+      File_SplitName(pathName, NULL, NULL, &tmp);
       STATS_USER_INIT_MODULE_ONCE();
       file->stats = STATS_USER_INIT_INST(tmp);
       free(tmp);
@@ -687,7 +876,7 @@ FileIO_Open(FileIODescriptor *file,     // OUT
        (access & (FILEIO_OPEN_ACCESS_READ | FILEIO_OPEN_ACCESS_WRITE |
 		  FILEIO_OPEN_LOCKED)) ==
        (FILEIO_OPEN_ACCESS_READ | FILEIO_OPEN_LOCKED)) {
-      if (File_OnVMFS(name)) {
+      if (File_OnVMFS(pathName)) {
          access &= ~FILEIO_OPEN_LOCKED;
 	 if ((access & FILEIO_OPEN_MULTIWRITER_LOCK) != 0) {
 	    flags |= O_MULTIWRITER_LOCK;
@@ -698,7 +887,7 @@ FileIO_Open(FileIODescriptor *file,     // OUT
    }
 #endif
 
-   FileIO_Init(file, name);
+   FileIO_Init(file, pathName);
    ret = FileIO_Lock(file, access);
    if (ret != FILEIO_SUCCESS) {
       goto error;
@@ -723,8 +912,9 @@ FileIO_Open(FileIODescriptor *file,     // OUT
       flags |= O_DIRECT;
 #elif !defined(__APPLE__) // Mac hosts need this access flag after opening.
       access &= ~FILEIO_OPEN_UNBUFFERED;
+// XXX unicode "string" in message
       LOG_ONCE((LGPFX" %s reverting to buffered IO on %s.\n",
-                __FUNCTION__, name));
+                __FUNCTION__, pathName));
 #endif
    }
 
@@ -739,12 +929,19 @@ FileIO_Open(FileIODescriptor *file,     // OUT
       SuperUser(TRUE);
    }
 
-   fd = PosixFileOpener(name, flags
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      fd = -1;
+      errno = ENOMEM;
+   } else {
+      fd = FileIO_PosixOpen(path, flags
 #if defined(linux) && !defined(N_PLAT_NLM)
-                        | ((access & FILEIO_OPEN_SYNC) ? O_SYNC : 0)
+                            | ((access & FILEIO_OPEN_SYNC) ? O_SYNC : 0)
 #endif
-                        | FileIO_OpenActions[action],
-                        S_IRUSR | S_IWUSR);
+                            | FileIO_OpenActions[action],
+                           mode);
+   }
 
    error = errno;
 
@@ -760,12 +957,23 @@ FileIO_Open(FileIODescriptor *file,     // OUT
    }
 
 #if defined(__APPLE__)
-   if (access & (FILEIO_OPEN_UNBUFFERED|FILEIO_OPEN_SYNC)) {
+   if (access & (FILEIO_OPEN_UNBUFFERED | FILEIO_OPEN_SYNC)) {
       error = fcntl(fd, F_NOCACHE, 1);
       if (error == -1) {
          ret = FileIOErrno2Result(errno);
          goto error;
       }
+   }
+
+   /*
+    * Fix for Bug 202805:
+    *   Time Machine backs up EVERY file unless explicitly told not to, so this
+    *   option uses the API to exclude the file that was just opened.
+    */
+   if ((access & FILEIO_OPEN_NO_TIME_MACHINE) &&
+       !FileIO_SetExcludedFromTimeMachine(pathName, TRUE)) {
+      ret = FILEIO_ERROR;
+      goto error;
    }
 #endif
 
@@ -774,11 +982,13 @@ FileIO_Open(FileIODescriptor *file,     // OUT
        * Remove the name from the name space. The file remains laid out on the
        * disk and accessible through the file descriptor until it is closed.
        */
-      if (unlink(name) == -1) {
+      if (unlink(path) == -1) {
          ret = FileIOErrno2Result(errno);
          goto error;
       }
    }
+
+   free(path);
 
    file->posix = fd;
 
@@ -788,6 +998,9 @@ FileIO_Open(FileIODescriptor *file,     // OUT
 
 error:
    error = errno;
+
+   free(path);
+
    if (fd != -1) {
       close(fd);
    }
@@ -803,13 +1016,43 @@ error:
 /*
  *----------------------------------------------------------------------
  *
+ * FileIO_Open --
+ *
+ *      Open/create a file
+ *
+ * Results:
+ *      FILEIO_SUCCESS on success: 'file' is set
+ *      FILEIO_OPEN_ERROR_EXIST if the file already exists
+ *      FILEIO_FILE_NOT_FOUND if the file is not present
+ *      FILEIO_ERROR for other errors
+ *
+ * Side effects:
+ *      None
+ *
+ *----------------------------------------------------------------------
+ */
+
+FileIOResult
+FileIO_Open(FileIODescriptor *file,   // OUT:
+            ConstUnicode pathName,    // IN:
+            int access,               // IN:
+            FileIOOpenAction action)  // IN:
+{
+   return FileIO_Create(file, pathName, access, action, S_IRUSR | S_IWUSR);
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
  * FileIO_Seek --
  *
  *      Change the current position in a file
  *
  * Results:
- *      On success: the new current position in bytes from the beginning of the
- *                file
+ *      On success: the new current position in bytes from the beginning of
+ *                  the file
+ *
  *      On failure: -1
  *
  * Side effects:
@@ -820,8 +1063,8 @@ error:
 
 #if defined(linux) && !defined(N_PLAT_NLM) && defined(SYS__llseek)
 /*
- * If the llseek system call exists, use it to provide a version of 64-bit lseek()
- * functionality, for FileIO_Seek() to use if appropriate.
+ * If the llseek system call exists, use it to provide a version of 64-bit
+ * lseek() functionality, for FileIO_Seek() to use if appropriate.
  */
 
 #define VM_HAVE__LLSEEK 1
@@ -842,25 +1085,28 @@ FileIO_Seek(const FileIODescriptor *file, // IN
             int64 distance,               // IN
             FileIOSeekOrigin origin)      // IN
 {
+   ASSERT(file);
+
    /*
-    * The goal is to use the best lseek-type function with support for 64-bit file
-    * offsets (aka large file support, or LFS).
+    * The goal is to use the best lseek-type function with support for 64-bit
+    * file offsets (aka large file support, or LFS).
     *
     * __USE_LARGEFILE implies that lseek() has LFS
     * VM_HAVE__LLSEEK tells us that we have the _llseek() routine available
     * __USE_LARGEFILE64 implies that lseek64() is available
     *
-    * All three of these defines only come into play on Linux systems. On any other OS,
-    * they won't be present, and we go straight for lseek() since that's the only known
-    * alternative.
+    * All three of these defines only come into play on Linux systems. On any
+    * other OS, they won't be present, and we go straight for lseek() since
+    * that's the only known alternative.
     */
 #if defined(VM_HAVE__LLSEEK) && !defined(__USE_LARGEFILE) && !defined(__USE_LARGEFILE64)
    /*
-    * This is a Linux system that doesn't have a glibc with any large-file support (LFS),
-    * but does have the llseek system call. On Linux, this is the least desirable option
-    * because the API is a bit grotty (e.g. the casting of negative offsets into unsigned
-    * offset_hi and offset_lo), and because doing system calls directly from our code is
-    * more likely to break than using libc.
+    * This is a Linux system that doesn't have a glibc with any large-file
+    * support (LFS), but does have the llseek system call. On Linux, this is
+    * the least desirable option because the API is a bit grotty (e.g. the
+    * casting of negative offsets into unsigned offset_hi and offset_lo), and
+    * because doing system calls directly from our code is more likely to
+    * break than using libc.
     */
 
    loff_t res;
@@ -872,22 +1118,23 @@ FileIO_Seek(const FileIODescriptor *file, // IN
 
 #elif defined(__USE_LARGEFILE64) && !defined(__USE_LARGEFILE)
    /*
-    * This is a Linux system with glibc that has lseek64 available, but not a lseek with
-    * LFS.
+    * This is a Linux system with glibc that has lseek64 available, but not a
+    * lseek with LFS.
     *
-    * lseek64 is a bit cleaner than _llseek (because glibc provides it, we know the API
-    * won't break) but still not as portable as plain old lseek.
+    * lseek64 is a bit cleaner than _llseek (because glibc provides it, we
+    * know the API won't break) but still not as portable as plain old lseek.
     */
 
     return lseek64(file->posix, distance, FileIO_SeekOrigins[origin]);
 
 #else
     /*
-     * We're taking this route because either we know lseek() can support 64-bit file
-     * offsets (__USE_LARGEFILE is set) or because llseek and lseek64 are both unavailable.
+     * We're taking this route because either we know lseek() can support
+     * 64-bit file offsets (__USE_LARGEFILE is set) or because llseek and
+     * lseek64 are both unavailable.
      *
-     * This means this a Linux/glibc system with transparent LFS support, an old Linux
-     * system without llseek, or another POSIX system.
+     * This means this a Linux/glibc system with transparent LFS support, an
+     * old Linux system without llseek, or another POSIX system.
      */
 
     return lseek(file->posix, distance, FileIO_SeekOrigins[origin]);
@@ -930,6 +1177,8 @@ FileIO_Write(FileIODescriptor *fd,      // IN
    const uint8 *buf = (const uint8 *)bufIn;
    size_t initial_requested;
    FileIOResult fret = FILEIO_SUCCESS;
+
+   ASSERT(fd);
 
    STAT_INST_INC(fd->stats, NumWrites);
    STAT_INST_INC_BY(fd->stats, BytesWritten, requested);
@@ -1001,6 +1250,8 @@ FileIO_Read(FileIODescriptor *fd,       // IN
    size_t initial_requested;
    FileIOResult fret = FILEIO_SUCCESS;
 
+   ASSERT(fd);
+
    STAT_INST_INC(fd->stats, NumReads);
    STAT_INST_INC_BY(fd->stats, BytesRead, requested);
    STATS_ONLY({
@@ -1062,6 +1313,8 @@ Bool
 FileIO_Truncate(FileIODescriptor *file, // IN
                 uint64 newLength)       // IN
 {
+   ASSERT(file);
+
    return ftruncate(file->posix, newLength) == 0;
 }
 #endif /* !defined(N_PLAT_NLM) */
@@ -1087,7 +1340,11 @@ FileIO_Truncate(FileIODescriptor *file, // IN
 int
 FileIO_Close(FileIODescriptor *file) // IN
 {
-   int retval = close(file->posix);
+   int retval;
+
+   ASSERT(file);
+
+   retval = close(file->posix);
 
    FileIO_StatsExit(file);
 
@@ -1095,6 +1352,7 @@ FileIO_Close(FileIODescriptor *file) // IN
    FileIO_Unlock(file);
    FileIO_Cleanup(file);
    FileIO_Invalidate(file);
+
    return retval;
 }
 
@@ -1120,6 +1378,8 @@ FileIO_Close(FileIODescriptor *file) // IN
 int
 FileIO_Sync(const FileIODescriptor *file) // IN
 {
+   ASSERT(file);
+
    return fsync(file->posix);
 }
 
@@ -1276,6 +1536,8 @@ FileIO_Readv(FileIODescriptor *fd,      // IN
    Bool didCoalesce;
    int numVec;
 
+   ASSERT(fd);
+
    didCoalesce = FileIOCoalesce(v, numEntries, totalSize, FALSE, FALSE, &coV);
 
    STAT_INST_INC(fd->stats, NumReadvs);
@@ -1388,6 +1650,8 @@ FileIO_Writev(FileIODescriptor *fd,     // IN
    struct iovec *vPtr;
    Bool didCoalesce;
    int numVec;
+
+   ASSERT(fd);
 
    didCoalesce = FileIOCoalesce(v, numEntries, totalSize, TRUE, FALSE, &coV);
 
@@ -1674,13 +1938,13 @@ exit:
  */
 
 int64
-FileIO_GetSize(const FileIODescriptor *fd)      // IN
+FileIO_GetSize(const FileIODescriptor *fd)  // IN:
 {
    struct stat statBuf;
-   if (fstat(fd->posix, &statBuf) == -1) {
-      return -1;
-   }
-   return statBuf.st_size;
+
+   ASSERT(fd);
+
+   return (fstat(fd->posix, &statBuf) == -1) ? -1 : statBuf.st_size;
 }
 
 
@@ -1695,19 +1959,36 @@ FileIO_GetSize(const FileIODescriptor *fd)      // IN
  *      Size of file or -1.
  *
  * Side effects:
- *      None
+ *      errno is set on error
  *
  *----------------------------------------------------------------------
  */
 
 int64
-FileIO_GetSizeByPath(const char *name)      // IN
+FileIO_GetSizeByPath(ConstUnicode pathName)  // IN:
 {
+   int err;
+   char *path;
    struct stat statBuf;
-   if (stat(name, &statBuf) == -1) {
+
+   if (pathName == NULL) {
+      errno = EFAULT;
       return -1;
-   } 
-   return statBuf.st_size;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   err = (stat(path, &statBuf) == -1) ? errno : 0;
+
+   free(path);
+   errno = err;
+
+   return (err == 0) ? statBuf.st_size : -1;
 }
 
 
@@ -1724,16 +2005,25 @@ FileIO_GetSizeByPath(const char *name)      // IN
  *      FILEIO_SUCCESS or FILEIO_ERROR.
  *
  * Side effects:
- *      Hah! Changes errno. Maybe.
+ *      errno is set on error
  *
  *----------------------------------------------------------------------
  */
 
 FileIOResult
-FileIO_Access(const char *name,         // IN:
-              int accessMode)           // IN:
+FileIO_Access(ConstUnicode pathName,  // IN: path name to be tested
+              int accessMode)         // IN: access modes to be asserted
 {
-   int mode = 0;
+   int err;
+   int mode;
+   char *path;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return FILEIO_ERROR;
+   }
+
+   mode = 0;
 
    if (accessMode & FILEIO_ACCESS_READ) {
       mode |= R_OK;
@@ -1748,7 +2038,19 @@ FileIO_Access(const char *name,         // IN:
       mode |= F_OK;
    }
 
-   return access(name, mode) == -1 ? FILEIO_ERROR : FILEIO_SUCCESS;
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      errno = ENOMEM;
+      return FILEIO_ERROR;
+   }
+
+   err = (access(path, mode) == -1) ? errno : 0;
+
+   free(path);
+   errno = err;
+
+   return (err == 0) ? FILEIO_SUCCESS : FILEIO_ERROR;
 }
 
 
@@ -1771,7 +2073,9 @@ FileIO_Access(const char *name,         // IN:
 uint32
 FileIO_GetFlags(FileIODescriptor *fd)   // IN
 {
+   ASSERT(fd);
    ASSERT(FileIO_IsValid(fd));
+
    return fd->flags;
 }
 
@@ -1793,8 +2097,8 @@ FileIO_GetFlags(FileIODescriptor *fd)   // IN
  */
 
 Bool
-FileIO_SupportsFileSize(const FileIODescriptor *fd,            // IN
-                        uint64                  requestedSize) // IN
+FileIO_SupportsFileSize(const FileIODescriptor *fd,  // IN:
+                        uint64 requestedSize)        // IN:
 {
 #if defined(N_PLAT_NLM)
    /* API we use on NetWare cannot go over 2GB - 1 although filesystem could. */
@@ -1844,4 +2148,151 @@ FileIO_SupportsFileSize(const FileIODescriptor *fd,            // IN
    return TRUE;
 #endif
 }
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileIO_PrivilegedPosixOpen --
+ *
+ *      Opens file with elevated privileges.
+ *
+ * Results:
+ *      Opened file descriptor, or -1 on failure (errno contains error code).
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileIO_PrivilegedPosixOpen(ConstUnicode pathName,  // IN:
+                           int flags)              // IN:
+{
+   Bool suNeeded = FALSE;
+   int fd;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   /*
+    * I've said *opens*.  I want you really think twice before creating files
+    * with elevated privileges, so for them you have to use SuperUser()
+    * yourself.
+    */
+   ASSERT((flags & (O_CREAT | O_TRUNC)) == 0);
+   suNeeded = !IsSuperUser();
+   if (suNeeded) {
+      SuperUser(TRUE);
+   }
+   fd = FileIO_PosixOpen(pathName, flags, 0);
+   if (suNeeded) {
+      int error = errno;
+
+      SuperUser(FALSE);
+      errno = error;
+   }
+   return fd;
+}
+
+#if defined(__APPLE__)
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileIO_SetExcludedFromTimeMachine --
+ *
+ *      Request that the given path be excluded from Backup processes (namely
+ *      Time Machine).
+ *
+ * Results:
+ *      A boolean reflecting whether or not excluding the file succeeded.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+FileIO_SetExcludedFromTimeMachine(char const *pathName, // IN
+                                  Bool isExcluded)      // IN
+{
+   Bool result = TRUE;
+   CSBackupSetItemExcludedFunction *backupFunc;
+   const char *symbolName = "CSBackupSetItemExcluded";
+   const char *libPath = "/System/Library/Frameworks/CoreServices.framework/"
+      "Versions/Current/Frameworks/CarbonCore.framework/CarbonCore";
+   OSStatus ret = noErr;
+   CFURLRef item = NULL;
+   void *image = NULL;
+
+   if (Config_GetBool(FALSE, "fileMacos.timemachine.enable")) {
+      goto exit;
+   }
+
+   image = dlopen(libPath, RTLD_LAZY|RTLD_GLOBAL);
+
+   if (!image) {
+      LOG_ONCE((LGPFX" %s Couldn't dlopen [%s]: %s.\n",
+               __func__, libPath, strerror(errno)));
+      goto exit;
+   }
+
+   backupFunc = (CSBackupSetItemExcludedFunction *)dlsym(image,
+                                                         symbolName);
+
+   if (!backupFunc) {
+      LOG_ONCE((LGPFX" %s Couldn't dlsym [%s]: %s.\n",
+               __func__, symbolName, strerror(errno)));
+      goto exit;
+   }
+
+   item = CFURLCreateFromFileSystemRepresentation(NULL,
+                                                  pathName,
+                                                  strlen((const char *)pathName),
+                                                  FALSE);
+
+   if (!item) {
+      Warning("%s: Error creating URL\n", __func__);
+      result = FALSE;
+      goto exit;
+   }
+
+   ret = (*backupFunc)(item, TRUE, FALSE);
+
+   if (ret != noErr) {
+      /*
+       * TODO: In testing, this only actually fails on NFS-mounted
+       * volumes. (ret == noPerm).  Perhaps we should enumerate the errors
+       * that we want to treat as soft errors versus hard errors?
+       *
+       * We could call CSBackupIsItemExcluded() to make sure this file isn't
+       * participating in backup. This needs to be tested to see if it only
+       * checks the file system extensible meta-data or if it also checks the
+       * policies of the backup daemon.
+       *
+       * Ideally, we would like to log once for every file that we fail to
+       * mark as excluded. Simply logging produces way too many log satements
+       * and logging once would only note when this fails on the first file.
+       */
+      goto exit;
+   }
+
+exit:
+   if (item) {
+      CFRelease(item);
+   }
+   if (image) {
+      dlclose(image);
+   }
+
+   return result;
+}
+
+#endif
+
 

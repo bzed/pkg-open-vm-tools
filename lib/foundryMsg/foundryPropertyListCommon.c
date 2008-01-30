@@ -155,8 +155,9 @@ VixPropertyList_Serialize(VixPropertyListImpl    *propList,       // IN
    size_t bufferSize = 0;
    size_t pos = 0;
  
-   if ((NULL == propList)
-       || (NULL == resultBuffer)) {
+   if ((NULL == propList) ||
+       (NULL == resultSize) ||
+       (NULL == resultBuffer)) {
       err = VIX_E_INVALID_ARG;
       goto abort;
    }
@@ -191,7 +192,12 @@ VixPropertyList_Serialize(VixPropertyListImpl    *propList,       // IN
 
          ////////////////////////////////////////////////////////
          case VIX_PROPERTYTYPE_STRING:
-            bufferSize += (strlen(property->value.strValue) + 1);
+            if (property->value.strValue) {
+               bufferSize += (strlen(property->value.strValue) + 1);
+            } else {
+               err = VIX_E_INVALID_ARG;
+               goto abort;
+            }
             break;
 
          ////////////////////////////////////////////////////////
@@ -206,7 +212,7 @@ VixPropertyList_Serialize(VixPropertyListImpl    *propList,       // IN
 
          ////////////////////////////////////////////////////////
          case VIX_PROPERTYTYPE_BLOB:
-            bufferSize += property->value.blobValue.blobSize;        
+            bufferSize += property->value.blobValue.blobSize;
             break;
 
          ////////////////////////////////////////////////////////
@@ -284,19 +290,31 @@ VixPropertyList_Serialize(VixPropertyListImpl    *propList,       // IN
 
          ////////////////////////////////////////////////////////
          case VIX_PROPERTYTYPE_BLOB:
-             valueLength = property->value.blobValue.blobSize;
-             memcpy(&(serializeBuffer[pos]), &valueLength, propertyValueLengthSize);
-             pos += propertyValueLengthSize;
-             memcpy(&(serializeBuffer[pos]), property->value.blobValue.blobContents, valueLength);
-             break;
+            if (property->value.blobValue.blobContents) {
+               valueLength = property->value.blobValue.blobSize;
+               memcpy(&(serializeBuffer[pos]), &valueLength, propertyValueLengthSize);
+               pos += propertyValueLengthSize;
+               memcpy(&(serializeBuffer[pos]), 
+                      property->value.blobValue.blobContents, 
+                      valueLength);
+            } else {
+               err = VIX_E_INVALID_ARG;
+               goto abort;
+            }
+            break;
 
          ////////////////////////////////////////////////////////
          case VIX_PROPERTYTYPE_POINTER:
-             valueLength = PROPERTY_SIZE_POINTER;
-             memcpy(&(serializeBuffer[pos]), &valueLength, propertyValueLengthSize);
-             pos += propertyValueLengthSize;
-             memcpy(&(serializeBuffer[pos]), &(property->value.ptrValue), sizeof(property->value.ptrValue));
-             break;
+            if (property->value.ptrValue) {
+               valueLength = PROPERTY_SIZE_POINTER;
+               memcpy(&(serializeBuffer[pos]), &valueLength, propertyValueLengthSize);
+               pos += propertyValueLengthSize;
+               memcpy(&(serializeBuffer[pos]), &(property->value.ptrValue), sizeof(property->value.ptrValue));
+            } else {
+               err = VIX_E_INVALID_ARG;
+               goto abort;
+            }
+            break;
 
          ////////////////////////////////////////////////////////
          default:

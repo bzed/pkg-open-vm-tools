@@ -94,12 +94,14 @@ __int64  _InterlockedIncrement64(__int64 volatile*);
 __int64  _InterlockedDecrement64(__int64 volatile*);
 __int64  _InterlockedExchange64(__int64 volatile*, __int64);
 __int64  _InterlockedCompareExchange64(__int64 volatile*, __int64, __int64);
+#if !defined(_WIN64)
 #pragma intrinsic(_InterlockedAnd, _InterlockedAnd64)
 #pragma intrinsic(_InterlockedOr, _InterlockedOr64)
 #pragma intrinsic(_InterlockedXor, _InterlockedXor64)
 #pragma intrinsic(_InterlockedExchangeAdd64, _InterlockedIncrement64)
 #pragma intrinsic(_InterlockedDecrement64, _InterlockedExchange64)
 #pragma intrinsic(_InterlockedCompareExchange64)
+#endif /* !_WIN64 */
 #endif /* __x86_64__ */
 
 #ifdef __cplusplus
@@ -1803,7 +1805,7 @@ Atomic_Write64(Atomic_uint64 *var, // IN
                                                                               \
                                                                               \
    static INLINE out                                                          \
-   Atomic_Read ## name(Atomic_ ## name *var)                                  \
+   Atomic_Read ## name(Atomic_ ## name const *var)                            \
    {                                                                          \
       return (out)Atomic_Read ## size(var);                                   \
    }                                                                          \

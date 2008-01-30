@@ -86,14 +86,14 @@ FileUTF8_Copy(const char *utf8SrcFile,   // IN: old file
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8SrcFile,
                               strlen(utf8SrcFile),
-                              (char **)&localSrcName,
+                              &localSrcName,
                               NULL)) {
       result = FALSE;
       goto abort;
    }
    if (!CodeSet_Utf8ToCurrent(utf8DstFile,
                               strlen(utf8DstFile),
-                              (char **)&localDstName,
+                              &localDstName,
                               NULL)) {
       result = FALSE;
       goto abort;
@@ -143,14 +143,14 @@ FileUTF8_Rename(const char *utf8OldFile,   // IN: old file
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8OldFile,
                               strlen(utf8OldFile),
-                              (char **)&localOldName,
+                              &localOldName,
                               NULL)) {
       result = FALSE;
       goto abort;
    }
    if (!CodeSet_Utf8ToCurrent(utf8NewFile,
                               strlen(utf8NewFile),
-                              (char **)&localNewName,
+                              &localNewName,
                               NULL)) {
       result = FALSE;
       goto abort;
@@ -166,6 +166,44 @@ FileUTF8_Rename(const char *utf8OldFile,   // IN: old file
 abort:
    free(localOldName);
    free(localNewName);
+#endif
+
+   return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * FileUTF8_GetSize --
+ *
+ *      Get size of file.
+ *
+ * Results:
+ *      Size of file on success, -1 otherwise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int64
+FileUTF8_GetSize(const char *utf8Name)    // IN
+{
+   int64 result = -1;
+#if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
+   char *localName = NULL;
+   
+   if (CodeSet_Utf8ToCurrent(utf8Name,
+                             strlen(utf8Name),
+                             &localName,
+                             NULL)) {
+      result = File_GetSize(localName);
+      free(localName);
+   }
+#else
+   result = File_GetSize(utf8Name);
 #endif
 
    return result;
@@ -197,7 +235,7 @@ FileUTF8_CreateDirectory(char const *utf8Name)     // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }
@@ -240,7 +278,7 @@ FileUTF8_DeleteEmptyDirectory(char const *utf8Name)     // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }
@@ -291,7 +329,7 @@ FileUTF8_ListDirectory(char const *utf8Name,     // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return -1;
    }
@@ -361,7 +399,7 @@ FileUTF8_UnlinkIfExists(const char *utf8Name)   // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return 0;
    }
@@ -407,7 +445,7 @@ FileUTF8_IsFile(const char *utf8Name)      // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }
@@ -449,7 +487,7 @@ FileUTF8_IsDirectory(const char *utf8Name)      // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }
@@ -492,7 +530,7 @@ FileUTF8_IsSymLink(char const *utf8Name)   // IN: Path to test
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }
@@ -536,7 +574,7 @@ FileUTF8_Exists(const char *utf8Name)   // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }
@@ -638,7 +676,7 @@ FileUTF8_SetTimes(const char *utf8Name,       // IN
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }
@@ -683,7 +721,7 @@ FileUTF8_DeleteDirectoryTree(char const *utf8Name) // IN: directory to delete
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    if (!CodeSet_Utf8ToCurrent(utf8Name,
                               strlen(utf8Name),
-                              (char **)&localName,
+                              &localName,
                               NULL)) {
       return FALSE;
    }

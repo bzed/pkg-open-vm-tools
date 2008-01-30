@@ -74,7 +74,8 @@ toolbox_DEPENDENCIES = ../lib/conf/libConf.a \
 	../lib/vmSignal/libVmSignal.a ../lib/wiper/libWiper.a \
 	../lib/err/libErr.a ../lib/backdoor/libBackdoor.a \
 	../lib/dict/libDict.a ../lib/atomic/libAtomic.a \
-	../lib/message/libMessage.a ../lib/misc/libMisc.a \
+	../lib/message/libMessage.a ../lib/unicode/libUnicode.a \
+	../lib/sync/libSync.a ../lib/misc/libMisc.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
 toolbox_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(toolbox_LDFLAGS) \
@@ -230,9 +231,9 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = @GTK_CFLAGS@ @COMMON_CFLAGS@
-# In the absence of the linker options --start-group and --end-group (which can't
-# be put in LDADD), we need to bring the following libraries out of the alphebetical
-# order so their symbols are properly resolved.
+# In the absence of the linker options --start-group and --end-group (which
+# can't be put in LDADD), we need to bring the following libraries out of
+# the alphabetical order so their symbols are properly resolved.
 toolbox_LDADD = ../lib/conf/libConf.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
 	../lib/guestApp/libGuestApp.a ../lib/hgfs/libHgfs.a \
@@ -243,7 +244,8 @@ toolbox_LDADD = ../lib/conf/libConf.a \
 	../lib/vmSignal/libVmSignal.a ../lib/wiper/libWiper.a \
 	../lib/err/libErr.a ../lib/backdoor/libBackdoor.a \
 	../lib/dict/libDict.a ../lib/atomic/libAtomic.a \
-	../lib/message/libMessage.a ../lib/misc/libMisc.a \
+	../lib/message/libMessage.a ../lib/unicode/libUnicode.a \
+	../lib/sync/libSync.a ../lib/misc/libMisc.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
 toolbox_LDFLAGS = -lX11 @GTK_LIBS@
 toolbox_SOURCES = debugStdio.c stub.c toolbox-gtk.c toolboxAbout.c \

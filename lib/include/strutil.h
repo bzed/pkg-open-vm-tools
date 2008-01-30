@@ -23,8 +23,8 @@
  */
 
 
-#ifndef __STRUTIL_H__
-#   define __STRUTIL_H__
+#ifndef STRUTIL_H
+#define STRUTIL_H
 
 #include "fileIO.h"
 
@@ -39,6 +39,8 @@ Bool StrUtil_GetNextInt64Token(int64 *out, unsigned int *index, const char *str,
 Bool StrUtil_StrToInt(int32 *out, const char *str);
 Bool StrUtil_StrToUint(uint32 *out, const char *str);
 Bool StrUtil_StrToInt64(int64 *out, const char *str);
+char * StrUtil_FormatSizeInBytesUnlocalized(uint64 size);
+
 size_t StrUtil_GetLongestLineLength(const char *buf, size_t bufLength);
 
 char **StrUtil_Split(const char *filename,
@@ -54,4 +56,7 @@ char **StrUtil_GrepFd(FileIODescriptor *fd,
 
 void StrUtil_GrepFree(char **retval);
 
-#endif /* __STRUTIL_H__ */
+Bool StrUtil_StartsWith(const char *s, const char *prefix);
+Bool StrUtil_CaselessStartsWith(const char *s, const char *prefix);
+
+#endif /* STRUTIL_H */

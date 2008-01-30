@@ -37,14 +37,16 @@ toolbox_LDADD += ../lib/user/libUser.a
 toolbox_LDADD += ../lib/vmCheck/libVmCheck.a
 toolbox_LDADD += ../lib/vmSignal/libVmSignal.a
 toolbox_LDADD += ../lib/wiper/libWiper.a
-# In the absence of the linker options --start-group and --end-group (which can't
-# be put in LDADD), we need to bring the following libraries out of the alphebetical
-# order so their symbols are properly resolved.
+# In the absence of the linker options --start-group and --end-group (which
+# can't be put in LDADD), we need to bring the following libraries out of
+# the alphabetical order so their symbols are properly resolved.
 toolbox_LDADD += ../lib/err/libErr.a
 toolbox_LDADD += ../lib/backdoor/libBackdoor.a
 toolbox_LDADD += ../lib/dict/libDict.a
 toolbox_LDADD += ../lib/atomic/libAtomic.a
 toolbox_LDADD += ../lib/message/libMessage.a
+toolbox_LDADD += ../lib/unicode/libUnicode.a
+toolbox_LDADD += ../lib/sync/libSync.a
 toolbox_LDADD += ../lib/misc/libMisc.a
 toolbox_LDADD += ../lib/panicDefault/libPanicDefault.a
 toolbox_LDADD += ../lib/panic/libPanic.a

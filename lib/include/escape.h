@@ -25,29 +25,42 @@
 #ifndef __ESCAPE_H__
 #   define __ESCAPE_H__
 
+#include "vmware.h"
 
 void *
-Escape_Do(char escByte,           // IN
-          int const *bytesToEsc,  // IN
-          void const *bufIn,      // IN
-          size_t sizeIn,    // IN
-          size_t *sizeOut); // OUT
+Escape_DoString(const char *escStr,    // IN
+                int const *bytesToEsc, // IN
+                void const *bufIn,     // IN
+                size_t sizeIn,         // IN
+                size_t *sizeOut);      // OUT
+
+static INLINE void *
+Escape_Do(char escByte,          // IN
+          int const *bytesToEsc, // IN
+          void const *bufIn,     // IN
+          size_t sizeIn,         // IN
+          size_t *sizeOut)       // OUT
+{
+   const char escStr[] = { escByte, '\0' };
+
+   return Escape_DoString(escStr, bytesToEsc, bufIn, sizeIn, sizeOut);
+}
 
 void *
-Escape_Undo(char escByte,           // IN
-            void const *bufIn,      // IN
-            size_t sizeIn,    // IN
-            size_t *sizeOut); // OUT
+Escape_Undo(char escByte,      // IN
+            void const *bufIn, // IN
+            size_t sizeIn,     // IN
+            size_t *sizeOut);  // OUT
 
 void *
-Escape_AnsiToUnix(void const *bufIn,      // IN
-                  size_t sizeIn,    // IN
-                  size_t *sizeOut); // OUT
+Escape_AnsiToUnix(void const *bufIn, // IN
+                  size_t sizeIn,     // IN
+                  size_t *sizeOut);  // OUT
 
 void *
-Escape_Sh(void const *bufIn,      // IN
-          size_t sizeIn,    // IN
-          size_t *sizeOut); // OUT
+Escape_Sh(void const *bufIn, // IN
+          size_t sizeIn,     // IN
+          size_t *sizeOut);  // OUT
 
 void
 Escape_UnescapeCString(char *buf); // IN/OUT

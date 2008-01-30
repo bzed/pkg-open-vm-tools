@@ -23,7 +23,7 @@
  *
  */
 
-#ifdef __KERNEL__
+#if defined(__KERNEL__) || defined(_KERNEL) || defined(KERNEL)
 #   include "kernelStubs.h"
 #else
 #   include <stdio.h>

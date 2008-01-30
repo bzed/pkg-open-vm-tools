@@ -92,7 +92,8 @@ guestd_DEPENDENCIES = ../lib/atomic/libAtomic.a \
 	../lib/vmCheck/libVmCheck.a ../lib/vmSignal/libVmSignal.a \
 	../lib/wiper/libWiper.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
-	../lib/misc/libMisc.a ../lib/foundryMsg/libFoundryMsg.a \
+	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
+	../lib/foundryMsg/libFoundryMsg.a \
 	../lib/fileUtf8/libFileUtf8.a ../lib/auth/libAuth.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a \
 	$(am__DEPENDENCIES_1)
@@ -250,9 +251,9 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = @COMMON_CFLAGS@
-# In the absence of the linker options --start-group and --end-group (which can't
-# be put in LDADD), we need to bring the following libraries out of the alphebetical
-# order so their symbols are properly resolved.
+# In the absence of the linker options --start-group and --end-group (which
+# can't be put in LDADD), we need to bring the following libraries out of the
+# alphabetical order so their symbols are properly resolved.
 guestd_LDADD = ../lib/atomic/libAtomic.a ../lib/backdoor/libBackdoor.a \
 	../lib/conf/libConf.a ../lib/dnd/libDnd.a ../lib/err/libErr.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
@@ -274,7 +275,8 @@ guestd_LDADD = ../lib/atomic/libAtomic.a ../lib/backdoor/libBackdoor.a \
 	../lib/vmCheck/libVmCheck.a ../lib/vmSignal/libVmSignal.a \
 	../lib/wiper/libWiper.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
-	../lib/misc/libMisc.a ../lib/foundryMsg/libFoundryMsg.a \
+	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
+	../lib/foundryMsg/libFoundryMsg.a \
 	../lib/fileUtf8/libFileUtf8.a ../lib/auth/libAuth.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a \
 	$(HGFS_BD)

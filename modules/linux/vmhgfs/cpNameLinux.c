@@ -28,9 +28,9 @@
 #include <memory.h>
 #endif
 
-#include "vm_assert.h"
 #include "cpName.h"
 #include "cpNameInt.h"
+#include "vm_assert.h"
 
 
 /*

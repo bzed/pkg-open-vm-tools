@@ -29,10 +29,15 @@
 
 #   if defined(__linux__) && defined(__KERNEL__)
 #      include "driver-config.h"
-#      include <linux/time.h> // for time_t and timespec
-#   elif !defined(_KERNEL)
+#      include <linux/time.h> // for time_t and timespec  
+    /* Include time.h in userspace code, but not in Solaris kernel code. */
+#   elif defined(__FreeBSD__) && defined(_KERNEL)
+    /* Do nothing. */
+#   elif defined(__APPLE__) && defined(KERNEL)
+#      include <sys/time.h>
+#   else 
 #      include <time.h>
-#   endif
+#   endif 
 #   include "vm_basic_types.h"
 #   if !defined(_STRUCT_TIMESPEC) &&   \
        !defined(_TIMESPEC_DECLARED) && \
@@ -51,10 +56,10 @@ struct timespec {
 
 /* Cross-platform representation of a platform-specific error code. */
 #ifndef _WIN32
-#   if defined(__KERNEL__) || defined(_KERNEL)
+#   if defined(__KERNEL__) || defined(_KERNEL) || defined(KERNEL)
 #      if defined(__linux__)
 #         include <linux/errno.h>
-#      elif defined(sun) || defined(__FreeBSD__)
+#      elif defined(sun) || defined(__FreeBSD__) || defined(__APPLE__)
 #         include <sys/errno.h>
 #      endif
 #   else

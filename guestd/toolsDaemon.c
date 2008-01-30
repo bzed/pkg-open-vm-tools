@@ -670,10 +670,6 @@ ToolsDaemonResetSent(void *clientData) // IN
 
 #if !defined(N_PLAT_NLM)
    GuestInfoServer_VMResumedNotify();
-   /* Send the uptime here so that the VMX can detect soft resets. */
-   if (!GuestInfoServer_SendUptime()) {
-      Debug("Daemon: Error setting guest uptime during 'reset' request.\n");
-   }
 #endif
 
    GuestApp_Log("Version: " BUILD_NUMBER "\n");
@@ -1023,6 +1019,18 @@ ToolsDaemonTcloCapReg(char const **result,     // OUT
       Debug("ToolsDaemonTcloCapReg: Unable to register guest temp directory capability.\n");
    }
 #endif
+
+#if !defined(N_PLAT_NLM)
+   /* 
+    * Send the uptime here so that the VMX can detect soft resets. This must be
+    * sent before the Tools version RPC since the version RPC handler uses the
+    * uptime to detect soft resets.
+    */
+   if (!GuestInfoServer_SendUptime()) {
+      Debug("Daemon: Error setting guest uptime during 'reset' request.\n");
+   }
+#endif
+
    if (!GuestApp_SetVersion()) {
       Debug("Daemon: Error setting tools version during 'Capabilities_Register'"
             "request.\n");
