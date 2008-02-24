@@ -20,8 +20,10 @@ noinst_LIBRARIES = libUnicode.a
 libUnicode_a_SOURCES = 
 libUnicode_a_SOURCES += unicodeCommon.c
 libUnicode_a_SOURCES += unicodeSimpleBase.c
+libUnicode_a_SOURCES += unicodeSimpleCaseFolding.c
 libUnicode_a_SOURCES += unicodeSimpleTypes.c
 libUnicode_a_SOURCES += unicodeSimpleOperations.c
+libUnicode_a_SOURCES += unicodeSimpleTransforms.c
 libUnicode_a_SOURCES += unicodeStatic.c
 
 AM_CFLAGS =

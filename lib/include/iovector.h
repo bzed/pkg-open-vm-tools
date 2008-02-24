@@ -46,12 +46,6 @@ struct iovec {
 #endif
 
 /*
- * This type should be used for variables that contain sector
- * position/quantity.
- */
-typedef uint64 SectorType;
-
-/*
  * An I/O Vector.
  */
 typedef struct VMIOVec {

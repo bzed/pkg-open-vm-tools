@@ -131,7 +131,6 @@ __compat_malloc(unsigned long size, struct malloc_type *type, int flags) {
  * Stub functions we provide.
  */
 void Panic(const char *fmt, ...);
-uint64 System_Uptime(void);
 
 char *Str_Strcpy(char *buf, const char *src, size_t maxSize);
 int Str_Vsnprintf(char *str, size_t size, const char *format,

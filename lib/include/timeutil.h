@@ -35,7 +35,7 @@
 #include "vm_assert.h"
 
 
-#define MAX_DAYSLEFT    1024
+#define MAX_DAYSLEFT     1024
 
 struct timeval;
 
@@ -106,5 +106,7 @@ EXTERN VmTimeType TimeUtil_UnixTimeToNtTime(struct timespec unixTime); // IN
 EXTERN Bool TimeUtil_UTCTimeToSystemTime(const __time64_t utcTime,    // IN
                                          SYSTEMTIME *systemTime);     // OUT
 #endif
+
+EXTERN int TimeUtil_GetLocalWindowsTimeZoneIndex(void);
 
 #endif // _TIMEUTIL_H_

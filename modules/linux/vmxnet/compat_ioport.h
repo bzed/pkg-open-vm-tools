@@ -36,5 +36,28 @@ compat_request_region(unsigned long start, unsigned long len, const char *name)
 #define compat_request_region(start, len, name) request_region(start, len, name)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 3, 7)
+/* mmap io support starts from 2.3.7, fail the call for kernel prior to that */
+static inline void *
+compat_request_mem_region(unsigned long start, unsigned long len, const char *name)
+{
+   return NULL;
+}
+
+static inline void
+compat_release_mem_region(unsigned long start, unsigned long len)
+{
+   return;
+}
+#else
+#define compat_request_mem_region(start, len, name) request_mem_region(start, len, name)
+#define compat_release_mem_region(start, len)       release_mem_region(start, len)
+#endif
+
+/* these two macro defs are needed by compat_pci_request_region */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 3, 15)
+#   define IORESOURCE_IO    0x00000100
+#   define IORESOURCE_MEM   0x00000200
+#endif
 
 #endif /* __COMPAT_IOPORT_H__ */

@@ -96,36 +96,6 @@ Panic(const char *fmt, ...)
 /*
  *-----------------------------------------------------------------------------
  *
- * System_Uptime --
- *
- *      Returns the system's uptime in hundredths of a second.
- *
- * Results:
- *      Uptime in hundredths of a second.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-uint64
-System_Uptime(void)
-{
-   /*
-    * From sys/kernel.h:
-    *   tick:   µs per tick
-    *   ticks:  uptime counter
-    *
-    * ticks * tick = uptime in µs, and there are 10000 µs / 1 cs
-    */
-   return ticks * tick / 10000;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
  * Str_Strcpy --
  *
  *      Wrapper around strcpy that panics if the source is too long.

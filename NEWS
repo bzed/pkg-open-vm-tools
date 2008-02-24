@@ -1,3 +1,6 @@
+open-vm-tools 2008.02.13 changes:
+	* Some bug fixes.
+
 open-vm-tools 2008.01.23 changes:
 
 	* The Linux HGFS kernel module now supports writeback caching, which

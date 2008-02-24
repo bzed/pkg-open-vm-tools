@@ -22,14 +22,16 @@
  *	Worker thread to process issue Guest -> Host Hgfs requests.
  */
 
+#if defined(__FreeBSD__)
+#  include <sys/libkern.h>
+#endif
+
 #include "hgfs_kernel.h"
 #include "request.h"
 #include "requestInt.h"
+#include "os.h"
 
 #include "hgfsBd.h"
-
-#include <sys/kthread.h>
-#include <sys/libkern.h>
 
 
 /*
@@ -39,7 +41,7 @@
 /*
  * Process structure filled in when the worker thread is created.
  */
-struct proc *hgfsKReqWorkerProc;
+OS_THREAD_T hgfsKReqWorkerThread;
 
 /*
  * See requestInt.h.
@@ -88,10 +90,10 @@ HgfsKReqWorker(void *arg)
        * or if the module is being unloaded.
        */
 
-      mtx_lock(&hgfsKReqWorkItemLock);
+      os_mutex_lock(hgfsKReqWorkItemLock);
 
       while (!ws->exit && !DblLnkLst_IsLinked(&hgfsKReqWorkItemList)) {
-         cv_wait(&hgfsKReqWorkItemCv, &hgfsKReqWorkItemLock);
+	 os_cv_wait(&hgfsKReqWorkItemCv, hgfsKReqWorkItemLock);
       }
 
       if (ws->exit) {
@@ -121,30 +123,32 @@ HgfsKReqWorker(void *arg)
       DblLnkLst_Unlink1(currNode);
       req = DblLnkLst_Container(currNode, HgfsKReqObject, pendingNode);
 
-      mtx_lock(&req->stateLock);
+      os_mutex_lock(req->stateLock);
       switch (req->state) {
       case HGFS_REQ_SUBMITTED:
          if (!HgfsBd_OpenBackdoor(&hgfsRpcOut)) {
             req->state = HGFS_REQ_ERROR;
-            cv_signal(&req->stateCv);
-            mtx_unlock(&req->stateLock);
+            os_cv_signal(&req->stateCv);
+            os_mutex_unlock(req->stateLock);
+	    os_mutex_unlock(hgfsKReqWorkItemLock);
             goto done;
          }
          break;
       case HGFS_REQ_ABANDONED:
       case HGFS_REQ_ERROR:
          goto done;
+	 os_mutex_unlock(hgfsKReqWorkItemLock);
          break;
       default:
          panic("Request object (%p) in unknown state: %u", req, req->state);
       }
-      mtx_unlock(&req->stateLock);
+      os_mutex_unlock(req->stateLock);
 
       /*
        * We're done with the work item list for now.  Unlock it and let the file
        * system add requests while we're busy.
        */
-      mtx_unlock(&hgfsKReqWorkItemLock);
+      os_mutex_unlock(hgfsKReqWorkItemLock);
 
       ret = HgfsBd_Dispatch(hgfsRpcOut, req->payload, &req->payloadSize,
                             &replyPacket);
@@ -154,7 +158,7 @@ HgfsKReqWorker(void *arg)
        * etc.
        */
 
-      mtx_lock(&req->stateLock);
+      os_mutex_lock(req->stateLock);
 
       if ((ret == 0) && (req->state == HGFS_REQ_SUBMITTED)) {
          bcopy(replyPacket, req->payload, req->payloadSize);
@@ -163,8 +167,8 @@ HgfsKReqWorker(void *arg)
          req->state = HGFS_REQ_ERROR;
       }
 
-      cv_signal(&req->stateCv);
-      mtx_unlock(&req->stateLock);
+      os_cv_signal(&req->stateCv);
+      os_mutex_unlock(req->stateLock);
 
       if (ret != 0) {
          /*
@@ -176,8 +180,8 @@ HgfsKReqWorker(void *arg)
       }
 
 done:
-      if (atomic_fetchadd_int(&req->refcnt, -1) == 1) {
-         uma_zfree(hgfsKReqZone, req);
+      if (os_add_atomic(&req->refcnt, -1) == 1) {
+         os_zone_free(hgfsKReqZone, req);
       }
    }
 
@@ -192,20 +196,20 @@ done:
    DblLnkLst_ForEachSafe(currNode, nextNode, &hgfsKReqWorkItemList) {
       req = DblLnkLst_Container(currNode, HgfsKReqObject, pendingNode);
       DblLnkLst_Unlink1(currNode);
-      mtx_lock(&req->stateLock);
+      os_mutex_lock(req->stateLock);
       req->state = HGFS_REQ_ERROR;
-      cv_signal(&req->stateCv);
-      mtx_unlock(&req->stateLock);
+      os_cv_signal(&req->stateCv);
+      os_mutex_unlock(req->stateLock);
 
       /*
        * If we held the final reference to a request, free it.
        */
-      if (atomic_fetchadd_int(&req->refcnt, -1) == 1) {
-         uma_zfree(hgfsKReqZone, req);
+      if (os_add_atomic(&req->refcnt, -1) == 1) {
+         os_zone_free(hgfsKReqZone, req);
       }
    }
 
-   mtx_unlock(&hgfsKReqWorkItemLock);
+   os_mutex_unlock(hgfsKReqWorkItemLock);
 
    ws->running = FALSE;
 
@@ -213,5 +217,5 @@ done:
       HgfsBd_CloseBackdoor(&hgfsRpcOut);
    }
 
-   kthread_exit(0);
+   os_thread_exit(0);
 }

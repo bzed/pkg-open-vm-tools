@@ -1018,6 +1018,10 @@ ToolsDaemonTcloCapReg(char const **result,     // OUT
                        guestTempDirectory)) {
       Debug("ToolsDaemonTcloCapReg: Unable to register guest temp directory capability.\n");
    }
+   if (!RpcOut_sendOne(NULL, NULL, "tools.capability.guest_conf_directory %s",
+                       GuestApp_GetConfPath())) {
+      Debug("ToolsDaemonTcloCapReg: Unable to register guest conf directory capability.\n");
+   }
 #endif
 
 #if !defined(N_PLAT_NLM)

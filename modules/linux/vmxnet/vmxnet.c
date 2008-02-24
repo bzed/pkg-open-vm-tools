@@ -499,7 +499,7 @@ vmxnet_exit(void)
 static void
 vmxnet_tx_timeout(struct net_device *dev)
 {
-   netif_wake_queue(dev);
+   compat_netif_wake_queue(dev);
 }
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2,3,43) */
 
@@ -1216,7 +1216,7 @@ vmxnet_open(struct net_device *dev)
 #endif
 
    lp->dd->txStopped = FALSE;
-   netif_start_queue(dev);
+   compat_netif_start_queue(dev);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,3,43)
    dev->interrupt = 0;
@@ -1472,8 +1472,8 @@ check_tx_queue(struct net_device *dev)
       lp->numTxPending -= completed;
 
       // XXX conditionally wake up the queue based on the # of freed entries
-      if (netif_queue_stopped(dev)) {
-	 netif_wake_queue(dev);
+      if (compat_netif_queue_stopped(dev)) {
+	 compat_netif_wake_queue(dev);
          dd->txStopped = FALSE;
       }
    }
@@ -1545,7 +1545,7 @@ vmxnet_tx(struct sk_buff *skb, struct net_device *dev)
       /* check for the availability of tx ring entries */
       if (dd->txRingLength - lp->numTxPending < txEntries) {
          dd->txStopped = TRUE;
-         netif_stop_queue(dev);
+         compat_netif_stop_queue(dev);
          check_tx_queue(dev);
 
          spin_unlock_irqrestore(&lp->txLock, flags);
@@ -1673,7 +1673,7 @@ vmxnet_tx(struct sk_buff *skb, struct net_device *dev)
 
       if (lp->txBufInfo[dd->txDriverNext].skb != NULL) {
          dd->txStopped = TRUE;
-         netif_stop_queue(dev);
+         compat_netif_stop_queue(dev);
          check_tx_queue(dev);
 
          spin_unlock_irqrestore(&lp->txLock, flags);
@@ -1700,7 +1700,7 @@ vmxnet_tx(struct sk_buff *skb, struct net_device *dev)
    }
 
    /* at this point, xre must point to the 1st tx entry for the pkt */
-   if (skb->ip_summed == VM_CHECKSUM_PARTIAL) {
+   if (skb->ip_summed == VM_TX_CHECKSUM_PARTIAL) {
       xre->flags |= VMXNET2_TX_HW_XSUM | VMXNET2_TX_CAN_KEEP;
    } else {
       xre->flags |= VMXNET2_TX_CAN_KEEP;	 
@@ -2099,8 +2099,8 @@ vmxnet_interrupt(int irq, void *dev_id)
       spin_unlock(&lp->txLock);
    }
 
-   if (netif_queue_stopped(dev) && !lp->dd->txStopped) {
-      netif_wake_queue(dev);
+   if (compat_netif_queue_stopped(dev) && !lp->dd->txStopped) {
+      compat_netif_wake_queue(dev);
    }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,3,43)
@@ -2172,7 +2172,7 @@ vmxnet_close(struct net_device *dev)
    dev->start = 0;
 #endif
 
-   netif_stop_queue(dev);
+   compat_netif_stop_queue(dev);
 
    lp->devOpen = FALSE;
 
@@ -2361,7 +2361,7 @@ vmxnet_set_mac_address(struct net_device *dev, void *p)
    unsigned int ioaddr = dev->base_addr;
    int i;
 
-   if (netif_running(dev))
+   if (compat_netif_running(dev))
       return -EBUSY;
 
    memcpy(dev->dev_addr, addr->sa_data, dev->addr_len);

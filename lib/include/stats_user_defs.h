@@ -45,7 +45,7 @@
 #define STATS_USER_INST_NAME(name) \
         XCONC(STATINST_, XCONC(STATS_MODULE, _##name))
 #define STATS_USER_INIT_INST_FN(name)   XCONC(name, _InitInstance)
-
+#define STATS_USER_GETVAL_FN(name) XCONC(name, _StatsGetVal)
 
 typedef struct StatsUserEntry {
    uint32 count;
@@ -60,6 +60,7 @@ typedef struct StatsUserBlock {
 
 EXTERN StatsUserBlock STATS_USER_BLKVAR;
 
+#ifndef STATS_SKIP_ACCESSORS
 #define STATS_IS_INITIALIZED()     (STATS_USER_BLKVAR.counters != NULL)
 #define STAT_GET(stat) \
         (&(STATS_USER_BLKVAR.counters[STATS_USER_NAME(stat)]))
@@ -86,4 +87,5 @@ EXTERN StatsUserBlock STATS_USER_BLKVAR;
 #  define STAT_INST_DEC_BY(inst,stat,inc)
 #  define STAT_INST_DEBUG_INC(stat)
 #endif
+#endif /* STATS_SKIP_ACCESSORS */
 #endif /* STATS_DEFS_H */

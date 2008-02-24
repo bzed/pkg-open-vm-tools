@@ -1100,7 +1100,7 @@ GuestInfoSerializeNicInfo(NicInfo *nicInfo,                      // IN
    entrySize = sizeof nicInfo->nicInfoProto;  
    
    memcpy(buf, info, entrySize);
-   nicInfo->nicInfoProto.totalInfoSizeOnWire += (uint32) entrySize;
+   nicInfo->nicInfoProto.totalInfoSizeOnWire += entrySize;
 
    buf += entrySize;
    
@@ -1121,8 +1121,8 @@ GuestInfoSerializeNicInfo(NicInfo *nicInfo,                      // IN
        /* to prevent buffer overflow */
       if (buf + entrySize - buffer < GUESTMSG_MAX_IN_SIZE) {
          memcpy(buf, info, entrySize);
-         nicEntry->nicEntryProto.totalNicEntrySizeOnWire += (uint32) entrySize;
-         nicInfo->nicInfoProto.totalInfoSizeOnWire += (uint32) entrySize;
+         nicEntry->nicEntryProto.totalNicEntrySizeOnWire += entrySize;
+         nicInfo->nicInfoProto.totalInfoSizeOnWire += entrySize;
       } else {
          return FALSE;
       }
@@ -1141,11 +1141,11 @@ GuestInfoSerializeNicInfo(NicInfo *nicInfo,                      // IN
             if (buf + entrySize - buffer < GUESTMSG_MAX_IN_SIZE) {
                memcpy(buf, info, entrySize);
                ipAddressCur->ipEntryProto.totalIpEntrySizeOnWire +=
-                  (uint32) entrySize;
+                  entrySize;
                nicEntry->nicEntryProto.totalNicEntrySizeOnWire +=
-                  (uint32) entrySize;
+                  entrySize;
                nicInfo->nicInfoProto.totalInfoSizeOnWire +=
-                  (uint32) entrySize;
+                  entrySize;
             } else {
                return FALSE;
             }
@@ -1587,4 +1587,31 @@ NicEntry_AddIpAddress(NicEntry *nicEntry,               // IN/OUT
 
    return ipAddressCur;
 }
+
+
+#if defined(N_PLAT_NLM)
+/*
+ *----------------------------------------------------------------------------
+ *
+ * GuestInfo_GetSystemBitness --
+ *
+ *      Determines the operating system's bitness.
+ *
+ * Return value:
+ *      32 or 64 on success, negative value on failure. Check errno for more 
+ *      details of error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int
+GuestInfo_GetSystemBitness(void)
+{
+   return 32;
+}
+#endif // defined(N_PLAT_NLM)
+
 

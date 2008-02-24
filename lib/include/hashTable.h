@@ -17,13 +17,13 @@
  *********************************************************/
 
 /*
- * hash.h --
+ * hashTable.h --
  *
  *      Hash table.
  */
 
-#ifndef _HASH_H_
-#define _HASH_H_
+#ifndef _HASH_TABLE_H_
+#define _HASH_TABLE_H_
 
 #define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMCORE
@@ -31,47 +31,48 @@
 
 
 typedef struct HashTable HashTable;
-typedef void (*HashFreeEntryFn)(void *clientData);
-typedef int (*HashForEachCallback)(const char *key, void *value, void *clientData);
+typedef void (*HashTableFreeEntryFn)(void *clientData);
+typedef int (*HashTableForEachCallback)(const char *key, void *value, 
+                                        void *clientData);
 
 #define HASH_STRING_KEY		0	// case-sensitive string key
 #define HASH_ISTRING_KEY	1	// case-insensitive string key
 #define HASH_INT_KEY		2	// uintptr_t or pointer key
 
 HashTable *
-Hash_Alloc(uint32 numEntries, int keyType, HashFreeEntryFn fn);
+HashTable_Alloc(uint32 numEntries, int keyType, HashTableFreeEntryFn fn);
 
 void
-Hash_Free(HashTable *hashTable);
+HashTable_Free(HashTable *hashTable);
 
 Bool
-Hash_Insert(HashTable  *hashTable,
-            const char *keyStr,
-            void       *clientData);
+HashTable_Insert(HashTable  *hashTable,
+                 const char *keyStr,
+                 void       *clientData);
 
 Bool
-Hash_Lookup(HashTable  *hashTable,
-            const char *keyStr,
-            void **clientData);
+HashTable_Lookup(HashTable  *hashTable,
+                 const char *keyStr,
+                 void **clientData);
 
 Bool
-Hash_Delete(HashTable  *hashTable,
-            const char *keyStr);
+HashTable_Delete(HashTable  *hashTable,
+                 const char *keyStr);
 
 void
-Hash_Clear(HashTable *ht);
+HashTable_Clear(HashTable *ht);
 
 void
-Hash_ToArray(const HashTable *ht,
-             void ***clientDatas,
-             size_t *size);
+HashTable_ToArray(const HashTable *ht,
+                  void ***clientDatas,
+                  size_t *size);
 
 size_t
-Hash_GetNumElements(const HashTable *ht);
+HashTable_GetNumElements(const HashTable *ht);
 
 int
-Hash_ForEach(const HashTable *ht,
-             HashForEachCallback cb,
-             void *clientData);
+HashTable_ForEach(const HashTable *ht,
+                  HashTableForEachCallback cb,
+                  void *clientData);
 
 #endif

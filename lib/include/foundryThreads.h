@@ -42,6 +42,7 @@ typedef void (*FoundryThreadProc)(struct FoundryWorkerThread *threadState);
 struct FoundryWorkerThread *FoundryThreads_StartThread(FoundryThreadProc proc,
                                                        void *threadParam);
 void FoundryThreads_StopThread(struct FoundryWorkerThread *threadState);
+void FoundryThreads_Free(struct FoundryWorkerThread *threadState);
 Bool FoundryThreads_IsCurrentThread(struct FoundryWorkerThread *threadState);
 
 

@@ -135,6 +135,8 @@ enum {
    VIX_PROPERTY_VM_DEFAULT_GATEWAY                    = 4516,
    VIX_PROPERTY_VM_DNS_SERVER_DHCP_ENABLED            = 4517,
    VIX_PROPERTY_VM_DNS_SERVER                         = 4518,
+   VIX_PROPERTY_GUEST_TOOLS_WORD_SIZE                 = 4519,
+   VIX_PROPERTY_GUEST_OS_VERSION_SHORT                = 4520,
 };
 
 
@@ -277,10 +279,6 @@ VixError VixPropertyList_AppendProperties(VixHandle handle,
                                           int firstPropertyID,
                                           ...);
 
-VixError VixPropertyList_AllocPropertyList(VixHandle *resultHandle, 
-                                           int firstPropertyID,
-                                           ...);
-
 VixError VixPropertyList_FindProperty(VixPropertyListImpl *propList,
                                       int propertyID,
                                       VixPropertyType type,
@@ -374,8 +372,8 @@ enum {
 #ifndef VIX_HIDE_FROM_JAVA
 
 extern int vixDebugGlobalSpewLevel;
-extern char  *VixAllocDebugString(char *fmt, ...);
-extern void  VixDebugInit(int level);
+extern char *VixAllocDebugString(char *fmt, ...);
+extern void VixDebugInit(int level);
 
 /*
  * preference name for client and vmx

@@ -51,7 +51,6 @@
 #include "random.h"
 #include "vm_atomic.h"
 
-#include "unicodeTypes.h"
 #include "unicodeOperations.h"
 
 #define LOGLEVEL_MODULE main
@@ -145,15 +144,12 @@ RemoveLockingFile(ConstUnicode lockDir,   // IN:
                   ConstUnicode fileName)  // IN:
 {
    int err;
-   Unicode temp;
    Unicode path;
 
    ASSERT(lockDir);
    ASSERT(fileName);
 
-   temp = Unicode_Append(lockDir, U(DIRSEPS));
-   path = Unicode_Append(temp, fileName);
-   Unicode_Free(temp);
+   path = Unicode_Join(lockDir, U(DIRSEPS), fileName, NULL);
 
    err = FileDeletion(path, FALSE);
 
@@ -162,9 +158,8 @@ RemoveLockingFile(ConstUnicode lockDir,   // IN:
          /* Not there anymore; locker unlocked or timed out */
          err = 0;
       } else {
-// XXX unicode "string" in message
          Warning(LGPFX" %s of '%s' failed: %s\n", __FUNCTION__,
-                 path, strerror(err));
+                 UTF8(path), strerror(err));
       }
    }
 
@@ -203,16 +198,13 @@ FileLockMemberValues(ConstUnicode lockDir,     // IN:
    uint32 len;
    char *argv[4];
    int err;
-   Unicode temp;
    Unicode path;
    FileData fileData;
 
    ASSERT(lockDir);
    ASSERT(fileName);
 
-   temp = Unicode_Append(lockDir, U(DIRSEPS));
-   path = Unicode_Append(temp, fileName);
-   Unicode_Free(temp);
+   path = Unicode_Join(lockDir, U(DIRSEPS), fileName, NULL);
 
    err = FileLockOpenFile(path, O_RDONLY, &handle);
 
@@ -224,9 +216,8 @@ FileLockMemberValues(ConstUnicode lockDir,     // IN:
        */
 
       if (err != ENOENT) {
-// XXX unicode "string" in message
          Warning(LGPFX" %s open failure on '%s': %s\n", __FUNCTION__,
-                 path, strerror(err));
+                 UTF8(path), strerror(err));
       }
 
       goto bail;
@@ -236,9 +227,8 @@ FileLockMemberValues(ConstUnicode lockDir,     // IN:
    err = FileAttributes(path, &fileData);
 
    if (err != 0) {
-// XXX unicode "string" in message
-      Warning(LGPFX" %s file size failure on '%s': %s\n", __FUNCTION__, path,
-              strerror(err));
+      Warning(LGPFX" %s file size failure on '%s': %s\n", __FUNCTION__,
+              UTF8(path), strerror(err));
 
       FileLockCloseFile(handle);
 
@@ -247,9 +237,8 @@ FileLockMemberValues(ConstUnicode lockDir,     // IN:
 
    /* Complain if the lock file is not the proper size */
    if (fileData.fileSize != requiredSize) {
-// XXX unicode "string" in message
       Warning(LGPFX" %s file '%s': size %"FMT64"u, required size %u\n",
-              __FUNCTION__, path, fileData.fileSize, requiredSize);
+              __FUNCTION__, UTF8(path), fileData.fileSize, requiredSize);
 
       FileLockCloseFile(handle);
 
@@ -262,17 +251,15 @@ FileLockMemberValues(ConstUnicode lockDir,     // IN:
    FileLockCloseFile(handle);
 
    if (err != 0) {
-// XXX unicode "string" in message
       Warning(LGPFX" %s read failure on '%s': %s\n",
-              __FUNCTION__, path, strerror(err));
+              __FUNCTION__, UTF8(path), strerror(err));
 
       goto bail;
    }
 
    if (len != requiredSize) {
-// XXX unicode "string" in message
       Warning(LGPFX" %s read length issue on '%s': %u and %u\n",
-              __FUNCTION__, path, len, requiredSize);
+              __FUNCTION__, UTF8(path), len, requiredSize);
 
       err = EIO;
       goto bail;
@@ -316,9 +303,8 @@ FileLockMemberValues(ConstUnicode lockDir,     // IN:
    return 0;
 
 corrupt:
-// XXX unicode "string" in message
    Warning(LGPFX" %s removing problematic lock file '%s'\n", __FUNCTION__,
-           path);
+           UTF8(path));
 
    /* Remove the lock file and behave like it has disappeared */
    err = FileDeletion(path, FALSE);
@@ -463,19 +449,18 @@ ScanDirectory(ConstUnicode lockDir,     // IN:
               Bool cleanUp)            // IN:
 {
    uint32 i;
-   int    err;
-   int    numEntries;
+   int err;
+   int numEntries;
 
-   char   **fileList = NULL;
+   Unicode *fileList = NULL;
 
    ASSERT(lockDir);
 
    numEntries = File_ListDirectory(lockDir, &fileList);
 
    if (numEntries == -1) {
-// XXX unicode "string" in message
       Log(LGPFX" %s: Could not read the directory '%s'.\n",
-          __FUNCTION__, lockDir);
+          __FUNCTION__, UTF8(lockDir));
 
       return EDOM;	// out of my domain
    }
@@ -484,16 +469,15 @@ ScanDirectory(ConstUnicode lockDir,     // IN:
    for (i = 0, err = 0; i < numEntries; i++) {
       /* Remove any non-locking files */
       if (!FileLockValidName(fileList[i])) {
-// XXX unicode "string" in message
          Log(LGPFX" %s discarding %s from %s'; invalid file name.\n",
-             __FUNCTION__, fileList[i], lockDir);
+             __FUNCTION__, UTF8(fileList[i]), UTF8(lockDir));
 
          err = RemoveLockingFile(lockDir, fileList[i]);
          if (err != 0) {
             goto bail;
          }
 
-        free(fileList[i]);
+        Unicode_Free(fileList[i]);
         fileList[i] = NULL;
 
         continue;
@@ -506,7 +490,7 @@ ScanDirectory(ConstUnicode lockDir,     // IN:
        * this will cleaned-up.
        */
 
-      if (*fileList[i] == 'D') {
+      if (Unicode_StartsWith(fileList[i], U("D"))) {
          if (cleanUp) {
             err = ActivateLockList(fileList[i], myValues);
             if (err != 0) {
@@ -514,7 +498,7 @@ ScanDirectory(ConstUnicode lockDir,     // IN:
             }
         }
 
-        free(fileList[i]);
+        Unicode_Free(fileList[i]);
         fileList[i] = NULL;
       }
    }
@@ -530,12 +514,13 @@ ScanDirectory(ConstUnicode lockDir,     // IN:
       LockValues memberValues;
       char       buffer[FILELOCK_DATA_SIZE];
 
-      if ((fileList[i] == NULL) || (*fileList[i] == 'E')) {
+      if ((fileList[i] == NULL) ||
+          (Unicode_StartsWith(fileList[i], U("E")))) {
          continue;
       }
 
-      myLockFile = strcmp(fileList[i],
-                          myValues->memberName) == 0 ? TRUE : FALSE;
+      myLockFile = (Unicode_Compare(fileList[i],
+                          myValues->memberName) == 0) ? TRUE : FALSE;
 
       if (myLockFile) {
          /* It's me! No need to read or validate anything. */
@@ -562,9 +547,8 @@ ScanDirectory(ConstUnicode lockDir,     // IN:
                                     memberValues.machineID) &&
              !FileLockValidOwner(memberValues.executionID,
                                  memberValues.payload)) {
-// XXX unicode "string" in message
             Log(LGPFX" %s discarding %s from %s'; invalid executionID.\n",
-                __FUNCTION__, fileList[i], lockDir);
+                __FUNCTION__, UTF8(fileList[i]), UTF8(lockDir));
 
             err = RemoveLockingFile(lockDir, fileList[i]);
             if (err != 0) {
@@ -587,7 +571,7 @@ ScanDirectory(ConstUnicode lockDir,     // IN:
 bail:
 
    for (i = 0; i < numEntries; i++) {
-      free(fileList[i]);
+      Unicode_Free(fileList[i]);
    }
 
    free(fileList);
@@ -660,13 +644,10 @@ Scanner(ConstUnicode lockDir,    // IN:
 
                ASSERT(Unicode_StartsWith(ptr->dirName, U("D")));
 
-// XXX unicode "string" in message
                Log(LGPFX" %s discarding %s data from '%s'.\n",
-                   __FUNCTION__, ptr->dirName, lockDir);
+                   __FUNCTION__, UTF8(ptr->dirName), UTF8(lockDir));
 
-               temp = Unicode_Append(lockDir, U(DIRSEPS));
-               path = Unicode_Append(temp, ptr->dirName);
-               Unicode_Free(temp);
+               path = Unicode_Join(lockDir, U(DIRSEPS), ptr->dirName, NULL);
 
                index = Unicode_FindLast(path, U("D"));
                ASSERT(index != UNICODE_INDEX_NOT_FOUND);
@@ -779,8 +760,7 @@ FileUnlockIntrinsic(const char *machineID,    // IN:
    ASSERT(pathName);
    ASSERT(lockToken);
 
-// XXX unicode "string" in message
-   LOG(1, ("Releasing lock on %s (%s, %s).\n", pathName,
+   LOG(1, ("Releasing lock on %s (%s, %s).\n", UTF8(pathName),
        machineID, executionID));
 
    if (lockToken == &implicitReadToken) {
@@ -806,9 +786,8 @@ FileUnlockIntrinsic(const char *machineID,    // IN:
       err = FileDeletion((Unicode) lockToken, FALSE);
 
       if (err && vmx86_debug) {
-// XXX unicode "string" in message
          Log(LGPFX" %s failed for '%s': %s\n",
-             __FUNCTION__, (Unicode) lockToken, strerror(err));
+             __FUNCTION__, (char *) lockToken, strerror(err));
       }
 
       /*
@@ -863,7 +842,6 @@ WaitForPossession(ConstUnicode lockDir,     // IN:
                            myValues->memberName) < 0))) &&
         ((strcmp(memberValues->lockType, LOCK_EXCLUSIVE) == 0) ||
          (strcmp(myValues->lockType, LOCK_EXCLUSIVE) == 0))) {
-      Unicode temp;
       Unicode path;
       uint32 loopCount;
       Bool   thisMachine; 
@@ -873,9 +851,7 @@ WaitForPossession(ConstUnicode lockDir,     // IN:
 
       loopCount = 0;
 
-      temp = Unicode_Append(lockDir, U(DIRSEPS));
-      path = Unicode_Append(temp, fileName);
-      Unicode_Free(temp);
+      path = Unicode_Join(lockDir, U(DIRSEPS), fileName, NULL);
 
       while ((err = Sleeper(myValues, &loopCount)) == 0) {
          /* still there? */
@@ -893,9 +869,8 @@ WaitForPossession(ConstUnicode lockDir,     // IN:
          if (thisMachine && !FileLockValidOwner(memberValues->executionID,
                                                 memberValues->payload)) {
             /* Invalid Execution ID; remove the member file */
-// XXX unicode "string" in message
             Warning(LGPFX" %s discarding file '%s'; invalid executionID.\n",
-                    __FUNCTION__, path);
+                    __FUNCTION__, UTF8(path));
 
             err = RemoveLockingFile(lockDir, fileName);
             break;
@@ -910,13 +885,11 @@ WaitForPossession(ConstUnicode lockDir,     // IN:
       if ((myValues->msecMaxWaitTime != FILELOCK_TRYLOCK_WAIT) &&
           (err == EAGAIN)) {
          if (thisMachine) {
-// XXX unicode "string" in message
             Log(LGPFX" %s timeout on '%s' due to a local process (%s)\n",
-                    __FUNCTION__, path, memberValues->executionID);
+                    __FUNCTION__, UTF8(path), memberValues->executionID);
          } else {
-// XXX unicode "string" in message
             Log(LGPFX" %s timeout on '%s' due to another machine (%s)\n",
-                    __FUNCTION__, path, memberValues->machineID);
+                    __FUNCTION__, UTF8(path), memberValues->machineID);
          }
       }
 
@@ -1105,7 +1078,6 @@ CreateEntryDirectory(const char *machineID,    // IN:
 
    while (TRUE) {
       Unicode temp;
-      Unicode temp2;
       FileData fileData;
       char string[FILELOCK_OVERHEAD];
 
@@ -1120,9 +1092,8 @@ CreateEntryDirectory(const char *machineID,    // IN:
             * automatically upgrade to a new style lock).
             */
 
-// XXX unicode "string" in message
             Log(LGPFX" %s: '%s' exists; an old style lock file?\n",
-                      __FUNCTION__, lockDir);
+                      __FUNCTION__, UTF8(lockDir));
 
             err = EAGAIN;
             break;
@@ -1131,9 +1102,8 @@ CreateEntryDirectory(const char *machineID,    // IN:
         if (fileData.fileType != FILE_TYPE_DIRECTORY) {
            /* Not a directory; attempt to remove the debris */
            if (FileDeletion(lockDir, FALSE) != 0) {
-// XXX unicode "string" in message
               Warning(LGPFX" %s: '%s' exists and is not a directory.\n",
-                      __FUNCTION__, lockDir);
+                      __FUNCTION__, UTF8(lockDir));
 
               err = ENOTDIR;
               break;
@@ -1147,16 +1117,14 @@ CreateEntryDirectory(const char *machineID,    // IN:
             err = MakeDirectory(lockDir);
 
             if ((err != 0) && (err != EEXIST)) {
-// XXX unicode "string" in message
                Warning(LGPFX" %s creation failure on '%s': %s\n",
-                       __FUNCTION__, lockDir, strerror(err));
+                       __FUNCTION__, UTF8(lockDir), strerror(err));
 
                break;
             }
          } else {
-// XXX unicode "string" in message
             Warning(LGPFX" %s stat failure on '%s': %s\n",
-                    __FUNCTION__, lockDir, strerror(err));
+                    __FUNCTION__, UTF8(lockDir), strerror(err));
 
             break;
          }
@@ -1173,24 +1141,18 @@ CreateEntryDirectory(const char *machineID,    // IN:
       Str_Sprintf(string, sizeof string, "D%05u%s", randomNumber,
                   FILELOCK_SUFFIX);
 
-      temp = Unicode_Append(lockDir, U(DIRSEPS));
-      temp2 = Unicode_Alloc(string, STRING_ENCODING_US_ASCII);
-      *entryDirectory = Unicode_Append(temp, temp2);
+      temp = Unicode_Alloc(string, STRING_ENCODING_US_ASCII);
+      *entryDirectory = Unicode_Join(lockDir, U(DIRSEPS), temp, NULL);
       Unicode_Free(temp);
-      Unicode_Free(temp2);
 
       Str_Sprintf(string, sizeof string, "E%05u%s", randomNumber,
                   FILELOCK_SUFFIX);
 
-      temp = Unicode_Append(lockDir, U(DIRSEPS));
-      temp2 = Unicode_Alloc(string, STRING_ENCODING_US_ASCII);
-      *entryFilePath = Unicode_Append(temp, temp2);
+      temp = Unicode_Alloc(string, STRING_ENCODING_US_ASCII);
+      *entryFilePath = Unicode_Join(lockDir, U(DIRSEPS), temp, NULL);
       Unicode_Free(temp);
-      Unicode_Free(temp2);
 
-      temp = Unicode_Append(lockDir, U(DIRSEPS));
-      *memberFilePath = Unicode_Append(temp, *memberName);
-      Unicode_Free(temp);
+      *memberFilePath = Unicode_Join(lockDir, U(DIRSEPS), *memberName, NULL);
 
       err = MakeDirectory(*entryDirectory);
 
@@ -1214,18 +1176,16 @@ CreateEntryDirectory(const char *machineID,    // IN:
             }
 
             if (vmx86_debug) {
-// XXX unicode "string" in message
                Log(LGPFX" %s stat failure on '%s': %s\n",
-                   __FUNCTION__, *memberFilePath, strerror(err));
+                   __FUNCTION__, UTF8(*memberFilePath), strerror(err));
              }
          }
 
          FileRemoveDirectory(*entryDirectory);
       } else {
           if (err != EEXIST) {
-// XXX unicode "string" in message
              Warning(LGPFX" %s creation failure on '%s': %s\n",
-                     __FUNCTION__, *entryDirectory, strerror(err));
+                     __FUNCTION__, UTF8(*entryDirectory), strerror(err));
 
              break;
           }
@@ -1297,9 +1257,8 @@ CreateMemberFile(FILELOCK_FILE_HANDLE entryHandle,  // IN:
    err = FileLockWriteFile(entryHandle, buffer, sizeof buffer, &len);
 
    if (err != 0) {
-// XXX unicode "string" in message
       Warning(LGPFX" %s write of '%s' failed: %s\n", __FUNCTION__,
-              entryFilePath, strerror(err));
+              UTF8(entryFilePath), strerror(err));
 
       FileLockCloseFile(entryHandle);
 
@@ -1309,17 +1268,15 @@ CreateMemberFile(FILELOCK_FILE_HANDLE entryHandle,  // IN:
    err = FileLockCloseFile(entryHandle);
 
    if (err != 0) {
-// XXX unicode "string" in message
       Warning(LGPFX" %s close of '%s' failed: %s\n", __FUNCTION__,
-              entryFilePath, strerror(err));
+              UTF8(entryFilePath), strerror(err));
 
       return err;
    }
 
    if (len != sizeof buffer) {
-// XXX unicode "string" in message
       Warning(LGPFX" %s write length issue on '%s': %u and %"FMTSZ"d\n",
-              __FUNCTION__, entryFilePath, len, sizeof buffer);
+              __FUNCTION__, UTF8(entryFilePath), len, sizeof buffer);
 
       return EIO;
    }
@@ -1327,20 +1284,17 @@ CreateMemberFile(FILELOCK_FILE_HANDLE entryHandle,  // IN:
    err = FileRename(entryFilePath, memberFilePath);
 
    if (err != 0) {
-// XXX unicode "string" in message
       Warning(LGPFX" %s FileRename of '%s' to '%s' failed: %s\n",
-              __FUNCTION__, entryFilePath, memberFilePath,
+              __FUNCTION__, UTF8(entryFilePath), UTF8(memberFilePath),
               strerror(err));
 
       if (vmx86_debug) {
-// XXX unicode "string" in message
          Log(LGPFX" %s FileLockFileType() of '%s': %s\n",
-             __FUNCTION__, entryFilePath,
+             __FUNCTION__, UTF8(entryFilePath),
             strerror(FileAttributes(entryFilePath, NULL)));
 
-// XXX unicode "string" in message
          Log(LGPFX" %s FileLockFileType() of '%s': %s\n",
-             __FUNCTION__, memberFilePath,
+             __FUNCTION__, UTF8(memberFilePath),
             strerror(FileAttributes(memberFilePath, NULL)));
       }
 
@@ -1437,9 +1391,8 @@ FileLockIntrinsic(const char *machineID,    // IN:
    myValues.msecMaxWaitTime = msecMaxWaitTime;
    myValues.memberName = NULL;
 
-// XXX unicode "string" in message
    LOG(1, ("Requesting %s lock on %s (%s, %s, %u).\n",
-       myValues.lockType, pathName, myValues.machineID,
+       myValues.lockType, UTF8(pathName), myValues.machineID,
        myValues.executionID, myValues.msecMaxWaitTime));
 
    /*
@@ -1480,9 +1433,8 @@ FileLockIntrinsic(const char *machineID,    // IN:
           * The address of a private variable will be used for the lock token.
           */
 
-// XXX unicode "string" in message
          Warning(LGPFX" %s implicit %s lock succeeded on '%s'.\n",
-                 __FUNCTION__, LOCK_SHARED, pathName);
+                 __FUNCTION__, LOCK_SHARED, UTF8(pathName));
 
          *err = 0;
          memberFilePath = &implicitReadToken;
@@ -1642,8 +1594,7 @@ FileLockHackVMX(const char *machineID,    // IN:
 
    ASSERT(pathName);
 
-// XXX unicode "string" in message
-   LOG(1, ("%s on %s (%s, %s).\n", __FUNCTION__, pathName,
+   LOG(1, ("%s on %s (%s, %s).\n", __FUNCTION__, UTF8(pathName),
        machineID, executionID));
 
    /* establish our values */
@@ -1673,9 +1624,8 @@ FileLockHackVMX(const char *machineID,    // IN:
       }
    } else {
       if (vmx86_debug) {
-// XXX unicode "string" in message
          Warning(LGPFX" %s clean-up failure for '%s': %s\n",
-                 __FUNCTION__, pathName, strerror(err));
+                 __FUNCTION__, UTF8(pathName), strerror(err));
       }
    }
 

@@ -48,7 +48,7 @@
  */
 
 #include "vmware.h"
-#include "hash.h"
+#include "hashTable.h"
 #include "syncMutex.h"
 #include "unicodeBase.h"
 #include "unicodeInt.h"
@@ -90,7 +90,7 @@ UnicodeStaticCreateTableIfNeeded(HashTable **table) // OUT
        * to Unicode_GetStatic() as the lookup key into the hash, to
        * avoid creating the same string multiple times.
        */
-      *table = Hash_Alloc(4096, HASH_STRING_KEY, NULL);
+      *table = HashTable_Alloc(4096, HASH_STRING_KEY, NULL);
    }
 }
 
@@ -143,11 +143,11 @@ Unicode_GetStatic(const char *asciiBytes, // IN
       stringTable = UnicodeStaticStringTable;
    }
 
-   if (!Hash_Lookup(stringTable, asciiBytes, (void **)&result)) {
+   if (!HashTable_Lookup(stringTable, asciiBytes, (void **)&result)) {
       result = UnicodeAllocStatic(asciiBytes, unescape);
 
       if (result) {
-         Hash_Insert(stringTable, asciiBytes, result);
+         HashTable_Insert(stringTable, asciiBytes, result);
       }
    }
 

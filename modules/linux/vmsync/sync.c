@@ -106,7 +106,7 @@ typedef struct VmSyncBlockDevice {
 typedef struct VmSyncState {
    struct list_head     devices;
    struct semaphore     lock;
-   struct delayed_work  thawTask;
+   compat_delayed_work  thawTask;
 } VmSyncState;
 
 
@@ -183,9 +183,10 @@ VmSyncThawDevices(void  *_state)  // IN
  */
 
 static void
-VmSyncThawDevicesCallback(compat_workqueue_arg *data) // IN
+VmSyncThawDevicesCallback(compat_delayed_work_arg data) // IN
 {
-   VmSyncState *state = COMPAT_DELAYEDWORK_GETDATA(data, VmSyncState, thawTask);
+   VmSyncState *state = COMPAT_DELAYED_WORK_GET_DATA(data,
+                                                     VmSyncState, thawTask);
    VmSyncThawDevices(state);
 }
 
@@ -364,7 +365,7 @@ VmSyncFreezeDevices(VmSyncState *state,            // IN
    up(&gFreezeLock);
 
    if (result == 0) {
-      schedule_delayed_work(&state->thawTask, VMSYNC_THAW_TASK_DELAY);
+      compat_schedule_delayed_work(&state->thawTask, VMSYNC_THAW_TASK_DELAY);
    }
    return result;
 }
@@ -622,7 +623,8 @@ VmSyncStateCtor(compat_kmem_cache *cache, // IN
 {
    VmSyncState *state = (VmSyncState *) slabelem;
    INIT_LIST_HEAD(&state->devices);
-   INIT_DELAYED_WORK(&state->thawTask, VmSyncThawDevicesCallback);
+   COMPAT_INIT_DELAYED_WORK(&state->thawTask,
+                            VmSyncThawDevicesCallback, &state);
    init_MUTEX(&state->lock);
 }
 

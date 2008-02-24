@@ -142,6 +142,7 @@ enum {
    VIX_E_NOT_ALLOWED_DURING_VM_REPLAY           = 3030,
    VIX_E_OPERATION_NOT_ALLOWED_FOR_LOGIN_TYPE   = 3031,
    VIX_E_LOGIN_TYPE_NOT_SUPPORTED               = 3032,
+   VIX_E_EMPTY_PASSWORD_NOT_ALLOWED_IN_GUEST    = 3033,
 
    /* VM Errors */ 
    VIX_E_VM_NOT_FOUND                           = 4000,
@@ -307,6 +308,8 @@ enum {
    VIX_PROPERTY_VM_TOOLS_STATE                        = 152,
    VIX_PROPERTY_VM_IS_RUNNING                         = 196,
    VIX_PROPERTY_VM_SUPPORTED_FEATURES                 = 197,
+   VIX_PROPERTY_VM_IS_RECORDING                       = 236,
+   VIX_PROPERTY_VM_IS_REPLAYING                       = 237,
 
    /* Result properties; these are returned by various procedures */
    VIX_PROPERTY_JOB_RESULT_ERROR_CODE                 = 3000,
@@ -338,6 +341,8 @@ enum {
    VIX_PROPERTY_SNAPSHOT_DISPLAYNAME                  = 4200,   
    VIX_PROPERTY_SNAPSHOT_DESCRIPTION                  = 4201,
    VIX_PROPERTY_SNAPSHOT_POWERSTATE                   = 4205,
+   VIX_PROPERTY_SNAPSHOT_IS_REPLAYABLE                = 4207,
+
 };
 
 /*
@@ -379,6 +384,10 @@ typedef void VixEventProc(VixHandle handle,
 
 void Vix_ReleaseHandle(VixHandle handle);
 
+#ifndef VIX_HIDE_FROM_JAVA
+void Vix_AddRefHandle(VixHandle handle);
+#endif
+
 VixHandleType Vix_GetHandleType(VixHandle handle);
 
 VixError Vix_GetProperties(VixHandle handle, 
@@ -408,7 +417,6 @@ enum {
    VIX_SERVICEPROVIDER_DEFAULT               = 1,
    VIX_SERVICEPROVIDER_VMWARE_SERVER         = 2,
    VIX_SERVICEPROVIDER_VMWARE_WORKSTATION    = 3,
-   VIX_SERVICEPROVIDER_VMWARE_ESX            = 5,
    VIX_SERVICEPROVIDER_VMWARE_VI_SERVER      = 10,
 };
 
@@ -480,6 +488,22 @@ void Vix_PumpEvents(VixHandle hostHandle, VixPumpEventsOptions options);
 /*
  *-----------------------------------------------------------------------------
  *
+ * PropertyList --
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+#ifndef VIX_HIDE_FROM_JAVA
+VixError VixPropertyList_AllocPropertyList(VixHandle hostHandle,
+                                           VixHandle *resultHandle, 
+                                           int firstPropertyID,
+                                           ...);
+#endif
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * VIX VM --
  *
  * This describes the persistent configuration state of a single VM. The 
@@ -496,6 +520,7 @@ VixHandle VixVM_Open(VixHandle hostHandle,
 typedef int VixVMPowerOpOptions;
 enum {
    VIX_VMPOWEROP_NORMAL                      = 0,
+   VIX_VMPOWEROP_FROM_GUEST                  = 0x0001,
    VIX_VMPOWEROP_SUPPRESS_SNAPSHOT_POWERON   = 0x0080,
    VIX_VMPOWEROP_LAUNCH_GUI                  = 0x0200
 };
@@ -525,6 +550,18 @@ VixHandle VixVM_Suspend(VixHandle vmHandle,
                         VixEventProc *callbackProc,
                         void *clientData);
 
+VixHandle VixVM_Pause(VixHandle vmHandle,
+                      int options,
+                      VixHandle propertyList,
+                      VixEventProc *callbackProc,
+                      void *clientData);
+
+VixHandle VixVM_Unpause(VixHandle vmHandle,
+                        int options,
+                        VixHandle propertyList,
+                        VixEventProc *callbackProc,
+                        void *clientData);
+
 typedef int VixVMDeleteOptions;
 enum {
    VIX_VMDELETE_DISK_FILES     = 0x0002,
@@ -550,6 +587,7 @@ enum {
       VIX_POWERSTATE_TOOLS_RUNNING   = 0x0040,
       VIX_POWERSTATE_RESETTING       = 0x0080,
       VIX_POWERSTATE_BLOCKED_ON_MSG  = 0x0100,
+      VIX_POWERSTATE_PAUSED          = 0x0200,
 };
 
 typedef int VixToolsState;
@@ -580,6 +618,37 @@ enum {
 #define VIX_ANONYMOUS_USER_NAME        "__VMware_Vix_Guest_User_Anonymous__"
 #define VIX_ADMINISTRATOR_USER_NAME    "__VMware_Vix_Guest_User_Admin__"
 #define VIX_CONSOLE_USER_NAME          "__VMware_Vix_Guest_Console_User__"
+
+
+/*
+ * Record/replay operations
+ */
+VixHandle VixVM_BeginRecording(VixHandle vmHandle,
+                               const char *displayName,
+                               const char *description,
+                               int options,
+                               VixHandle propertyList,
+                               VixEventProc *callbackProc,
+                               void *clientData);
+
+VixHandle VixVM_EndRecording(VixHandle vmHandle,
+                             int options,
+                             VixHandle propertyList,
+                             VixEventProc *callbackProc,
+                             void *clientData);
+
+VixHandle VixVM_BeginReplay(VixHandle vmHandle,
+                            VixHandle snapshotHandle,
+                            int options,
+                            VixHandle propertyList,
+                            VixEventProc *callbackProc,
+                            void *clientData);
+
+VixHandle VixVM_EndReplay(VixHandle vmHandle,
+                          int options,
+                          VixHandle propertyList,
+                          VixEventProc *callbackProc,
+                          void *clientData);
 
 
 /*
@@ -691,6 +760,13 @@ VixHandle VixVM_CreateTempFileInGuest(VixHandle vmHandle,
                                       VixHandle propertyListHandle,
                                       VixEventProc *callbackProc,
                                       void *clientData);
+
+#ifndef VIX_HIDE_FROM_JAVA
+VixHandle VixVM_GetFileInfoInGuest(VixHandle vmHandle,
+                                   const char *pathName,
+                                   VixEventProc *callbackProc,
+                                   void *clientData);
+#endif   // VIX_HIDE_FROM_JAVA
 
 
 /* 
@@ -841,6 +917,46 @@ VixHandle VixVM_RemoveSharedFolder(VixHandle vmHandle,
                                    int flags,
                                    VixEventProc *callbackProc,
                                    void *clientData);
+
+
+/*
+ * Screen Capture
+ */
+
+#ifndef VIX_HIDE_FROM_JAVA
+enum {
+   VIX_CAPTURESCREENFORMAT_BITMAP         = 0x00,
+};
+
+VixHandle VixVM_CaptureScreenImage(VixHandle vmHandle, 
+                                   int captureType,
+                                   VixHandle additionalProperties,
+                                   VixEventProc *callbackProc,
+                                   void *clientdata);
+#endif   // VIX_HIDE_FROM_JAVA
+
+
+
+/*
+ * VM Cloning --
+ */
+
+typedef int VixCloneType;
+enum {
+   VIX_CLONETYPE_FULL       = 0,
+   VIX_CLONETYPE_LINKED     = 1,
+};
+
+VixHandle VixVM_Clone(VixHandle vmHandle,
+                      VixHandle snapshotHandle,
+                      VixCloneType cloneType,
+                      const char *destConfigPathName,
+                      int options,
+                      VixHandle propertyListHandle,
+                      VixEventProc *callbackProc,
+                      void *clientData);
+
+
 
 
 /*

@@ -31,7 +31,6 @@
 #include "hgfs_kernel.h"
 #include "requestInt.h"
 
-
 /*
  * Macros
  */
@@ -53,21 +52,20 @@
  * See requestInt.h for details.
  */
 
-uma_zone_t      hgfsKReqZone;
 DblLnkLst_Links hgfsKReqWorkItemList;
-struct mtx      hgfsKReqWorkItemLock;
-struct cv       hgfsKReqWorkItemCv;
+OS_MUTEX_T *hgfsKReqWorkItemLock;
+OS_ZONE_T *hgfsKReqZone;
 
+OS_CV_T hgfsKReqWorkItemCv;
 
 /*
  * Local functions (prototypes)
  */
 
-static int      HgfsKReqZCtor(void *mem, int size, void *arg, int flags);
-static void     HgfsKReqZDtor(void *mem, int size, void *arg);
-static int      HgfsKReqZInit(void *mem, int size, int flags);
-static void     HgfsKReqZFini(void *mem, int size);
-
+   static int   HgfsKReqZCtor(void *mem, int size, void *arg, int flags);
+   static void  HgfsKReqZDtor(void *mem, int size, void *arg);
+   static int   HgfsKReqZInit(void *mem, int size, int flags);
+   static void  HgfsKReqZFini(void *mem, int size);
 
 /*
  * Global functions (definitions)
@@ -97,28 +95,28 @@ HgfsKReq_SysInit(void)
 {
    int ret = 0;
 
-   hgfsKReqZone = uma_zcreate(HGFS_FS_NAME "_zone",
-                              sizeof (struct HgfsKReqObject),
-                              HgfsKReqZCtor, HgfsKReqZDtor, HgfsKReqZInit,
-                              HgfsKReqZFini, UMA_ALIGN_PTR, 0);
-
-   /* uma_zcreate() may sleep, so it should never fail. */
-   if (hgfsKReqZone == NULL) {
-      return ENOMEM;
-   }
+   hgfsKReqZone = os_zone_create(HGFS_FS_NAME "_zone",
+				 sizeof (struct HgfsKReqObject),
+				 HgfsKReqZCtor, HgfsKReqZDtor, HgfsKReqZInit,
+				 HgfsKReqZFini, 0, 0);
 
    /* The following routines cannot fail. */
-   mtx_init(&hgfsKReqWorkItemLock, HGFS_FS_NAME "_workmtx", NULL, MTX_DEF);
-   cv_init(&hgfsKReqWorkItemCv, HGFS_FS_NAME "_workcv");
+   hgfsKReqWorkItemLock = os_mutex_alloc_init(HGFS_FS_NAME "_workmtx");
+
+   /*
+    * This is a nop on OS X because we don't actually have a condition variable
+    * to initialize.
+    */
+   os_cv_init(&hgfsKReqWorkItemCv, HGFS_FS_NAME "_workcv");
    DblLnkLst_Init(&hgfsKReqWorkItemList);
 
    /* Spawn the worker thread. */
-   ret = kthread_create(HgfsKReqWorker, &hgfsKReqWorkerState,
-                        &hgfsKReqWorkerProc, 0, 0, "HgfsKReqWorker");
+   ret = os_thread_create(HgfsKReqWorker, &hgfsKReqWorkerState,
+			  "HgfsKReqWorker", &hgfsKReqWorkerThread);
 
    if (ret != 0) {
-      mtx_destroy(&hgfsKReqWorkItemLock);
-      cv_destroy(&hgfsKReqWorkItemCv);
+      os_mutex_destroy(hgfsKReqWorkItemLock);
+      os_cv_destroy(&hgfsKReqWorkItemCv);
    }
 
    return ret;
@@ -145,27 +143,26 @@ HgfsKReq_SysInit(void)
 int
 HgfsKReq_SysFini(void)
 {
-   int ret = 0;
-
    /* Signal the worker thread to exit. */
-   mtx_lock(&hgfsKReqWorkItemLock);
+   os_mutex_lock(hgfsKReqWorkItemLock);
    hgfsKReqWorkerState.exit = TRUE;
-   cv_signal(&hgfsKReqWorkItemCv);
+   os_cv_signal(&hgfsKReqWorkItemCv);
 
    /*
-    * Sleep until the worker thread exits.  The PDROP flag indicates that
-    * hgfsKReqWorkItemLock should not be reacquired upon wakeup.
+    * Sleep until the worker thread exits. hgfsKReqWorkItemLock is release by
+    * by os_thread_join.
     */
-   msleep(hgfsKReqWorkerProc, &hgfsKReqWorkItemLock, PDROP, "Hgfs Shutdown", 0);
+   os_thread_join(hgfsKReqWorkerThread, hgfsKReqWorkItemLock);
 
    /*
     * Destroy resources allocated during _SysInit().
     */
-   uma_zdestroy(hgfsKReqZone);
-   cv_destroy(&hgfsKReqWorkItemCv);
-   mtx_destroy(&hgfsKReqWorkItemLock);
+   os_thread_release(hgfsKReqWorkerThread);
+   os_zone_destroy(hgfsKReqZone);
+   os_cv_destroy(&hgfsKReqWorkItemCv);
+   os_mutex_destroy(hgfsKReqWorkItemLock);
 
-   return ret;
+   return 0;
 }
 
 
@@ -191,10 +188,8 @@ HgfsKReq_AllocateContainer(void)
    HgfsKReqContainer *container;
 
    /* Called with M_WAITOK, so this cannot fail. */
-   container = malloc(sizeof (struct HgfsKReqContainer), M_HGFS,
-                      M_WAITOK|M_ZERO);
-
-   mtx_init(&container->listLock, "hgfs_reql_mtx", NULL, MTX_DEF);
+   container = os_malloc(sizeof (struct HgfsKReqContainer), M_WAITOK | M_ZERO);
+   container->listLock = os_mutex_alloc_init("hgfs_reql_mtx");
    DblLnkLst_Init(&container->list);
 
    return container;
@@ -224,8 +219,8 @@ HgfsKReq_FreeContainer(HgfsKReqContainerHandle container) // IN: file system's
    ASSERT(container);
    ASSERT(DblLnkLst_IsLinked(&container->list) == FALSE);
 
-   mtx_destroy(&container->listLock);
-   free(container, M_HGFS);
+   os_mutex_destroy(container->listLock);
+   os_free(container, sizeof(*container));
 }
 
 
@@ -234,16 +229,16 @@ HgfsKReq_FreeContainer(HgfsKReqContainerHandle container) // IN: file system's
  *
  * HgfsKReq_CancelRequests --
  *
- *    Cancels all allocated requests by updating their status (set to
- *    HGFS_REQ_ERROR) and waking up any waiting clients.  Also, if linked,
- *    removes any items from the work item list.
+ *      Cancels all allocated requests by updating their status (set to
+ *      HGFS_REQ_ERROR) and waking up any waiting clients.  Also, if linked,
+ *      removes any items from the work item list.
  *
  * Results:
- *    None.
+ *      None.
  *
  * Side effects:
- *    This file system's entries are removed from the work item list are
- *    removed.
+ *      This file system's entries are removed from the work item list are
+ *      removed.
  *
  *----------------------------------------------------------------------------
  */
@@ -251,8 +246,8 @@ HgfsKReq_FreeContainer(HgfsKReqContainerHandle container) // IN: file system's
 void
 HgfsKReq_CancelRequests(HgfsKReqContainerHandle container) // IN: request container
 {
-   DblLnkLst_Links *currNode, *nextNode;
-   HgfsKReqObject *req;
+   DblLnkLst_Links *currNode;
+   DblLnkLst_Links *nextNode;
 
    DEBUG(VM_DEBUG_REQUEST, "HgfsCancelAllRequests().\n");
 
@@ -271,12 +266,13 @@ HgfsKReq_CancelRequests(HgfsKReqContainerHandle container) // IN: request contai
     * 5. Unlock the file system's request list.
     */
 
-   mtx_lock(&container->listLock);
-   mtx_lock(&hgfsKReqWorkItemLock);
+   os_mutex_lock(container->listLock);
+   os_mutex_lock(hgfsKReqWorkItemLock);
 
    DEBUG(VM_DEBUG_REQUEST, "HgfsCancelAllRequests(): traversing pending request list.\n");
 
    DblLnkLst_ForEachSafe(currNode, nextNode, &container->list) {
+      HgfsKReqObject *req;
       Bool deref = FALSE;
 
       /* Get a pointer to the request represented by currNode. */
@@ -294,20 +290,20 @@ HgfsKReq_CancelRequests(HgfsKReqContainerHandle container) // IN: request contai
       }
 
       /* Force this over to the error state & wake up any waiters. */
-      mtx_lock(&req->stateLock);
+      os_mutex_lock(req->stateLock);
       req->state = HGFS_REQ_ERROR;
-      cv_signal(&req->stateCv);
-      mtx_unlock(&req->stateLock);
+      os_cv_signal(&req->stateCv);
+      os_mutex_unlock(req->stateLock);
 
       if (deref) {
-         if (atomic_fetchadd_int(&req->refcnt, -1) == 1) {
-            uma_zfree(hgfsKReqZone, req);
+         if (os_add_atomic(&req->refcnt, -1) == 1) {
+	    os_zone_free(hgfsKReqZone, req);
          }
       }
    }
 
-   mtx_unlock(&hgfsKReqWorkItemLock);
-   mtx_unlock(&container->listLock);
+   os_mutex_unlock(hgfsKReqWorkItemLock);
+   os_mutex_unlock(container->listLock);
 
    DEBUG(VM_DEBUG_REQUEST, "HgfsCancelAllRequests() done.\n");
 }
@@ -337,9 +333,11 @@ HgfsKReq_ContainerIsEmpty(HgfsKReqContainerHandle container)       // IN:
 
    ASSERT(container);
 
-   mtx_lock(&container->listLock);
+   os_mutex_lock(container->listLock);
    result = DblLnkLst_IsLinked(&container->list) ? FALSE : TRUE;
-   mtx_unlock(&container->listLock);
+   os_mutex_unlock(container->listLock);
+
+   DEBUG(VM_DEBUG_REQUEST, "Container empty value: %d\n", result);
 
    return result;
 }
@@ -350,33 +348,38 @@ HgfsKReq_ContainerIsEmpty(HgfsKReqContainerHandle container)       // IN:
  *
  * HgfsKReq_AllocateRequest --
  *
- *    Allocates and initializes a new request structure from the request pool.
- *    This function blocks until a request is available or it has been
- *    interrupted by a signal.
+ *      Allocates and initializes a new request structure from the request pool.
+ *      This function blocks until a request is available or it has been
+ *      interrupted by a signal.
  *
  * Results:
- *    Pointer to fresh HgfsKReqObject.
+ *      Pointer to fresh HgfsKReqObject.
  *
  * Side effects:
- *    Request inserted into caller's requests container.  This routine may
- *    sleep.
+ *      Request inserted into caller's requests container.  This routine may
+ *      sleep.
  *
  *----------------------------------------------------------------------------
  */
 
 HgfsKReqObject *
-HgfsKReq_AllocateRequest(HgfsKReqContainerHandle container)        // IN:
+HgfsKReq_AllocateRequest(HgfsKReqContainerHandle container)        // IN
 {
    HgfsKReqObject *req;
 
    ASSERT(container);
 
-   /* Called with M_WAITOK, so this can not fail. */
-   req = uma_zalloc(hgfsKReqZone, M_WAITOK);
+   /*
+    * Called with M_WAITOK, so this can not fail unless the user provided
+    * constructor returns a non-zero value. Ours will not do this, so we should
+    * always succeed.
+    */
+   req = os_zone_alloc(hgfsKReqZone, M_WAITOK);
+   ASSERT(req);
 
-   mtx_lock(&container->listLock);
+   os_mutex_lock(container->listLock);
    DblLnkLst_LinkLast(&container->list, &req->fsNode);
-   mtx_unlock(&container->listLock);
+   os_mutex_unlock(container->listLock);
 
    return req;
 }
@@ -408,12 +411,12 @@ HgfsKReq_ReleaseRequest(HgfsKReqContainerHandle container,      // IN:
    ASSERT(oldRequest);
 
    /* Dissociate request from this file system. */
-   mtx_lock(&container->listLock);
+   os_mutex_lock(container->listLock);
    DblLnkLst_Unlink1(&oldRequest->fsNode);
-   mtx_unlock(&container->listLock);
+   os_mutex_unlock(container->listLock);
 
    /* State machine update */
-   mtx_lock(&oldRequest->stateLock);
+   os_mutex_lock(oldRequest->stateLock);
 
    switch (oldRequest->state) {
    case HGFS_REQ_ALLOCATED:
@@ -430,11 +433,11 @@ HgfsKReq_ReleaseRequest(HgfsKReqContainerHandle container,      // IN:
       NOT_REACHED();
    }
 
-   mtx_unlock(&oldRequest->stateLock);
+   os_mutex_unlock(oldRequest->stateLock);
 
    /* Dereference file system from request.  If refcnt goes to zero, free. */
-   if (atomic_fetchadd_int(&oldRequest->refcnt, -1) == 1) {
-      uma_zfree(hgfsKReqZone, oldRequest);
+   if (os_add_atomic(&oldRequest->refcnt, -1) == 1) {
+      os_zone_free(hgfsKReqZone, oldRequest);
    }
 
    DEBUG(VM_DEBUG_REQUEST, "%s done.\n", __func__);
@@ -466,9 +469,8 @@ HgfsKReq_SubmitRequest(HgfsKReqObject *newreq)     // IN: Request to enqueue
 {
    int ret = 0;
 
-   DEBUG(VM_DEBUG_REQUEST, "HgfsEnqueueRequest().\n");
-
    ASSERT(newreq);
+   DEBUG(VM_DEBUG_REQUEST, "HgfsEnqueueRequest().\n");
 
    /*
     * Insert request on pending request list, then alert of its arrival the
@@ -476,7 +478,7 @@ HgfsKReq_SubmitRequest(HgfsKReqObject *newreq)     // IN: Request to enqueue
     * sure to bump its count before unlocking the list!
     */
 
-   mtx_lock(&hgfsKReqWorkItemLock);
+   os_mutex_lock(hgfsKReqWorkItemLock);
 
    /*
     * With the work item list locked, lock our object and operate on its state.
@@ -484,18 +486,19 @@ HgfsKReq_SubmitRequest(HgfsKReqObject *newreq)     // IN: Request to enqueue
     * system asynchronously cancelled all requests, it may be in ERROR instead.
     */
 
-   mtx_lock(&newreq->stateLock);
+   os_mutex_lock(newreq->stateLock);
 
    switch (newreq->state) {
    case HGFS_REQ_ALLOCATED:
       /*
        * Update request's state, bump refcnt, and signal worker thread.
        */
+
       newreq->state = HGFS_REQ_SUBMITTED;
-      atomic_add_int(&newreq->refcnt, 1);
+      os_add_atomic(&newreq->refcnt, 1);
       DblLnkLst_LinkLast(&hgfsKReqWorkItemList, &newreq->pendingNode);
-      cv_signal(&hgfsKReqWorkItemCv);
-      mtx_unlock(&hgfsKReqWorkItemLock);
+      os_cv_signal(&hgfsKReqWorkItemCv);
+      os_mutex_unlock(hgfsKReqWorkItemLock);
       /*
        * NB: We're still holding this request's state lock for use with
        * cv_wait_sig.
@@ -506,8 +509,8 @@ HgfsKReq_SubmitRequest(HgfsKReqObject *newreq)     // IN: Request to enqueue
       /*
        * Bail ASAP.
        */
-      mtx_unlock(&newreq->stateLock);
-      mtx_unlock(&hgfsKReqWorkItemLock);
+      os_mutex_unlock(newreq->stateLock);
+      os_mutex_unlock(hgfsKReqWorkItemLock);
       return EIO;
       break;
 
@@ -524,11 +527,11 @@ HgfsKReq_SubmitRequest(HgfsKReqObject *newreq)     // IN: Request to enqueue
 
    /* Sleep until request is processed or we're interrupted. */
    while (newreq->state == HGFS_REQ_SUBMITTED && ret == 0) {
-      ret = cv_wait_sig(&newreq->stateCv, &newreq->stateLock);
+      ret = os_cv_wait(&newreq->stateCv, newreq->stateLock);
    }
 
    /* Okay, we're finished with the state lock for now. */
-   mtx_unlock(&newreq->stateLock);
+   os_mutex_unlock(newreq->stateLock);
 
    return ret;
 }
@@ -662,9 +665,9 @@ HgfsKReq_GetState(HgfsKReqObject *req)      // IN: Request to retrieve state of
 
    ASSERT(req);
 
-   mtx_lock(&req->stateLock);
+   os_mutex_lock(req->stateLock);
    state = req->state;
-   mtx_unlock(&req->stateLock);
+   os_mutex_unlock(req->stateLock);
 
    return state;
 }
@@ -673,7 +676,6 @@ HgfsKReq_GetState(HgfsKReqObject *req)      // IN: Request to retrieve state of
 /*
  * Local functions (definitions)
  */
-
 
 /*
  *-----------------------------------------------------------------------------
@@ -716,8 +718,8 @@ HgfsKReqZInit(void *mem,     // IN: Pointer to the allocated object
     */
    req->id = (uint32_t)((unsigned long)req & 0xffffffff);
    req->state = HGFS_REQ_UNUSED;
-   mtx_init(&req->stateLock, "hgfs_req_mtx", NULL, MTX_DEF);
-   cv_init(&req->stateCv, "hgfs_req_cv");
+   req->stateLock = os_mutex_alloc_init("hgfs_req_mtx");
+   os_cv_init(&req->stateCv, "hgfs_req_cv");
 
    /* Reset list pointers. */
    DblLnkLst_Init(&req->fsNode);
@@ -757,8 +759,8 @@ HgfsKReqZFini(void *mem,     // IN: Pointer to object leaving the UMA cache
    HgfsKReqObject *req = (HgfsKReqObject *)mem;
    ASSERT(size == sizeof *req);
    ASSERT(req->state == HGFS_REQ_UNUSED);
-   mtx_destroy(&req->stateLock);
-   cv_destroy(&req->stateCv);
+   os_mutex_destroy(req->stateLock);
+   os_cv_destroy(&req->stateCv);
 }
 
 
@@ -835,3 +837,4 @@ HgfsKReqZDtor(void *mem,     // IN: Pointer to allocated object
 
    req->state = HGFS_REQ_UNUSED;
 }
+

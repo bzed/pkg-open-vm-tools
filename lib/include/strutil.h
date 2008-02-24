@@ -39,24 +39,13 @@ Bool StrUtil_GetNextInt64Token(int64 *out, unsigned int *index, const char *str,
 Bool StrUtil_StrToInt(int32 *out, const char *str);
 Bool StrUtil_StrToUint(uint32 *out, const char *str);
 Bool StrUtil_StrToInt64(int64 *out, const char *str);
+Bool StrUtil_DecimalStrToUint(unsigned int *out, const char **str);
 char * StrUtil_FormatSizeInBytesUnlocalized(uint64 size);
 
 size_t StrUtil_GetLongestLineLength(const char *buf, size_t bufLength);
 
-char **StrUtil_Split(const char *filename,
-                     const char *delimiter);
-
-char **StrUtil_Grep(const char *filename,
-                    const char *search,
-                    const char *delimiter);
-
-char **StrUtil_GrepFd(FileIODescriptor *fd,
-                      const char *search,
-                      const char *delimiter);
-
-void StrUtil_GrepFree(char **retval);
-
 Bool StrUtil_StartsWith(const char *s, const char *prefix);
 Bool StrUtil_CaselessStartsWith(const char *s, const char *prefix);
+Bool StrUtil_EndsWith(const char *s, const char *suffix);
 
 #endif /* STRUTIL_H */

@@ -55,7 +55,6 @@
 #include "hostinfo.h"
 #include "su.h"
 
-#include "unicodeTypes.h"
 #include "unicodeOperations.h"
 
 #if defined(VMX86_SERVER)

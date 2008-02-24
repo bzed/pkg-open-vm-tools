@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 ################################################################################
-### Copyright 2007 VMware, Inc.  All rights reserved.
+### Copyright 2008 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -49,7 +49,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = lib/fileUtf8
+subdir = lib/unityStub
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -59,10 +59,10 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LIBRARIES = $(noinst_LIBRARIES)
 ARFLAGS = cru
-libFileUtf8_a_AR = $(AR) $(ARFLAGS)
-libFileUtf8_a_LIBADD =
-am_libFileUtf8_a_OBJECTS = fileUTF8.$(OBJEXT) fileUTF8Linux.$(OBJEXT)
-libFileUtf8_a_OBJECTS = $(am_libFileUtf8_a_OBJECTS)
+libunityStub_a_AR = $(AR) $(ARFLAGS)
+libunityStub_a_LIBADD =
+am_libunityStub_a_OBJECTS = unityStub.$(OBJEXT)
+libunityStub_a_OBJECTS = $(am_libunityStub_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -75,8 +75,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libFileUtf8_a_SOURCES)
-DIST_SOURCES = $(libFileUtf8_a_SOURCES)
+SOURCES = $(libunityStub_a_SOURCES)
+DIST_SOURCES = $(libunityStub_a_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -213,9 +213,9 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-noinst_LIBRARIES = libFileUtf8.a
-libFileUtf8_a_SOURCES = fileUTF8.c fileUTF8Linux.c
-AM_CFLAGS = @COMMON_CFLAGS@
+noinst_LIBRARIES = libunityStub.a
+libunityStub_a_SOURCES = unityStub.c
+AM_CFLAGS = @COMMON_CFLAGS@ @LIB_FILE_CFLAGS@
 all: all-am
 
 .SUFFIXES:
@@ -229,9 +229,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/fileUtf8/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/unityStub/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  lib/fileUtf8/Makefile
+	  $(AUTOMAKE) --gnu  lib/unityStub/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -252,10 +252,10 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
-libFileUtf8.a: $(libFileUtf8_a_OBJECTS) $(libFileUtf8_a_DEPENDENCIES) 
-	-rm -f libFileUtf8.a
-	$(libFileUtf8_a_AR) libFileUtf8.a $(libFileUtf8_a_OBJECTS) $(libFileUtf8_a_LIBADD)
-	$(RANLIB) libFileUtf8.a
+libunityStub.a: $(libunityStub_a_OBJECTS) $(libunityStub_a_DEPENDENCIES) 
+	-rm -f libunityStub.a
+	$(libunityStub_a_AR) libunityStub.a $(libunityStub_a_OBJECTS) $(libunityStub_a_LIBADD)
+	$(RANLIB) libunityStub.a
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -263,8 +263,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fileUTF8.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fileUTF8Linux.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unityStub.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

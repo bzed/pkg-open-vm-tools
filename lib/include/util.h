@@ -48,9 +48,8 @@
    #include <CoreFoundation/CFDictionary.h>
 #endif
 
-#include "vm_basic_types.h"
 #include "vm_assert.h"
-
+#include "unicodeTypes.h"
 
 #ifdef __APPLE__
 EXTERN char *Util_CFStringToUTF8CString(CFStringRef s);
@@ -88,6 +87,7 @@ EXTERN char *Util_GetCanonicalPath(const char *path);
 #ifdef _WIN32
 EXTERN char *Util_GetLowerCaseCanonicalPath(const char *path);
 #endif
+EXTERN int Util_BumpNoFds(uint32 *cur, uint32 *wanted);
 EXTERN Bool Util_CanonicalPathsIdentical(const char *path1, const char *path2);
 EXTERN Bool Util_IsAbsolutePath(const char *path);
 EXTERN unsigned Util_GetPrime(unsigned n0);
@@ -101,7 +101,9 @@ EXTERN char *Util_CombineStrings(char **sources, int count);
 EXTERN char **Util_SeparateStrings(char *source, int *count);
 
 EXTERN char *Util_GetSafeTmpDir(Bool useConf);
-EXTERN int Util_MakeSafeTemp(const char *tag, char **presult);
+
+EXTERN int Util_MakeSafeTemp(ConstUnicode tag,
+                             Unicode *presult);
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(sun)
 EXTERN Bool Util_GetProcessName(pid_t pid, char *bufOut, size_t bufOutSize);
@@ -199,8 +201,11 @@ EXTERN Bool Util_MakeSureDirExistsAndAccessible(char const *path,
 #   define VALID_DIRSEPS      "\\/:"
 #elif _WIN32
 #   define DIRSEPS	      "\\"
+#   define DIRSEPS_W	      L"\\"
 #   define DIRSEPC	      '\\'
-#   define VALID_DIRSEPS   "\\/"
+#   define DIRSEPC_W	      L'\\'
+#   define VALID_DIRSEPS      "\\/"
+#   define VALID_DIRSEPS_W    L"\\/"
 #else
 #   define DIRSEPS	      "/"
 #   define DIRSEPC	      '/'
@@ -343,7 +348,11 @@ UtilSafeStrdupInternal(int bugNumber, const char *s, char *file,
    if (s == NULL) {
       return NULL;
    }
+#ifdef _WIN32
+   if ((result = _strdup(s)) == NULL) {
+#else
    if ((result = strdup(s)) == NULL) {
+#endif
       if (bugNumber == -1) {
          Panic("Unrecoverable memory allocation failure at %s:%d\n",
                file, lineno);

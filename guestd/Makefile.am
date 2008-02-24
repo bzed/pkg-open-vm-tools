@@ -67,7 +67,6 @@ guestd_LDADD += ../lib/message/libMessage.a
 guestd_LDADD += ../lib/unicode/libUnicode.a
 guestd_LDADD += ../lib/misc/libMisc.a
 guestd_LDADD += ../lib/foundryMsg/libFoundryMsg.a
-guestd_LDADD += ../lib/fileUtf8/libFileUtf8.a
 guestd_LDADD += ../lib/auth/libAuth.a
 guestd_LDADD += ../lib/panicDefault/libPanicDefault.a
 guestd_LDADD += ../lib/panic/libPanic.a

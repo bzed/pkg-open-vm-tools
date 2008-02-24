@@ -158,6 +158,9 @@ EXTERN unsigned Msg_Question(Msg_String const *buttons,
                              int defaultAnswer, const char *idFmt, ...)
        PRINTF_DECL(3, 4);
 EXTERN char *Msg_ChooseFile(const char *idTitle, const char *defaultName);
+#ifdef VMX86_SERVER
+EXTERN void Msg_AppendVob(void *vobBuf, int bytes);
+#endif
 
 /*
  * Unfortunately, gcc warns about both NULL and "" being passed as format

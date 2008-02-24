@@ -27,9 +27,12 @@
 
 #define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMCORE
+#define INCLUDE_ALLOW_VMKERNEL
 #include "includeCheck.h"
 
+#ifndef VMKERNEL
 #include "str.h" // for HAS_BSD_PRINTF
+#endif
 
 
 /*
@@ -79,6 +82,7 @@ typedef enum MsgFmt_ArgType {
 
 typedef struct MsgFmt_Arg {
    MsgFmt_ArgType type;
+   int precision;	// private
    union {
       int32 signed32;
       int64 signed64;
@@ -88,12 +92,9 @@ typedef struct MsgFmt_Arg {
       int8 *string8;
       int16 *string16;
       int32 *string32;
+      int32 offset;
 
-      // private
-      struct {
-	 void *ptr;	// must align with string{8,16,32}
-	 int precision;
-      } s;
+      void *ptr;	// private
    } v;
 } MsgFmt_Arg;
 
@@ -125,6 +126,9 @@ MsgFmt_ParseSpec(char const *pos,       // IN: n$ location
 
 Bool MsgFmt_GetArgs(const char *fmt, va_list va,
                     MsgFmt_Arg **args, int *numArgs, char **error);
+Bool MsgFmt_GetArgsWithBuf(const char *fmt, va_list va,
+                           MsgFmt_Arg **args, int *numArgs, char **error,
+			   void *buf, size_t bufSize);
 void MsgFmt_FreeArgs(MsgFmt_Arg *args, int numArgs);
 
 #ifdef HAS_BSD_PRINTF

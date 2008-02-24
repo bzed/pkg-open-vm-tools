@@ -26,17 +26,23 @@
 #define __DND_INT_H__
 
 #include "vm_basic_types.h"
+#include "unicodeTypes.h"
 
 Bool DnDDataContainsIllegalCharacters(const char *data,
                                       const size_t dataSize,
                                       const char *illegalChars);
+
 Bool DnDPrependFileRoot(const char *fileRoot,
                         const char delimiter,
                         char **src,
                         size_t *srcSize);
-Bool DnDRootDirUsable(const char *dir);
-Bool DnDSetPermissionsOnRootDir(const char *dir);
-Bool DnDStagingDirectoryUsable(const char *dir);
-Bool DnDSetPermissionsOnStagingDir(const char *dir);
+
+Bool DnDRootDirUsable(ConstUnicode pathName);
+
+Bool DnDSetPermissionsOnRootDir(ConstUnicode pathName);
+
+Bool DnDStagingDirectoryUsable(ConstUnicode pathName);
+
+Bool DnDSetPermissionsOnStagingDir(ConstUnicode pathName);
 
 #endif /*  __DND_INT_H__ */

@@ -37,6 +37,8 @@
  *
  *      Returns a string that corresponds to the last error message.
  *
+ *      TODO: Return UTF8 or a Unicode object.
+ *
  * Results:
  *      Error message string.
  *

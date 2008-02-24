@@ -24,6 +24,9 @@ HEADERS += requestInt.h
 HEADERS += debug.h
 HEADERS += state.h
 HEADERS += kernelStubs.h
+HEADERS += fsutil.h
+HEADERS += vnopscommon.h
+HEADERS += os.h
 
 COMMON_SRCS := cpName.c
 COMMON_SRCS += cpNameLinux.c
@@ -41,13 +44,17 @@ COMMON_SRCS += backdoorGcc64.c
 COMMON_SRCS += backdoorGcc32.c
 .endif
 
+COMMON_HGFS_SRCS := debug.c
+COMMON_HGFS_SRCS += request.c
+COMMON_HGFS_SRCS += worker.c
+COMMON_HGFS_SRCS += fsutil.c
+COMMON_HGFS_SRCS += vnopscommon.c
+COMMON_HGFS_SRCS += state.c
+
 MODULE_SRCS := vnops.c
 MODULE_SRCS += vfsops.c
-MODULE_SRCS += request.c
-MODULE_SRCS += debug.c
-MODULE_SRCS += state.c
+MODULE_SRCS += os.c
 MODULE_SRCS += hgfsUtil.c
-MODULE_SRCS += worker.c
 MODULE_SRCS += kernelStubsBSD.c
 
 #
@@ -55,7 +62,7 @@ MODULE_SRCS += kernelStubsBSD.c
 # for build targets.  C files will be compiled, and headers will just be
 # tested for presence.
 #
-SRCS = $(MODULE_SRCS) $(COMMON_SRCS) $(HEADERS)
+SRCS = $(MODULE_SRCS) $(COMMON_SRCS) $(COMMON_HGFS_SRCS) $(HEADERS)
 
 KMOD    = vmhgfs
 PROG    = ../$(KMOD).ko

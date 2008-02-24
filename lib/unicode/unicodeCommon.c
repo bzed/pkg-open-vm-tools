@@ -159,7 +159,6 @@ UnicodeSanityCheck(const void *buffer,      // IN
          }
       }
    }
-
    return TRUE;
 }
 

@@ -205,12 +205,12 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = atomic auth backdoor conf dict dnd err eventManager file \
-	fileUtf8 foundryMsg guestApp guestInfo hgfs hgfsBd hgfsServer \
-	hgfsServerManagerGuest hgfsServerPolicyGuest deployPkg \
-	impersonate message misc netUtil panic panicDefault printer \
-	procMgr rpcIn rpcOut rpcVmx SLPv2Parser socketMgr strUtil \
-	string sync syncDriver system toolsLogger unicode user \
-	vixTools vmBackupLib vmCheck vmSignal wiper
+	foundryMsg ghIntegrationStub guestApp guestInfo hgfs hgfsBd \
+	hgfsServer hgfsServerManagerGuest hgfsServerPolicyGuest \
+	deployPkg impersonate message misc netUtil panic panicDefault \
+	printer procMgr rpcIn rpcOut rpcVmx SLPv2Parser socketMgr \
+	strUtil string sync syncDriver system toolsLogger unicode \
+	unityStub user vixTools vmBackupLib vmCheck vmSignal wiper
 all: all-recursive
 
 .SUFFIXES:

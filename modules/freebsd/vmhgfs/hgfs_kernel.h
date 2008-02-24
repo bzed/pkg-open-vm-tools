@@ -32,21 +32,12 @@
 #define INCLUDE_ALLOW_MODULE
 #include "includeCheck.h"
 
-
 /*
  * System includes
  */
 
 #include <sys/param.h>          // for <everything>
 #include <sys/vnode.h>          // for struct vnode
-#include <sys/lock.h>           // for struct mtx
-#include <sys/mutex.h>          // for struct mtx
-#include <sys/proc.h>           // for struct cv
-#include <sys/condvar.h>        // for struct cv
-#include <sys/malloc.h>         // for MALLOC_*
-#include <sys/queue.h>          // for uma_zone_t
-#include <vm/uma.h>             // for uma_zone_t
-
 
 /*
  * VMware includes
@@ -85,13 +76,56 @@
 #define HGFS_ERR_NODEV                  (-51)
 #define HGFS_ERR_INVAL                  (-52)
 
-/* Getting to sip via any vnode */
-#define HGFS_VP_TO_SIP(vp)              ((HgfsSuperInfo*)(vp)->v_mount->mnt_data)
+#if defined(__FreeBSD__)
+#  define HGFS_MP_TO_MNTFLAGS(mp)                               \
+                ((mp)->mnt_flag)
+#  define HGFS_MP_SET_SIP(mp, sip)                              \
+                ((mp)->mnt_data = (sip))
+#  define HGFS_VP_TO_MP(vp) ((vp)->v_mount)
+/* Return a pointer to mnt_stat to preserve the interface between OS X and FreeBSD. */
+#  define HGFS_MP_TO_STATFS(mp) (&(mp)->mnt_stat)
+   /* Getting to sip via any vnode */
+#  define HGFS_VP_TO_SIP(vp)                                    \
+                ((HgfsSuperInfo*)HGFS_VP_TO_MP(vp)->mnt_data)
 
+#  define HGFS_VP_VI_LOCK(vp)                                     \
+                (VI_LOCK(vp))
+#  define HGFS_VP_VI_UNLOCK(vp)                                   \
+                (VI_UNLOCK(vp))
+#  define HGFS_VP_ISINUSE(vp, usecount)                           \
+                ((vp)->v_usecount > usecount)
+#  define HGFS_MP_IS_FORCEUNMOUNT(mp)                             \
+                (mp->mnt_kern_flag & MNTK_UNMOUNTF)
+#elif defined(__APPLE__)
+#  define HGFS_MP_TO_MNTFLAGS(mp)                               \
+                (vfs_flags(mp))
+#  define HGFS_MP_SET_SIP(mp, sip)                              \
+                (vfs_setfsprivate(mp, sip))
+#  define HGFS_VP_TO_MP(vp)      (vnode_mount(vp))
+#  define HGFS_MP_TO_STATFS(mp)  (vfs_statfs(mp))
+#  define HGFS_VP_TO_SIP(vp)                                    \
+                ((HgfsSuperInfo*)vfs_fsprivate(HGFS_VP_TO_MP(vp)))
+
+/*
+ * No concept of vnode locks are exposed to the OS X VFS layer, so do nothing here for
+ * VI_LOCK AND VI_UNLOCK. However, make sure to call the lock functions before using
+ * HGFS_VP_ISINUSE to preserve compatability with FreeBSD.
+ */
+#  define HGFS_VP_VI_LOCK(vp)
+#  define HGFS_VP_VI_UNLOCK(vp)
+#  define HGFS_VP_ISINUSE(vp, usecount)                           \
+                  (vnode_isinuse(vp, usecount))
+#  define HGFS_MP_IS_FORCEUNMOUNT(mp)                             \
+                  (vfs_isforce(mp))
+#endif
+
+#define HGFS_VP_TO_STATFS(vp)  (HGFS_MP_TO_STATFS(HGFS_VP_TO_MP(vp)))
 
 /*
  * Types
  */
+
+
 
 /* We call them *Header in the kernel code for clarity. */
 typedef HgfsReply       HgfsReplyHeader;
@@ -115,10 +149,25 @@ typedef struct HgfsSuperInfo {
  * Global variables
  */
 
-/* Defined in vfsops.c. */
-MALLOC_DECLARE(M_HGFS);
+/*
+ * The vnode attributes between OS X and FreeBSD are very similar but not exactly the
+ * same. Fields have names have changed. However, only HgfsAttrToBSD and
+ * HgfsSetattrCopy care about the differences so we mash the types together to enable
+ * single function signatures.
+ */
+#if defined(__FreeBSD__)
+   typedef struct vattr HGFS_VNODE_ATTR;
+#elif defined(__APPLE__)
+   typedef struct vnode_attr HGFS_VNODE_ATTR;
+#endif
 
-/* Defined in vnops.c. */
-extern struct vop_vector HgfsVnodeOps;
+#if defined(__FreeBSD__)
+  /* Defined in vnops.c. */
+  extern struct vop_vector HgfsVnodeOps;
+#elif defined(__APPLE__)
+  /* Export vnops.c file operations. */
+  extern errno_t (**HgfsVnodeOps)(void *);
+  extern struct vnodeopv_desc *HgfsVnodeOperationVectorDescList[1];
+#endif
 
 #endif // ifndef _HGFSKERNEL_H_

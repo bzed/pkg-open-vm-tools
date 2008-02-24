@@ -67,15 +67,7 @@
 #include "dynbuf.h"
 #include "su.h"
 #include "str.h"
-
-
-/*
- * The IPC messages sent from the child process to the parent. These
- * are 1 byte so that we are guaranteed they are written over the pipe
- * in one go.
- */
-#define ASYNCEXEC_SUCCESS_IPC "1"
-#define ASYNCEXEC_FAILURE_IPC "0"
+#include "fileIO.h"
 
 
 /*
@@ -97,16 +89,22 @@ static int const cSignals[] = {
  * Keeps track of the posix async proc info.
  */
 struct ProcMgr_AsyncProc {
-   pid_t waiterPid;  // pid of the waiter process
-   int   fd;           // fd to write to when the child is done
+   pid_t waiterPid;          // pid of the waiter process
+   pid_t resultPid;          // pid of the process created for the client
+   FileIODescriptor fd;      // fd to write to when the child is done
    Bool validExitCode;
    int exitCode;
 };
 
-static Bool ProcMgrExecSync(char const *cmd,
-                            Bool *validExitCode,
-			    int *exitCode);
+static pid_t ProcMgrStartProcess(char const *cmd);
 
+static Bool ProcMgrWaitForProcCompletion(pid_t pid,
+                                         Bool *validExitCode,
+                                         int *exitCode);
+
+static Bool ProcMgrKill(pid_t pid,
+                        int sig,
+                        int timeout);
 
 #if defined(linux) && !defined(GLIBC_VERSION_23)
 /*
@@ -488,67 +486,16 @@ ProcMgr_FreeProcList(ProcMgr_ProcList *procList)
 /*
  *----------------------------------------------------------------------
  *
- * ProcMgrWaiter --
- *
- *      The waiter process for ProcMgr_ExecAsync which runs in the
- *      child process. Execs the cmd & writes an IPC msg to the given
- *      fd when its done.
- *
- * Results:
- *      
- *      TRUE:  cmd was successful (exit code 0)
- *      FALSE: cmd failed or an error occurred (detail is displayed)
- *
- * Side effects:
- *
- *	Side effects
- *
- *----------------------------------------------------------------------
- */
-
-static void
-ProcMgrWaiter(const char *cmd, // IN
-              int writeFd,     // IN
-	      Bool *validExitCode,
-	      int *exitCode)
-{
-   const char *doneMsg;
-   Bool status;
-   
-   status = ProcMgrExecSync(cmd, validExitCode, exitCode);
-
-   doneMsg = status ? ASYNCEXEC_SUCCESS_IPC : ASYNCEXEC_FAILURE_IPC;
-   
-   /* send IPC back to caller */
-   Debug("Writing '%s' to fd %x\n", doneMsg, writeFd);
-   if (write(writeFd, doneMsg, strlen(doneMsg) + 1) == -1) {
-      Warning("Waiter unable to write back to parent\n");
-      return;
-   }
-   if (write(writeFd, exitCode, sizeof(*exitCode)) == -1) {
-      Warning("Waiter unable to write back to parent\n");
-      return;
-   }
-   
-   return;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
  * ProcMgr_ExecSync --
  *
- *      Synchronously execute a cmd
+ *      Synchronously execute a command.
  *
  * Results:
- *      
  *      TRUE on success (the program had an exit code of 0)
  *      FALSE on failure or if an error occurred (detail is displayed)
  *
  * Side effects:
- *
- *	Lots, depending on the program
+ *	Lots, depending on the program.
  *
  *----------------------------------------------------------------------
  */
@@ -557,29 +504,51 @@ Bool
 ProcMgr_ExecSync(char const *cmd,                  // IN: Command line
                  ProcMgr_ProcArgs *userArgs)       // IN: Unused
 {
+   pid_t pid;
+
    Debug("Executing sync command: %s\n", cmd);
 
-   return ProcMgrExecSync(cmd, NULL, NULL);
+   pid = ProcMgrStartProcess(cmd);
+
+   if (pid == -1) {
+      return FALSE;
+   }
+
+   return ProcMgrWaitForProcCompletion(pid, NULL, NULL); 
 }
 
-static Bool 
-ProcMgrExecSync(char const *cmd,
-                Bool *validExitCode,
-		int *exitCode)
-{
-   Bool retVal;
-   pid_t pid;
-   int childStatus;
 
-   if (NULL != validExitCode) {
-      *validExitCode = FALSE;
+/*
+ *----------------------------------------------------------------------
+ *
+ * ProcMgrStartProcess --
+ *
+ *      Fork and execute a command using the shell. This function returns
+ *      immediately after the fork() in the parent process.
+ *
+ * Results:
+ *      The pid of the forked process, or -1 on an error.
+ *
+ * Side effects:
+ *	Lots, depending on the program
+ *
+ *----------------------------------------------------------------------
+ */
+
+static pid_t 
+ProcMgrStartProcess(char const *cmd)               // IN
+{
+   pid_t pid;
+
+   if (cmd == NULL) {
+      ASSERT(FALSE);
+      return -1;
    }
 
    pid = fork();
    
    if (pid == -1) {
       Warning("Unable to fork: %s.\n\n", strerror(errno));
-      return FALSE;
    } else if (pid == 0) {
       /*
        * Child
@@ -595,6 +564,40 @@ ProcMgrExecSync(char const *cmd,
    /*
     * Parent
     */
+
+   return pid;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * ProcMgrWaitForProcCompletion --
+ *
+ *      Waits until the process identified by 'pid' exits or is otherwise
+ *      terminated.
+ *
+ * Results:
+ *      TRUE on success (the program had an exit code of 0)
+ *      FALSE on failure or if an error occurred (detail is displayed)
+ *
+ * Side effects:
+ *	Prevents zombification of the process.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static Bool 
+ProcMgrWaitForProcCompletion(pid_t pid,                 // IN
+                             Bool *validExitCode,       // OUT: Optional
+                             int *exitCode)             // OUT: Optional
+{
+   Bool retVal;
+   int childStatus;
+
+   if (NULL != validExitCode) {
+      *validExitCode = FALSE;
+   }
    
    for (;;) {
       pid_t status;
@@ -611,8 +614,8 @@ ProcMgrExecSync(char const *cmd,
          continue;
       }
 
-      Warning("Unable to wait for the \"%s\" shell command to terminate: "
-              "%s.\n\n", cmd, strerror(errno));
+      Warning("Unable to wait for the process %"FMTPID" to terminate: "
+              "%s.\n\n", pid, strerror(errno));
 
       return FALSE;
    }
@@ -624,7 +627,7 @@ ProcMgrExecSync(char const *cmd,
 
    retVal = (WIFEXITED(childStatus) && WEXITSTATUS(childStatus) == 0);
 
-   Debug("Done executing command: %s (%s)\n", cmd,
+   Debug("Done waiting for process: %"FMTPID" (%s)\n", pid,
          retVal ? "success" : "failure");
 
    return retVal;
@@ -639,12 +642,10 @@ ProcMgrExecSync(char const *cmd,
  *      Execute a command in the background, returning immediately.
  *
  * Results:
- *
  *      The async proc (must be freed) or
  *      NULL if the cmd failed to be forked.
  *
  * Side effects:
- *
  *	The cmd is run.
  *
  *----------------------------------------------------------------------
@@ -654,26 +655,35 @@ ProcMgr_AsyncProc *
 ProcMgr_ExecAsync(char const *cmd,                 // IN: Command line
                   ProcMgr_ProcArgs *userArgs)      // IN: Unused
 {
-   ProcMgr_AsyncProc *asyncProc;
+   ProcMgr_AsyncProc *asyncProc = NULL;
    pid_t pid;
    int fds[2];
    Bool validExitCode;
    int exitCode;
+   pid_t resultPid;
+   FileIODescriptor readFd;
+   FileIODescriptor writeFd;
 
    Debug("Executing async command: %s\n", cmd);
-
+   
    if (pipe(fds) == -1) {
-      ASSERT(FALSE);
+      Warning("Unable to create the pipe to launch command: %s.\n", cmd);
+      return NULL;
    }
+
+   readFd = FileIO_CreateFDPosix(fds[0], O_RDONLY);
+   writeFd = FileIO_CreateFDPosix(fds[1], O_WRONLY);
 
    pid = fork();
 
    if (pid == -1) {
       Warning("Unable to fork: %s.\n\n", strerror(errno));
-      return NULL;
+      goto abort;
    } else if (pid == 0) {
       struct sigaction olds[ARRAYSIZE(cSignals)];
       int i, maxfd;
+      Bool status = TRUE;
+      pid_t childPid = -1;
 
       /*
        * Child
@@ -689,7 +699,7 @@ ProcMgr_ExecAsync(char const *cmd,                 // IN: Command line
        */
       maxfd = sysconf(_SC_OPEN_MAX);
       for (i = STDERR_FILENO + 1; i < maxfd; i++) {
-         if (i != fds[0] && i != fds[1]) {
+         if (i != readFd.posix && i != writeFd.posix) {
             close(i);
          }
       }
@@ -700,17 +710,82 @@ ProcMgr_ExecAsync(char const *cmd,                 // IN: Command line
 #else
                                  0
 #endif
-                                 ) == 0)
-      {
-         return FALSE;
+                                 ) == 0) {
+         status = FALSE;
       }
 
-      close(fds[0]);
-      ProcMgrWaiter(cmd, fds[1], &validExitCode, &exitCode);
-      close(fds[1]);
+      FileIO_Close(&readFd);
 
-      if (Signal_ResetGroupHandler(cSignals, olds, ARRAYSIZE(cSignals)) == 0) {
-         return FALSE;
+      /*
+       * Only run the program if we have not already experienced a failure.
+       */
+      if (status) {
+         childPid = ProcMgrStartProcess(cmd);
+         status = childPid != -1;
+      }
+
+      /*
+       * Send the child's pid back immediately, so that the caller can
+       * report the result pid back synchronously.
+       */
+      if (FileIO_Write(&writeFd, &childPid, sizeof childPid, NULL) !=
+          FILEIO_SUCCESS) {
+         Warning("Waiter unable to write back to parent.\n");
+         
+         /*
+          * This is quite bad, since the original process will block
+          * waiting for data. Unfortunately, there isn't much to do
+          * (other than trying some other IPC mechanism).
+          */
+         exit(-1);
+      }
+
+      if (status) {
+         /*
+          * If everything has gone well so far, then wait until the child
+          * finishes executing.
+          */
+         ASSERT(pid != -1);
+         status = ProcMgrWaitForProcCompletion(childPid, &validExitCode, &exitCode);
+      }
+      
+      /* 
+       * We always have to send IPC back to caller, so that it does not
+       * block waiting for data we'll never send.
+       */
+      Debug("Writing the command %s a success to fd %x\n", 
+            status ? "was" : "was not", writeFd.posix);
+      if (FileIO_Write(&writeFd, &status, sizeof status, NULL) !=
+          FILEIO_SUCCESS) {
+         Warning("Waiter unable to write back to parent\n");
+         
+         /*
+          * This is quite bad, since the original process will block
+          * waiting for data. Unfortunately, there isn't much to do
+          * (other than trying some other IPC mechanism).
+          */
+         exit(-1);
+      }
+
+      if (FileIO_Write(&writeFd, &exitCode, sizeof exitCode , NULL) != 
+          FILEIO_SUCCESS) {
+         Warning("Waiter unable to write back to parent\n");
+         
+         /*
+          * This is quite bad, since the original process will block
+          * waiting for data. Unfortunately, there isn't much to do
+          * (other than trying some other IPC mechanism).
+          */
+         exit(-1);
+      }
+
+      FileIO_Close(&writeFd);
+
+      if (status &&
+          Signal_ResetGroupHandler(cSignals, olds, ARRAYSIZE(cSignals)) == 0) {
+         /*
+          * We are too close to give up now.
+          */
       }
 
       if (!validExitCode) {
@@ -724,15 +799,51 @@ ProcMgr_ExecAsync(char const *cmd,                 // IN: Command line
     * Parent
     */
 
-   close(fds[1]);
+   FileIO_Close(&writeFd);
 
-   asyncProc = malloc(sizeof(ProcMgr_AsyncProc));
-   ASSERT_NOT_IMPLEMENTED(asyncProc);
-   asyncProc->fd = fds[0];
+   /*
+    * Read the pid of the child's child from the pipe.
+    */
+   if (FileIO_Read(&readFd, &resultPid, sizeof resultPid , NULL) !=
+       FILEIO_SUCCESS) {
+      Warning("Unable to read result pid from the pipe.\n");
+      
+      /*
+       * We cannot wait on the child process here, since the error
+       * may have just been on our end, so the child could be running
+       * for some time and we probably cannot afford to block.
+       * Just kill the child and move on.
+       */
+      ProcMgrKill(pid, SIGKILL, -1);
+      goto abort;
+   }
+
+   if (resultPid == -1) {
+      Warning("The child failed to fork the target process.\n");
+      
+      /*
+       * Clean up the child process; it should exit pretty quickly.
+       */
+      waitpid(pid, NULL, 0);
+      goto abort;
+   }
+
+   asyncProc = Util_SafeMalloc(sizeof *asyncProc);
+   asyncProc->fd = readFd;
+   FileIO_Invalidate(&readFd);
    asyncProc->waiterPid = pid;
    asyncProc->validExitCode = FALSE;
    asyncProc->exitCode = -1;
+   asyncProc->resultPid = resultPid;
 
+ abort:
+   if (FileIO_IsValid(&readFd)) {
+      FileIO_Close(&readFd);
+   }
+   if (FileIO_IsValid(&writeFd)) {
+      FileIO_Close(&writeFd);
+   }
+       
    return asyncProc;
 }
 
@@ -744,12 +855,10 @@ ProcMgr_ExecAsync(char const *cmd,                 // IN: Command line
  *      Check to see if a pid is active
  *
  * Results:
- *
  *      TRUE if the process exists; FALSE otherwise
  *
  * Side effects:
- *
- *	Side effects
+ *	None.
  *
  *----------------------------------------------------------------------
  */
@@ -765,7 +874,7 @@ ProcMgr_IsProcessRunning(pid_t pid)
    int ret;
    struct stat st;
 
-   snprintf(procname, sizeof(procname), "/proc/%"FMTPID, pid);
+   snprintf(procname, sizeof procname, "/proc/%"FMTPID, pid);
 
    /*
     * will fail if its gone or we don't have permission; both are
@@ -788,12 +897,10 @@ ProcMgr_IsProcessRunning(pid_t pid)
  *      Try to kill a pid & check every so often to see if it has died.
  *
  * Results:
- *
  *      TRUE if the process died; FALSE otherwise
  *
  * Side effects:
- *
- *	Side effects
+ *	Depends on the program being killed.
  *
  *----------------------------------------------------------------------
  */
@@ -853,11 +960,9 @@ ProcMgrKill(pid_t pid,      // IN
  *      Terminate the process of procId.
  *
  * Results:
- *      
- *      None.
+ *      Bool.
  *
  * Side effects:
- *
  *	Lots, depending on the program
  *
  *----------------------------------------------------------------------
@@ -885,12 +990,10 @@ ProcMgr_KillByPid(ProcMgr_Pid procId)   // IN
  *      nicely & then whipping out the SIGKILL axe.
  *
  * Results:
- *      
  *      None.
  *
  * Side effects:
- *
- *	None
+ *      Depends on the program being killed.
  *
  *----------------------------------------------------------------------
  */
@@ -898,11 +1001,13 @@ ProcMgr_KillByPid(ProcMgr_Pid procId)   // IN
 void
 ProcMgr_Kill(ProcMgr_AsyncProc *asyncProc) // IN
 {
-   ASSERT(asyncProc);
-
-   close(asyncProc->fd);
+   if ((asyncProc == NULL) || (asyncProc->waiterPid == -1)) {
+      ASSERT(FALSE);
+      return;
+   }
 
    ProcMgr_KillByPid(asyncProc->waiterPid);
+   asyncProc->waiterPid = -1;
 }
 
 
@@ -912,15 +1017,14 @@ ProcMgr_Kill(ProcMgr_AsyncProc *asyncProc) // IN
  * ProcMgr_GetAsyncStatus --
  *
  *      Get the return status of an async process.
+ *      Must only be called once for any async process.
  *
  * Results:
- *      
  *      TRUE if the status was retrieved.
  *      FALSE if it couldn't be retrieved.
  *
  * Side effects:
- *
- *	None.
+ *	Does a waitpid() on the child to prevent zombification. 
  *
  *----------------------------------------------------------------------
  */
@@ -929,70 +1033,37 @@ Bool
 ProcMgr_GetAsyncStatus(ProcMgr_AsyncProc *asyncProc, // IN
                        Bool *status)                 // OUT
 {
-   char buf[8];
-   int bytesRead;
-   int bytesTotal;
-   char *helper;
    Bool retVal = FALSE;
-   
+  
    ASSERT(status);
-   
-   ASSERT(strlen(ASYNCEXEC_SUCCESS_IPC) == strlen(ASYNCEXEC_FAILURE_IPC));
-   bytesTotal = strlen(ASYNCEXEC_SUCCESS_IPC) + 1 + sizeof(int);
+   ASSERT(asyncProc);
+   ASSERT(asyncProc->waiterPid != -1);
 
-   // Prevent buffer overflows.
-   ASSERT(bytesTotal <= sizeof(buf));
-
-   bytesRead = 0;
-   while (bytesRead < bytesTotal) {
-      int currentBytesRead;
-
-      currentBytesRead = read(asyncProc->fd, buf + bytesRead,
-			      sizeof(buf) - bytesRead);
-      if (currentBytesRead <= 0) {
-	 Warning("Error reading async process status (bytes read=%d)"
-		 "Bytes read: %d\n",
-		 currentBytesRead, bytesRead);
-	 goto end;
-      }
-      bytesRead += currentBytesRead;
-   }
-
-   /* 
-    * Coverity doesn't like it when we assume that buf is NUL-terminated.
-    * This is a safe assumption for us because we control both ends of the
-    * pipe. But let's humor Coverity and not make such assumptions.
-    * This means we can't use strlen() to calculcate helper, and we can't
-    * use strcmp() to compare buf to macros.
-    */
-   if (memcmp(buf, ASYNCEXEC_SUCCESS_IPC, 
-              sizeof ASYNCEXEC_SUCCESS_IPC) == 0) {
-      *status = TRUE;
-      helper = buf + sizeof ASYNCEXEC_SUCCESS_IPC;
-   } else if (memcmp(buf, ASYNCEXEC_FAILURE_IPC, 
-                     sizeof ASYNCEXEC_FAILURE_IPC) == 0) {
-      *status = FALSE;
-      helper = buf + sizeof ASYNCEXEC_FAILURE_IPC;
-   } else {
-      *status = FALSE;
-      Warning("Error reading async process status ('%s')\n", buf);
+   if (FileIO_Read(&(asyncProc->fd), status, sizeof *status, NULL) !=
+       FILEIO_SUCCESS) {
+	 Warning("Error reading async process status.\n");
       goto end;
    }
 
-   memcpy(&asyncProc->exitCode, helper, sizeof(asyncProc->exitCode));
+   if (FileIO_Read(&(asyncProc->fd), &(asyncProc->exitCode), 
+                   sizeof asyncProc->exitCode, NULL) !=
+       FILEIO_SUCCESS) {
+	 Warning("Error reading async process status.\n");
+      goto end;
+   }
+
    asyncProc->validExitCode = TRUE;
 
-   Debug("Child w/ fd %x exited (msg='%s') with status=%d\n", asyncProc->fd,
-         buf, *status);
+   Debug("Child w/ fd %x exited with status=%d\n", 
+         asyncProc->fd.posix, *status);
 
    retVal = TRUE;
 
  end:
-   close(asyncProc->fd);
-
    /* Read the pid so the processes don't become zombied */
    Debug("Waiting on pid %"FMTPID" to de-zombify it\n", asyncProc->waiterPid);
    waitpid(asyncProc->waiterPid, NULL, 0);
+   asyncProc->waiterPid = -1;
 
    return retVal;
 }
@@ -1006,34 +1077,13 @@ ProcMgr_GetAsyncStatus(ProcMgr_AsyncProc *asyncProc, // IN
  *      Checks whether an async process is still running.
  *
  * Results:
- *
  *      TRUE iff the process is still running.
  *
  * Side effects:
- *
- *	     None.
+ *	None.
  *
  *----------------------------------------------------------------------
  */
-
-#if 0
-Bool
-ProcMgr_IsAsyncProcRunning(ProcMgr_AsyncProc *asyncProc) // IN
-{
-   static char buf[1024];
-   int numBytesRead;
-   
-   ASSERT(asyncProc);
-   
-   numBytesRead = read(asyncProc->fd, buf, sizeof buf);
-   if (numBytesRead <= 0) {
-      return TRUE;
-   }
-
-   return FALSE;
-}
-   
-#else
    
 Bool
 ProcMgr_IsAsyncProcRunning(ProcMgr_AsyncProc *asyncProc) // IN
@@ -1042,6 +1092,7 @@ ProcMgr_IsAsyncProcRunning(ProcMgr_AsyncProc *asyncProc) // IN
    fd_set readFds;
    struct timeval tv;
    int status;
+   Selectable fd;
 
    ASSERT(asyncProc);
    
@@ -1051,9 +1102,10 @@ ProcMgr_IsAsyncProcRunning(ProcMgr_AsyncProc *asyncProc) // IN
     * watcher program will try to read the socket to get the IPC error
     * and the exit code.
     */
+   fd = ProcMgr_GetAsyncProcSelectable(asyncProc);
    FD_ZERO(&readFds);
-   FD_SET(asyncProc->fd, &readFds);
-   maxFd = asyncProc->fd;
+   FD_SET(fd, &readFds);
+   maxFd = fd;
 
    tv.tv_sec = 0;
    tv.tv_usec = 0;
@@ -1068,7 +1120,6 @@ ProcMgr_IsAsyncProcRunning(ProcMgr_AsyncProc *asyncProc) // IN
    }
 }
 
-#endif
 
 /*
  *----------------------------------------------------------------------
@@ -1078,11 +1129,9 @@ ProcMgr_IsAsyncProcRunning(ProcMgr_AsyncProc *asyncProc) // IN
  *      Get the selectable fd for an async proc struct.
  *
  * Results:
- *      
  *      The fd casted to a void *.
  *
  * Side effects:
- *
  *	None.
  *
  *----------------------------------------------------------------------
@@ -1093,7 +1142,7 @@ ProcMgr_GetAsyncProcSelectable(ProcMgr_AsyncProc *asyncProc)
 {
    ASSERT(asyncProc);
    
-   return asyncProc->fd;
+   return asyncProc->fd.posix;
 }
 
 
@@ -1118,7 +1167,7 @@ ProcMgr_GetPid(ProcMgr_AsyncProc *asyncProc)
 {
    ASSERT(asyncProc);
    
-   return asyncProc->waiterPid;
+   return asyncProc->resultPid;
 }
 
 
@@ -1133,8 +1182,7 @@ ProcMgr_GetPid(ProcMgr_AsyncProc *asyncProc)
  *      0 if successful, -1 if not.
  *
  * Side effects:
- *
- *	None.
+ *	See ProcMgr_GetAsyncStatus().
  *
  *----------------------------------------------------------------------
  */
@@ -1170,13 +1218,18 @@ ProcMgr_GetExitCode(ProcMgr_AsyncProc *asyncProc,  // IN
  *
  * ProcMgr_Free --
  *
- *      Discard the state of an async process.
+ *      Discard the state of an async process. You must call one of
+ *      ProcMgr_Kill(), ProcMgr_GetAsyncStatus(), or ProcMgr_GetExitCode()
+ *      before calling this function to ensure that the child process
+ *      is cleaned up.
+ *
+ *      That clean-up cannot occur here, since blocking with a waitpid()
+ *      is an excessive side effect for a Free() function.
  *
  * Results:
  *      None
  *
  * Side effects:
- *
  *	None.
  *
  *----------------------------------------------------------------------
@@ -1185,6 +1238,24 @@ ProcMgr_GetExitCode(ProcMgr_AsyncProc *asyncProc,  // IN
 void
 ProcMgr_Free(ProcMgr_AsyncProc *asyncProc) // IN
 {
+   /*
+    * Make sure that we don't leak zombie processes.
+    */
+#ifdef VMX86_DEBUG
+   if ((asyncProc != NULL) && (asyncProc->waiterPid != -1)) {
+      /*
+       * Someone did not call ProcMgr_Kill(), ProcMgr_GetAsyncStatus(),
+       * or ProcMgr_GetExitCode().
+       */
+      Warning("Leaving process %"FMTPID" to be a zombie.\n", 
+              asyncProc->waiterPid);
+   }
+#endif 
+
+   if ((asyncProc != NULL) && FileIO_IsValid(&(asyncProc->fd))) {
+      FileIO_Close(&(asyncProc->fd));
+   }
+   
    free(asyncProc);
 }
 
@@ -1222,7 +1293,7 @@ ProcMgr_ImpersonateUserStart(const char *user,                      // IN
    int error;
    int ret;
 
-   if ((error = getpwuid_r(0, &pw, buffer, sizeof(buffer), &ppw)) != 0 ||
+   if ((error = getpwuid_r(0, &pw, buffer, sizeof buffer, &ppw)) != 0 ||
        !ppw) {
       /*
        * getpwuid_r() and getpwnam_r() can return a 0 (success) but not
@@ -1237,7 +1308,7 @@ ProcMgr_ImpersonateUserStart(const char *user,                      // IN
 
    root_gid = ppw->pw_gid;
 
-   if ((error = getpwnam_r(user, &pw, buffer, sizeof(buffer), &ppw)) != 0 ||
+   if ((error = getpwnam_r(user, &pw, buffer, sizeof buffer, &ppw)) != 0 ||
        !ppw) {
       if (error == 0) {
          error = ENOENT;
@@ -1304,7 +1375,7 @@ ProcMgr_ImpersonateUserStop(void)
    int error;
    int ret;
 
-   if ((error = getpwuid_r(0, &pw, buffer, sizeof(buffer), &ppw)) != 0 ||
+   if ((error = getpwuid_r(0, &pw, buffer, sizeof buffer, &ppw)) != 0 ||
        !ppw) {
       if (error == 0) {
          error = ENOENT;

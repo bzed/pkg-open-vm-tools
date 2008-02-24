@@ -44,77 +44,15 @@ typedef enum Vmxnet_TxStatus {
 #   define net_device_stats enet_statistics
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,3,14))
-#   define net_device device
-#endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,3,43))
-static inline void
-netif_start_queue(struct device *dev)
-{
-   clear_bit(0, &dev->tbusy);
-}
-
-static inline void
-netif_stop_queue(struct device *dev)
-{
-   set_bit(0, &dev->tbusy);
-}
-
-static inline int
-netif_queue_stopped(struct device *dev)
-{
-   return test_bit(0, &dev->tbusy);
-}
-
-static inline void
-netif_wake_queue(struct device *dev)
-{
-   clear_bit(0, &dev->tbusy);
-   mark_bh(NET_BH);
-}
-
-static inline int
-netif_running(struct device *dev)
-{
-   return dev->start == 0;
-}
-#endif
-
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,2,0))
 #   define le16_to_cpu(x) ((__u16)(x))
 #   define le32_to_cpu(x) ((__u32)(x))
-#endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,1,0))
-#   define compat_kfree_skb(skb, type) kfree_skb(skb, type)
-#   define compat_dev_kfree_skb(skb, type) dev_kfree_skb(skb, type)
-#   define compat_dev_kfree_skb_any(skb, type) dev_kfree_skb(skb, type)
-#   define compat_dev_kfree_skb_irq(skb, type) dev_kfree_skb(skb, type)
-#else
-#   define compat_kfree_skb(skb, type) kfree_skb(skb)
-#   define compat_dev_kfree_skb(skb, type) dev_kfree_skb(skb)
-#   if (LINUX_VERSION_CODE < KERNEL_VERSION(2,3,43))
-#      define compat_dev_kfree_skb_any(skb, type) dev_kfree_skb(skb)
-#      define compat_dev_kfree_skb_irq(skb, type) dev_kfree_skb(skb)
-#   else
-#      define compat_dev_kfree_skb_any(skb, type) dev_kfree_skb_any(skb)
-#      define compat_dev_kfree_skb_irq(skb, type) dev_kfree_skb_irq(skb)
-#   endif
 #endif
 
 #if defined(BUG_ON)
 #define VMXNET_ASSERT(cond) BUG_ON(!(cond))
 #else
 #define VMXNET_ASSERT(cond)
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19) && defined(CHECKSUM_HW)
-#   define VM_CHECKSUM_PARTIAL     CHECKSUM_HW
-#   define VM_CHECKSUM_UNNECESSARY CHECKSUM_UNNECESSARY
-#else
-#   define VM_CHECKSUM_PARTIAL     CHECKSUM_PARTIAL
-#   define VM_CHECKSUM_UNNECESSARY CHECKSUM_UNNECESSARY
 #endif
 
 struct Vmxnet2_TxBuf {

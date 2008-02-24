@@ -144,9 +144,9 @@ VixMsg_InitResponseMsg(VixCommandResponseHeader *responseHeader,  // IN
     */
    responseHeader->commonHeader.magic = VIX_COMMAND_MAGIC_WORD;
    responseHeader->commonHeader.messageVersion = VIX_COMMAND_MESSAGE_VERSION;
-   responseHeader->commonHeader.totalMessageLength = (uint32) totalMessageSize;
+   responseHeader->commonHeader.totalMessageLength = totalMessageSize;
    responseHeader->commonHeader.headerLength = sizeof(VixCommandResponseHeader);
-   responseHeader->commonHeader.bodyLength = (uint32) responseBodyLength;
+   responseHeader->commonHeader.bodyLength = responseBodyLength;
    responseHeader->commonHeader.credentialLength = 0;
    responseHeader->commonHeader.commonFlags = 0;
    if (NULL != requestHeader) {
@@ -226,10 +226,12 @@ VixMsg_AllocRequestMsg(size_t msgHeaderAndBodyLength,    // IN
 
    commandRequest->commonHeader.magic = VIX_COMMAND_MAGIC_WORD;
    commandRequest->commonHeader.messageVersion = VIX_COMMAND_MESSAGE_VERSION;
-   commandRequest->commonHeader.totalMessageLength = (uint32)(msgHeaderAndBodyLength + credentialLength);
-   commandRequest->commonHeader.headerLength = (uint32)sizeof(VixCommandRequestHeader);
-   commandRequest->commonHeader.bodyLength = (uint32)(msgHeaderAndBodyLength - sizeof(VixCommandRequestHeader));
-   commandRequest->commonHeader.credentialLength = (uint32)credentialLength;
+   commandRequest->commonHeader.totalMessageLength =
+      msgHeaderAndBodyLength + credentialLength;
+   commandRequest->commonHeader.headerLength = sizeof(VixCommandRequestHeader);
+   commandRequest->commonHeader.bodyLength = msgHeaderAndBodyLength -
+      sizeof(VixCommandRequestHeader);
+   commandRequest->commonHeader.credentialLength = credentialLength;
    commandRequest->commonHeader.commonFlags = VIX_COMMAND_REQUEST;
 
    commandRequest->opCode = opCode;

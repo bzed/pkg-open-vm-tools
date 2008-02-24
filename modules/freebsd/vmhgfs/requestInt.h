@@ -29,12 +29,17 @@
 #define INCLUDE_ALLOW_MODULE
 #include "includeCheck.h"
 
-#include <sys/libkern.h>        // common string, memcpy, etc userland routines
-#include <vm/uma.h>             // for the UMA (slab) allocator
-#include <sys/kthread.h>        // for kthread_create()
+#if defined(__FreeBSD__)
+#  include <sys/libkern.h>       // common string, memcpy, etc userland routines
+#  include <vm/uma.h>            // for the UMA (slab) allocator
+#elif defined(__APPLE__)
+#  include <string.h>
+#endif
+
 
 #include "vm_assert.h"
 
+#include "os.h"
 #include "request.h"
 #include "debug.h"
 
@@ -79,19 +84,20 @@
  *       drops the reference count, and if it reaches zero, frees the object.
  */
 typedef struct HgfsKReqObject {
-   DblLnkLst_Links fsNode;      /* Link between object and its parent file system. */
-   DblLnkLst_Links pendingNode; /* Link between object and pending request list. */
+   DblLnkLst_Links fsNode;      // Link between object and its parent file system.
+   DblLnkLst_Links pendingNode; // Link between object and pending request list.
 
-   unsigned int refcnt;         /* Object reference count */
-   HgfsKReqState state;         /* Indicates state of request */
-   struct mtx   stateLock;      /* Protects state: ... */
-   struct cv    stateCv;        /* Condition variable to wait for and signal
-                                   presence of reply. Used with the stateLock
-                                   above. */
-   uint32_t     id;             /* The unique identifier of this request.
-                                   Typically set to the address of the HgfsKReq
-                                   object. */
-   size_t     payloadSize;    /* Total size of payload */
+   unsigned int refcnt;         // Object reference count
+   HgfsKReqState state;         // Indicates state of request
+   OS_MUTEX_T *stateLock;       // Protects state: ...
+   OS_CV_T  stateCv;            // Condition variable to wait for and signal
+                                // presence of reply. Used with the stateLock
+                                // above.
+
+   uint32_t id;                 // The unique identifier of this request.
+                                // Typically set to the address of the HgfsKReq
+                                // object.
+   size_t payloadSize;          // Total size of payload
    /*
     * The file system is concerned only with the payload portion of an Hgfs
     * request packet, but the RPC message opens with the command string "f ".
@@ -105,9 +111,9 @@ typedef struct HgfsKReqObject {
     * muck with _payload.
     */
    struct {
-      char      _command[HGFS_CLIENT_CMD_LEN];  /* Typically "f ". */
-      char      _payload[HGFS_PACKET_MAX];      /* Contains both the request and
-                                                   its reply. */
+      char      _command[HGFS_CLIENT_CMD_LEN];  // Typically "f ".
+      char      _payload[HGFS_PACKET_MAX];      // Contains both the request and
+                                                // its reply.
    } __rpc_packet;
 } HgfsKReqObject;
 
@@ -119,16 +125,16 @@ typedef struct HgfsKReqObject {
  * only on a typedef'd handle.  (See request.h.)
  */
 typedef struct HgfsKReqContainer {
-   struct mtx           listLock;
-   DblLnkLst_Links      list;
+   OS_MUTEX_T *listLock;
+   DblLnkLst_Links list;
 } HgfsKReqContainer;
 
 /*
  * Current state & instruction for the HgfsKReq worker thread.
  */
 typedef struct HgfsKReqWState {
-   Bool running;        /* Is worker running? */
-   Bool exit;           /* Set this to TRUE at module unload time. */
+   Bool running;        // Is worker running?
+   Bool exit;           // Set this to TRUE at module unload time.
 } HgfsKReqWState;
 
 
@@ -136,26 +142,27 @@ typedef struct HgfsKReqWState {
  * Module internal variables
  */
 
-/* UMA zone (slab) for allocating HgfsKReqs. */
-extern uma_zone_t hgfsKReqZone;
-
 /* Workitem list anchor */
 extern DblLnkLst_Links hgfsKReqWorkItemList;
 
-/* Workitem list lock and conditional variable */
-extern struct mtx hgfsKReqWorkItemLock;
-extern struct cv hgfsKReqWorkItemCv;
+/* Workitem list lock. */
+extern OS_MUTEX_T *hgfsKReqWorkItemLock;
+
+extern OS_CV_T hgfsKReqWorkItemCv;
+
+/* UMA zone (slab) for allocating HgfsKReqs. */
+extern OS_ZONE_T *hgfsKReqZone;
 
 /* Process structure for the worker thread */
-extern struct proc *            hgfsKReqWorkerProc;
-extern HgfsKReqWState           hgfsKReqWorkerState;
+extern OS_THREAD_T hgfsKReqWorkerThread;
+extern HgfsKReqWState hgfsKReqWorkerState;
 
 
 /*
  * Function prototypes
  */
 
-extern void     HgfsKReqWorker(void *arg);
+extern void HgfsKReqWorker(void *arg);
 
 
 #endif // ifndef _requestInt_H_

@@ -34,17 +34,12 @@ Escape_DoString(const char *escStr,    // IN
                 size_t sizeIn,         // IN
                 size_t *sizeOut);      // OUT
 
-static INLINE void *
+void *
 Escape_Do(char escByte,          // IN
           int const *bytesToEsc, // IN
           void const *bufIn,     // IN
           size_t sizeIn,         // IN
-          size_t *sizeOut)       // OUT
-{
-   const char escStr[] = { escByte, '\0' };
-
-   return Escape_DoString(escStr, bytesToEsc, bufIn, sizeIn, sizeOut);
-}
+          size_t *sizeOut);      // OUT
 
 void *
 Escape_Undo(char escByte,      // IN

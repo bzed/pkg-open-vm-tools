@@ -42,6 +42,7 @@
 
 #ifndef _WIN32
 extern int vasprintf(char **ptr, const char *f, va_list arg);
+extern int vswprintf(wchar_t *wcs, size_t maxlen, const wchar_t *format, va_list args);
 #endif
 
 #ifdef N_PLAT_NLM
@@ -558,6 +559,26 @@ Str_Vsnwprintf(wchar_t *str,          // OUT
    va_end(aq);
 #endif
 
+   /*
+    * Linux glibc 2.0.x returns -1 and null terminates (which we shouldn't
+    * be linking against), but glibc 2.1.x follows c99 and returns
+    * characters that would have been written.
+    *
+    * In the case of Win32 and !HAS_BSD_PRINTF, we are using
+    * _vsnwprintf(), which returns -1 on overflow, returns size
+    * when result fits exactly, and does not null terminate in
+    * those cases.
+    */
+
+#if defined _WIN32 && !defined HAS_BSD_PRINTF
+   if ((retval < 0 || retval >= size) && size > 0) {
+      str[size - 1] = L'\0';
+   }
+#endif
+   if (retval >= size) {
+      return -1;
+   }
+
    return retval;
 }
 
@@ -891,12 +912,11 @@ _Str_ToUpper(char *string)  // IN
 #if 0
 
 /*
- * Win32 tests. Compares our bsd_vs*printf code output to the Windows
- * C-library code output, where possible. Not all functionality can be
- * compared. (See bsd_output.h for more details).
+ * Unit tests. Compares our bsd_vs*printf code output to C-library
+ * code output, where possible.
  */
 
-Bool bCompare;
+static Bool bCompare;
 
 #define FAIL(s) \
    do { \
@@ -904,7 +924,7 @@ Bool bCompare;
       exit(1); \
    } while (0);
 
-void
+static void
 PrintAndCheck(char *fmt, ...)
 {
    char buf1[1024], buf2[1024];
@@ -919,13 +939,21 @@ PrintAndCheck(char *fmt, ...)
    }
 
    va_start(args, fmt);
+#ifdef _WIN32
    count = _vsnprintf(buf2, 1024, fmt, args);
+#else
+   count = vsnprintf(buf2, 1024, fmt, args);
+#endif
 
    if (count < 0) {
       FAIL("PrintAndCheck old code count off");
    }
 
    if (bCompare && (0 != strcmp(buf1, buf2))) {
+      printf("Format string: %s\n", fmt);
+      printf("Our code: %s\n", buf1);
+      printf("Sys code: %s\n", buf2);
+
       FAIL("PrintAndCheck compare failed");
    }
 
@@ -934,7 +962,7 @@ PrintAndCheck(char *fmt, ...)
    va_end(args);
 }
 
-void
+static void
 PrintAndCheckW(wchar_t *fmt, ...)
 {
    wchar_t buf1[1024], buf2[1024];
@@ -949,54 +977,57 @@ PrintAndCheckW(wchar_t *fmt, ...)
    }
 
    va_start(args, fmt);
+#ifdef _WIN32
    count = _vsnwprintf(buf2, 1024, fmt, args);
+#else
+   count = vswprintf(buf2, 1024, fmt, args);
+#endif
 
    if (count < 0) {
       FAIL("PrintAndCheckW old code count off");
    }
 
    if (bCompare && (0 != wcscmp(buf1, buf2))) {
+      printf("Format string: %S", fmt);
+      printf("Our code: %S", buf1);
+      printf("Sys code: %S", buf2);
+
       FAIL("PrintAndCheckW compare failed");
    }
 
-   wprintf(buf1);
+#ifndef _WIN32
+   printf("%S", buf1);
+#endif // _WIN32
 
    va_end(args);
 }
 
-int
-main(int argc,                  // IN
-     char *argv[])              // IN
+void
+Str_UnitTests(void)
 {
-   static const char *tests[] = {
-      "hello"
-   };
-
-   static const wchar_t *testsw[] = {
-      L"hello"
-   };
-
-   static int bufsize = 1024;
-
    char buf[1024];
    wchar_t bufw[1024];
    int count;
    int32 num1 = 0xDEADBEEF;
    int32 num2 = 0x927F82CD;
-   int64 num3 = 0xCAFEBABE42439021i64;
+   int64 num3 = CONST64U(0xCAFEBABE42439021);
+#ifdef _WIN32
    double num4 = 5.1923843;
    double num5 = 0.000482734;
    double num6 = 8274102.3872;
+#endif
    int numChars;
+   char empty[1] = {'\0'};
+   wchar_t wempty[1] = {L'\0'};
 
    /* test empty string */
-   count = Str_Snprintf(buf, 1, "");
+   count = Str_Snprintf(buf, 1, empty);
 
    if (0 != count) {
       FAIL("Failed empty string test");
    }
 
-   count = Str_Snwprintf(bufw, 1, L"");
+   count = Str_Snwprintf(bufw, 1, wempty);
 
    if (0 != count) {
       FAIL("Failed empty string test (W)");
@@ -1006,32 +1037,42 @@ main(int argc,                  // IN
    count = Str_Snprintf(buf, 2, "ba");
 
    if (-1 != count) {
-      FAIL("Failed overflow test - count");
+      FAIL("Failed borderline overflow test - count");
    }
 
    if (buf[1]) {
-      FAIL("Failed overflow test - NULL term (W)");
+      FAIL("Failed borderline overflow test - NULL term");
+   }
+
+   count = Str_Snwprintf(bufw, 2, L"ba");
+
+   if (-1 != count) {
+      FAIL("Failed borderline overflow test - count (W)");
+   }
+
+   if (bufw[1]) {
+      FAIL("Failed borderline overflow test - NULL term (W)");
    }
 
    /* test egregious overflow */
    count = Str_Snprintf(buf, 2, "baabaa");
 
    if (-1 != count) {
-      FAIL("Failed overflow test - count");
+      FAIL("Failed egregious overflow test - count");
    }
 
    if (buf[1]) {
-      FAIL("Failed overflow test - NULL term (W)");
+      FAIL("Failed egregious overflow test - NULL term");
    }
 
    count = Str_Snwprintf(bufw, 2, L"baabaa");
 
    if (-1 != count) {
-      FAIL("Failed overflow test - count");
+      FAIL("Failed egregious overflow test - count (W)");
    }
 
    if (bufw[1]) {
-      FAIL("Failed overflow test - NULL term (W)");
+      FAIL("Failed egregious overflow test - NULL term (W)");
    }
 
    /* test 'n' argument */
@@ -1088,12 +1129,19 @@ main(int argc,                  // IN
    bCompare = TRUE;
 
    // more 64-bit
+#ifdef _WIN32
    PrintAndCheck("%I64X\n", num3);
    PrintAndCheckW(L"%I64X\n", num3);
+#else
+   PrintAndCheck("%LX\n", num3);
+   PrintAndCheckW(L"%LX\n", num3);
+#endif
 
+#ifdef _WIN32 // exponent digits printed differs vs. POSIX
    // floating-point
    PrintAndCheck("%e %E %f %g %G\n", num4, num5, num6);
    PrintAndCheckW(L"%e %E %f %g %G\n", num4, num5, num6);
+#endif
 
    // positional arguments
    bCompare = FALSE;
@@ -1101,19 +1149,23 @@ main(int argc,                  // IN
    PrintAndCheckW(L"%3$LX %1$x %2$x\n", num1, num2, num3);
    bCompare = TRUE;
 
+#ifdef _WIN32 // exponent digits printed differs vs. POSIX
    // width and precision
    PrintAndCheck("%15.1g %20.2f %*.*f\n", num6, num6, 15, 3, num6);
    PrintAndCheckW(L"%15.1g %20.2f %*.*f\n", num6, num6, 15, 3, num6);
+#endif
 
+#ifdef _WIN32 // exponent digits printed differs vs. POSIX
    // flags
    PrintAndCheck("%-15e %+f %015g\n", num4, num5, num6);
    PrintAndCheckW(L"%-15e %+f %015g\n", num4, num5, num6);
+#endif
 
+#ifdef _WIN32 // exponent digits printed differs vs. POSIX
    // more flags
    PrintAndCheck("%#X %#E %#G\n", num1, num1, num1);
    PrintAndCheckW(L"%#X %#E %#G\n", num1, num1, num1);
-
-   return 0;
+#endif
 }
 
-#endif
+#endif // 0

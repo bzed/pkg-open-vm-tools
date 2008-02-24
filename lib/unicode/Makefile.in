@@ -62,8 +62,9 @@ ARFLAGS = cru
 libUnicode_a_AR = $(AR) $(ARFLAGS)
 libUnicode_a_LIBADD =
 am_libUnicode_a_OBJECTS = unicodeCommon.$(OBJEXT) \
-	unicodeSimpleBase.$(OBJEXT) unicodeSimpleTypes.$(OBJEXT) \
-	unicodeSimpleOperations.$(OBJEXT) unicodeStatic.$(OBJEXT)
+	unicodeSimpleBase.$(OBJEXT) unicodeSimpleCaseFolding.$(OBJEXT) \
+	unicodeSimpleTypes.$(OBJEXT) unicodeSimpleOperations.$(OBJEXT) \
+	unicodeSimpleTransforms.$(OBJEXT) unicodeStatic.$(OBJEXT)
 libUnicode_a_OBJECTS = $(am_libUnicode_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -217,7 +218,9 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LIBRARIES = libUnicode.a
 libUnicode_a_SOURCES = unicodeCommon.c unicodeSimpleBase.c \
-	unicodeSimpleTypes.c unicodeSimpleOperations.c unicodeStatic.c
+	unicodeSimpleCaseFolding.c unicodeSimpleTypes.c \
+	unicodeSimpleOperations.c unicodeSimpleTransforms.c \
+	unicodeStatic.c
 AM_CFLAGS = @COMMON_CFLAGS@
 all: all-am
 
@@ -268,7 +271,9 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicodeCommon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicodeSimpleBase.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicodeSimpleCaseFolding.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicodeSimpleOperations.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicodeSimpleTransforms.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicodeSimpleTypes.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicodeStatic.Po@am__quote@
 

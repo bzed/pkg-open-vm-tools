@@ -62,8 +62,14 @@
 
 #   if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 0)
 #      define compat_skb_linearize(skb) __skb_linearize((skb), GFP_ATOMIC)
-#   else
+#   elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 4)
 #      define compat_skb_linearize(skb) skb_linearize((skb), GFP_ATOMIC)
+#   else
+static inline int
+compat_skb_linearize(struct sk_buff *skb)
+{
+   return 0;
+}
 #   endif
 
 #endif
@@ -86,4 +92,65 @@
 #define compat_skb_csum_start(skb)         compat_skb_transport_offset(skb)
 #endif
 
+#if defined(NETIF_F_GSO) /* 2.6.18 and upwards */
+#define compat_skb_mss(skb) (skb_shinfo(skb)->gso_size)
+#else
+#define compat_skb_mss(skb) (skb_shinfo(skb)->tso_size)
+#endif
+
+/* used by both received pkts and outgoing ones */
+#define VM_CHECKSUM_UNNECESSARY CHECKSUM_UNNECESSARY
+
+/* csum status of received pkts */
+#if defined(CHECKSUM_COMPLETE)
+#   define VM_RX_CHECKSUM_PARTIAL     CHECKSUM_COMPLETE
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19) && defined(CHECKSUM_HW)
+#   define VM_RX_CHECKSUM_PARTIAL     CHECKSUM_HW
+#else
+#   define VM_RX_CHECKSUM_PARTIAL     CHECKSUM_PARTIAL
+#endif
+
+/* csum status of outgoing pkts */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19) && defined(CHECKSUM_HW)
+#   define VM_TX_CHECKSUM_PARTIAL      CHECKSUM_HW
+#else
+#   define VM_TX_CHECKSUM_PARTIAL      CHECKSUM_PARTIAL
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,1,0))
+#   define compat_kfree_skb(skb, type) kfree_skb(skb, type)
+#   define compat_dev_kfree_skb(skb, type) dev_kfree_skb(skb, type)
+#   define compat_dev_kfree_skb_any(skb, type) dev_kfree_skb(skb, type)
+#   define compat_dev_kfree_skb_irq(skb, type) dev_kfree_skb(skb, type)
+#else
+#   define compat_kfree_skb(skb, type) kfree_skb(skb)
+#   define compat_dev_kfree_skb(skb, type) dev_kfree_skb(skb)
+#   if (LINUX_VERSION_CODE < KERNEL_VERSION(2,3,43))
+#      define compat_dev_kfree_skb_any(skb, type) dev_kfree_skb(skb)
+#      define compat_dev_kfree_skb_irq(skb, type) dev_kfree_skb(skb)
+#   else
+#      define compat_dev_kfree_skb_any(skb, type) dev_kfree_skb_any(skb)
+#      define compat_dev_kfree_skb_irq(skb, type) dev_kfree_skb_irq(skb)
+#   endif
+#endif
+
+#ifndef NET_IP_ALIGN
+#   define COMPAT_NET_IP_ALIGN  2
+#else
+#   define COMPAT_NET_IP_ALIGN  NET_IP_ALIGN 
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 4)
+#   define compat_skb_headlen(skb)         skb_headlen(skb)
+#   define compat_pskb_may_pull(skb, len)  pskb_may_pull(skb, len)
+#else
+#   define compat_skb_headlen(skb)         (skb)->len
+#   define compat_pskb_may_pull(skb, len)  1
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 12)
+#   define compat_skb_header_cloned(skb)   skb_header_cloned(skb)
+#else
+#   define compat_skb_header_cloned(skb)   0
+#endif
 #endif /* __COMPAT_SKBUFF_H__ */

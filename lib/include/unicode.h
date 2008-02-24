@@ -27,19 +27,17 @@
 
 #define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMCORE
+#define INCLUDE_ALLOW_VMKERNEL
+#define INCLUDE_ALLOW_VMNIXMOD
 #include "includeCheck.h"
 
 // Start here: string creation, destruction, and encoding conversion.
 #include "unicodeBase.h"
 
-/*
- * To be added:
- *
- *   unicodeOperations.h
- *      Basic string operations: length, append, find, insert, replace.
- *
- *   unicodeTransforms.h
- *      Character transformations: upper/lower/title case, case folding, etc.
- */
+// Basic string operations: length, append, find, insert, replace.
+#include "unicodeOperations.h"
+
+// Character transformations: upper/lower/title case, case folding, etc.
+#include "unicodeTransforms.h"
 
 #endif // _UNICODE_H_

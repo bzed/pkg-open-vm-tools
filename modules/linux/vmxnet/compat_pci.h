@@ -23,6 +23,7 @@
 #ifndef __COMPAT_PCI_H__
 #define __COMPAT_PCI_H__
 
+#include "compat_ioport.h"
 #include <linux/pci.h>
 #ifndef KERNEL_2_1
 #   include <linux/bios32.h>
@@ -155,6 +156,38 @@ compat_pci_resource_start(struct pci_dev *pdev,
        pci_resource_start(dev, index)
 #endif
 
+/* since 2.3.15, a new set of s/w res flags IORESOURCE_ is introduced,
+ * we fake them by returning either IORESOURCE_{IO, MEM} prior to 2.3.15 since
+ * this is what compat_pci_request_region uses
+ */
+#ifndef KERNEL_2_1
+static inline unsigned long
+compat_pci_resource_flags(struct pci_dev *pdev,
+                          unsigned int    index)
+{
+   u32 addr;
+
+   if (pci_read_config_dword(pdev, PCI_BASE_ADDRESS_0 + index * 4, &addr)) {
+      printk(KERN_ERR "Unable to read base address %u from PCI slot %s!\n",
+             index, compat_pci_name(pdev));
+      return ~0UL;
+   }
+   if (addr & PCI_BASE_ADDRESS_SPACE) {
+      return IORESOURCE_IO;
+   } else {
+      return IORESOURCE_MEM;
+   }
+}
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 3, 1)
+#   define compat_pci_resource_flags(dev, index) \
+       (((dev)->base_address[index] & PCI_BASE_ADDRESS_SPACE) \
+          ? IORESOURCE_IO: IORESOURCE_MEM)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 3, 15)
+    /* IORESOURCE_xxx appeared in 2.3.15 and is set in resource[].flags */
+#   define compat_pci_resource_flags(dev, index) ((dev)->resource[index].flags)
+#else
+#   define compat_pci_resource_flags(dev, index) pci_resource_flags(dev, index)
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 2, 18)
 static inline unsigned long
@@ -185,6 +218,83 @@ compat_pci_resource_len(struct pci_dev *pdev,  // IN
 #define compat_pci_resource_len(dev, index) pci_resource_len(dev, index)
 #endif
 
+/* pci_request_region appears in 2.4.20 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 20)
+static inline int
+compat_pci_request_region(struct pci_dev *pdev, int bar, char *name)
+{
+   if (compat_pci_resource_len(pdev, bar) == 0) {
+      return 0;
+   }
+
+   if (compat_pci_resource_flags(pdev, bar) & IORESOURCE_IO) {
+      if (!compat_request_region(compat_pci_resource_start(pdev, bar),
+                                 compat_pci_resource_len(pdev, bar),
+                                 name)) {
+         return -EBUSY;
+      }
+   } else if (compat_pci_resource_flags(pdev, bar) & IORESOURCE_MEM) {
+      if (!compat_request_mem_region(compat_pci_resource_start(pdev, bar),
+                                     compat_pci_resource_len(pdev, bar),
+                                     name)) {
+         return -EBUSY;
+      }
+   }
+
+   return 0;
+}
+
+static inline void
+compat_pci_release_region(struct pci_dev *pdev, int bar)
+{
+   if (compat_pci_resource_len(pdev, bar) != 0) {
+      if (compat_pci_resource_flags(pdev, bar) & IORESOURCE_IO) {
+         release_region(compat_pci_resource_start(pdev, bar),
+                        compat_pci_resource_len(pdev, bar));
+      } else if (compat_pci_resource_flags(pdev, bar) & IORESOURCE_MEM) {
+         compat_release_mem_region(compat_pci_resource_start(pdev, bar),
+                                   compat_pci_resource_len(pdev, bar));
+      }
+   }
+}
+#else
+#define compat_pci_request_region(pdev, bar, name)  pci_request_region(pdev, bar, name)
+#define compat_pci_release_region(pdev, bar)        pci_release_region(pdev, bar)
+#endif
+
+/* pci_request_regions appeears in 2.4.3 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 3)
+static inline int
+compat_pci_request_regions(struct pci_dev *pdev, char *name)
+{
+   int i;
+   
+   for (i = 0; i < 6; i++) {
+      if (compat_pci_request_region(pdev, i, name)) {
+         goto release;
+      }
+   }
+   return 0;
+
+release:
+   while (--i >= 0) {
+      compat_pci_release_region(pdev, i);
+   }
+   return -EBUSY;
+}
+static inline void
+compat_pci_release_regions(struct pci_dev *pdev)
+{
+   int i;
+   
+   for (i = 0; i < 6; i++) {
+      compat_pci_release_region(pdev, i);
+   }
+}
+#else
+#define compat_pci_request_regions(pdev, name) pci_request_regions(pdev, name)
+#define compat_pci_release_regions(pdev)       pci_release_regions(pdev)
+#endif
 
 /* pci_enable_device is available since 2.4.0 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 0)
@@ -438,4 +548,10 @@ pci_get_drvdata(struct pci_dev *pdev)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,3,48)
+#   define PCI_DMA_BIDIRECTIONAL        0
+#   define PCI_DMA_TODEVICE             1
+#   define PCI_DMA_FROMDEVICE           2
+#   define PCI_DMA_NONE                 3
+#endif
 #endif /* __COMPAT_PCI_H__ */

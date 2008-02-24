@@ -40,15 +40,15 @@
 #define INCLUDE_ALLOW_VMCORE
 #include "includeCheck.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "vm_basic_types.h"
 #include "unicodeTypes.h"
 
 #if !defined(__FreeBSD__)
 #include "iovector.h"        // for struct iovec
 #endif
-
-#include <stdio.h>
-#include <stdlib.h>
 
 #if defined(VMX86_STATS)
 
@@ -340,7 +340,7 @@ FileIOResult FileIO_Unlock(FileIODescriptor *file);
 
 /* Only users not using FileIO_Open should use these two */
 void FileIO_Init(FileIODescriptor *fd,
-                 const char *fileName);
+                 ConstUnicode pathName);
 
 void FileIO_Cleanup(FileIODescriptor *fd);
 
@@ -368,13 +368,34 @@ FILE *FileIO_PosixFopen(ConstUnicode pathName,
 FileIODescriptor FileIO_CreateFDWin32(HANDLE win32,
                                       DWORD access,
                                       DWORD attributes);
+
+struct _stat;
+typedef struct _stat PosixStatStruct;
+
 #else
 FileIODescriptor FileIO_CreateFDPosix(int posix,
                                       int flags);
 
 int FileIO_PrivilegedPosixOpen(ConstUnicode pathName,
                                int flags);
+
+int FileIO_PosixChmod(ConstUnicode pathName,
+                      uint32 mode);
+
+struct stat;
+typedef struct stat PosixStatStruct;
+
+int FileIO_PosixLstat(ConstUnicode pathName,
+                      PosixStatStruct *statbuf);
+
+struct statfs;
+
+int FileIO_PosixStatfs(ConstUnicode pathName,
+                       struct statfs *statfsbuf);
 #endif
+
+int FileIO_PosixStat(ConstUnicode pathName,
+                     PosixStatStruct *statbuf);
 
 
 /*

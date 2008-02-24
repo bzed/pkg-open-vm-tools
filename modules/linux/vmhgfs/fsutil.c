@@ -1613,3 +1613,65 @@ HgfsStatusConvertToLinux(HgfsStatus hgfsStatus) // IN: Status code to convert
       return -EIO;
    }
 }
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsSetUidGid --
+ *
+ *    Sets the uid and gid of the host file represented by the provided
+ *    dentry.
+ *
+ *    Note that this function assumes it is being called for a file that has
+ *    been created on the host with the correct gid if the sgid bit is set for
+ *    the parent directory.  That is, we treat the presence of the sgid bit in
+ *    the parent direcory's mode as an indication not to set the gid manually
+ *    ourselves here.  If we did, we would clobber the gid that the host file
+ *    system chose for us automatically when the file was created.
+ *
+ *    Also note that the sgid bit itself would have been propagated to the new
+ *    file by the host file system as well.
+ *
+ * Results:
+ *    None.
+ *
+ * Side effects:
+ *    The host file's uid and gid are modified if the hgfs server has
+ *    permission to do so.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+void
+HgfsSetUidGid(struct inode *parent,     // IN: parent inode
+              struct dentry *dentry,    // IN: dentry of file to update
+              uid_t uid,                // IN: uid to set
+              gid_t gid)                // IN: gid to set
+{
+   struct iattr setUidGid;
+
+   setUidGid.ia_valid = ATTR_UID;
+   setUidGid.ia_uid = uid;
+
+   /*
+    * Only set the gid if the host file system wouldn't have for us.  See the
+    * comment in the function header.
+    */
+   if (!parent || !(parent->i_mode & S_ISGID)) {
+      setUidGid.ia_valid |= ATTR_GID;
+      setUidGid.ia_gid = gid;
+   }
+
+   /*
+    * After the setattr, we desperately want a revalidate so we can
+    * get the true attributes from the server. However, the setattr
+    * may have done that for us. To prevent a spurious revalidate,
+    * reset the dentry's time before the setattr. That way, if setattr
+    * ends up revalidating the dentry, the subsequent call to
+    * revalidate will do nothing.
+    */
+   HgfsDentryAgeForce(dentry);
+   HgfsSetattr(dentry, &setUidGid);
+   HgfsRevalidate(dentry);
+}

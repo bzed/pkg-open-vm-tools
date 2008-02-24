@@ -34,6 +34,10 @@
  *        is what you need in order to STAT_INC() / DEC() / etc.
  *      - SETUP_DEFINE_VARS: Declares the actual StatsUserBlock with all the
  *        information-- stat names, storage for the counters, etc.
+ *
+ *      Orthogonally, one can also supply:
+ *      - SETUP_WANT_GETVAL: If the includer wants to also {declare, define}
+ *        a function to retrieve named stat counter values.
  */
 
 /*
@@ -85,6 +89,11 @@
    EXTERN StatsUserBlock STATS_USER_BLKVAR;
    EXTERN void STATS_USER_LOG_FN(STATS_MODULE)(unsigned int epoch,
                                          void (*LogFunc)(const char *fmt, ...));
+
+   #ifdef SETUP_WANT_GETVAL
+   EXTERN Bool STATS_USER_GETVAL_FN(STATS_MODULE)(const char *name,
+                                                  uint32 *val);
+   #endif /* SETUP_WANT_GETVAL */
 
    #undef STAT
    #undef STAT_INST
@@ -176,6 +185,49 @@
          }
       }
    }
+
+   #ifdef SETUP_WANT_GETVAL
+   /*
+    *----------------------------------------------------------------------
+    *
+    * STATS_USER_GETVAL_FN --
+    *
+    *      Retrieves the value of a named user stat counter.  Returns
+    *      TRUE iff NAME is a recognized user stat counter, and sets
+    *      *VAL to the current value of that counter.
+    *
+    *      This is an optional function.  If a library needs it, use
+    *      SETUP_WANT_GETVAL (see top of the header).
+    *
+    * Results:
+    *      See above.
+    *
+    * Side effects:
+    *      None.
+    *
+    *----------------------------------------------------------------------
+    */
+
+   Bool
+   STATS_USER_GETVAL_FN(STATS_MODULE)(const char *name,  // IN: counter name
+                                      uint32 *val)       // OUT: counter val
+   {
+      unsigned int i;
+
+      if (!STATS_IS_INITIALIZED()) {
+         return FALSE;
+      }
+
+      for (i = 0; i < STATS_USER_BLKVAR.size; i++) {
+         if (strcmp(STATS_USER_STR_TABLE[i], name) == 0) {
+            *val = STATS_USER_BLKVAR.counters[i].count;
+            return TRUE;
+         }
+      }
+      return FALSE;
+   }
+   #endif /* SETUP_WANT_GETVAL */
+
    #undef STATS_USER_STR_TABLE
    #undef STATS_USER_INST_STR_TABLE
 #endif
