@@ -5,6 +5,8 @@ Maintainer: Daniel Baumann <daniel@debian.org>
 Build-Depends: debhelper (>= 6)
 Standards-Version: 3.7.3
 Homepage: http://open-vm-tools.sourceforge.net/
+Vcs-Git: git://git.debian.org/git/users/daniel/debian-daniel/open-vm-tools.git
+Vcs-Browser: http://git.debian.org/?p=users/daniel/debian-daniel/open-vm-tools.git
 
 Package: open-vm-modules-_KVERS_
 Architecture: any

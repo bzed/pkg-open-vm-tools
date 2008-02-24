@@ -91,6 +91,13 @@ binary-modules: prep-deb-files
 config.status: configure patch
 	dh_testdir
 
+ifneq "$(wildcard /usr/share/misc/config.sub)" ""
+	cp -f /usr/share/misc/config.sub config.sub
+endif
+ifneq "$(wildcard /usr/share/misc/config.guess)" ""
+	cp -f /usr/share/misc/config.guess config.guess
+endif
+
 	# Configuring package
 	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man
 
@@ -107,16 +114,11 @@ clean: unpatch
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
+	rm -f config.guess config.sub
 
 	# Cleaning package
 	[ ! -f Makefile ] || $(MAKE) distclean
 	rm -rf user
-ifneq "$(wildcard /usr/share/misc/config.sub)" ""
-	cp -f /usr/share/misc/config.sub config.sub
-endif
-ifneq "$(wildcard /usr/share/misc/config.guess)" ""
-	cp -f /usr/share/misc/config.guess config.guess
-endif
 
 	dh_clean
 
@@ -179,7 +181,7 @@ binary-arch: build install
 	dh_installchangelogs
 	dh_installdocs
 	dh_install
-#	dh_installinit
+	dh_installinit
 	dh_link
 	dh_strip
 	dh_compress

@@ -1,3 +1,17 @@
+open-vm-tools (2008.01.23-74039-2) unstable; urgency=low
+
+  * Adding vcs fields in control.
+  * Removing watch file.
+  * Correcting wrong manpage section of module-assistant in
+    README.Debian.
+  * Correcting wrong filename of module-source tarball in README.Debian.
+  * Updating formating of README.Debian.
+  * Removing config.guess and config.sub from the debian diff.
+  * Reverting config.guess and config.sub to upstream.
+  * Adding vmware-guestd init script (Closes: #465276).
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 24 Feb 2008 20:20:00 +0100
+
 open-vm-tools (2008.01.23-74039-1) unstable; urgency=low
 
   * New upstream release.
