@@ -1,3 +1,11 @@
+open-vm-tools (2008.02.13-77928-2) unstable; urgency=medium
+
+  * Rewriting copyright in machine-interpretable format.
+  * Cleaned up copyright.
+  * Fixing pathes and binary names in init script (Closes: #469146).
+
+ -- Daniel Baumann <daniel@debian>  Sat,  8 Mar 2008 08:48:00 +0100
+
 open-vm-tools (2008.02.13-77928-1) unstable; urgency=low
 
   * Adding upstream version 2008.02.13-77928.
