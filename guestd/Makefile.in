@@ -70,9 +70,8 @@ am_guestd_OBJECTS = debugStdio.$(OBJEXT) \
 	toolsDaemon.$(OBJEXT)
 guestd_OBJECTS = $(am_guestd_OBJECTS)
 @SOLARIS_TRUE@am__DEPENDENCIES_1 = ../lib/hgfsBd/libHgfsBd.a
-guestd_DEPENDENCIES = ../lib/atomic/libAtomic.a \
-	../lib/backdoor/libBackdoor.a ../lib/conf/libConf.a \
-	../lib/dnd/libDnd.a ../lib/err/libErr.a \
+guestd_DEPENDENCIES = ../lib/backdoor/libBackdoor.a \
+	../lib/conf/libConf.a ../lib/dnd/libDnd.a ../lib/err/libErr.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
 	../lib/guestApp/libGuestApp.a ../lib/guestInfo/libGuestInfo.a \
 	../lib/hgfsServer/libHgfsServer.a \
@@ -96,9 +95,6 @@ guestd_DEPENDENCIES = ../lib/atomic/libAtomic.a \
 	../lib/foundryMsg/libFoundryMsg.a ../lib/auth/libAuth.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a \
 	$(am__DEPENDENCIES_1)
-guestd_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(guestd_LDFLAGS) \
-	$(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -152,7 +148,7 @@ FFLAGS = @FFLAGS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDFLAGS = @GUESTD_LDFLAGS@
+GUESTD_LDADD = @GUESTD_LDADD@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -185,6 +181,8 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PROCPS_CFLAGS = @PROCPS_CFLAGS@
+PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -192,7 +190,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
 VMWARE_USER_CFLAGS = @VMWARE_USER_CFLAGS@
-VMWARE_USER_LDFLAGS = @VMWARE_USER_LDFLAGS@
+VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
 XMKMF = @XMKMF@
 X_CFLAGS = @X_CFLAGS@
 X_EXTRA_LIBS = @X_EXTRA_LIBS@
@@ -253,8 +251,8 @@ AM_CFLAGS = @COMMON_CFLAGS@
 # In the absence of the linker options --start-group and --end-group (which
 # can't be put in LDADD), we need to bring the following libraries out of the
 # alphabetical order so their symbols are properly resolved.
-guestd_LDADD = ../lib/atomic/libAtomic.a ../lib/backdoor/libBackdoor.a \
-	../lib/conf/libConf.a ../lib/dnd/libDnd.a ../lib/err/libErr.a \
+guestd_LDADD = ../lib/backdoor/libBackdoor.a ../lib/conf/libConf.a \
+	../lib/dnd/libDnd.a ../lib/err/libErr.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
 	../lib/guestApp/libGuestApp.a ../lib/guestInfo/libGuestInfo.a \
 	../lib/hgfsServer/libHgfsServer.a \
@@ -277,10 +275,9 @@ guestd_LDADD = ../lib/atomic/libAtomic.a ../lib/backdoor/libBackdoor.a \
 	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
 	../lib/foundryMsg/libFoundryMsg.a ../lib/auth/libAuth.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a \
-	$(HGFS_BD)
+	$(HGFS_BD) @GUESTD_LDADD@
 @SOLARIS_FALSE@HGFS_BD = 
 @SOLARIS_TRUE@HGFS_BD = ../lib/hgfsBd/libHgfsBd.a
-guestd_LDFLAGS = @GUESTD_LDFLAGS@
 guestd_SOURCES = debugStdio.c foreignVMToolsDaemon.c \
 	foreignVMToolsNetworking.c foundryToolsDaemon.c main.c stub.c \
 	toolsDaemon.c
@@ -326,7 +323,7 @@ clean-noinstPROGRAMS:
 	done
 guestd$(EXEEXT): $(guestd_OBJECTS) $(guestd_DEPENDENCIES) 
 	@rm -f guestd$(EXEEXT)
-	$(guestd_LINK) $(guestd_OBJECTS) $(guestd_LDADD) $(LIBS)
+	$(LINK) $(guestd_OBJECTS) $(guestd_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

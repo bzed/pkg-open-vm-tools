@@ -139,12 +139,16 @@ install: build
 		install -D -m 0755 $$SBIN/$$SBIN debian/open-vm-tools/usr/sbin/vmware-$$SBIN; \
 	done
 
-	set -e; for BIN in hgfsclient user toolbox; \
+	set -e; for BIN in hgfsclient user toolbox xferlogs; \
 	do \
 		install -D -m 0755 $$BIN/$$BIN debian/open-vm-tools/usr/bin/vmware-$$BIN; \
 	done
 
-	ln -s hgfsmounter debian/open-vm-tools/usr/sbin/mount.vmhgfs
+	ln -s vmware-hgfsmounter debian/open-vm-tools/usr/sbin/mount.vmhgfs
+
+	mkdir -p debian/open-vm-tools/etc/vmware-tools
+	cp -a scripts/common/* scripts/linux/* debian/open-vm-tools/etc/vmware-tools
+	chmod 0755 debian/open-vm-tools/etc/vmware-tools/*
 
 	# Installing configuration files
 	install -D -m 0644 debian/config/xautostart.conf debian/open-vm-tools/etc/vmware-tools/xautostart.conf
