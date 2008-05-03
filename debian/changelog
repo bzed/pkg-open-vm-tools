@@ -1,3 +1,10 @@
+open-vm-tools (2008.05.02-90473-1) unstable; urgency=low
+
+  * Adding libicu-dev to build-depends.
+  * Merging upstream version 2008.05.02-90473.
+
+ -- Daniel Baumann <daniel@debian.org>  Sat,  3 May 2008 09:44:00 +0200
+
 open-vm-tools (2008.04.14-87182-1) unstable; urgency=medium
 
   * Correcting wrong email address in changelog file.

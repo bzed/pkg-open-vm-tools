@@ -2,7 +2,7 @@ Source: open-vm-tools
 Section: contrib/admin
 Priority: extra
 Maintainer: Daniel Baumann <daniel@debian.org>
-Build-Depends: debhelper (>= 7), autotools-dev, dpatch, bzip2, libdumbnet-dev, libgtk2.0-dev, libpam0g-dev, libproc-dev, libx11-dev, libxinerama-dev, libxtst-dev
+Build-Depends: debhelper (>= 7), autotools-dev, dpatch, bzip2, libdumbnet-dev, libgtk2.0-dev, libicu-dev, libpam0g-dev, libproc-dev, libx11-dev, libxinerama-dev, libxtst-dev
 Standards-Version: 3.7.3
 Homepage: http://open-vm-tools.sourceforge.net/
 Vcs-Browser: http://git.debian.net/?p=open-vm-tools.git
