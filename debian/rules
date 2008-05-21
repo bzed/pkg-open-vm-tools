@@ -134,17 +134,18 @@ install: build
 	cp -a vmware-user user
 	mv user/vmware-user user/user
 
-	set -e; for SBIN in checkvm guestd hgfsmounter; \
+	set -e; for SBIN in guestd hgfsmounter; \
 	do \
 		install -D -m 0755 $$SBIN/$$SBIN debian/open-vm-tools/usr/sbin/vmware-$$SBIN; \
 	done
 
-	set -e; for BIN in hgfsclient user toolbox xferlogs; \
+	set -e; for BIN in checkvm hgfsclient user toolbox xferlogs; \
 	do \
 		install -D -m 0755 $$BIN/$$BIN debian/open-vm-tools/usr/bin/vmware-$$BIN; \
 	done
 
-	ln -s vmware-hgfsmounter debian/open-vm-tools/usr/sbin/mount.vmhgfs
+	mkdir -p debian/open-vm-tools/sbin
+	ln -s ../usr/sbin/vmware-hgfsmounter debian/open-vm-tools/sbin/mount.vmh
 
 	mkdir -p debian/open-vm-tools/etc/vmware-tools
 	cp -a scripts/common/* scripts/linux/* debian/open-vm-tools/etc/vmware-tools
@@ -155,12 +156,6 @@ install: build
 	install -D -m 0644 debian/config/vmware-guestd debian/open-vm-tools/etc//pam.d/vmware-guestd
 	install -D -m 0644 debian/config/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
 	install -D -m 0644 debian/config/vmware-user.desktop debian/open-vm-tools/usr/share/autostart/vmware-user.desktop
-
-	# Installing lintian overrides
-	set -e; for LINTIAN in debian/lintian/*; \
-	do \
-		install -D -m 0644 $$LINTIAN debian/`basename $$LINTIAN`/usr/share/lintian/overrides/`basename $$LINTIAN`; \
-	done
 
 	# Create the directories to install the source into
 	dh_installdirs -p$(psource)  usr/src/modules/$(sname)/debian
@@ -186,6 +181,7 @@ binary-arch: build install
 	dh_installdocs
 	dh_install
 	dh_installinit
+	dh_lintian
 	dh_link
 	dh_strip
 	dh_compress
