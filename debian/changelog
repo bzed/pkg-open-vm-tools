@@ -1,3 +1,10 @@
+open-vm-tools (2008.05.15-93241-2) unstable; urgency=medium
+
+  * Updating location of vmware-checkvm in init script (Closes: #483056).
+  * Correcting typo in mount.vmhgfs symlink (Closes: #474694).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 27 May 2008 07:29:00 +0200
+
 open-vm-tools (2008.05.15-93241-1) unstable; urgency=medium
 
   * Moving mount.vmhgfs from /usr/sbin to /sbin, thanks to Lea Wiemann

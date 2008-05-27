@@ -145,7 +145,7 @@ install: build
 	done
 
 	mkdir -p debian/open-vm-tools/sbin
-	ln -s ../usr/sbin/vmware-hgfsmounter debian/open-vm-tools/sbin/mount.vmh
+	ln -s ../usr/sbin/vmware-hgfsmounter debian/open-vm-tools/sbin/mount.vmhgfs
 
 	mkdir -p debian/open-vm-tools/etc/vmware-tools
 	cp -a scripts/common/* scripts/linux/* debian/open-vm-tools/etc/vmware-tools
