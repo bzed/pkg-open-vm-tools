@@ -1,3 +1,14 @@
+open-vm-tools (2008.06.03-96374-1) unstable; urgency=medium
+
+  * Updating rules file for upstream version 2008.06.03-96374.
+  * Adding patch to make build-system respect  again.
+  * Adding xauth to recommends of open-vm-tools (Closes: #487088).
+  * Adding patch to avoid building kernel modules in this new upstream version.
+  * Merging upstream version 2008.06.03-96374 (Closes: #484242).
+  * Updating to standards 3.8.0.
+
+ -- Daniel Baumann <daniel@debian.org>  Fri, 20 Jun 2008 14:12:00 +0200
+
 open-vm-tools (2008.05.15-93241-2) unstable; urgency=medium
 
   * Updating location of vmware-checkvm in init script (Closes: #483056).

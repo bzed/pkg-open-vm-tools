@@ -1,0 +1,149 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 03-destdir.dpatch by Daniel Baumann <daniel@debian.org>
+##
+## DP: Respect DESTDIR (stupid approach).
+
+@DPATCH@
+
+diff -Naurp open-vm-tools.orig/guestd/Makefile.am open-vm-tools/guestd/Makefile.am
+--- open-vm-tools.orig/guestd/Makefile.am	2008-06-03 08:06:07.000000000 +0000
++++ open-vm-tools/guestd/Makefile.am	2008-06-19 14:35:35.000000000 +0000
+@@ -92,8 +92,8 @@ endif PAMD
+ endif LINUX
+ 
+ install-exec-hook:
+-	$(INSTALL) -d /etc/vmware-tools
+-	echo 'disable-tools-version = "true"' > /etc/vmware-tools/tools.conf
++	$(INSTALL) -d $(DESTDIR)/etc/vmware-tools
++	echo 'disable-tools-version = "true"' > $(DESTDIR)/etc/vmware-tools/tools.conf
+ 
+ uninstall-hook:
+-	$(RM) -rf /etc/vmware-tools
++	$(RM) -rf $(DESTDIR)/etc/vmware-tools
+diff -Naurp open-vm-tools.orig/guestd/Makefile.in open-vm-tools/guestd/Makefile.in
+--- open-vm-tools.orig/guestd/Makefile.in	2008-06-03 08:06:18.000000000 +0000
++++ open-vm-tools/guestd/Makefile.in	2008-06-19 14:35:35.000000000 +0000
+@@ -600,11 +600,11 @@ uninstall-am: uninstall-pamSCRIPTS unins
+ 
+ 
+ install-exec-hook:
+-	$(INSTALL) -d /etc/vmware-tools
+-	echo 'disable-tools-version = "true"' > /etc/vmware-tools/tools.conf
++	$(INSTALL) -d $(DESTDIR)/etc/vmware-tools
++	echo 'disable-tools-version = "true"' > $(DESTDIR)/etc/vmware-tools/tools.conf
+ 
+ uninstall-hook:
+-	$(RM) -rf /etc/vmware-tools
++	$(RM) -rf $(DESTDIR)/etc/vmware-tools
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
+diff -Naurp open-vm-tools.orig/toolbox/Makefile.am open-vm-tools/toolbox/Makefile.am
+--- open-vm-tools.orig/toolbox/Makefile.am	2008-06-03 08:06:08.000000000 +0000
++++ open-vm-tools/toolbox/Makefile.am	2008-06-19 14:35:35.000000000 +0000
+@@ -62,14 +62,14 @@ vmware_toolbox_SOURCES += toolboxScripts
+ vmware_toolbox_SOURCES += toolboxShrink.c
+ 
+ install-exec-hook:
+-	$(INSTALL) -d $(datadir)/applications/
++	$(INSTALL) -d $(DESTDIR)/$(datadir)/applications/
+ 	$(INSTALL) -m 644 ../scripts/common/vmware-toolbox.desktop \
+-		$(datadir)/applications/
++		$(DESTDIR)/$(datadir)/applications/
+ 	$(SED) -i s/Exec=.*/Exec=vmware-toolbox/ \
+-		$(datadir)/applications/vmware-toolbox.desktop
+-	$(INSTALL) -d /usr/share/pixmaps/vmware
++		$(DESTDIR)/$(datadir)/applications/vmware-toolbox.desktop
++	$(INSTALL) -d $(DESTDIR)/usr/share/pixmaps/vmware
+ 	$(INSTALL) -m 644 bigIcon.xpm \
+-		/usr/share/pixmaps/vmware/vmware-toolbox.xpm
++		$(DESTDIR)/usr/share/pixmaps/vmware/vmware-toolbox.xpm
+ uninstall-hook:
+-	-$(RM) -f $(datadir)/share/applications/vmware-toolbox.desktop
+-	-$(RM) -rf /usr/share/pixmaps/vmware
++	-$(RM) -f $(DESTDIR)/$(datadir)/share/applications/vmware-toolbox.desktop
++	-$(RM) -rf $(DESTDIR)/usr/share/pixmaps/vmware
+diff -Naurp open-vm-tools.orig/toolbox/Makefile.in open-vm-tools/toolbox/Makefile.in
+--- open-vm-tools.orig/toolbox/Makefile.in	2008-06-03 08:06:22.000000000 +0000
++++ open-vm-tools/toolbox/Makefile.in	2008-06-19 14:36:59.000000000 +0000
+@@ -547,17 +547,17 @@ uninstall-am: uninstall-binPROGRAMS
+ 
+ 
+ install-exec-hook:
+-	$(INSTALL) -d $(datadir)/applications/
++	$(INSTALL) -d $(DESTDIR)/$(datadir)/applications/
+ 	$(INSTALL) -m 644 ../scripts/common/vmware-toolbox.desktop \
+-		$(datadir)/applications/
++		$(DESTDIR)/$(datadir)/applications/
+ 	$(SED) -i s/Exec=.*/Exec=vmware-toolbox/ \
+-		$(datadir)/applications/vmware-toolbox.desktop
+-	$(INSTALL) -d /usr/share/pixmaps/vmware
++		$(DESTDIR)/$(datadir)/applications/vmware-toolbox.desktop
++	$(INSTALL) -d $(DESTDIR)/usr/share/pixmaps/vmware
+ 	$(INSTALL) -m 644 bigIcon.xpm \
+-		/usr/share/pixmaps/vmware/vmware-toolbox.xpm
++		$(DESTDIR)/usr/share/pixmaps/vmware/vmware-toolbox.xpm
+ uninstall-hook:
+-	-$(RM) -f $(datadir)/share/applications/vmware-toolbox.desktop
+-	-$(RM) -rf /usr/share/pixmaps/vmware
++	-$(RM) -f $(DESTDIR)/$(datadir)/share/applications/vmware-toolbox.desktop
++	-$(RM) -rf $(DESTDIR)/usr/share/pixmaps/vmware
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
+diff -Naurp open-vm-tools.orig/vmware-user/Makefile.am open-vm-tools/vmware-user/Makefile.am
+--- open-vm-tools.orig/vmware-user/Makefile.am	2008-06-03 08:06:08.000000000 +0000
++++ open-vm-tools/vmware-user/Makefile.am	2008-06-19 14:35:35.000000000 +0000
+@@ -86,8 +86,8 @@ vmware_user_SOURCES += stub.c
+ vmware_user_SOURCES += vmware-user.c
+ 
+ install-exec-hook:
+-	$(INSTALL) -d $(datadir)/applications/
++	$(INSTALL) -d $(DESTDIR)/$(datadir)/applications/
+ 	$(INSTALL) -m 644 ../scripts/common/vmware-user.desktop \
+-		$(datadir)/applications/
++		$(DESTDIR)/$(datadir)/applications/
+ uninstall-hook:
+-	-$(RM) -f $(datadir)/applications/vmware-user.desktop
++	-$(RM) -f $(DESTDIR)/$(datadir)/applications/vmware-user.desktop
+diff -Naurp open-vm-tools.orig/vmware-user/Makefile.in open-vm-tools/vmware-user/Makefile.in
+--- open-vm-tools.orig/vmware-user/Makefile.in	2008-06-03 08:06:22.000000000 +0000
++++ open-vm-tools/vmware-user/Makefile.in	2008-06-19 14:35:35.000000000 +0000
+@@ -575,9 +575,9 @@ uninstall-am: uninstall-binPROGRAMS
+ 
+ 
+ install-exec-hook:
+-	$(INSTALL) -d $(datadir)/applications/
++	$(INSTALL) -d $(DESTDIR)/$(datadir)/applications/
+ 	$(INSTALL) -m 644 ../scripts/common/vmware-user.desktop \
+-		$(datadir)/applications/
++		$(DESTDIR)/$(datadir)/applications/
+ uninstall-hook:
+ 	-$(RM) -f $(datadir)/applications/vmware-user.desktop
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+diff -Naurp open-vm-tools.orig/hgfsmounter/Makefile.am open-vm-tools/hgfsmounter/Makefile.am
+--- open-vm-tools.orig/hgfsmounter/Makefile.am	2008-06-03 08:06:09.000000000 +0000
++++ open-vm-tools/hgfsmounter/Makefile.am	2008-06-19 15:00:03.000000000 +0000
+@@ -34,6 +34,6 @@ uninstall-hook:
+ 	$(RM) -f $(sbindir)/mount_vmhgfs
+ else
+ install-exec-hook:
+-	chown root $(sbindir)/mount.vmhgfs
+-	chmod u+s $(sbindir)/mount.vmhgfs
++	chown root $(DESTDIR)/$(sbindir)/mount.vmhgfs
++	chmod u+s $(DESTDIR)/$(sbindir)/mount.vmhgfs
+ endif !FREEBSD
+diff -Naurp open-vm-tools.orig/hgfsmounter/Makefile.in open-vm-tools/hgfsmounter/Makefile.in
+--- open-vm-tools.orig/hgfsmounter/Makefile.in	2008-06-03 08:06:18.000000000 +0000
++++ open-vm-tools/hgfsmounter/Makefile.in	2008-06-19 15:00:17.000000000 +0000
+@@ -519,8 +519,8 @@ uninstall-am: uninstall-sbinPROGRAMS
+ @FREEBSD_TRUE@uninstall-hook:
+ @FREEBSD_TRUE@	$(RM) -f $(sbindir)/mount_vmhgfs
+ @FREEBSD_FALSE@install-exec-hook:
+-@FREEBSD_FALSE@	chown root $(sbindir)/mount.vmhgfs
+-@FREEBSD_FALSE@	chmod u+s $(sbindir)/mount.vmhgfs
++@FREEBSD_FALSE@	chown root $(DESTDIR)/$(sbindir)/mount.vmhgfs
++@FREEBSD_FALSE@	chmod u+s $(DESTDIR)/$(sbindir)/mount.vmhgfs
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:

@@ -1,1 +1,3 @@
 01-kvers.dpatch
+02-autobuild.dpatch
+03-destdir.dpatch

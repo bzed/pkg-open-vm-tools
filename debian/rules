@@ -71,11 +71,10 @@ binary-modules: prep-deb-files
 	$(MAKE)
 
 	# Installing the modules
-	install -D -m 0644 modules/linux/vmblock.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/vmblock.ko
-	install -D -m 0644 modules/linux/vmhgfs.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/vmhgfs.ko
-	install -D -m 0644 modules/linux/vmmemctl.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/vmmemctl.ko
-	install -D -m 0644 modules/linux/vmsync.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/vmsync.ko
-	install -D -m 0644 modules/linux/vmxnet.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/vmxnet.ko
+	set -e; for MODULE in vmblock vmhgfs vmmemctl vmsync vmxnet; \
+	do \
+		install -D -m 0644 modules/linux/$$MODULE.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/$$MODULE.ko; \
+	done
 
 	dh_installdocs
 	dh_installchangelogs
@@ -118,7 +117,6 @@ clean: unpatch
 
 	# Cleaning package
 	[ ! -f Makefile ] || $(MAKE) distclean
-	rm -rf user
 
 	dh_clean
 
@@ -131,25 +129,22 @@ install: build
 	# Installing package
 	$(MAKE) DESTDIR=$(CURDIR)/debian/open-vm-tools install
 
-	cp -a vmware-user user
-	mv user/vmware-user user/user
+	install -D -m 0755 hgfsmounter/mount.vmhgfs debian/open-vm-tools/sbin/mount.vmhgfs
 
-	set -e; for SBIN in guestd hgfsmounter; \
-	do \
-		install -D -m 0755 $$SBIN/$$SBIN debian/open-vm-tools/usr/sbin/vmware-$$SBIN; \
-	done
+	install -D -m 0755 guestd/vmware-guestd debian/open-vm-tools/usr/sbin/vmware-guestd
+	install -D -m 0755 vmware-user/vmware-user debian/open-vm-tools/usr/sbin/vmware-user
+	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-tools/usr/sbin/vmware-user-suid-wrapper
 
-	set -e; for BIN in checkvm hgfsclient user toolbox xferlogs; \
-	do \
-		install -D -m 0755 $$BIN/$$BIN debian/open-vm-tools/usr/bin/vmware-$$BIN; \
-	done
-
-	mkdir -p debian/open-vm-tools/sbin
-	ln -s ../usr/sbin/vmware-hgfsmounter debian/open-vm-tools/sbin/mount.vmhgfs
+	install -D -m 0755 checkvm/vmware-checkvm debian/open-vm-tools/usr/bin/vmware-checkvm
+	install -D -m 0755 hgfsclient/vmware-hgfsclient debian/open-vm-tools/usr/bin/vmware-hgfsclient
+	install -D -m 0755 toolbox/vmware-toolbox debian/open-vm-tools/usr/bin/vmware-toolbox
+	install -D -m 0755 xferlogs/vmware-xferlogs debian/open-vm-tools/usr/bin/vmware-xferlogs
 
 	mkdir -p debian/open-vm-tools/etc/vmware-tools
 	cp -a scripts/common/* scripts/linux/* debian/open-vm-tools/etc/vmware-tools
 	chmod 0755 debian/open-vm-tools/etc/vmware-tools/*
+	rm -rf debian/open-vm-tools/etc/vmware-tools/pam.d
+	rm -f debian/open-vm-tools/etc/vmware-tools/*.desktop
 
 	# Installing configuration files
 	install -D -m 0644 debian/config/xautostart.conf debian/open-vm-tools/etc/vmware-tools/xautostart.conf
