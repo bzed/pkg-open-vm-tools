@@ -1,3 +1,11 @@
+open-vm-tools (2008.06.03-96374-2) unstable; urgency=medium
+
+  * Adding debug package.
+  * Splitting open-vm-tools into open-vm-tools (CLI tools) and open-vm-
+    toolbox (GUI tools) (Closes: #467042).
+
+ -- Daniel Baumann <daniel@debian.org>  Fri, 20 Jun 2008 14:51:00 +0200
+
 open-vm-tools (2008.06.03-96374-1) unstable; urgency=medium
 
   * Updating rules file for upstream version 2008.06.03-96374.

@@ -11,8 +11,9 @@ Vcs-Git: git://git.debian.net/git/open-vm-tools.git
 Package: open-vm-tools
 Architecture: amd64 i386
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Recommends: open-vm-source, ethtool, xauth, xserver-xorg-input-vmmouse, xserver-xorg-video-vmware, zerofree
-Description: tools and components for VMware guest systems
+Recommends: open-vm-source, ethtool, zerofree
+Suggests: open-vm-toolbox
+Description: tools and components for VMware guest systems (CLI tools)
  The Open Virtual Machine Tools (open-vm-tools) are the open source
  implementation of VMware Tools. They are a set of guest operating system
  virtualization components that enhance performance and user experience of
@@ -23,10 +24,39 @@ Description: tools and components for VMware guest systems
  the guest virtual machine. However, most of the implementations are proprietary
  and are tied to a specific virtualization platform.
 
+Package: open-vm-toolbox
+Architecture: amd64 i386
+Depends: ${shlibs:Depends}, ${misc:Depends}, open-vm-tools (= ${binary:Version})
+Recommends: open-vm-source, xauth, xserver-xorg-input-vmmouse, xserver-xorg-video-vmware
+Description: tools and components for VMware guest systems (GUI tools)
+ The Open Virtual Machine Tools (open-vm-tools) are the open source
+ implementation of VMware Tools. They are a set of guest operating system
+ virtualization components that enhance performance and user experience of
+ virtual machines.
+ .
+ As virtualization technology rapidly becomes mainstream, each virtualization
+ solution provider implements their own set of tools and utilities to supplement
+ the guest virtual machine. However, most of the implementations are proprietary
+ and are tied to a specific virtualization platform.
+
+Package: open-vm-tools-dbg
+Section: contrib/devel
+Priority: extra
+Architecture: amd64 i386
+Depends: open-vm-tools (= ${binary:Version}), open-vm-toolbox (= ${binary:Version})
+Description: tools and components for VMware guest systems (debug)
+ The Open Virtual Machine Tools (open-vm-tools) are the open source
+ implementation of VMware Tools. They are a set of guest operating system
+ virtualization components that enhance performance and user experience of
+ virtual machines.
+ .
+ This package contains the debugging symbols.
+
 Package: open-vm-source
 Architecture: all
 Depends: module-assistant, debhelper (>= 7), dpatch, make, bzip2
-Recommends: ethtool, xserver-xorg-input-vmmouse, xserver-xorg-video-vmware
+Recommends: open-vm-tools
+Suggests: open-vm-toolbox
 Description: Source for VMware guest systems driver
  This package provides the source code for the open-vm kernel modules.
  The open-vm-tools package is also required in order to make use of these

@@ -98,7 +98,7 @@ ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 endif
 
 	# Configuring package
-	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man
+	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --sysconfdir=/etc --mandir=\$${prefix}/share/man
 
 build: build-stamp
 build-stamp: config.status
@@ -129,28 +129,24 @@ install: build
 	# Installing package
 	$(MAKE) DESTDIR=$(CURDIR)/debian/open-vm-tools install
 
-	install -D -m 0755 hgfsmounter/mount.vmhgfs debian/open-vm-tools/sbin/mount.vmhgfs
+	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper
 
-	install -D -m 0755 guestd/vmware-guestd debian/open-vm-tools/usr/sbin/vmware-guestd
-	install -D -m 0755 vmware-user/vmware-user debian/open-vm-tools/usr/sbin/vmware-user
-	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-tools/usr/sbin/vmware-user-suid-wrapper
+	# Moving open-vm-tools files
+	mkdir -p debian/open-vm-tools/sbin
+	mv debian/open-vm-tools/usr/sbin/mount.vmhgfs debian/open-vm-tools/sbin/mount.vmhgfs
 
-	install -D -m 0755 checkvm/vmware-checkvm debian/open-vm-tools/usr/bin/vmware-checkvm
-	install -D -m 0755 hgfsclient/vmware-hgfsclient debian/open-vm-tools/usr/bin/vmware-hgfsclient
-	install -D -m 0755 toolbox/vmware-toolbox debian/open-vm-tools/usr/bin/vmware-toolbox
-	install -D -m 0755 xferlogs/vmware-xferlogs debian/open-vm-tools/usr/bin/vmware-xferlogs
+	# Moving open-vm-toolbox files
+	mkdir -p debian/open-vm-toolbox/usr/bin
+	mv debian/open-vm-tools/usr/bin/vmware-user debian/open-vm-toolbox/usr/bin
+	mv debian/open-vm-tools/usr/bin/vmware-toolbox debian/open-vm-toolbox/usr/bin
 
-	mkdir -p debian/open-vm-tools/etc/vmware-tools
-	cp -a scripts/common/* scripts/linux/* debian/open-vm-tools/etc/vmware-tools
-	chmod 0755 debian/open-vm-tools/etc/vmware-tools/*
-	rm -rf debian/open-vm-tools/etc/vmware-tools/pam.d
-	rm -f debian/open-vm-tools/etc/vmware-tools/*.desktop
+	mkdir -p debian/open-vm-toolbox/usr/share
+	mv debian/open-vm-tools/usr/share/applications debian/open-vm-toolbox/usr/share
+	mv debian/open-vm-tools/usr/share/pixmaps debian/open-vm-toolbox/usr/share
 
 	# Installing configuration files
-	install -D -m 0644 debian/config/xautostart.conf debian/open-vm-tools/etc/vmware-tools/xautostart.conf
-	install -D -m 0644 debian/config/vmware-guestd debian/open-vm-tools/etc//pam.d/vmware-guestd
+	install -D -m 0644 debian/config/xautostart.conf debian/open-vm-toolbox/etc/vmware-tools/xautostart.conf
 	install -D -m 0644 debian/config/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
-	install -D -m 0644 debian/config/vmware-user.desktop debian/open-vm-tools/usr/share/autostart/vmware-user.desktop
 
 	# Create the directories to install the source into
 	dh_installdirs -p$(psource)  usr/src/modules/$(sname)/debian
@@ -178,7 +174,7 @@ binary-arch: build install
 	dh_installinit
 	dh_lintian
 	dh_link
-	dh_strip
+	dh_strip --dbg-package=open-vm-tools-dbg
 	dh_compress
 	dh_fixperms
 	dh_makeshlibs
