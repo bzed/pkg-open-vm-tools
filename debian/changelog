@@ -1,3 +1,9 @@
+open-vm-tools (2008.07.01-102166-1) unstable; urgency=low
+
+  * Merging upstream version 2008.07.01-102166.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu,  3 Jul 2008 13:01:00 +0200
+
 open-vm-tools (2008.06.20-100027-1) unstable; urgency=low
 
   * Dropping autobuild patch in favour for upstreams new --without-
