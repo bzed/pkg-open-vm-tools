@@ -131,6 +131,8 @@ install: build
 
 	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper
 
+	chmod 0644 debian/open-vm-tools/etc/pam.d/vmware-guestd
+
 	# Moving open-vm-tools files
 	mkdir -p debian/open-vm-tools/sbin
 	mv debian/open-vm-tools/usr/sbin/mount.vmhgfs debian/open-vm-tools/sbin/mount.vmhgfs
@@ -171,12 +173,13 @@ binary-arch: build install
 	dh_installchangelogs
 	dh_installdocs
 	dh_install
-	dh_installinit
+	dh_installman
+	dh_installinit --update-rcd-params='defaults 20'
 	dh_lintian
 	dh_link
 	dh_strip --dbg-package=open-vm-tools-dbg
 	dh_compress
-	dh_fixperms
+	dh_fixperms -Xsbin/mount.vmhgfs
 	dh_makeshlibs
 	dh_installdeb
 	dh_shlibdeps

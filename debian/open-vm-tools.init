@@ -29,6 +29,11 @@ vmxnet_needed ()
 		fi
 	done
 
+	if [ -n "$(find /lib/modules/$(uname -r)/ -name vmxnet.ko)" ]
+	then
+		return 0
+	fi
+
 	return 1
 }
 
@@ -53,7 +58,7 @@ case "${1}" in
 
 		if vmxnet_needed
 		then
-			rmmod pcnet32
+			modprobe -r pcnet32
 			modprobe vmxnet
 		fi
 
@@ -77,7 +82,7 @@ case "${1}" in
 
 		if vmxnet_needed
 		then
-			rmmod vmxnet
+			modprobe -r vmxnet
 			modprobe pcnet32
 		fi
 

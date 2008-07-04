@@ -1,0 +1,3 @@
+debian/manpage/vmware-toolbox.1
+debian/manpage/vmware-user.1
+debian/manpage/vmware-user-suid-wrapper.8

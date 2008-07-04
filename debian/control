@@ -28,6 +28,7 @@ Package: open-vm-toolbox
 Architecture: amd64 i386
 Depends: ${shlibs:Depends}, ${misc:Depends}, open-vm-tools (= ${binary:Version})
 Recommends: open-vm-source, xauth, xserver-xorg-input-vmmouse, xserver-xorg-video-vmware
+Suggests: xdg-utils
 Description: tools and components for VMware guest systems (GUI tools)
  The Open Virtual Machine Tools (open-vm-tools) are the open source
  implementation of VMware Tools. They are a set of guest operating system

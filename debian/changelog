@@ -1,3 +1,20 @@
+open-vm-tools (2008.07.01-102166-2) unstable; urgency=medium
+
+  * Adding manpages.
+  * Stop removing setuid from /sbin/mount.vmhgfs.
+  * Extending vmxnet_needed() in initscript to also check for availability of
+    vmxnet.ko for the running kernel, otherwise don't attempt to load vmxnet
+    (Closes: #488810).
+  * Adding suggests to xdg-utils in open-vm-toolbox.
+  * Using modprobe -r rather than rmmod in initscript.
+  * Starting initscript at position 20, which is before networking comes up
+    (Closes: #479090).
+  * Adding vmware-user symlink to xdg autostart.
+  * Adding symlink from mount.vmhgfs to old vmware-hgfsmounter name.
+  * Removing executable bit for /etc/pam.d/vmware-guestd file.
+
+ -- Daniel Baumann <daniel@debian.org>  Fri,  4 Jul 2008 09:59:00 +0200
+
 open-vm-tools (2008.07.01-102166-1) unstable; urgency=low
 
   * Merging upstream version 2008.07.01-102166.

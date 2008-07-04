@@ -1,0 +1,2 @@
+/sbin/mount.vmhgfs				/sbin/vmware-hgfsmounter
+/usr/share/man/man8/vmware-hgfsmounter.8	/usr/share/man/man8/mount.vmhgfs.8
