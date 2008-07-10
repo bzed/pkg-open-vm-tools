@@ -1,16 +1,3 @@
-open-vm-tools (2008.07.01-102166-3~bpo40+2) etch-backports; urgency=low
-
-  * fix depends on procps
-
- -- Christoph Martin <christoph.martin@uni-mainz.de>  Tue, 22 Jul 2008 17:26:24 +0200
-
-open-vm-tools (2008.07.01-102166-3~bpo40+1) etch-backports; urgency=low
-
-  * backport to etch
-  * depend on debhelper 5
-
- -- Christoph Martin <christoph.martin@uni-mainz.de>  Fri, 18 Jul 2008 16:32:59 +0200
-
 open-vm-tools (2008.07.01-102166-3) unstable; urgency=medium
 
   * Replacing /lib64 with /lib in /etc/pam.d/vmware-guestd-x64.
