@@ -131,6 +131,12 @@ install: build
 
 	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper
 
+	set -e; if [ -e debian/open-vm-tools/etc/pam.d/vmware-guestd-x64 ]; \
+	then \
+		sed -i -e "s|lib64|lib|g" debian/open-vm-tools/etc/pam.d/vmware-guestd-x64; \
+		mv debian/open-vm-tools/etc/pam.d/vmware-guestd-x64 debian/open-vm-tools/etc/pam.d/vmware-guestd; \
+	fi
+
 	chmod 0644 debian/open-vm-tools/etc/pam.d/vmware-guestd
 
 	# Moving open-vm-tools files
@@ -175,7 +181,7 @@ binary-arch: build install
 	dh_install
 	dh_installman
 	dh_installinit --update-rcd-params='defaults 20'
-	dh_lintian
+	#dh_lintian
 	dh_link
 	dh_strip --dbg-package=open-vm-tools-dbg
 	dh_compress
@@ -183,6 +189,7 @@ binary-arch: build install
 	dh_makeshlibs
 	dh_installdeb
 	dh_shlibdeps
+	sed -i "s/, procps (<< 3.2.8), procps (>= 3.2.7)/, procps (>= 1:3.2.7)/" debian/open-vm-tool*.substvars
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb

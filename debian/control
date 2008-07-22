@@ -2,7 +2,8 @@ Source: open-vm-tools
 Section: contrib/admin
 Priority: extra
 Maintainer: Daniel Baumann <daniel@debian.org>
-Build-Depends: debhelper (>= 7), autotools-dev, dpatch, bzip2, libdumbnet-dev, libgtk2.0-dev, libicu-dev, libpam0g-dev, libproc-dev, libx11-dev, libxinerama-dev, libxtst-dev
+Uploaders: Christoph Martin <christoph.martin@uni-mainz.de>
+Build-Depends: debhelper (>= 5), autotools-dev, dpatch, bzip2, libdumbnet-dev, libgtk2.0-dev, libicu36-dev, libpam0g-dev, libproc-dev, libx11-dev, libxinerama-dev, libxtst-dev
 Standards-Version: 3.8.0
 Homepage: http://open-vm-tools.sourceforge.net/
 Vcs-Browser: http://git.debian.net/?p=open-vm-tools.git
@@ -55,7 +56,7 @@ Description: tools and components for VMware guest systems (debug)
 
 Package: open-vm-source
 Architecture: all
-Depends: module-assistant, debhelper (>= 7), dpatch, make, bzip2
+Depends: module-assistant, debhelper (>= 5), dpatch, make, bzip2
 Recommends: open-vm-tools
 Suggests: open-vm-toolbox
 Description: Source for VMware guest systems driver
