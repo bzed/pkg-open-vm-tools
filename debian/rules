@@ -71,7 +71,7 @@ binary-modules: prep-deb-files
 	$(MAKE)
 
 	# Installing the modules
-	set -e; for MODULE in vmblock vmhgfs vmmemctl vmsync vmxnet; \
+	set -e; for MODULE in vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock; \
 	do \
 		install -D -m 0644 modules/linux/$$MODULE.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/$$MODULE.ko; \
 	done
@@ -98,7 +98,7 @@ ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 endif
 
 	# Configuring package
-	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --sysconfdir=/etc --mandir=\$${prefix}/share/man --without-kernel-modules
+	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --sysconfdir=/etc --mandir=\$${prefix}/share/man --disable-unity --without-kernel-modules
 
 build: build-stamp
 build-stamp: config.status
@@ -131,6 +131,8 @@ install: build
 
 	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper
 
+	install -D -m 0644 toolbox/smallIcon.xpm debian/open-vm-toolbox/usr/share/pixmaps/vmware-toolbox.xpm
+
 	set -e; if [ -e debian/open-vm-tools/etc/pam.d/vmware-guestd-x64 ]; \
 	then \
 		sed -i -e "s|lib64|lib|g" debian/open-vm-tools/etc/pam.d/vmware-guestd-x64; \
@@ -150,7 +152,6 @@ install: build
 
 	mkdir -p debian/open-vm-toolbox/usr/share
 	mv debian/open-vm-tools/usr/share/applications debian/open-vm-toolbox/usr/share
-	mv debian/open-vm-tools/usr/share/pixmaps debian/open-vm-toolbox/usr/share
 
 	# Installing configuration files
 	install -D -m 0644 debian/config/xautostart.conf debian/open-vm-toolbox/etc/vmware-tools/xautostart.conf

@@ -1,3 +1,15 @@
+open-vm-tools (2008.08.08-109361-1) unstable; urgency=low
+
+  * Removing destdir.dpatch, not needed anymore.
+  * Adjusting rules to upstream changes with respect to the pixmap files.
+  * Disabling unity, uiparser is too old (see #493073).
+  * Adding build-depends to liburiparser-dev for new unity feature.
+  * Adding build-depends to libxss-dev for new unity feature.
+  * Updating to add new vmci and vsock modules.
+  * Merging upstream version 2008.08.08-109361.
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 11 Aug 2008 15:56:00 +0200
+
 open-vm-tools (2008.07.01-102166-3) unstable; urgency=medium
 
   * Replacing /lib64 with /lib in /etc/pam.d/vmware-guestd-x64.
