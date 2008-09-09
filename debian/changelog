@@ -1,3 +1,11 @@
+open-vm-tools (2008.09.03-114782-1) unstable; urgency=low
+
+  * Merging upstream version 2008.09.03-114782.
+  * Updating rules to new location of the config.guess and config.sub files.
+  * Updating vcs fields in control file.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue,  9 Sep 2008 22:06:00 +0200
+
 open-vm-tools (2008.08.08-109361-1) unstable; urgency=low
 
   * Removing destdir.dpatch, not needed anymore.
