@@ -2,9 +2,11 @@
 
 ### BEGIN INIT INFO
 # Provides:		open-vm-tools
-# Required-Start:
-# Required-Stop:	$network
-# Default-Start:	2 3 5
+# Required-Start:	$local_fs
+# Required-Stop:	$local_fs
+# X-Start-Before:	$network
+# X-Stop-After:		$network
+# Default-Start:	S
 # Default-Stop:		0 6
 # Description:		Runs the open-vm-tools services
 # Short-Description:	Runs the open-vm-tools services
@@ -29,7 +31,12 @@ vmxnet_needed ()
 		fi
 	done
 
-	if [ -n "$(find /lib/modules/$(uname -r)/ -name vmxnet.ko)" ]
+	return 1
+}
+
+vmxnet_found ()
+{
+	if modprobe -n -q vmxnet
 	then
 		return 0
 	fi
@@ -56,7 +63,7 @@ case "${1}" in
 		log_progress_msg "vmsync"; modprobe vmsync
 		log_end_msg 0
 
-		if vmxnet_needed
+		if vmxnet_found && vmxnet_needed
 		then
 			modprobe -r pcnet32
 			modprobe vmxnet
@@ -80,7 +87,7 @@ case "${1}" in
 
 		log_end_msg 0
 
-		if vmxnet_needed
+		if vmxnet_found && vmxnet_needed
 		then
 			modprobe -r vmxnet
 			modprobe pcnet32

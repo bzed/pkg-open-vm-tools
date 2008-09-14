@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmblock/Makefile open-vm-tools-2007.11.21-64693/modules/linux/vmblock/Makefile
---- open-vm-tools-2007.11.21-64693.orig/modules/linux/vmblock/Makefile	2007-11-21 08:10:18.000000000 +0000
-+++ open-vm-tools-2007.11.21-64693/modules/linux/vmblock/Makefile	2007-11-26 11:38:27.000000000 +0000
+diff -Naurp open-vm-tools.orig/modules/linux/vmblock/Makefile open-vm-tools/modules/linux/vmblock/Makefile
+--- open-vm-tools.orig/modules/linux/vmblock/Makefile	2008-09-08 02:30:11.000000000 +0200
++++ open-vm-tools/modules/linux/vmblock/Makefile	2008-09-13 11:13:08.000000000 +0200
 @@ -26,7 +26,7 @@
  ####
  SRCROOT = .
@@ -17,9 +17,9 @@ diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmblock/Makefile op
  
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
-diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmhgfs/Makefile open-vm-tools-2007.11.21-64693/modules/linux/vmhgfs/Makefile
---- open-vm-tools-2007.11.21-64693.orig/modules/linux/vmhgfs/Makefile	2007-11-21 08:10:20.000000000 +0000
-+++ open-vm-tools-2007.11.21-64693/modules/linux/vmhgfs/Makefile	2007-11-26 11:38:30.000000000 +0000
+diff -Naurp open-vm-tools.orig/modules/linux/vmci/Makefile open-vm-tools/modules/linux/vmci/Makefile
+--- open-vm-tools.orig/modules/linux/vmci/Makefile	2008-09-08 02:30:11.000000000 +0200
++++ open-vm-tools/modules/linux/vmci/Makefile	2008-09-13 11:13:32.000000000 +0200
 @@ -26,7 +26,7 @@
  ####
  SRCROOT = .
@@ -29,9 +29,9 @@ diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmhgfs/Makefile ope
  
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
-diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmmemctl/Makefile open-vm-tools-2007.11.21-64693/modules/linux/vmmemctl/Makefile
---- open-vm-tools-2007.11.21-64693.orig/modules/linux/vmmemctl/Makefile	2007-11-21 08:10:21.000000000 +0000
-+++ open-vm-tools-2007.11.21-64693/modules/linux/vmmemctl/Makefile	2007-11-26 11:38:34.000000000 +0000
+diff -Naurp open-vm-tools.orig/modules/linux/vmhgfs/Makefile open-vm-tools/modules/linux/vmhgfs/Makefile
+--- open-vm-tools.orig/modules/linux/vmhgfs/Makefile	2008-09-08 02:30:11.000000000 +0200
++++ open-vm-tools/modules/linux/vmhgfs/Makefile	2008-09-13 11:13:08.000000000 +0200
 @@ -26,7 +26,7 @@
  ####
  SRCROOT = .
@@ -41,9 +41,9 @@ diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmmemctl/Makefile o
  
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
-diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmsync/Makefile open-vm-tools-2007.11.21-64693/modules/linux/vmsync/Makefile
---- open-vm-tools-2007.11.21-64693.orig/modules/linux/vmsync/Makefile	2007-11-21 08:10:23.000000000 +0000
-+++ open-vm-tools-2007.11.21-64693/modules/linux/vmsync/Makefile	2007-11-26 11:38:36.000000000 +0000
+diff -Naurp open-vm-tools.orig/modules/linux/vmmemctl/Makefile open-vm-tools/modules/linux/vmmemctl/Makefile
+--- open-vm-tools.orig/modules/linux/vmmemctl/Makefile	2008-09-08 02:30:11.000000000 +0200
++++ open-vm-tools/modules/linux/vmmemctl/Makefile	2008-09-13 11:13:08.000000000 +0200
 @@ -26,7 +26,7 @@
  ####
  SRCROOT = .
@@ -53,9 +53,33 @@ diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmsync/Makefile ope
  
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
-diff -Naur open-vm-tools-2007.11.21-64693.orig/modules/linux/vmxnet/Makefile open-vm-tools-2007.11.21-64693/modules/linux/vmxnet/Makefile
---- open-vm-tools-2007.11.21-64693.orig/modules/linux/vmxnet/Makefile	2007-11-21 08:10:22.000000000 +0000
-+++ open-vm-tools-2007.11.21-64693/modules/linux/vmxnet/Makefile	2007-11-26 11:38:39.000000000 +0000
+diff -Naurp open-vm-tools.orig/modules/linux/vmsync/Makefile open-vm-tools/modules/linux/vmsync/Makefile
+--- open-vm-tools.orig/modules/linux/vmsync/Makefile	2008-09-08 02:30:11.000000000 +0200
++++ open-vm-tools/modules/linux/vmsync/Makefile	2008-09-13 11:13:08.000000000 +0200
+@@ -26,7 +26,7 @@
+ ####
+ SRCROOT = .
+ 
+-VM_UNAME = $(shell uname -r)
++VM_UNAME = $(KVERS)
+ 
+ # Header directory for the running kernel
+ HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
+diff -Naurp open-vm-tools.orig/modules/linux/vmxnet/Makefile open-vm-tools/modules/linux/vmxnet/Makefile
+--- open-vm-tools.orig/modules/linux/vmxnet/Makefile	2008-09-08 02:30:11.000000000 +0200
++++ open-vm-tools/modules/linux/vmxnet/Makefile	2008-09-13 11:13:08.000000000 +0200
+@@ -26,7 +26,7 @@
+ ####
+ SRCROOT = .
+ 
+-VM_UNAME = $(shell uname -r)
++VM_UNAME = $(KVERS)
+ 
+ # Header directory for the running kernel
+ HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
+diff -Naurp open-vm-tools.orig/modules/linux/vsock/Makefile open-vm-tools/modules/linux/vsock/Makefile
+--- open-vm-tools.orig/modules/linux/vsock/Makefile	2008-09-08 02:30:11.000000000 +0200
++++ open-vm-tools/modules/linux/vsock/Makefile	2008-09-13 11:13:43.000000000 +0200
 @@ -26,7 +26,7 @@
  ####
  SRCROOT = .

@@ -1,3 +1,10 @@
+open-vm-tools (2008.09.03-114782-2) unstable; urgency=low
+
+  * Updating kvers.dpatch (Closes: #498620).
+  * Updating initscript to correctly handle vmxnet (Closes: #479090, #488810).
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 14 Sep 2008 14:30:00 +0200
+
 open-vm-tools (2008.09.03-114782-1) unstable; urgency=low
 
   * Merging upstream version 2008.09.03-114782.
