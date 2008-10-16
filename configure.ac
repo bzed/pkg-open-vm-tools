@@ -24,7 +24,6 @@
 # etc.), this script also accepts:
 # $CUSTOM_GTK_CPPFLAGS - compile-time flags to find Gtk headers.
 # $CUSTOM_GTK_LIBS - link-time flags to find and link the Gtk libraries.
-# $CUSTOM_PROCPS_CPPFLAGS - compile-time flags to find procps headers
 # $CUSTOM_PROCPS_LIBS - link-time flags to find and link the procps library.
 # $CUSTOM_URIPARSER_CPPFLAGS - compile-time flags to find the uriparser headers
 # $CUSTOM_URIPARSER_LIBS - link-time flags to find and link the uriparser library
@@ -38,7 +37,7 @@
 
 AC_INIT(
    [open-vm-tools],
-   [2008.09.03-114782],
+   [2008.10.10-123053],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -83,7 +82,14 @@ case "$host_cpu" in
       ;;
 esac
 
-# Kernel args
+# Operational arguments.
+AC_ARG_WITH([root-privileges],
+	    [AS_HELP_STRING([--without-root-privileges],
+	       [does not perform any operations that require root privileges])],
+	    [],
+	    [with_root_privileges=yes])
+
+# Kernel arguments.
 # The kernel args have to go here otherwise the KERNEL_RELEASE won't be visible
 # to getOsVersion()
 AC_ARG_WITH([kernel-modules],
@@ -592,29 +598,6 @@ if test "$with_procps" = "yes"; then
 
 	GUESTD_LDADD="$GUESTD_LDADD $PROCPS_LIBS"
 	VMWARE_USER_LDADD="$VMWARE_USER_LDADD $PROCPS_LIBS"
-
-	# On Debian, the 'libproc-dev' package does not contain the libproc
-	# shared object; it is provided in the 'procps' package. Having the
-	# 'procps' package installed without 'libproc-dev' would lead to
-	# compilation errors down the line, so to avoid that we explicitly
-	# check for one of the libproc headers that is consumed in the build.
-	if test -n "$CUSTOM_PROCPS_CPPFLAGS"; then
-		PROCPS_CPPFLAGS="$CUSTOM_PROCPS_CPPFLAGS"
-	else
-		# XXX: Unfortunately, the libproc devel package doesn't appear
-		# to ship with a configuration script or pkg-config manifest
-		# file, so there's no portable way to get the location of its
-		# headers. For now we default to /usr/include.
-		PROCPS_CPPFLAGS="-I/usr/include"
-	fi
-	ORIGINAL_CPPFLAGS="$CPPFLAGS"
-	CPPFLAGS="$PROCPS_CPPFLAGS $CPPFLAGS"
-	AC_CHECK_HEADER(
-	   [proc/sysinfo.h],
-	   [],
-	   [AC_MSG_ERROR(
-	      [libproc headers not found. Please configure without procps (using --without-procps) or install libproc devel package])])
-	CPPFLAGS="$ORIGINAL_CPPFLAGS"
 fi
 
 if test "$with_procps" != "yes"; then
@@ -902,6 +885,9 @@ if test "$os" = "linux"; then
       MODULES="$MODULES vmblock vmci vmhgfs vsock"
       buildHgfsmounter=yes
    fi
+   if test "$osVersion" -ge 206000; then
+      MODULES="$MODULES vmxnet3"
+   fi
    if test "$osVersion" -ge 206006; then
       MODULES="$MODULES vmsync"
    fi
@@ -953,6 +939,7 @@ AM_CONDITIONAL(HAVE_ICU, test "$with_icu" = "yes")
 AM_CONDITIONAL(WITH_KERNEL_MODULES, test "$with_kernel_modules" = "yes")
 AM_CONDITIONAL(PAMD, test -d /etc/pam.d)
 AM_CONDITIONAL(ENABLE_UNITY, test "$enable_unity" = "yes")
+AM_CONDITIONAL(WITH_ROOT_PRIVILEGES, test "$with_root_privileges" = "yes")
 
 ### Feature-specific flags / actions
 # Combine where possible
@@ -1003,7 +990,6 @@ AC_SUBST([GTK_CPPFLAGS])
 AC_SUBST([GTK_LIBS])
 AC_SUBST([DNET_CPPFLAGS])
 AC_SUBST([DNET_LIBS])
-AC_SUBST([PROCPS_CPPFLAGS])
 AC_SUBST([PROCPS_LIBS])
 AC_SUBST([ICU_CPPFLAGS])
 AC_SUBST([ICU_LIBS])

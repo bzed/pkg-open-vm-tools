@@ -55,5 +55,12 @@
 			    "enabled while the host believes it is disabled. " \
 			    "Please close and reopen the Toolbox to synchronize " \
 			    "it with the host.\n"
+#define RECORD_VMX_ERR      "Error, the Record/Replay control operation failed. This could be for " \
+                            "one of the following reasons:\n" \
+                            "1. You are running an old version of a VMware product.\n\n" \
+                            "2. Your product has disabled these controls. To enable them, consult " \
+                            "the product documentation.\n\n" \
+                            "3. You tried to start a recording while already recording.\n\n" \
+                            "4. You tried to stop a recording while not recording.\n\n" \
 
 #endif /*_TOOLBOX_INT_H_*/

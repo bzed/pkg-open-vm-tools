@@ -165,7 +165,6 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
-PROCPS_CPPFLAGS = @PROCPS_CPPFLAGS@
 PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 RPCGEN = @RPCGEN@
@@ -241,8 +240,7 @@ top_srcdir = @top_srcdir@
 noinst_LIBRARIES = libGuestInfo.a
 libGuestInfo_a_SOURCES = guestInfo.c guestInfoServer.c \
 	guestInfoPosix.c guestInfoPerfMonLinux.c
-AM_CFLAGS = $(DNET_CPPFLAGS) $(PROCPS_CPPFLAGS) \
-	-I$(top_builddir)/include
+AM_CFLAGS = $(DNET_CPPFLAGS) -I$(top_builddir)/include
 all: all-am
 
 .SUFFIXES:

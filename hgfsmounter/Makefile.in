@@ -168,7 +168,6 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
-PROCPS_CPPFLAGS = @PROCPS_CPPFLAGS@
 PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 RPCGEN = @RPCGEN@
@@ -535,15 +534,15 @@ uninstall-am: uninstall-sbinPROGRAMS
 @FREEBSD_TRUE@install-exec-hook:
 @FREEBSD_TRUE@	$(MV) $(DESTDIR)$(sbindir)/mount.vmhgfs \
 @FREEBSD_TRUE@		$(DESTDIR)$(sbindir)/mount_vmhgfs
-@FREEBSD_TRUE@	chown root $(DESTDIR)$(sbindir)/mount_vmhgfs
-@FREEBSD_TRUE@	chmod u+s $(DESTDIR)$(sbindir)/mount_vmhgfs
+@FREEBSD_TRUE@@WITH_ROOT_PRIVILEGES_TRUE@	chmod u+s $(DESTDIR)$(sbindir)/mount_vmhgfs
+@FREEBSD_TRUE@	-$(MKDIR_P) $(DESTDIR)/sbin
 @FREEBSD_TRUE@	-$(LN_S) $(DESTDIR)$(sbindir)/mount_vmhgfs \
 @FREEBSD_TRUE@		$(DESTDIR)/sbin/mount_vmhgfs &> /dev/null
 @FREEBSD_TRUE@uninstall-hook:
 @FREEBSD_TRUE@	-$(RM) -f $(DESTDIR)$(sbindir)/mount_vmhgfs &> /dev/null
 @FREEBSD_FALSE@install-exec-hook:
-@FREEBSD_FALSE@	chown root $(DESTDIR)$(sbindir)/mount.vmhgfs
-@FREEBSD_FALSE@	chmod u+s $(DESTDIR)$(sbindir)/mount.vmhgfs
+@FREEBSD_FALSE@@WITH_ROOT_PRIVILEGES_TRUE@	chmod u+s $(DESTDIR)$(sbindir)/mount.vmhgfs
+@FREEBSD_FALSE@	-$(MKDIR_P) $(DESTDIR)/sbin
 @FREEBSD_FALSE@	-$(LN_S) $(DESTDIR)$(sbindir)/mount.vmhgfs \
 @FREEBSD_FALSE@		$(DESTDIR)/sbin/mount.vmhgfs &> /dev/null
 @FREEBSD_FALSE@uninstall-hook:

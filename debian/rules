@@ -87,7 +87,7 @@ binary-modules: prep-deb-files
 	dh_builddeb --destdir=$(DEB_DESTDIR)
 	dh_clean -k
 
-config.status: configure patch
+config.status: configure patch-stamp
 	dh_testdir
 
 ifneq "$(wildcard /usr/share/misc/config.sub)" ""
