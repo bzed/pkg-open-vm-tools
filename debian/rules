@@ -181,7 +181,7 @@ binary-arch: build install
 	dh_installdocs
 	dh_install
 	dh_installman
-	dh_installinit --update-rcd-params='start 38 S . start 38 0 6 .'
+	dh_installinit --update-rcd-params='start 38 S . stop 38 0 6 .'
 	dh_lintian
 	dh_link
 	dh_strip --dbg-package=open-vm-tools-dbg

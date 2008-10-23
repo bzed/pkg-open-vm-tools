@@ -1,3 +1,10 @@
+open-vm-tools (2008.10.10-123053-2) unstable; urgency=medium
+
+  * Correcting typo in dh_installinit call.
+  * Downgrading depends on module-assistant to recommends.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 23 Oct 2008 15:32:00 +0200
+
 open-vm-tools (2008.10.10-123053-1) unstable; urgency=low
 
   * Using patch-stamp rather than patch in rules file.
