@@ -65,13 +65,13 @@ kdist_clean: clean
 # during a normal build
 binary-modules: prep-deb-files
 	dh_testroot
-	dh_clean -k
+	dh_prep
 
 	# Building the modules
 	$(MAKE)
 
 	# Installing the modules
-	set -e; for MODULE in vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock; \
+	set -e; for MODULE in pvscsi vmblock vmci vmhgfs vmmemctl vmsync vmxnet vmxnet3 vsock; \
 	do \
 		install -D -m 0644 modules/linux/$$MODULE.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/$$MODULE.ko; \
 	done
@@ -85,7 +85,7 @@ binary-modules: prep-deb-files
 	dh_gencontrol -- -v$(VERSION)
 	dh_md5sums
 	dh_builddeb --destdir=$(DEB_DESTDIR)
-	dh_clean -k
+	dh_prep
 
 config.status: configure patch-stamp
 	dh_testdir
@@ -123,7 +123,7 @@ clean: unpatch
 install: build
 	dh_testdir
 	dh_testroot
-	dh_clean -k
+	dh_prep
 	dh_installdirs
 
 	# Installing package

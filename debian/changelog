@@ -1,3 +1,11 @@
+open-vm-tools (2008.11.18-130226-1) unstable; urgency=low
+
+  * Replacing obsolete dh_clean -k with dh_prep.
+  * Merging upstream version 2008.11.18-130226.
+  * Updating debian directory for addition of pvscsi and vmxnet3 modules.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 20 Nov 2008 21:56:00 +0100
+
 open-vm-tools (2008.10.10-123053-2) unstable; urgency=medium
 
   * Correcting typo in dh_installinit call.
