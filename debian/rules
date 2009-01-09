@@ -141,9 +141,6 @@ install: build
 
 	chmod 0644 debian/open-vm-tools/etc/pam.d/vmware-guestd
 
-	install -D -m 0644 debian/config/vmxnet.modprobe debian/open-vm-tools/etc/modprobe.d/vmxnet
-	install -D -m 0755 debian/config/vmxnet.hook debian/open-vm-tools/usr/share/initramfs-tools/hooks/vmxnet
-
 	# Moving open-vm-tools files
 	mkdir -p debian/open-vm-tools/sbin
 	mv debian/open-vm-tools/usr/sbin/mount.vmhgfs debian/open-vm-tools/sbin/mount.vmhgfs

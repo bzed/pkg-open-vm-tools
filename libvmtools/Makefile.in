@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 ################################################################################
-### Copyright 2007 VMware, Inc.  All rights reserved.
+### Copyright 2008 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -49,10 +49,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@THIRTY_TWO_BIT_USERSPACE_TRUE@am__append_1 = ../backdoorGcc32.c
-@THIRTY_TWO_BIT_USERSPACE_FALSE@am__append_2 = ../backdoorGcc64.c
-subdir = lib/backdoor/shared
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
+subdir = libvmtools
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in COPYING
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
@@ -62,15 +60,35 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
-LTLIBRARIES = $(noinst_LTLIBRARIES)
-libBackdoor_la_LIBADD =
-am__libBackdoor_la_SOURCES_DIST = ../backdoor.c ../backdoorGcc32.c \
-	../backdoorGcc64.c
-@THIRTY_TWO_BIT_USERSPACE_TRUE@am__objects_1 = backdoorGcc32.lo
-@THIRTY_TWO_BIT_USERSPACE_FALSE@am__objects_2 = backdoorGcc64.lo
-am_libBackdoor_la_OBJECTS = backdoor.lo $(am__objects_1) \
-	$(am__objects_2)
-libBackdoor_la_OBJECTS = $(am_libBackdoor_la_OBJECTS)
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
+am__installdirs = "$(DESTDIR)$(libdir)"
+libLTLIBRARIES_INSTALL = $(INSTALL)
+LTLIBRARIES = $(lib_LTLIBRARIES)
+libvmtools_la_DEPENDENCIES = ../lib/backdoor/libBackdoor.la \
+	../lib/conf/libConf.la ../lib/dict/libDict.la \
+	../lib/dynxdr/libDynxdr.la ../lib/err/libErr.la \
+	../lib/file/libFile.la ../lib/guestApp/libGuestApp.la \
+	../lib/guestInfo/libGuestInfoCS.la ../lib/hgfs/libHgfs.la \
+	../lib/message/libMessage.la ../lib/misc/libMisc.la \
+	../lib/panic/libPanic.la ../lib/rpcOut/libRpcOut.la \
+	../lib/string/libString.la ../lib/sync/libSync.la \
+	../lib/system/libSystem.la ../lib/stubs/libStubsCS.la \
+	../lib/unicode/libUnicode.la ../lib/user/libUser.la \
+	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
+	../lib/wiper/libWiper.la
+am_libvmtools_la_OBJECTS = libvmtools_la-signalSource.lo \
+	libvmtools_la-vmtools.lo libvmtools_la-vmtoolsConfig.lo \
+	libvmtools_la-vmtoolsLog.lo libvmtools_la-rpcin.lo \
+	libvmtools_la-stub-log.lo
+libvmtools_la_OBJECTS = $(am_libvmtools_la_OBJECTS)
+libvmtools_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libvmtools_la_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -83,8 +101,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libBackdoor_la_SOURCES)
-DIST_SOURCES = $(am__libBackdoor_la_SOURCES_DIST)
+SOURCES = $(libvmtools_la_SOURCES)
+DIST_SOURCES = $(libvmtools_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -119,6 +137,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+GLIB2_CPPFLAGS = @GLIB2_CPPFLAGS@
+GLIB2_LIBS = @GLIB2_LIBS@
 GREP = @GREP@
 GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
@@ -142,6 +162,7 @@ LIBPNG_CPPFLAGS = @LIBPNG_CPPFLAGS@
 LIBPNG_LIBS = @LIBPNG_LIBS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
 LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
 LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
@@ -179,6 +200,8 @@ TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
 VERSION = @VERSION@
+VMTOOLS_CPPFLAGS = @VMTOOLS_CPPFLAGS@
+VMTOOLS_LIBS = @VMTOOLS_LIBS@
 VMWARE_USER_CPPFLAGS = @VMWARE_USER_CPPFLAGS@
 VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
 XMKMF = @XMKMF@
@@ -240,8 +263,32 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-noinst_LTLIBRARIES = libBackdoor.la
-libBackdoor_la_SOURCES = ../backdoor.c $(am__append_1) $(am__append_2)
+lib_LTLIBRARIES = libvmtools.la
+libvmtools_la_LIBADD = ../lib/backdoor/libBackdoor.la \
+	../lib/conf/libConf.la ../lib/dict/libDict.la \
+	../lib/dynxdr/libDynxdr.la ../lib/err/libErr.la \
+	../lib/file/libFile.la ../lib/guestApp/libGuestApp.la \
+	../lib/guestInfo/libGuestInfoCS.la ../lib/hgfs/libHgfs.la \
+	../lib/message/libMessage.la ../lib/misc/libMisc.la \
+	../lib/panic/libPanic.la ../lib/rpcOut/libRpcOut.la \
+	../lib/string/libString.la ../lib/sync/libSync.la \
+	../lib/system/libSystem.la ../lib/stubs/libStubsCS.la \
+	../lib/unicode/libUnicode.la ../lib/user/libUser.la \
+	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
+	../lib/wiper/libWiper.la @LIBVMTOOLS_LIBADD@ @GLIB2_LIBS@ \
+	@ICU_LIBS@ $(am__empty)
+
+# Recompile the rpcIn library with GLIB support.
+
+# Recompile the stub for Log_* functions, but not Log() itself (see -DNO_LOG_STUB).
+libvmtools_la_SOURCES = signalSource.c vmtools.c vmtoolsConfig.c \
+	vmtoolsLog.c $(top_srcdir)/lib/rpcIn/rpcin.c \
+	$(top_srcdir)/lib/stubs/stub-log.c
+libvmtools_la_CPPFLAGS = -DVMTOOLS_USE_GLIB -DNO_LOG_STUB \
+	@GLIB2_CPPFLAGS@ $(am__empty)
+# We require GCC, so we're fine passing compiler-specific flags.
+# Needed for OS's that don't link shared libraries against libc by default, e.g. FreeBSD
+libvmtools_la_LDFLAGS = -Wl,-z,defs -Wl,-lc
 all: all-am
 
 .SUFFIXES:
@@ -255,9 +302,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/backdoor/shared/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  libvmtools/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  lib/backdoor/shared/Makefile
+	  $(AUTOMAKE) --gnu  libvmtools/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -275,17 +322,35 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    f=$(am__strip_dir) \
+	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
+	  else :; fi; \
+	done
 
-clean-noinstLTLIBRARIES:
-	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
-	@list='$(noinst_LTLIBRARIES)'; for p in $$list; do \
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  p=$(am__strip_dir) \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
+	done
+
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
 	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
 	  test "$$dir" != "$$p" || dir=.; \
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libBackdoor.la: $(libBackdoor_la_OBJECTS) $(libBackdoor_la_DEPENDENCIES) 
-	$(LINK)  $(libBackdoor_la_OBJECTS) $(libBackdoor_la_LIBADD) $(LIBS)
+libvmtools.la: $(libvmtools_la_OBJECTS) $(libvmtools_la_DEPENDENCIES) 
+	$(libvmtools_la_LINK) -rpath $(libdir) $(libvmtools_la_OBJECTS) $(libvmtools_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -293,9 +358,12 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/backdoor.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/backdoorGcc32.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/backdoorGcc64.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-rpcin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-signalSource.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-stub-log.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-vmtools.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-vmtoolsConfig.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-vmtoolsLog.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -318,26 +386,47 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-backdoor.lo: ../backdoor.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT backdoor.lo -MD -MP -MF $(DEPDIR)/backdoor.Tpo -c -o backdoor.lo `test -f '../backdoor.c' || echo '$(srcdir)/'`../backdoor.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/backdoor.Tpo $(DEPDIR)/backdoor.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../backdoor.c' object='backdoor.lo' libtool=yes @AMDEPBACKSLASH@
+libvmtools_la-signalSource.lo: signalSource.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-signalSource.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-signalSource.Tpo -c -o libvmtools_la-signalSource.lo `test -f 'signalSource.c' || echo '$(srcdir)/'`signalSource.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-signalSource.Tpo $(DEPDIR)/libvmtools_la-signalSource.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='signalSource.c' object='libvmtools_la-signalSource.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o backdoor.lo `test -f '../backdoor.c' || echo '$(srcdir)/'`../backdoor.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-signalSource.lo `test -f 'signalSource.c' || echo '$(srcdir)/'`signalSource.c
 
-backdoorGcc32.lo: ../backdoorGcc32.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT backdoorGcc32.lo -MD -MP -MF $(DEPDIR)/backdoorGcc32.Tpo -c -o backdoorGcc32.lo `test -f '../backdoorGcc32.c' || echo '$(srcdir)/'`../backdoorGcc32.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/backdoorGcc32.Tpo $(DEPDIR)/backdoorGcc32.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../backdoorGcc32.c' object='backdoorGcc32.lo' libtool=yes @AMDEPBACKSLASH@
+libvmtools_la-vmtools.lo: vmtools.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-vmtools.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-vmtools.Tpo -c -o libvmtools_la-vmtools.lo `test -f 'vmtools.c' || echo '$(srcdir)/'`vmtools.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-vmtools.Tpo $(DEPDIR)/libvmtools_la-vmtools.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='vmtools.c' object='libvmtools_la-vmtools.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o backdoorGcc32.lo `test -f '../backdoorGcc32.c' || echo '$(srcdir)/'`../backdoorGcc32.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-vmtools.lo `test -f 'vmtools.c' || echo '$(srcdir)/'`vmtools.c
 
-backdoorGcc64.lo: ../backdoorGcc64.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT backdoorGcc64.lo -MD -MP -MF $(DEPDIR)/backdoorGcc64.Tpo -c -o backdoorGcc64.lo `test -f '../backdoorGcc64.c' || echo '$(srcdir)/'`../backdoorGcc64.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/backdoorGcc64.Tpo $(DEPDIR)/backdoorGcc64.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../backdoorGcc64.c' object='backdoorGcc64.lo' libtool=yes @AMDEPBACKSLASH@
+libvmtools_la-vmtoolsConfig.lo: vmtoolsConfig.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-vmtoolsConfig.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-vmtoolsConfig.Tpo -c -o libvmtools_la-vmtoolsConfig.lo `test -f 'vmtoolsConfig.c' || echo '$(srcdir)/'`vmtoolsConfig.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-vmtoolsConfig.Tpo $(DEPDIR)/libvmtools_la-vmtoolsConfig.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='vmtoolsConfig.c' object='libvmtools_la-vmtoolsConfig.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o backdoorGcc64.lo `test -f '../backdoorGcc64.c' || echo '$(srcdir)/'`../backdoorGcc64.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-vmtoolsConfig.lo `test -f 'vmtoolsConfig.c' || echo '$(srcdir)/'`vmtoolsConfig.c
+
+libvmtools_la-vmtoolsLog.lo: vmtoolsLog.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-vmtoolsLog.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-vmtoolsLog.Tpo -c -o libvmtools_la-vmtoolsLog.lo `test -f 'vmtoolsLog.c' || echo '$(srcdir)/'`vmtoolsLog.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-vmtoolsLog.Tpo $(DEPDIR)/libvmtools_la-vmtoolsLog.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='vmtoolsLog.c' object='libvmtools_la-vmtoolsLog.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-vmtoolsLog.lo `test -f 'vmtoolsLog.c' || echo '$(srcdir)/'`vmtoolsLog.c
+
+libvmtools_la-rpcin.lo: $(top_srcdir)/lib/rpcIn/rpcin.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-rpcin.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-rpcin.Tpo -c -o libvmtools_la-rpcin.lo `test -f '$(top_srcdir)/lib/rpcIn/rpcin.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/rpcIn/rpcin.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-rpcin.Tpo $(DEPDIR)/libvmtools_la-rpcin.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/rpcIn/rpcin.c' object='libvmtools_la-rpcin.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-rpcin.lo `test -f '$(top_srcdir)/lib/rpcIn/rpcin.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/rpcIn/rpcin.c
+
+libvmtools_la-stub-log.lo: $(top_srcdir)/lib/stubs/stub-log.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-stub-log.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-stub-log.Tpo -c -o libvmtools_la-stub-log.lo `test -f '$(top_srcdir)/lib/stubs/stub-log.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/stubs/stub-log.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-stub-log.Tpo $(DEPDIR)/libvmtools_la-stub-log.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/stubs/stub-log.c' object='libvmtools_la-stub-log.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-stub-log.lo `test -f '$(top_srcdir)/lib/stubs/stub-log.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/stubs/stub-log.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -423,6 +512,9 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(LTLIBRARIES)
 installdirs:
+	for dir in "$(DESTDIR)$(libdir)"; do \
+	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -449,7 +541,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
+clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -472,7 +564,7 @@ install-data-am:
 
 install-dvi: install-dvi-am
 
-install-exec-am:
+install-exec-am: install-libLTLIBRARIES
 
 install-html: install-html-am
 
@@ -504,22 +596,23 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am:
+uninstall-am: uninstall-libLTLIBRARIES
 
 .MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-noinstLTLIBRARIES ctags distclean \
+	clean-libLTLIBRARIES clean-libtool ctags distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-dvi \
 	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am
+	install-html-am install-info install-info-am \
+	install-libLTLIBRARIES install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-libLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

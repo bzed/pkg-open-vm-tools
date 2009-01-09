@@ -1,16 +1,11 @@
-open-vm-tools (2008.11.18-130226-1lenny2) stable; urgency=low
+open-vm-tools (2008.12.23-137496-1) unstable; urgency=low
 
-  * Updating kvers.dpatch in order to fix builds for other kernels than
-    the running one (Closing: #499303).
+  * Merging upstream version 2008.12.23-137496.
+  * Also unload vmxnet module in initscript when starting as a workaround of
+    having vmxnet already loaded at initramfs stage. Thanks to Russ Allbery
+    <rra@debian.org> (Closes: #510935).
 
- -- Daniel Baumann <daniel@debian.org>  Sat, 21 Mar 2009 12:39:00 +0100
-
-open-vm-tools (2008.11.18-130226-1lenny1) testing; urgency=medium
-
-  * Always prefering vmxnet over pcnet32 through modprobe and initramfs
-    configuration (Closes: #502365).
-
- -- Daniel Baumann <daniel@debian.org>  Thu,  5 Feb 2009 01:11:00 +0100
+ -- Daniel Baumann <daniel@debian.org>  Fri,  9 Jan 2009 12:13:00 -0500
 
 open-vm-tools (2008.11.18-130226-1) unstable; urgency=low
 

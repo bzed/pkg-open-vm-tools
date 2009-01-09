@@ -5,18 +5,6 @@
 
 @DPATCH@
 
-diff -Naurp open-vm-tools.orig/modules/linux/pvscsi/Makefile open-vm-tools/modu
---- open-vm-tools.orig/modules/linux/pvscsi/Makefile   2009-03-15 12:27:47.0000
-+++ open-vm-tools/modules/linux/pvscsi/Makefile        2009-03-18 21:47:57.0000
-@@ -26,7 +26,7 @@
- ####
- SRCROOT = .
- 
--VM_UNAME = $(shell uname -r)
-+VM_UNAME = $(KVERS)
- 
- # Header directory for the running kernel
- HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 diff -Naurp open-vm-tools.orig/modules/linux/vmblock/Makefile open-vm-tools/modules/linux/vmblock/Makefile
 --- open-vm-tools.orig/modules/linux/vmblock/Makefile	2008-10-16 07:38:58.000000000 +0200
 +++ open-vm-tools/modules/linux/vmblock/Makefile	2008-10-16 07:37:43.000000000 +0200

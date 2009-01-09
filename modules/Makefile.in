@@ -76,6 +76,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+GLIB2_CPPFLAGS = @GLIB2_CPPFLAGS@
+GLIB2_LIBS = @GLIB2_LIBS@
 GREP = @GREP@
 GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
@@ -99,6 +101,7 @@ LIBPNG_CPPFLAGS = @LIBPNG_CPPFLAGS@
 LIBPNG_LIBS = @LIBPNG_LIBS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
 LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
 LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
@@ -136,6 +139,8 @@ TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
 VERSION = @VERSION@
+VMTOOLS_CPPFLAGS = @VMTOOLS_CPPFLAGS@
+VMTOOLS_LIBS = @VMTOOLS_LIBS@
 VMWARE_USER_CPPFLAGS = @VMWARE_USER_CPPFLAGS@
 VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
 XMKMF = @XMKMF@
@@ -197,6 +202,7 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+modulesrc = $(top_srcdir)/modules
 all: all-am
 
 .SUFFIXES:
@@ -374,8 +380,9 @@ all: modules
 modules: $(MODULES)
 
 $(MODULES):
-	$(MAKE) VM_UNAME=$(KERNEL_RELEASE) -C "$(MODULES_OS)/$@"
+	$(MAKE) VM_UNAME=$(KERNEL_RELEASE) -C "$(modulesrc)/$(MODULES_OS)/$@"
 
+@LINUX_TRUE@export pvscsidir := $(MODULES_DIR)/drivers/scsi
 @LINUX_TRUE@export vmblockdir := $(MODULES_DIR)/fs/vmblock
 @LINUX_TRUE@export vmcidir := $(MODULES_DIR)/drivers/misc
 @LINUX_TRUE@export vmhgfsdir := $(MODULES_DIR)/fs/vmhgfs
@@ -393,20 +400,23 @@ $(MODULES):
 @FREEBSD_TRUE@export vmxnetdir := $(MODULES_DIR)
 
 clean-local:
-	for MOD in $(MODULES); do \
-	   $(MAKE) -C "$(MODULES_OS)/$$MOD" clean || exit 1; \
+	for MOD in $(MODULES); do 															\
+	   if [ -d "$(modulesrc)/$(MODULES_OS)/$$MOD" ]; then						\
+	      $(MAKE) -C "$(modulesrc)/$(MODULES_OS)/$$MOD" clean || exit 1; \
+	   fi																						\
 	done
-	$(RM) -f $(MODULES_OS)/*.o $(MODULES_OS)/*.ko
+	$(RM) -f $(modulesrc)/$(MODULES_OS)/*.o $(modulesrc)/$(MODULES_OS)/*.ko
 
 install-exec-hook:
-	for MOD in $(MODULES); do \
-		$(INSTALL) -d $(DESTDIR)`eval echo '$$'$${MOD}dir`; \
-		$(INSTALL) -m644 $(MODULES_OS)/$$MOD/$$MOD.ko $(DESTDIR)`eval echo '$$'$${MOD}dir`; \
+	for MOD in $(MODULES); do 													\
+	   $(INSTALL) -d $(DESTDIR)`eval echo '$$'$${MOD}dir`; 			\
+	   $(INSTALL) -m644 $(modulesrc)/$(MODULES_OS)/$$MOD/$$MOD.ko	\
+	      $(DESTDIR)`eval echo '$$'$${MOD}dir`; 							\
 	done
 	eval "$$DEPMOD"
 uninstall-hook:
 	for MOD in $(MODULES); do \
-		$(RM) -f $(DESTDIR)`eval echo '$$'$${MOD}dir`/$$MOD.ko &> /dev/null; \
+	   $(RM) -f $(DESTDIR)`eval echo '$$'$${MOD}dir`/$$MOD.ko &> /dev/null; \
 	done
 	eval "$$DEPMOD"
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
