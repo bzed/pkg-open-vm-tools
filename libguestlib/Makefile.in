@@ -71,7 +71,8 @@ libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libguestlib_la_DEPENDENCIES = ../lib/rpcOut/libRpcOut.la \
 	../lib/string/libString.la ../lib/stubs/libStubs.la \
-	../lib/message/libMessage.la ../lib/backdoor/libBackdoor.la
+	../lib/message/libMessage.la ../lib/backdoor/libBackdoor.la \
+	../lib/guestRpc/libGuestRpc.la
 am_libguestlib_la_OBJECTS = vmGuestLib.lo vmGuestLibPanic.lo
 libguestlib_la_OBJECTS = $(am_libguestlib_la_OBJECTS)
 libguestlib_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -125,6 +126,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+FUSE_CPPFLAGS = @FUSE_CPPFLAGS@
+FUSE_LIBS = @FUSE_LIBS@
 GLIB2_CPPFLAGS = @GLIB2_CPPFLAGS@
 GLIB2_LIBS = @GLIB2_LIBS@
 GREP = @GREP@
@@ -252,12 +255,14 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 lib_LTLIBRARIES = libguestlib.la
+AM_CFLAGS = -I$(top_builddir)/include
 # In the absence of the linker options --start-group and --end-group (which can't
 # be put in LDADD), we need to bring the following libraries out of the alphebetical
 # order so their symbols are properly resolved.
 libguestlib_la_LIBADD = ../lib/rpcOut/libRpcOut.la \
 	../lib/string/libString.la ../lib/stubs/libStubs.la \
-	../lib/message/libMessage.la ../lib/backdoor/libBackdoor.la
+	../lib/message/libMessage.la ../lib/backdoor/libBackdoor.la \
+	../lib/guestRpc/libGuestRpc.la
 libguestlib_la_SOURCES = vmGuestLib.c vmGuestLibPanic.c
 # We require GCC, so we're fine passing compiler-specific flags.
 # Needed for OS's that don't link shared libraries against libc by default, e.g. FreeBSD
