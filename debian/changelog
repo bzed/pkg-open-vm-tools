@@ -1,3 +1,10 @@
+open-vm-tools (2009.01.21-142982-2) unstable; urgency=medium
+
+  * Always prefering vmxnet over pcnet32 through modprobe and initramfs
+    configuration (Closes: #502365).
+
+ -- Daniel Baumann <daniel@debian.org>  Wed,  4 Feb 2009 11:28:00 +0100
+
 open-vm-tools (2009.01.21-142982-1) unstable; urgency=low
 
   * Merging upstream version 2009.01.21-142982.
