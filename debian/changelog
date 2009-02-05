@@ -1,3 +1,10 @@
+open-vm-tools (2008.11.18-130226-1lenny1) testing; urgency=medium
+
+  * Always prefering vmxnet over pcnet32 through modprobe and initramfs
+    configuration (Closes: #502365).
+
+ -- Daniel Baumann <daniel@debian.org>  Thu,  5 Feb 2009 01:11:00 +0100
+
 open-vm-tools (2008.11.18-130226-1) unstable; urgency=low
 
   * Replacing obsolete dh_clean -k with dh_prep.
