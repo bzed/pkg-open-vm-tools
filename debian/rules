@@ -98,7 +98,7 @@ ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 endif
 
 	# Configuring package
-	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --sysconfdir=/etc --mandir=\$${prefix}/share/man --disable-unity --without-kernel-modules
+	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --sysconfdir=/etc --mandir=\$${prefix}/share/man --without-kernel-modules
 
 build: build-stamp
 build-stamp: config.status

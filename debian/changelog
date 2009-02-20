@@ -1,3 +1,11 @@
+open-vm-tools (2009.02.18-148847-1) unstable; urgency=low
+
+  * Merging upstream version 2009.02.18-148847.
+  * Enabling unity support, uriparser 0.7 is finally available.
+  * Adding libgtkmm-2.4-dev to build-depends.
+
+ -- Daniel Baumann <daniel@debian.org>  Fri, 20 Feb 2009 09:03:00 +0100
+
 open-vm-tools (2009.01.21-142982-2) unstable; urgency=medium
 
   * Always prefering vmxnet over pcnet32 through modprobe and initramfs
