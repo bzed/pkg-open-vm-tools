@@ -141,7 +141,6 @@ install: build
 
 	chmod 0644 debian/open-vm-tools/etc/pam.d/vmware-guestd
 
-	install -D -m 0644 debian/config/vmxnet.modprobe debian/open-vm-tools/etc/modprobe.d/vmxnet
 	install -D -m 0755 debian/config/vmxnet.hook debian/open-vm-tools/usr/share/initramfs-tools/hooks/vmxnet
 
 	# Moving open-vm-tools files
@@ -185,6 +184,7 @@ binary-arch: build install
 	dh_install
 	dh_installman
 	dh_installinit --update-rcd-params='start 38 S . stop 38 0 6 .'
+	dh_installmodules
 	dh_lintian
 	dh_link
 	dh_strip --dbg-package=open-vm-tools-dbg

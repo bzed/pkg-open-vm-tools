@@ -1,3 +1,9 @@
+open-vm-tools (2009.02.18-148847-2) unstable; urgency=low
+
+  * Using debhelper to install vmxnet modprobe file.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun,  8 Mar 2009 16:03:00 +0100
+
 open-vm-tools (2009.02.18-148847-1) unstable; urgency=low
 
   * Merging upstream version 2009.02.18-148847.
