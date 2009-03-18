@@ -1,3 +1,9 @@
+open-vm-tools (2009.02.18-148847-3) unstable; urgency=medium
+
+  * Updating kvers.dpatch.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 18 Mar 2009 23:16:06 +0100
+
 open-vm-tools (2009.02.18-148847-2) unstable; urgency=low
 
   * Using debhelper to install vmxnet modprobe file.
