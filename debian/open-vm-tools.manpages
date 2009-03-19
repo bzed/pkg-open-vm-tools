@@ -1,6 +1,6 @@
-debian/manpage/vmware-checkvm.1
-debian/manpage/vmware-hgfsclient.1
-debian/manpage/vmware-xferlogs.1
-debian/manpage/vmware-guestd.8
-debian/manpage/vmware-hgfsmounter.8
-debian/manpage/*.9
+debian/manpages/vmware-checkvm.1
+debian/manpages/vmware-hgfsclient.1
+debian/manpages/vmware-xferlogs.1
+debian/manpages/vmware-guestd.8
+debian/manpages/vmware-hgfsmounter.8
+debian/manpages/*.9

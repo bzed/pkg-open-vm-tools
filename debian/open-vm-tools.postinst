@@ -27,4 +27,11 @@ else
 	DPKG_MAINTSCRIPT_PACKAGE="" /usr/sbin/update-initramfs ${INITRAMFS_ARGS}
 fi
 
+# Handling lenny (/etc/modprobe.d/vmxnet) to squeeze
+# (/etc/modprobe.d/open-vm-tools) update
+if [ -e /etc/modprobe.d/vmxnet ]
+then
+	mv /etc/modprobe.d/vmxnet /etc/modprobe.d/open-vm-tools
+fi
+
 #DEBHELPER#

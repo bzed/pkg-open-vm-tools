@@ -83,15 +83,15 @@ am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am__vmware_user_SOURCES_DIST = copyPaste.c copyPasteUI.cpp \
-	copyPasteWrapper.cpp debugStdio.c dnd.c foreignVMToolsDaemon.c \
-	foreignVMToolsNetworking.c \
+	copyPasteDnDWrapper.cpp debugStdio.c dnd.c \
+	foreignVMToolsDaemon.c foreignVMToolsNetworking.c \
 	$(top_srcdir)/services/plugins/vix/foundryToolsDaemon.c \
 	notify.c pointer.c stringxx/string.cc vmware-user.cpp
 @HAVE_GTKMM_TRUE@am__objects_1 = copyPasteUI.$(OBJEXT)
 @HAVE_GTKMM_TRUE@am__objects_2 = string.$(OBJEXT)
 am_vmware_user_OBJECTS = copyPaste.$(OBJEXT) $(am__objects_1) \
-	copyPasteWrapper.$(OBJEXT) debugStdio.$(OBJEXT) dnd.$(OBJEXT) \
-	foreignVMToolsDaemon.$(OBJEXT) \
+	copyPasteDnDWrapper.$(OBJEXT) debugStdio.$(OBJEXT) \
+	dnd.$(OBJEXT) foreignVMToolsDaemon.$(OBJEXT) \
 	foreignVMToolsNetworking.$(OBJEXT) \
 	foundryToolsDaemon.$(OBJEXT) notify.$(OBJEXT) \
 	pointer.$(OBJEXT) $(am__objects_2) vmware-user.$(OBJEXT)
@@ -252,6 +252,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -364,8 +365,8 @@ vmware_user_LDADD = ../lib/conf/libConf.la $(am__append_2) \
 	$(am__append_9) @VMWARE_USER_LDADD@ @COMMON_XLIBS@ \
 	$(am__append_10) $(am__append_13)
 vmware_user_SOURCES = copyPaste.c $(am__append_11) \
-	copyPasteWrapper.cpp debugStdio.c dnd.c foreignVMToolsDaemon.c \
-	foreignVMToolsNetworking.c \
+	copyPasteDnDWrapper.cpp debugStdio.c dnd.c \
+	foreignVMToolsDaemon.c foreignVMToolsNetworking.c \
 	$(top_srcdir)/services/plugins/vix/foundryToolsDaemon.c \
 	notify.c pointer.c $(am__append_12) vmware-user.cpp
 @HAVE_ICU_FALSE@vmware_user_LINK = $(LINK)
@@ -445,8 +446,8 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/copyPaste.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/copyPasteDnDWrapper.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/copyPasteUI.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/copyPasteWrapper.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debugStdio.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dnd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/foreignVMToolsDaemon.Po@am__quote@

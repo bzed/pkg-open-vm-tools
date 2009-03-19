@@ -31,7 +31,6 @@
 ### Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ################################################################################
 
-
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkglibdir = $(libdir)/@PACKAGE@
@@ -63,7 +62,7 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(pamdir)"
+am__installdirs = "$(DESTDIR)$(sbindir)"
 sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(sbin_PROGRAMS)
 am_vmware_guestd_OBJECTS = debugStdio.$(OBJEXT) \
@@ -102,8 +101,6 @@ vmware_guestd_DEPENDENCIES = ../lib/backdoor/libBackdoor.la \
 	../lib/auth/libAuth.la ../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
-pamSCRIPT_INSTALL = $(INSTALL_SCRIPT)
-SCRIPTS = $(pam_SCRIPTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -221,6 +218,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -295,7 +293,6 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-pamdir = $(PAM_PREFIX)/pam.d
 AM_CFLAGS = -I$(top_builddir)/include \
 	-I$(top_srcdir)/services/plugins/vix
 # In the absence of the linker options --start-group and --end-group (which
@@ -340,8 +337,6 @@ vmware_guestd_SOURCES = debugStdio.c foreignVMToolsDaemon.c \
 @HAVE_ICU_TRUE@                        $(LIBTOOLFLAGS) --mode=link $(CXX) $(AM_CXXFLAGS) \
 @HAVE_ICU_TRUE@                        $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 
-@LINUX_TRUE@@PAMD_TRUE@@THIRTY_TWO_BIT_USERSPACE_FALSE@pam_SCRIPTS = ../scripts/linux/pam.d/vmware-guestd-x64
-@LINUX_TRUE@@PAMD_TRUE@@THIRTY_TWO_BIT_USERSPACE_TRUE@pam_SCRIPTS = ../scripts/linux/pam.d/vmware-guestd
 all: all-am
 
 .SUFFIXES:
@@ -406,25 +401,6 @@ clean-sbinPROGRAMS:
 vmware-guestd$(EXEEXT): $(vmware_guestd_OBJECTS) $(vmware_guestd_DEPENDENCIES) 
 	@rm -f vmware-guestd$(EXEEXT)
 	$(vmware_guestd_LINK) $(vmware_guestd_OBJECTS) $(vmware_guestd_LDADD) $(LIBS)
-install-pamSCRIPTS: $(pam_SCRIPTS)
-	@$(NORMAL_INSTALL)
-	test -z "$(pamdir)" || $(MKDIR_P) "$(DESTDIR)$(pamdir)"
-	@list='$(pam_SCRIPTS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  if test -f $$d$$p; then \
-	    f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
-	    echo " $(pamSCRIPT_INSTALL) '$$d$$p' '$(DESTDIR)$(pamdir)/$$f'"; \
-	    $(pamSCRIPT_INSTALL) "$$d$$p" "$(DESTDIR)$(pamdir)/$$f"; \
-	  else :; fi; \
-	done
-
-uninstall-pamSCRIPTS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(pam_SCRIPTS)'; for p in $$list; do \
-	  f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
-	  echo " rm -f '$(DESTDIR)$(pamdir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(pamdir)/$$f"; \
-	done
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -556,9 +532,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS) $(SCRIPTS)
+all-am: Makefile $(PROGRAMS)
 installdirs:
-	for dir in "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(pamdir)"; do \
+	for dir in "$(DESTDIR)$(sbindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -606,13 +582,11 @@ info: info-am
 
 info-am:
 
-install-data-am: install-pamSCRIPTS
+install-data-am:
 
 install-dvi: install-dvi-am
 
 install-exec-am: install-sbinPROGRAMS
-	@$(NORMAL_INSTALL)
-	$(MAKE) $(AM_MAKEFLAGS) install-exec-hook
 
 install-html: install-html-am
 
@@ -644,34 +618,24 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-pamSCRIPTS uninstall-sbinPROGRAMS
-	@$(NORMAL_INSTALL)
-	$(MAKE) $(AM_MAKEFLAGS) uninstall-hook
+uninstall-am: uninstall-sbinPROGRAMS
 
-.MAKE: install-am install-exec-am install-strip uninstall-am
+.MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
 	clean-libtool clean-sbinPROGRAMS ctags distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-exec-hook \
-	install-html install-html-am install-info install-info-am \
-	install-man install-pamSCRIPTS install-pdf install-pdf-am \
-	install-ps install-ps-am install-sbinPROGRAMS install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-sbinPROGRAMS install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-hook \
-	uninstall-pamSCRIPTS uninstall-sbinPROGRAMS
+	tags uninstall uninstall-am uninstall-sbinPROGRAMS
 
-
-install-exec-hook:
-	$(INSTALL) -d $(DESTDIR)/etc/vmware-tools
-	echo 'disable-tools-version = "true"' > $(DESTDIR)/etc/vmware-tools/tools.conf
-
-uninstall-hook:
-	rm -rf $(DESTDIR)/etc/vmware-tools
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

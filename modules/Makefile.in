@@ -145,6 +145,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -220,6 +221,7 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 modulesrc = $(top_srcdir)/modules
+@FREEBSD_CUSTOM_SYSDIR_TRUE@EXTRA_ARGS = "SYSDIR=@SYSDIR@"
 # Solaris does not have Kbuild-like system so we need to supply
 # compiler and linker and other items discovered by configure
 # script.

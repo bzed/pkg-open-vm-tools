@@ -85,9 +85,10 @@ RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = lib guestd vmware-user vmware-user-suid-wrapper \
-	hgfsclient hgfsmounter checkvm libguestlib libvmtools scripts \
-	services toolbox vmblock-fuse xferlogs tests modules
+DIST_SUBDIRS = lib libvmtools guestd vmware-user \
+	vmware-user-suid-wrapper hgfsclient hgfsmounter checkvm \
+	libguestlib rpctool scripts services toolbox vmblock-fuse \
+	xferlogs tests modules
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -199,6 +200,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -280,9 +282,9 @@ ACLOCAL_AMFLAGS = -I m4
 
 # These subdirectories require X, and may be disabled using --without-x
 X11_SUBDIRS = vmware-user vmware-user-suid-wrapper
-SUBDIRS = lib guestd $(am__append_1) hgfsclient $(am__append_2) \
-	checkvm libguestlib libvmtools scripts services toolbox \
-	$(am__append_3) xferlogs tests $(am__append_4)
+SUBDIRS = lib libvmtools guestd $(am__append_1) hgfsclient \
+	$(am__append_2) checkvm libguestlib rpctool scripts services \
+	toolbox $(am__append_3) xferlogs tests $(am__append_4)
 all: all-recursive
 
 .SUFFIXES:

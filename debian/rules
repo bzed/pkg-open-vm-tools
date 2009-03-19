@@ -3,7 +3,7 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-include /usr/share/dpatch/dpatch.make
+include /usr/share/quilt/quilt.make
 
 # These are used for cross-compiling and for saving the configure script
 # from having to guess our platform (since we know it already)
@@ -87,7 +87,7 @@ binary-modules: prep-deb-files
 	dh_builddeb --destdir=$(DEB_DESTDIR)
 	dh_prep
 
-config.status: configure patch-stamp
+config.status: configure patch
 	dh_testdir
 
 ifneq "$(wildcard /usr/share/misc/config.sub)" ""
@@ -133,13 +133,13 @@ install: build
 
 	install -D -m 0644 toolbox/smallIcon.xpm debian/open-vm-toolbox/usr/share/pixmaps/vmware-toolbox.xpm
 
-	set -e; if [ -e debian/open-vm-tools/etc/pam.d/vmware-guestd-x64 ]; \
+	set -e; if [ -e debian/open-vm-tools/etc/pam.d/vmtoolsd-x64 ]; \
 	then \
-		sed -i -e "s|lib64|lib|g" debian/open-vm-tools/etc/pam.d/vmware-guestd-x64; \
-		mv debian/open-vm-tools/etc/pam.d/vmware-guestd-x64 debian/open-vm-tools/etc/pam.d/vmware-guestd; \
+		sed -i -e "s|lib64|lib|g" debian/open-vm-tools/etc/pam.d/vmtoolsd-x64; \
+		mv debian/open-vm-tools/etc/pam.d/vmtoolsd-x64 debian/open-vm-tools/etc/pam.d/vmtoolsd; \
 	fi
 
-	chmod 0644 debian/open-vm-tools/etc/pam.d/vmware-guestd
+	chmod 0644 debian/open-vm-tools/etc/pam.d/vmtoolsd
 
 	install -D -m 0755 debian/config/vmxnet.hook debian/open-vm-tools/usr/share/initramfs-tools/hooks/vmxnet
 

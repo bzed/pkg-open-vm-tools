@@ -1,9 +1,5 @@
-#!/bin/sh /usr/share/dpatch/dpatch-run
-## 01-kvers.dpatch by Cyril Brulebois <cyril.brulebois@enst-bretagne.fr>
-##
-## DP: Replacing uname call with KVERS, overwriting seemed not to work.
-
-@DPATCH@
+Author: Cyril Brulebois <cyril.brulebois@enst-bretagne.fr>
+Description: Replacing uname call with KVERS, overwriting seemed not to work.
 
 diff -Naurp open-vm-tools.orig/modules/linux/pvscsi/Makefile open-vm-tools/modules/linux/pvscsi/Makefile
 --- open-vm-tools.orig/modules/linux/pvscsi/Makefile	2009-03-15 12:27:47.000000000 +0000
