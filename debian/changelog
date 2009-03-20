@@ -1,3 +1,9 @@
+open-vm-tools (2009.03.18-154848-2) unstable; urgency=low
+
+  * Correcting patch system depends (Closes: #520493).
+
+ -- Daniel Baumann <daniel@debian.org>  Fri, 20 Mar 2009 10:19:00 +0100
+
 open-vm-tools (2009.03.18-154848-1) unstable; urgency=low
 
   * Updating section of debug packages.

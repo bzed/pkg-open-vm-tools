@@ -55,7 +55,7 @@ Description: tools and components for VMware guest systems (debug)
 
 Package: open-vm-source
 Architecture: all
-Depends: debhelper (>= 7), dpatch, make, bzip2
+Depends: debhelper (>= 7), quilt, make, bzip2
 Recommends: module-assistant, open-vm-tools
 Suggests: open-vm-toolbox
 Description: Source for VMware guest systems driver
