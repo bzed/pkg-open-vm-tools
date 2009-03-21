@@ -1,3 +1,10 @@
+open-vm-tools (2008.11.18-130226-1lenny2) stable; urgency=low
+
+  * Updating kvers.dpatch in order to fix builds for other kernels than
+    the running one (Closing: #499303).
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 21 Mar 2009 12:39:00 +0100
+
 open-vm-tools (2008.11.18-130226-1lenny1) testing; urgency=medium
 
   * Always prefering vmxnet over pcnet32 through modprobe and initramfs
