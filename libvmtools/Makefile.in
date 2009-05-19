@@ -73,7 +73,7 @@ libvmtools_la_DEPENDENCIES = ../lib/backdoor/libBackdoor.la \
 	../lib/conf/libConf.la ../lib/dict/libDict.la \
 	../lib/dynxdr/libDynxdr.la ../lib/err/libErr.la \
 	../lib/file/libFile.la ../lib/guestApp/libGuestApp.la \
-	../lib/guestInfo/libGuestInfoCS.la \
+	../lib/guestInfo/libGuestInfo.la \
 	../lib/guestRpc/libGuestRpc.la ../lib/hgfs/libHgfs.la \
 	../lib/message/libMessage.la ../lib/misc/libMisc.la \
 	../lib/netUtil/libNetUtil.la ../lib/panic/libPanic.la \
@@ -132,6 +132,7 @@ DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DNET_CPPFLAGS = @DNET_CPPFLAGS@
 DNET_LIBS = @DNET_LIBS@
+DOT = @DOT@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -155,7 +156,7 @@ GTKMM_CPPFLAGS = @GTKMM_CPPFLAGS@
 GTKMM_LIBS = @GTKMM_LIBS@
 GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDADD = @GUESTD_LDADD@
+HAVE_DOT = @HAVE_DOT@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 ICU_CPPFLAGS = @ICU_CPPFLAGS@
 ICU_LIBS = @ICU_LIBS@
@@ -188,6 +189,8 @@ MKDIR_P = @MKDIR_P@
 MODULES = @MODULES@
 MODULES_DIR = @MODULES_DIR@
 MODULES_OS = @MODULES_OS@
+MSCGEN = @MSCGEN@
+MSCGEN_DIR = @MSCGEN_DIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
@@ -212,6 +215,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
 VERSION = @VERSION@
@@ -256,6 +260,7 @@ docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 have_cxx = @have_cxx@
+have_doxygen = @have_doxygen@
 have_genmarshal = @have_genmarshal@
 host = @host@
 host_alias = @host_alias@
@@ -290,7 +295,7 @@ libvmtools_la_LIBADD = ../lib/backdoor/libBackdoor.la \
 	../lib/conf/libConf.la ../lib/dict/libDict.la \
 	../lib/dynxdr/libDynxdr.la ../lib/err/libErr.la \
 	../lib/file/libFile.la ../lib/guestApp/libGuestApp.la \
-	../lib/guestInfo/libGuestInfoCS.la \
+	../lib/guestInfo/libGuestInfo.la \
 	../lib/guestRpc/libGuestRpc.la ../lib/hgfs/libHgfs.la \
 	../lib/message/libMessage.la ../lib/misc/libMisc.la \
 	../lib/netUtil/libNetUtil.la ../lib/panic/libPanic.la \

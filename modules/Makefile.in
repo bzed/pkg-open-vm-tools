@@ -67,6 +67,7 @@ DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DNET_CPPFLAGS = @DNET_CPPFLAGS@
 DNET_LIBS = @DNET_LIBS@
+DOT = @DOT@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -90,7 +91,7 @@ GTKMM_CPPFLAGS = @GTKMM_CPPFLAGS@
 GTKMM_LIBS = @GTKMM_LIBS@
 GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDADD = @GUESTD_LDADD@
+HAVE_DOT = @HAVE_DOT@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 ICU_CPPFLAGS = @ICU_CPPFLAGS@
 ICU_LIBS = @ICU_LIBS@
@@ -123,6 +124,8 @@ MKDIR_P = @MKDIR_P@
 MODULES = @MODULES@
 MODULES_DIR = @MODULES_DIR@
 MODULES_OS = @MODULES_OS@
+MSCGEN = @MSCGEN@
+MSCGEN_DIR = @MSCGEN_DIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
@@ -147,6 +150,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
 VERSION = @VERSION@
@@ -191,6 +195,7 @@ docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 have_cxx = @have_cxx@
+have_doxygen = @have_doxygen@
 have_genmarshal = @have_genmarshal@
 host = @host@
 host_alias = @host_alias@
@@ -405,7 +410,8 @@ all: modules
 modules: $(MODULES)
 
 $(MODULES):
-	$(MAKE) VM_UNAME=$(KERNEL_RELEASE) MV=mv RM=rm $(EXTRA_ARGS) \
+	$(MAKE) VM_UNAME=$(KERNEL_RELEASE) MV=mv RM=rm    \
+	   OVT_SOURCE_DIR=$(abs_top_srcdir) $(EXTRA_ARGS) \
 	   -C "$(modulesrc)/$(MODULES_OS)/$@"
 
 @LINUX_TRUE@export pvscsidir := $(MODULES_DIR)/drivers/scsi

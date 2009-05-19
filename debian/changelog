@@ -1,3 +1,12 @@
+open-vm-tools (2009.04.23-162451-1) unstable; urgency=low
+
+  * Merging upstream version 2009.04.23-162451.
+  * Removing vmware-guestd manpage, dropped by upstream and not included
+    anymore.
+  * Using correct rfc-2822 date formats in changelog.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 19 May 2009 19:21:31 +0200
+
 open-vm-tools (2009.03.18-154848-2) unstable; urgency=low
 
   * Correcting patch system depends (Closes: #520493).
@@ -27,7 +36,7 @@ open-vm-tools (2009.02.18-148847-2) unstable; urgency=low
 
   * Using debhelper to install vmxnet modprobe file.
 
- -- Daniel Baumann <daniel@debian.org>  Sun,  8 Mar 2009 16:03:00 +0100
+ -- Daniel Baumann <daniel@debian.org>  Sun, 08 Mar 2009 16:03:00 +0100
 
 open-vm-tools (2009.02.18-148847-1) unstable; urgency=low
 
@@ -42,7 +51,7 @@ open-vm-tools (2009.01.21-142982-2) unstable; urgency=medium
   * Always prefering vmxnet over pcnet32 through modprobe and initramfs
     configuration (Closes: #502365).
 
- -- Daniel Baumann <daniel@debian.org>  Wed,  4 Feb 2009 11:28:00 +0100
+ -- Daniel Baumann <daniel@debian.org>  Wed, 04 Feb 2009 11:28:00 +0100
 
 open-vm-tools (2009.01.21-142982-1) unstable; urgency=low
 
@@ -57,7 +66,7 @@ open-vm-tools (2008.12.23-137496-1) unstable; urgency=low
     having vmxnet already loaded at initramfs stage. Thanks to Russ Allbery
     <rra@debian.org> (Closes: #510935).
 
- -- Daniel Baumann <daniel@debian.org>  Fri,  9 Jan 2009 12:13:00 -0500
+ -- Daniel Baumann <daniel@debian.org>  Fri, 09 Jan 2009 12:13:00 -0500
 
 open-vm-tools (2008.11.18-130226-1) unstable; urgency=low
 
@@ -95,7 +104,7 @@ open-vm-tools (2008.09.03-114782-1) unstable; urgency=low
   * Updating rules to new location of the config.guess and config.sub files.
   * Updating vcs fields in control file.
 
- -- Daniel Baumann <daniel@debian.org>  Tue,  9 Sep 2008 22:06:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Tue, 09 Sep 2008 22:06:00 +0200
 
 open-vm-tools (2008.08.08-109361-1) unstable; urgency=low
 
@@ -132,13 +141,13 @@ open-vm-tools (2008.07.01-102166-2) unstable; urgency=medium
   * Adding symlink from mount.vmhgfs to old vmware-hgfsmounter name.
   * Removing executable bit for /etc/pam.d/vmware-guestd file.
 
- -- Daniel Baumann <daniel@debian.org>  Fri,  4 Jul 2008 09:59:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Fri, 04 Jul 2008 09:59:00 +0200
 
 open-vm-tools (2008.07.01-102166-1) unstable; urgency=low
 
   * Merging upstream version 2008.07.01-102166.
 
- -- Daniel Baumann <daniel@debian.org>  Thu,  3 Jul 2008 13:01:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Thu, 03 Jul 2008 13:01:00 +0200
 
 open-vm-tools (2008.06.20-100027-1) unstable; urgency=low
 
@@ -146,7 +155,7 @@ open-vm-tools (2008.06.20-100027-1) unstable; urgency=low
     kernel-modules configure switch.
   * Merging upstream version 2008.06.20-100027.
 
- -- Daniel Baumann <daniel@debian.org>  Tue,  1 Jul 2008 22:22:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Tue, 01 Jul 2008 22:22:00 +0200
 
 open-vm-tools (2008.06.03-96374-2) unstable; urgency=medium
 
@@ -194,7 +203,7 @@ open-vm-tools (2008.05.02-90473-1) unstable; urgency=low
   * Adding libicu-dev to build-depends.
   * Merging upstream version 2008.05.02-90473.
 
- -- Daniel Baumann <daniel@debian.org>  Sat,  3 May 2008 09:44:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Sat, 03 May 2008 09:44:00 +0200
 
 open-vm-tools (2008.04.14-87182-1) unstable; urgency=medium
 
@@ -219,7 +228,7 @@ open-vm-tools (2008.02.13-77928-2) unstable; urgency=medium
   * Cleaned up copyright.
   * Fixing pathes and binary names in init script (Closes: #469146).
 
- -- Daniel Baumann <daniel@debian.org>  Sat,  8 Mar 2008 08:48:00 +0100
+ -- Daniel Baumann <daniel@debian.org>  Sat, 08 Mar 2008 08:48:00 +0100
 
 open-vm-tools (2008.02.13-77928-1) unstable; urgency=low
 
@@ -269,10 +278,10 @@ open-vm-tools (2007.09.04-56574-2) experimental; urgency=low
   * Moving package to contrib (Closes: #445439).
   * Limiting architectures to amd64 and i386 (Closes: #445374).
 
- -- Daniel Baumann <daniel@debian.org>  Tue,  9 Oct 2007 10:05:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Tue, 09 Oct 2007 10:05:00 +0200
 
 open-vm-tools (2007.09.04-56574-1) experimental; urgency=low
 
   * Initial release (Closes: #441905).
 
- -- Daniel Baumann <daniel@debian.org>  Sun,  9 Sep 2007 16:53:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Sun, 09 Sep 2007 16:53:00 +0200

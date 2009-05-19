@@ -51,21 +51,21 @@ build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = vmware-user$(EXEEXT)
 @HAVE_GTKMM_TRUE@am__append_1 = @GTKMM_CPPFLAGS@
-@HAVE_GTKMM_TRUE@am__append_2 = ../lib/dndGuest/libDndGuest.la
-@ENABLE_UNITY_TRUE@am__append_3 = ../lib/ghIntegration/libGhIntegration.la
-@ENABLE_UNITY_FALSE@am__append_4 = ../lib/ghIntegrationStub/libGhIntegrationStub.la
-@ENABLE_UNITY_TRUE@am__append_5 = ../lib/unity/libUnity.la \
+@ENABLE_UNITY_TRUE@am__append_2 = ../lib/ghIntegration/libGhIntegration.la
+@ENABLE_UNITY_FALSE@am__append_3 = ../lib/ghIntegrationStub/libGhIntegrationStub.la
+@ENABLE_UNITY_TRUE@am__append_4 = ../lib/unity/libUnity.la \
 @ENABLE_UNITY_TRUE@	../lib/unityWindowTracker/libUnityWindowTracker.la
-@ENABLE_UNITY_FALSE@am__append_6 = ../lib/unityStub/libUnityStub.la
-@ENABLE_UNITY_TRUE@am__append_7 = ../lib/appUtil/libAppUtil.la \
+@ENABLE_UNITY_FALSE@am__append_5 = ../lib/unityStub/libUnityStub.la
+@ENABLE_UNITY_TRUE@am__append_6 = ../lib/appUtil/libAppUtil.la \
 @ENABLE_UNITY_TRUE@	../lib/image/libImage.la \
 @ENABLE_UNITY_TRUE@	../lib/raster/libRaster.la \
 @ENABLE_UNITY_TRUE@	../lib/region/libRegion.la
-@LINUX_TRUE@am__append_8 = -lgcc_s
-@HAVE_GTKMM_TRUE@am__append_9 = @GTKMM_LIBS@
-@ENABLE_UNITY_TRUE@am__append_10 = @URIPARSER_LIBS@ @LIBPNG_LIBS@ \
+@LINUX_TRUE@am__append_7 = -lgcc_s
+@HAVE_GTKMM_TRUE@am__append_8 = @GTKMM_LIBS@
+@ENABLE_UNITY_TRUE@am__append_9 = @URIPARSER_LIBS@ @LIBPNG_LIBS@ \
 @ENABLE_UNITY_TRUE@	@ZLIB_LIBS@ $(am__empty)
-@HAVE_GTKMM_TRUE@am__append_11 = copyPasteUI.cpp
+@HAVE_GTKMM_TRUE@am__append_10 = copyPasteUI.cpp
+@HAVE_GTKMM_TRUE@am__append_11 = dndUI.cpp dragDetWnd.cpp
 @HAVE_GTKMM_TRUE@am__append_12 = stringxx/string.cc
 @HAVE_ICU_TRUE@am__append_13 = @ICU_LIBS@
 subdir = vmware-user
@@ -83,23 +83,25 @@ am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am__vmware_user_SOURCES_DIST = copyPaste.c copyPasteUI.cpp \
-	copyPasteDnDWrapper.cpp debugStdio.c dnd.c \
-	foreignVMToolsDaemon.c foreignVMToolsNetworking.c \
+	copyPasteDnDWrapper.cpp debugStdio.c dnd.c dndUI.cpp \
+	dragDetWnd.cpp foreignVMToolsDaemon.c \
+	foreignVMToolsNetworking.c \
 	$(top_srcdir)/services/plugins/vix/foundryToolsDaemon.c \
 	notify.c pointer.c stringxx/string.cc vmware-user.cpp
 @HAVE_GTKMM_TRUE@am__objects_1 = copyPasteUI.$(OBJEXT)
-@HAVE_GTKMM_TRUE@am__objects_2 = string.$(OBJEXT)
+@HAVE_GTKMM_TRUE@am__objects_2 = dndUI.$(OBJEXT) dragDetWnd.$(OBJEXT)
+@HAVE_GTKMM_TRUE@am__objects_3 = string.$(OBJEXT)
 am_vmware_user_OBJECTS = copyPaste.$(OBJEXT) $(am__objects_1) \
 	copyPasteDnDWrapper.$(OBJEXT) debugStdio.$(OBJEXT) \
-	dnd.$(OBJEXT) foreignVMToolsDaemon.$(OBJEXT) \
+	dnd.$(OBJEXT) $(am__objects_2) foreignVMToolsDaemon.$(OBJEXT) \
 	foreignVMToolsNetworking.$(OBJEXT) \
 	foundryToolsDaemon.$(OBJEXT) notify.$(OBJEXT) \
-	pointer.$(OBJEXT) $(am__objects_2) vmware-user.$(OBJEXT)
+	pointer.$(OBJEXT) $(am__objects_3) vmware-user.$(OBJEXT)
 vmware_user_OBJECTS = $(am_vmware_user_OBJECTS)
 am__DEPENDENCIES_1 =
-vmware_user_DEPENDENCIES = ../lib/conf/libConf.la $(am__append_2) \
+vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	../lib/eventManager/libEventManager.la ../lib/file/libFile.la \
-	$(am__append_3) $(am__append_4) \
+	$(am__append_2) $(am__append_3) \
 	../lib/guestApp/libGuestAppX11.la \
 	../lib/guestInfo/libGuestInfo.la \
 	../lib/hgfsServer/libHgfsServer.la \
@@ -112,19 +114,19 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.la $(am__append_2) \
 	../lib/SLPv2Parser/libSLPv2Parser.la \
 	../lib/socketMgr/libSocketMgr.la ../lib/string/libString.la \
 	../lib/sync/libSync.la ../lib/syncDriver/libSyncDriver.la \
-	../lib/system/libSystem.la $(am__append_5) $(am__append_6) \
+	../lib/system/libSystem.la $(am__append_4) $(am__append_5) \
 	../lib/guestRpc/libGuestRpc.la ../lib/user/libUser.la \
 	../lib/vixTools/libVixTools.la ../lib/vmCheck/libVmCheck.la \
 	../lib/vmSignal/libVmSignal.la ../lib/wiper/libWiper.la \
 	../lib/err/libErr.la ../lib/foundryMsg/libFoundryMsg.la \
 	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
-	../lib/dnd/libDnd.la ../lib/dynxdr/libDynxdr.la \
-	../lib/hgfs/libHgfs.la ../lib/message/libMessage.la \
-	../lib/unicode/libUnicode.la ../lib/misc/libMisc.la \
-	../lib/procMgr/libProcMgr.la ../lib/auth/libAuth.la \
-	../lib/panicDefault/libPanicDefault.la \
+	../lib/dndGuest/libDndGuest.la ../lib/dnd/libDnd.la \
+	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
+	../lib/message/libMessage.la ../lib/unicode/libUnicode.la \
+	../lib/misc/libMisc.la ../lib/procMgr/libProcMgr.la \
+	../lib/auth/libAuth.la ../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_7) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
+	$(am__append_6) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -174,6 +176,7 @@ DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DNET_CPPFLAGS = @DNET_CPPFLAGS@
 DNET_LIBS = @DNET_LIBS@
+DOT = @DOT@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -197,7 +200,7 @@ GTKMM_CPPFLAGS = @GTKMM_CPPFLAGS@
 GTKMM_LIBS = @GTKMM_LIBS@
 GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDADD = @GUESTD_LDADD@
+HAVE_DOT = @HAVE_DOT@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 ICU_CPPFLAGS = @ICU_CPPFLAGS@
 ICU_LIBS = @ICU_LIBS@
@@ -230,6 +233,8 @@ MKDIR_P = @MKDIR_P@
 MODULES = @MODULES@
 MODULES_DIR = @MODULES_DIR@
 MODULES_OS = @MODULES_OS@
+MSCGEN = @MSCGEN@
+MSCGEN_DIR = @MSCGEN_DIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
@@ -254,6 +259,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
 VERSION = @VERSION@
@@ -298,6 +304,7 @@ docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 have_cxx = @have_cxx@
+have_doxygen = @have_doxygen@
 have_genmarshal = @have_genmarshal@
 host = @host@
 host_alias = @host_alias@
@@ -328,15 +335,15 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = @GTK_CPPFLAGS@ $(am__append_1) @VMWARE_USER_CPPFLAGS@ \
-	-I$(top_builddir)/include -DRESOLUTION_X11 \
-	-I$(top_srcdir)/services/plugins/vix
+	-I$(top_builddir)/include -I$(top_srcdir)/lib/dndGuest \
+	-DRESOLUTION_X11 -I$(top_srcdir)/services/plugins/vix
 AM_CXXFLAGS = $(AM_CFLAGS)
 # In the absence of the linker options --start-group and --end-group (which
 # can't be put in LDADD), we need to bring the following libraries out of
 # the alphabetical order so their symbols are properly resolved.
-vmware_user_LDADD = ../lib/conf/libConf.la $(am__append_2) \
+vmware_user_LDADD = ../lib/conf/libConf.la \
 	../lib/eventManager/libEventManager.la ../lib/file/libFile.la \
-	$(am__append_3) $(am__append_4) \
+	$(am__append_2) $(am__append_3) \
 	../lib/guestApp/libGuestAppX11.la \
 	../lib/guestInfo/libGuestInfo.la \
 	../lib/hgfsServer/libHgfsServer.la \
@@ -349,23 +356,23 @@ vmware_user_LDADD = ../lib/conf/libConf.la $(am__append_2) \
 	../lib/SLPv2Parser/libSLPv2Parser.la \
 	../lib/socketMgr/libSocketMgr.la ../lib/string/libString.la \
 	../lib/sync/libSync.la ../lib/syncDriver/libSyncDriver.la \
-	../lib/system/libSystem.la $(am__append_5) $(am__append_6) \
+	../lib/system/libSystem.la $(am__append_4) $(am__append_5) \
 	../lib/guestRpc/libGuestRpc.la ../lib/user/libUser.la \
 	../lib/vixTools/libVixTools.la ../lib/vmCheck/libVmCheck.la \
 	../lib/vmSignal/libVmSignal.la ../lib/wiper/libWiper.la \
 	../lib/err/libErr.la ../lib/foundryMsg/libFoundryMsg.la \
 	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
-	../lib/dnd/libDnd.la ../lib/dynxdr/libDynxdr.la \
-	../lib/hgfs/libHgfs.la ../lib/message/libMessage.la \
-	../lib/unicode/libUnicode.la ../lib/misc/libMisc.la \
-	../lib/procMgr/libProcMgr.la ../lib/auth/libAuth.la \
-	../lib/panicDefault/libPanicDefault.la \
+	../lib/dndGuest/libDndGuest.la ../lib/dnd/libDnd.la \
+	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
+	../lib/message/libMessage.la ../lib/unicode/libUnicode.la \
+	../lib/misc/libMisc.la ../lib/procMgr/libProcMgr.la \
+	../lib/auth/libAuth.la ../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_7) -lcrypt -lstdc++ $(am__append_8) @GTK_LIBS@ \
-	$(am__append_9) @VMWARE_USER_LDADD@ @COMMON_XLIBS@ \
-	$(am__append_10) $(am__append_13)
-vmware_user_SOURCES = copyPaste.c $(am__append_11) \
-	copyPasteDnDWrapper.cpp debugStdio.c dnd.c \
+	$(am__append_6) -lcrypt -lstdc++ $(am__append_7) @GTK_LIBS@ \
+	$(am__append_8) @VMWARE_USER_LDADD@ @COMMON_XLIBS@ \
+	$(am__append_9) $(am__append_13)
+vmware_user_SOURCES = copyPaste.c $(am__append_10) \
+	copyPasteDnDWrapper.cpp debugStdio.c dnd.c $(am__append_11) \
 	foreignVMToolsDaemon.c foreignVMToolsNetworking.c \
 	$(top_srcdir)/services/plugins/vix/foundryToolsDaemon.c \
 	notify.c pointer.c $(am__append_12) vmware-user.cpp
@@ -450,6 +457,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/copyPasteUI.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debugStdio.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dnd.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dndUI.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dragDetWnd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/foreignVMToolsDaemon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/foreignVMToolsNetworking.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/foundryToolsDaemon.Po@am__quote@
