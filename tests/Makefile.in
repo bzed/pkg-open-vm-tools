@@ -164,6 +164,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -179,6 +181,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -519,7 +522,7 @@ install-data-am:
 
 install-dvi: install-dvi-recursive
 
-install-exec-am:
+install-exec-am: install-exec-local
 
 install-html: install-html-recursive
 
@@ -560,14 +563,18 @@ uninstall-am:
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am
+	install-exec-am install-exec-local install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
+	ps ps-am tags tags-recursive uninstall uninstall-am
 
+
+install-exec-local:
+	rm -f $(DESTDIR)$(TEST_PLUGIN_INSTALLDIR)/*.a
+	rm -f $(DESTDIR)$(TEST_PLUGIN_INSTALLDIR)/*.la
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

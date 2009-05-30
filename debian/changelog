@@ -1,3 +1,9 @@
+open-vm-tools (2009.05.22-167859-1) unstable; urgency=low
+
+  * Merging upstream version 2009.05.22-167859.
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 30 May 2009 09:48:43 +0200
+
 open-vm-tools (2009.04.23-162451-1) unstable; urgency=low
 
   * Merging upstream version 2009.04.23-162451.

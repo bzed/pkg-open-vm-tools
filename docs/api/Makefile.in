@@ -152,6 +152,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -167,6 +169,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -425,6 +428,7 @@ build/index.html:
 	mkdir -p build
 	sed \
 	   -e 's,##{BUILD_DIR}##,$(top_builddir),'                \
+	   -e 's,##{BUILD_OUTPUT}##,build,'                       \
 	   -e 's,##{CPP_EXPAND}##,$(DOXYGEN_CPP_EXPAND),'         \
 	   -e 's,##{CPP_PREDEFINED}##,$(DOXYGEN_CPP_PREDEFINED),' \
 	   -e 's,##{DOT}##,@DOT@,'                                \
@@ -433,6 +437,7 @@ build/index.html:
 	   -e 's,##{MSCGEN_DIR}##,@MSCGEN_DIR@,'                  \
 	   -e 's,##{PROJECT_VERSION}##,@TOOLS_VERSION@,'          \
 	   -e 's,##{SOURCE_DIR}##,$(top_srcdir),'                 \
+	   -e 's,##{WARNING_LOG}##,warnings.log,'                 \
 	   $(top_srcdir)/docs/api/doxygen.conf > doxygen.parsed.conf
 	doxygen doxygen.parsed.conf > /dev/null
 
