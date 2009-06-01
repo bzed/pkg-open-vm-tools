@@ -1,3 +1,10 @@
+open-vm-tools (2009.05.22-167859-2) unstable; urgency=low
+
+  * Adding procps to build-depends (Closes: #531414).
+  * Adding patch for configure to not hardcode procps version.
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 01 Jun 2009 12:53:51 +0200
+
 open-vm-tools (2009.05.22-167859-1) unstable; urgency=low
 
   * Merging upstream version 2009.05.22-167859.
