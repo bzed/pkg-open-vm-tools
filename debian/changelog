@@ -1,3 +1,12 @@
+open-vm-tools (2009.06.18-172495-1) unstable; urgency=low
+
+  * Merging upstream version 2009.06.18-172495.
+  * Updating to standards 3.8.2.
+  * Updating year in copyright file.
+  * Correcting vcs fields in modules control file.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 01 Jul 2009 11:52:35 -0300
+
 open-vm-tools (2009.05.22-167859-3) unstable; urgency=low
 
   * Building without procps on amd64 as a temporary workaround (Closes:

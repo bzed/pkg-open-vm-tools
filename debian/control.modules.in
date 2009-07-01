@@ -3,10 +3,10 @@ Section: contrib/admin
 Priority: extra
 Maintainer: Daniel Baumann <daniel@debian.org>
 Build-Depends: debhelper (>= 7)
-Standards-Version: 3.7.3
+Standards-Version: 3.8.2
 Homepage: http://open-vm-tools.sourceforge.net/
-Vcs-Browser: http://git.debian.net/?p=open-vm-tools.git
-Vcs-Git: git://git.debian.net/git/open-vm-tools.git
+Vcs-Browser: http://git.debian.net/?p=debian/open-vm-tools.git
+Vcs-Git: git://git.debian.net/git/debian/open-vm-tools.git
 
 Package: open-vm-modules-_KVERS_
 Architecture: any
