@@ -12,7 +12,7 @@ DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 
 DEB_BUILD_ARCH      ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
-ifneq ($(DEB_BUILD_ARCH),amd64)
+ifeq ($(DEB_BUILD_ARCH),amd64)
 	CONFIGURE_FLAGS = --without-procps
 endif
 
@@ -170,6 +170,10 @@ install: build
 
 	# Copy only the driver source to the proper location
 	cp -a modules debian/$(psource)/usr/src/modules/$(sname)
+	mkdir -p debian/$(psource)/usr/src/modules/$(sname)/lib
+	cp -a lib/backdoor lib/hgfs lib/hgfsBd lib/include lib/message lib/misc lib/rpcOut debian/$(psource)/usr/src/modules/$(sname)/lib
+	cd debian/$(psource)/usr/src/modules/$(sname); \
+	find . -name ".dep*" -or -name ".lib*" -or -name "*.o" -or -name "*.la" -or -name "*.lo" | xargs rm -rf
 	cp debian/Makefile debian/$(psource)/usr/src/modules/$(sname)/Makefile
 	# Copy the needed debian/ pieces to the proper location
 	cp debian/*modules.in* \

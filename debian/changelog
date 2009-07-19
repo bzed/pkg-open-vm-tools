@@ -1,3 +1,23 @@
+open-vm-tools (2009.06.18-172495-3) unstable; urgency=medium
+
+  * Adding libnotify-dev to build-depends.
+  * Adding symlinks for plugins.
+  * Updating vmtoolsd call in init script.
+  * Adding missing files to module source, thanks to Brian Kroth
+    <bpkroth@gmail.com> (Closes: #525816, #531936, #532293).
+  * Building binary modules with neither module-assistant nor kernel-
+    package is not supported by upstream (Closes: #518014).
+  * Cleaning up module source by removing unecessary files.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 19 Jul 2009 11:40:57 +0200
+
+open-vm-tools (2009.06.18-172495-2) unstable; urgency=low
+
+  * Correcting typo in rules for setting configure flags on amd64
+    (Closes: #531414).
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 16 Jul 2009 23:10:27 +0200
+
 open-vm-tools (2009.06.18-172495-1) unstable; urgency=low
 
   * Merging upstream version 2009.06.18-172495.
