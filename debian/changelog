@@ -1,3 +1,9 @@
+open-vm-tools (2009.07.22-179896-1) unstable; urgency=low
+
+  * Merging upstream version 2009.07.22-179896.
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 27 Jul 2009 11:46:49 +0200
+
 open-vm-tools (2009.06.18-172495-3) unstable; urgency=medium
 
   * Adding libnotify-dev to build-depends.
