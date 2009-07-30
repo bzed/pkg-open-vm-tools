@@ -104,7 +104,7 @@ ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 endif
 
 	# Configuring package
-	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --sysconfdir=/etc --mandir=\$${prefix}/share/man --without-kernel-modules $(CONFIGURE_FLAGS)
+	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --sysconfdir=/etc --mandir=\$${prefix}/share/man --without-kernel-modules --without-dnet $(CONFIGURE_FLAGS)
 
 build: build-stamp
 build-stamp: config.status
@@ -147,7 +147,7 @@ install: build
 
 	chmod 0644 debian/open-vm-tools/etc/pam.d/vmtoolsd
 
-	install -D -m 0755 debian/config/vmxnet.hook debian/open-vm-tools/usr/share/initramfs-tools/hooks/vmxnet
+	install -D -m 0755 debian/local/vmxnet.hook debian/open-vm-tools/usr/share/initramfs-tools/hooks/vmxnet
 
 	# Moving open-vm-tools files
 	mkdir -p debian/open-vm-tools/sbin
@@ -162,8 +162,8 @@ install: build
 	mv debian/open-vm-tools/usr/share/applications debian/open-vm-toolbox/usr/share
 
 	# Installing configuration files
-	install -D -m 0644 debian/config/xautostart.conf debian/open-vm-toolbox/etc/vmware-tools/xautostart.conf
-	install -D -m 0644 debian/config/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
+	install -D -m 0644 debian/local/xautostart.conf debian/open-vm-toolbox/etc/vmware-tools/xautostart.conf
+	install -D -m 0644 debian/local/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
 
 	# Create the directories to install the source into
 	dh_installdirs -p$(psource)  usr/src/modules/$(sname)/debian
