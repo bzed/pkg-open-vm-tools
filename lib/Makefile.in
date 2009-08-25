@@ -55,8 +55,9 @@ host_triplet = @host@
 @ENABLE_UNITY_TRUE@am__append_5 = image
 @ENABLE_UNITY_TRUE@am__append_6 = raster region
 @HAVE_X11_TRUE@am__append_7 = resolution
-@ENABLE_UNITY_TRUE@am__append_8 = unity unityWindowTracker
-@ENABLE_UNITY_FALSE@am__append_9 = unityStub
+@LINUX_TRUE@am__append_8 = slashProc
+@ENABLE_UNITY_TRUE@am__append_9 = unity unityWindowTracker
+@ENABLE_UNITY_FALSE@am__append_10 = unityStub
 subdir = lib
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in COPYING
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -83,13 +84,13 @@ ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = guestRpc appUtil auth backdoor conf dict dnd dndGuest \
 	dynxdr err eventManager file foundryMsg ghIntegration \
-	ghIntegrationStub guestApp guestInfo hgfs hgfsBd hgfsServer \
-	hgfsServerManagerGuest hgfsServerPolicyGuest image impersonate \
-	message misc netUtil panic panicDefault printer procMgr raster \
-	region resolution rpcChannel rpcIn rpcOut rpcVmx SLPv2Parser \
-	string stubs sync syncDriver system unicode unity \
-	unityWindowTracker unityStub user vixTools vmCheck vmSignal \
-	wiper
+	ghIntegrationStub guestApp guestInfo hgfs hgfsBd hgfsHelper \
+	hgfsServer hgfsServerManagerGuest hgfsServerPolicyGuest image \
+	impersonate message misc netUtil panic panicDefault printer \
+	procMgr raster region resolution rpcChannel rpcIn rpcOut \
+	rpcVmx slashProc SLPv2Parser string stubs sync syncDriver \
+	system unicode unity unityWindowTracker unityStub user \
+	vixTools vmCheck vmSignal wiper
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -277,12 +278,13 @@ top_srcdir = @top_srcdir@
 SUBDIRS = guestRpc $(am__append_1) auth backdoor conf dict dnd \
 	$(am__append_2) dynxdr err eventManager file foundryMsg \
 	$(am__append_3) $(am__append_4) guestApp guestInfo hgfs hgfsBd \
-	hgfsServer hgfsServerManagerGuest hgfsServerPolicyGuest \
-	$(am__append_5) impersonate message misc netUtil panic \
-	panicDefault printer procMgr $(am__append_6) $(am__append_7) \
-	rpcChannel rpcIn rpcOut rpcVmx SLPv2Parser string stubs sync \
-	syncDriver system unicode $(am__append_8) $(am__append_9) user \
-	vixTools vmCheck vmSignal wiper
+	hgfsHelper hgfsServer hgfsServerManagerGuest \
+	hgfsServerPolicyGuest $(am__append_5) impersonate message misc \
+	netUtil panic panicDefault printer procMgr $(am__append_6) \
+	$(am__append_7) rpcChannel rpcIn rpcOut rpcVmx $(am__append_8) \
+	SLPv2Parser string stubs sync syncDriver system unicode \
+	$(am__append_9) $(am__append_10) user vixTools vmCheck \
+	vmSignal wiper
 all: all-recursive
 
 .SUFFIXES:

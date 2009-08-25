@@ -1,3 +1,12 @@
+open-vm-tools (2009.08.24-187411-1) unstable; urgency=low
+
+  * Merging upstream version 2009.08.24-187411.
+  * Updating maintainer field.
+  * Updating vcs fields.
+  * Updating package to standards version 3.8.3.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 25 Aug 2009 10:35:29 +0200
+
 open-vm-tools (2009.07.22-179896-2) unstable; urgency=low
 
   * Temporarily building without dumbnet, the recently uploaded

@@ -62,7 +62,7 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libWiper_la_LIBADD =
-am_libWiper_la_OBJECTS = wiperPosix.lo
+am_libWiper_la_OBJECTS = wiperCommon.lo wiperPosix.lo
 libWiper_la_OBJECTS = $(am_libWiper_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -265,7 +265,7 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libWiper.la
-libWiper_la_SOURCES = wiperPosix.c
+libWiper_la_SOURCES = wiperCommon.c wiperPosix.c
 all: all-am
 
 .SUFFIXES:
@@ -317,6 +317,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wiperCommon.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wiperPosix.Plo@am__quote@
 
 .c.o:

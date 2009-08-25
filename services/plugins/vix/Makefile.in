@@ -74,7 +74,8 @@ libvix_la_DEPENDENCIES = ../hgfsServer/libhgfsServer.la \
 	$(top_builddir)/lib/foundryMsg/libFoundryMsg.la \
 	$(top_builddir)/lib/impersonate/libImpersonate.la
 am_libvix_la_OBJECTS = libvix_la-foundryToolsDaemon.lo \
-	libvix_la-vixPlugin.lo libvix_la-vixTools.lo
+	libvix_la-vixPlugin.lo libvix_la-vixTools.lo \
+	libvix_la-hgfsHelperPosix.lo
 libvix_la_OBJECTS = $(am_libvix_la_OBJECTS)
 libvix_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
@@ -289,7 +290,8 @@ libvix_la_LIBADD = @VIX_LIBADD@ @VMTOOLS_LIBS@ \
 	$(top_builddir)/lib/foundryMsg/libFoundryMsg.la \
 	$(top_builddir)/lib/impersonate/libImpersonate.la
 libvix_la_SOURCES = foundryToolsDaemon.c vixPlugin.c \
-	$(top_srcdir)/lib/vixTools/vixTools.c
+	$(top_srcdir)/lib/vixTools/vixTools.c \
+	$(top_srcdir)/lib/hgfsHelper/hgfsHelperPosix.c
 all: all-am
 
 .SUFFIXES:
@@ -360,6 +362,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvix_la-foundryToolsDaemon.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvix_la-hgfsHelperPosix.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvix_la-vixPlugin.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvix_la-vixTools.Plo@am__quote@
 
@@ -404,6 +407,13 @@ libvix_la-vixTools.lo: $(top_srcdir)/lib/vixTools/vixTools.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/vixTools/vixTools.c' object='libvix_la-vixTools.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvix_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvix_la-vixTools.lo `test -f '$(top_srcdir)/lib/vixTools/vixTools.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/vixTools/vixTools.c
+
+libvix_la-hgfsHelperPosix.lo: $(top_srcdir)/lib/hgfsHelper/hgfsHelperPosix.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvix_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvix_la-hgfsHelperPosix.lo -MD -MP -MF $(DEPDIR)/libvix_la-hgfsHelperPosix.Tpo -c -o libvix_la-hgfsHelperPosix.lo `test -f '$(top_srcdir)/lib/hgfsHelper/hgfsHelperPosix.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/hgfsHelper/hgfsHelperPosix.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvix_la-hgfsHelperPosix.Tpo $(DEPDIR)/libvix_la-hgfsHelperPosix.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/hgfsHelper/hgfsHelperPosix.c' object='libvix_la-hgfsHelperPosix.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvix_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvix_la-hgfsHelperPosix.lo `test -f '$(top_srcdir)/lib/hgfsHelper/hgfsHelperPosix.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/hgfsHelper/hgfsHelperPosix.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
