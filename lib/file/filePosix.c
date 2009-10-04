@@ -41,6 +41,9 @@
 # endif
 #include <signal.h>
 #endif
+#ifdef GLIBC_VERSION_24
+#define _GNU_SOURCE
+#endif
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -73,7 +76,6 @@ static char *FilePosixLookupMountPoint(char const *canPath, Bool *bind);
 static char *FilePosixNearestExistingAncestor(char const *path);
 
 # ifdef VMX86_SERVER
-#define VMFS2CONST 456
 #define VMFS3CONST 256
 #include "hostType.h"
 /* Needed for VMFS implementation of File_GetFreeSpace() */
@@ -279,6 +281,19 @@ FileAttributes(ConstUnicode pathName,  // IN:
 {
    int err;
    struct stat statbuf;
+
+#ifdef GLIBC_VERSION_24
+   char *path;
+
+   if (fileData == NULL) {
+      if (!PosixConvertToCurrent(pathName, &path)) {
+         return -1;
+      }
+      ret = euidaccess(path, F_OK);
+      free(path);
+      return ret;
+   }
+#endif
 
    if (Posix_Stat(pathName, &statbuf) == -1) {
       err = errno;
@@ -1706,6 +1721,7 @@ FilePosixNearestExistingAncestor(char const *path) // IN: File path
 {
    size_t resultSize;
    char *result;
+   struct stat statbuf;
 
    resultSize = MAX(strlen(path), 1) + 1;
    result = Util_SafeMalloc(resultSize);
@@ -1719,7 +1735,7 @@ FilePosixNearestExistingAncestor(char const *path) // IN: File path
          break;
       }
 
-      if (File_Exists(result)) {
+      if (Posix_Stat(result, &statbuf) == 0) {
          break;
       }
 
@@ -2051,9 +2067,6 @@ FilePosixCreateTestFileSize(ConstUnicode dirName, // IN: directory to create lar
  *
  *      Check if the given file is on a VMFS supports such a file size
  *
- *      In the case of VMFS2, the largest supported file size is
- *         456 * 1024 * B bytes
- *
  *      In the case of VMFS3/4, the largest supported file size is
  *         256 * 1024 * B bytes
  *
@@ -2095,14 +2108,12 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
    }
 
    if (strcmp(fsType, "VMFS") == 0) {
-      if (version == 2) {
-         maxFileSize = (VMFS2CONST * (uint64) blockSize * 1024);
-      } else if (version >= 3) {
+      if (version >= 3) {
          /* Get ready for VMFS4 and perform sanity check on version */
          ASSERT(version == 3 || version == 4);
 
          maxFileSize = (VMFS3CONST * (uint64) blockSize * 1024);
-      } 
+      }
 
       if (fileSize <= maxFileSize && maxFileSize != -1) {
          free(fsType);

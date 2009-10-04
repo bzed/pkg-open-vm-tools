@@ -35,10 +35,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="2009.08.24"
+TOOLS_VERSION="2009.09.18"
 AC_INIT(
    [open-vm-tools],
-   [2009.08.24],
+   [2009.09.18],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -332,6 +332,21 @@ AC_CHECK_PROG([have_genmarshal],
 
 if test "$have_genmarshal" != "yes"; then
    AC_MSG_ERROR([glib-genmarshal is required; make sure it's available in your path.])
+fi
+
+#
+# Parts of our Linux code require more recent version of glib
+#
+if test "$os" = "linux"; then
+   AC_VMW_CHECK_LIB([glib-2.0],
+                    [GLIB2],
+                    [glib-2.0],
+                    [],
+                    [2.14.0],
+                    [glib.h],
+                    [g_regex_new],
+                    [have_glib_2_14=yes],
+                    [AC_MSG_WARN([glib is not recent enough, some features will be disabled.])])
 fi
 
 #
@@ -719,6 +734,11 @@ AC_PATH_PROG(
 ### Headers
 ###
 
+AC_CHECK_DECL([SYS_eventfd],
+              [has_sys_eventfd="yes"],
+              [has_sys_eventfd="no"],
+              [ [#include <syscall.h>] ])
+
 AC_CHECK_HEADERS([crypt.h])
 AC_CHECK_HEADERS([inttypes.h])
 AC_CHECK_HEADERS([stdint.h])
@@ -1027,6 +1047,8 @@ AM_CONDITIONAL(HAVE_FUSE, test "$have_fuse" = "yes")
 AM_CONDITIONAL(HAVE_GNU_LD, test "$with_gnu_ld" = "yes")
 AM_CONDITIONAL(HAVE_GTKMM, test "$have_x" = "yes" -a "$with_gtkmm" = "yes")
 AM_CONDITIONAL(HAVE_PAM, test "$with_pam" = "yes")
+AM_CONDITIONAL(NEED_EVENTFD, test "$has_sys_eventfd" = "no")
+AM_CONDITIONAL(USE_SLASH_PROC, test "os" = "linux" -a "$have_glib_2_14" = "yes")
 
 ### Feature-specific flags / actions
 # Combine where possible

@@ -61,6 +61,7 @@
    LOGLEVEL_VAR(hpet), \
    LOGLEVEL_VAR(extcfgdevice), \
    LOGLEVEL_VAR(flashram), \
+   LOGLEVEL_VAR(efinv), \
    LOGLEVEL_VAR(pci), \
    LOGLEVEL_VAR(pci_vide), \
    LOGLEVEL_VAR(pci_uhci), \
@@ -71,6 +72,7 @@
    LOGLEVEL_VAR(vusbmouse), \
    LOGLEVEL_VAR(vusbkeyboard), \
    LOGLEVEL_VAR(vusbhid), \
+   LOGLEVEL_VAR(vusbtablet), \
    LOGLEVEL_VAR(hidQueue), \
    LOGLEVEL_VAR(pci_1394), \
    LOGLEVEL_VAR(1394), \
@@ -168,6 +170,7 @@
    LOGLEVEL_VAR(ipc), \
    LOGLEVEL_VAR(smbios), \
    LOGLEVEL_VAR(acpi), \
+   LOGLEVEL_VAR(xpmode), \
    LOGLEVEL_VAR(snapshot), \
    LOGLEVEL_VAR(asyncsocket), \
    LOGLEVEL_VAR(mainMem), \
@@ -196,6 +199,7 @@
    LOGLEVEL_VAR(duiDevices), \
    LOGLEVEL_VAR(duiProxyApps), \
    LOGLEVEL_VAR(docker), \
+   LOGLEVEL_VAR(vmIPC), \
    LOGLEVEL_VAR(uwt), /* lib/unityWindowTracker */ \
    LOGLEVEL_VAR(cui), \
    LOGLEVEL_VAR(automation), \
@@ -217,8 +221,10 @@
    LOGLEVEL_VAR(brtalk), /* macWireless and wpa_supplicant */ \
    LOGLEVEL_VAR(button), \
    LOGLEVEL_VAR(util), \
+   LOGLEVEL_VAR(win32util), \
    LOGLEVEL_VAR(largepage), \
-   LOGLEVEL_VAR(guestAppMonitor),
+   LOGLEVEL_VAR(guestAppMonitor), \
+   LOGLEVEL_VAR(syncWaitQ), \
 
 LOGLEVEL_EXTENSION_DECLARE(LOGLEVEL_USER);
 

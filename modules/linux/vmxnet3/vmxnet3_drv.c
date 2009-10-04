@@ -3021,7 +3021,9 @@ activate_err:
    vmxnet3_rq_destroy(&adapter->rx_queue, adapter);
    vmxnet3_tq_destroy(&adapter->tx_queue, adapter);
 queue_err:
-   vmxnet3_shm_close(adapter);
+   if (adapter->is_shm) {
+     vmxnet3_shm_close(adapter);
+   }
 shm_err:
    return err;
 }
@@ -4196,7 +4198,7 @@ vmxnet3_reset_work(compat_work_arg data)
 {
    struct vmxnet3_adapter *adapter;
    
-   adapter = COMPAT_WORK_GET_DATA(data, struct vmxnet3_adapter);
+   adapter = COMPAT_WORK_GET_DATA(data, struct vmxnet3_adapter, work);
    
    /* if another thread is resetting the device, no need to proceed */
    if (test_and_set_bit(VMXNET3_STATE_BIT_RESETTING, &adapter->state)) {

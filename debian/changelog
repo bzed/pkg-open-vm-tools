@@ -1,3 +1,14 @@
+open-vm-tools (2009.09.18-193784-1) unstable; urgency=low
+
+  * Adding maintainer homepage field in control.
+  * Adding README.source.
+  * Updating, sorting and wrapping depends.
+  * Merging upstream version 2009.09.18-193784.
+  * Moving maintainer homepage from control to copyright.
+  * Updating README.source.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 04 Oct 2009 08:18:40 +0200
+
 open-vm-tools (2009.08.24-187411-1) unstable; urgency=low
 
   * Merging upstream version 2009.08.24-187411.

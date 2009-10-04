@@ -107,7 +107,9 @@
 #include "guestApp.h"
 #include "guestInfo.h"
 #include "xdrutil.h"
-#include "slashProc.h"
+#ifdef USE_SLASH_PROC
+#   include "slashProc.h"
+#endif
 #include "netutil.h"
 #include "file.h"
 
@@ -259,7 +261,7 @@ ReadInterfaceDetails(const struct intf_entry *entry,  // IN: current interface e
 
       Str_Sprintf(macAddress, sizeof macAddress, "%s",
                   addr_ntoa(&entry->intf_link_addr));
-      nic = GuestInfoAddNicEntry(nicInfo, macAddress, NULL);
+      nic = GuestInfoAddNicEntry(nicInfo, macAddress, NULL, NULL);
       ASSERT_MEM_ALLOC(nic);
 
       /* Record the "primary" address. */
@@ -418,7 +420,7 @@ RecordResolverNS(DnsConfigInfo *dnsConfigInfo) // IN
 }
 
 
-#if defined __linux__
+#ifdef USE_SLASH_PROC
 /*
  ******************************************************************************
  * RecordRoutingInfoIPv4 --                                              */ /**
@@ -619,7 +621,7 @@ RecordRoutingInfo(NicInfoV3 *nicInfo)
    return ret;
 }
 
-#else                                           // if defined __linux__
+#else                                           // ifdef USE_SLASH_PROC
 static Bool
 RecordRoutingInfo(NicInfoV3 *nicInfo)
 {
