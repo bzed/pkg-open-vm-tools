@@ -98,6 +98,7 @@ CCDEPMODE = @CCDEPMODE@
 # Problem is, $(CFLAGS) is appended to the compiler command line after AM_CFLAGS
 # and after libGuestRpc_la_CFLAGS, so "-Wall -Werror" will override this flag.
 CFLAGS = @CFLAGS@ -Wno-unused
+COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@

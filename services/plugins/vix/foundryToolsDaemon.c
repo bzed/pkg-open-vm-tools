@@ -53,7 +53,6 @@
 #include "vmware.h"
 #include "procMgr.h"
 #include "vm_version.h"
-#include "vm_app.h"
 #include "message.h"
 
 #if defined(VMTOOLS_USE_GLIB)
@@ -447,7 +446,14 @@ void
 FoundryToolsDaemon_Initialize(ToolsAppCtx *ctx)
 {
    thisProcessRunsAsRoot = (strcmp(ctx->name, VMTOOLS_GUEST_SERVICE) == 0);
+
+   /*
+    * TODO: Add the original/native environment (envp) to ToolsAppContext so
+    * we can know what the environment variables were before the loader scripts
+    * changed them.
+    */
    (void) VixTools_Initialize(thisProcessRunsAsRoot,
+                              NULL,   // envp
                               ToolsDaemonTcloReportProgramCompleted,
                               ctx);
 
@@ -478,10 +484,11 @@ FoundryToolsDaemon_Initialize(ToolsAppCtx *ctx)
  */
 
 void
-FoundryToolsDaemon_RegisterRoutines(RpcIn *in,                    // IN
-                                    GuestApp_Dict **confDictRef,  // IN
-                                    DblLnkLst_Links *eventQueue,  // IN
-                                    Bool runAsRoot)               // IN
+FoundryToolsDaemon_RegisterRoutines(RpcIn *in,                        // IN
+                                    GuestApp_Dict **confDictRef,      // IN
+                                    DblLnkLst_Links *eventQueue,      // IN
+                                    const char * const *orginalEnvp,  // IN
+                                    Bool runAsRoot)                   // IN
 {
    static Bool inited = FALSE;
 #if defined(linux) || defined(_WIN32)
@@ -496,6 +503,7 @@ FoundryToolsDaemon_RegisterRoutines(RpcIn *in,                    // IN
    globalEventQueue = eventQueue;
 
    (void) VixTools_Initialize(thisProcessRunsAsRoot,
+                              orginalEnvp,
                               ToolsDaemonTcloReportProgramCompleted,
                               NULL);
 

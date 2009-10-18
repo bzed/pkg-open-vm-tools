@@ -105,6 +105,7 @@ enum VixResponseFlagsValues {
    VIX_RESPONSE_SOFT_POWER_OP       = 0x0001,
    VIX_RESPONSE_EXTENDED_RESULT_V1  = 0x0002,
    VIX_RESPONSE_TRUNCATED           = 0x0004,
+   VIX_RESPONSE_FSR                 = 0x0008
 };
 
 
@@ -325,6 +326,11 @@ typedef
 struct VixMsgPowerOpRequest {
    VixCommandRequestHeader   header;
    VixVMPowerOpOptions       powerOpOptions;
+   /*
+    * Starting in Workstation 7.0, a serialized property list buffer
+    * can be appended here. This was originally used for augmenting
+    * poweroff to support revert to snapshot upon poweroff functionality.
+    */
 }
 #include "vmware_pack_end.h"
 VixMsgPowerOpRequest;
@@ -1291,6 +1297,15 @@ struct VixMsgFaultToleranceControlRequest {
 #include "vmware_pack_end.h"
 VixMsgFaultToleranceControlRequest;
 
+typedef
+#include "vmware_pack_begin.h"
+struct VixFaultToleranceControlResponse {
+   VixCommandResponseHeader header;
+   uint32 propertyListBufferSize;
+   // Followed by a serialized property list containing error context.
+}
+#include "vmware_pack_end.h"
+VixFaultToleranceControlResponse;
 
 
 /*
@@ -2419,6 +2434,8 @@ enum {
 
    VIX_COMMAND_GENERATE_NONCE                   = 174,
 
+   VIX_COMMAND_CHANGE_DISPLAY_TOPOLOGY_MODES    = 175,
+
    /*
     * HOWTO: Adding a new Vix Command. Step 2a.
     *
@@ -2429,7 +2446,7 @@ enum {
     * Once a new command is added here, a command info field needs to be added
     * in bora/lib/foundryMsg. as well.
     */
-   VIX_COMMAND_LAST_NORMAL_COMMAND              = 175,
+   VIX_COMMAND_LAST_NORMAL_COMMAND              = 176,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,
@@ -2572,6 +2589,15 @@ Bool VixMsg_ValidateCommandInfoTable(void);
 const char *VixAsyncOp_GetDebugStrForOpCode(int opCode);
 
 VixCommandSecurityCategory VixMsg_GetCommandSecurityCategory(int opCode);
+
+/*
+ * Vix private internal properties shared between the Vix client
+ * and the VMX.
+ */
+
+enum {
+   VIX_PROPERTY_VM_POWER_OFF_TO_SNAPSHOT_UID       = 5102,
+};
 
 VixError VixMsg_AllocGenericRequestMsg(int opCode,
                                        uint64 cookie,

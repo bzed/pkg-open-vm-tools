@@ -51,7 +51,6 @@
 #include "unityDebug.h"
 #include "dynxdr.h"
 #include "guestrpc/unityActive.h"
-#include "guestCaps.h"
 #include "appUtil.h"
 #include <stdio.h>
 
@@ -260,8 +259,9 @@ Unity_IsActive(void)
  */
 
 void
-Unity_Init(GuestApp_Dict *conf, // IN
-           int* blockedWnd)     // IN
+Unity_Init(GuestApp_Dict *conf,                                    // IN
+           int *blockedWnd,                                        // IN
+           DesktopSwitchCallbackManager *desktopSwitchCallbackMgr) // IN
 {
    Debug("Unity_Init\n");
 
@@ -285,7 +285,10 @@ Unity_Init(GuestApp_Dict *conf, // IN
    /*
     * Initialize the host-specific portion of the unity service.
     */
-   unity.up = UnityPlatformInit(&unity.tracker, &unity.updateChannel, blockedWnd);
+   unity.up = UnityPlatformInit(&unity.tracker,
+                                &unity.updateChannel,
+                                blockedWnd,
+                                desktopSwitchCallbackMgr);
 
    /*
     * Init our global dynbuf used to send results back.
@@ -446,7 +449,9 @@ Unity_InitBackdoor(struct RpcIn *rpcIn)   // IN
 void
 Unity_SetActiveDnDDetWnd(UnityDnD *state)
 {
-   UnityPlatformSetActiveDnDDetWnd(unity.up, state);
+   if (unity.up != NULL) {
+      UnityPlatformSetActiveDnDDetWnd(unity.up, state);
+   }
 }
 
 
@@ -1871,12 +1876,6 @@ UnityTcloSetDesktopActive(char const **result,  // OUT
       goto error;
    }
 
-   /*
-    * Update the uwt with the new active desktop info.
-    */
-
-   UnityWindowTracker_ChangeActiveDesktop(&unity.tracker, desktopId);
-
    return RpcIn_SetRetVals(result, resultLen,
                            "",
                            TRUE);
@@ -1935,6 +1934,16 @@ UnityTcloSetWindowDesktop(char const **result,  // OUT
    }
 
    /*
+    * Set the desktop id for this window in the tracker.
+    * We need to do this before moving the window since on MS Windows platforms
+    * moving the window will hide it and there's a danger that we may enumerate the
+    * hidden window before changing it's desktop ID. The Window tracker will ignore
+    * hidden windows on the current desktop - which ultimately can lead to this window
+    * being reaped from the tracker.
+    */
+   UnityWindowTracker_ChangeWindowDesktop(&unity.tracker, windowId, desktopId);
+
+   /*
     * Call the platform specific function to move the window to the
     * specified desktop.
     */
@@ -1943,8 +1952,6 @@ UnityTcloSetWindowDesktop(char const **result,  // OUT
       errorMsg = "Could not move the window to the desktop";
       goto error;
    }
-
-   UnityWindowTracker_ChangeWindowDesktop(&unity.tracker, windowId, desktopId);
 
    return RpcIn_SetRetVals(result, resultLen,
                            "",

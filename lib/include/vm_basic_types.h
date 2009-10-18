@@ -101,12 +101,14 @@ typedef char           Bool;
 /*
  * Macros __i386__ and __ia64 are intrinsically defined by GCC
  */
-#ifdef __i386__
-#define VM_I386
+#if defined _MSC_VER && defined _M_X64
+#  define __x86_64__
+#elif defined _MSC_VER && defined _M_IX86
+#  define __i386__
 #endif
 
-#ifdef _WIN64
-#define __x86_64__
+#ifdef __i386__
+#define VM_I386
 #endif
 
 #ifdef __x86_64__
@@ -117,12 +119,6 @@ typedef char           Bool;
 #define vm_x86_64 (0)
 #endif
 
-
-
-#ifdef _WIN32
-/* safe assumption for a while */
-#define VM_I386
-#endif
 
 #ifdef _MSC_VER
 
@@ -184,7 +180,7 @@ typedef long int64;
 typedef unsigned long long uint64;
 typedef long long int64;
 #endif
-#elif __FreeBSD__
+#elif defined __FreeBSD__
 typedef unsigned long long uint64;
 typedef long long int64;
 #endif
@@ -574,19 +570,18 @@ typedef void * UserVA;
 #define MAX_PPN         ((PPN)0x1fffffff)   /* Maximal observable PPN value. */
 #define INVALID_PPN     ((PPN)0xffffffff)
 
-#define INVALID_BPN  ((BPN) 0x1fffffff)
+#define INVALID_BPN     ((BPN)0x1fffffff)
 
-#define INVALID_MPN  ((MPN)-1)
-#define MEMREF_MPN   ((MPN)-2)
-#define RESERVED_MPN ((MPN) 0)
-/* Support 43 bits of address space. */
-#define MAX_MPN      ((MPN)0x7fffffff)
+#define INVALID_MPN     ((MPN)-1)
+#define MEMREF_MPN      ((MPN)-2)
+#define RESERVED_MPN    ((MPN) 0)
+#define MAX_MPN         ((MPN)0x7fffffff)  /* 43 bits of address space. */
 
-#define INVALID_LPN ((LPN)-1)
-#define INVALID_VPN ((VPN)-1)
-#define INVALID_LPN64 ((LPN64)-1)
+#define INVALID_LPN     ((LPN)-1)
+#define INVALID_VPN     ((VPN)-1)
+#define INVALID_LPN64   ((LPN64)-1)
 #define INVALID_PAGENUM ((PageNum)-1)
-#define INVALID_WPN ((WPN) -1)
+#define INVALID_WPN     ((WPN) -1)
 
 
 /*
@@ -594,7 +589,7 @@ typedef void * UserVA;
  * Use them like this: Log("%#"FMTLA"x\n", laddr)
  */
 
-#if defined(VMM64) || defined(FROBOS64) || vm_x86_64 || defined __APPLE__
+#if defined(VMM) || defined(FROBOS64) || vm_x86_64 || defined __APPLE__
 #   define FMTLA "l"
 #   define FMTVA "l"
 #   define FMTVPN "l"

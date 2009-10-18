@@ -1269,6 +1269,7 @@ static int __devinit pvscsi_probe(struct pci_dev *pdev,
 	host->max_channel = 0;
 	host->max_id      = 16;
 	host->max_lun     = 1;
+	host->max_cmd_len = 16;
 
 	pci_read_config_byte(pdev, PCI_CLASS_REVISION, &adapter->rev);
 

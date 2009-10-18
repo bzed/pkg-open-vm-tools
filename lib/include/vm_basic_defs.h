@@ -87,10 +87,11 @@
 
 #if defined _WIN32 && defined USERLEVEL
    #include <stddef.h>  /*
-                         * We re-define offsetof macro from stddef, make 
-                         * sure that its already defined before we do it
+                         * We redefine offsetof macro from stddef; make 
+                         * sure that it's already defined before we do that.
                          */
    #include <windows.h>	// for Sleep() and LOWORD() etc.
+   #undef GetFreeSpace  // Unpollute preprocessor namespace.
 #endif
 
 
@@ -208,6 +209,8 @@ Max(int a, int b)
 #if defined VM_I386
    #define PAGE_SHIFT    12
 #elif defined __APPLE__
+   #define PAGE_SHIFT    12
+#elif defined __arm__
    #define PAGE_SHIFT    12
 #else
    #error
@@ -602,6 +605,12 @@ typedef int pid_t;
 #else
 #define WIN32_ONLY(x)
 #define POSIX_ONLY(x) x
+#endif
+
+#ifdef __linux__
+#define LINUX_ONLY(x) x
+#else
+#define LINUX_ONLY(x)
 #endif
 
 #ifdef VMM

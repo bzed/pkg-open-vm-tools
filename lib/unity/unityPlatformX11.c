@@ -49,9 +49,6 @@ static void USWindowUpdate(UnityPlatform *up,
 static UnitySpecialWindow *USWindowLookup(UnityPlatform *up, Window window);
 static void USWindowDestroy(UnityPlatform *up, UnitySpecialWindow *usw);
 
-static gboolean UnityPlatformHandleEvents(gboolean errorOccurred,
-                                          gboolean inputAvailable,
-                                          gpointer data);
 static void UnityPlatformProcessXEvent(UnityPlatform *up,
                                        const XEvent *xevent,
                                        Window realEventWindow);
@@ -62,10 +59,6 @@ static void USRootWindowsProcessEvent(UnityPlatform *up,
                                        Window window);
 static int UnityPlatformXErrorHandler(Display *dpy, XErrorEvent *xev);
 static UnitySpecialWindow *UnityPlatformMakeRootWindowsObject(UnityPlatform *up);
-
-static gboolean UnityPlatformHandleEventsGlib(GIOChannel *source,
-                                              GIOCondition condition,
-                                              gpointer data);
 
 static void UnityPlatformSendClientMessageFull(Display *d,
                                                Window destWindow,
@@ -144,9 +137,10 @@ UnityPlatformIsSupported(void)
  */
 
 UnityPlatform *
-UnityPlatformInit(UnityWindowTracker *tracker,          // IN
-                  UnityUpdateChannel *updateChannel,    // IN
-                  int *blockedWnd)                      // UNUSED
+UnityPlatformInit(UnityWindowTracker *tracker,                            // IN
+                  UnityUpdateChannel *updateChannel,                      // IN
+                  int *blockedWnd,                                        // IN, not used
+                  DesktopSwitchCallbackManager *desktopSwitchCallbackMgr) // IN, not used
 {
    UnityPlatform *up;
    char *displayName;
@@ -312,7 +306,7 @@ UnityPlatformCleanup(UnityPlatform *up) // IN
     * Caller should've called Unity_Exit first.
     */
    ASSERT(!up->isRunning);
-   ASSERT(!up->unityDisplayWatchID);
+   ASSERT(up->glibSource == NULL);
 
    if (up->specialWindows) {
       HashTable_Free(up->specialWindows);
@@ -773,12 +767,11 @@ UnityPlatformKillHelperThreads(UnityPlatform *up) // IN
    size_t numWindows;
 
    if (!up || !up->isRunning) {
-      ASSERT(!up->unityDisplayWatchID);
+      ASSERT(up->glibSource == NULL);
       return;
    }
 
-   g_source_remove(up->unityDisplayWatchID);
-   up->unityDisplayWatchID = 0;
+   UnityX11EventTeardownSource(up);
 
    up->desktopInfo.numDesktops = 0; // Zero means host has not set virtual desktop config
    UnityX11RestoreSystemSettings(up);
@@ -921,7 +914,7 @@ Bool
 UnityPlatformStartHelperThreads(UnityPlatform *up) // IN
 {
    ASSERT(up);
-   ASSERT(!up->unityDisplayWatchID);
+   ASSERT(up->glibSource == NULL);
 
    XSync(up->display, TRUE);
    up->rootWindows = UnityPlatformMakeRootWindowsObject(up);
@@ -970,22 +963,7 @@ UnityPlatformStartHelperThreads(UnityPlatform *up) // IN
     * Set up a callback in the glib main loop to listen for incoming X events on the
     * unity display connection.
     */
-   {
-      GIOChannel *unityDisplayChannel;
-
-      unityDisplayChannel = g_io_channel_unix_new(ConnectionNumber(up->display));
-      if (g_io_channel_set_encoding(unityDisplayChannel, NULL, NULL) !=
-          G_IO_STATUS_NORMAL) {
-         Warning("%s: Unable to switch Unity I/O channel from UTF-8 to raw data.\n",
-                 __func__);
-      }
-
-      up->unityDisplayWatchID = g_io_add_watch(unityDisplayChannel,
-                                               G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_NVAL,
-                                               UnityPlatformHandleEventsGlib,
-                                               up);
-      g_io_channel_unref(unityDisplayChannel);
-   }
+   UnityX11EventEstablishSource(up);
 
    return TRUE;
 }
@@ -1189,42 +1167,7 @@ UnityPlatformUpdateWindowState(UnityPlatform *up,               // IN
 /*
  *-----------------------------------------------------------------------------
  *
- * UnityPlatformHandleEventsGlib --
- *
- *      Lets the UnityPlatform object know that new events are available to process.
- *      This implementation is used in Gtk+ 2.0 and greater.
- *
- * Results:
- *      TRUE if we should continue to process events from the display, FALSE otherwise.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-static gboolean
-UnityPlatformHandleEventsGlib(GIOChannel *source,     // IN
-                              GIOCondition condition, // IN
-                              gpointer data)          // IN
-{
-   gboolean errorOccurred = FALSE;
-   gboolean inputAvailable = FALSE;
-
-   if (condition & (G_IO_ERR | G_IO_HUP | G_IO_NVAL)) {
-      errorOccurred = TRUE;
-   } else if (condition & G_IO_IN) {
-      inputAvailable = TRUE;
-   }
-
-   return UnityPlatformHandleEvents(errorOccurred, inputAvailable, data);
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * UnityPlatformHandleEvents --
+ * UnityX11HandleEvents --
  *
  *      Handle incoming events
  *
@@ -1237,10 +1180,8 @@ UnityPlatformHandleEventsGlib(GIOChannel *source,     // IN
  *-----------------------------------------------------------------------------
  */
 
-static gboolean
-UnityPlatformHandleEvents(gboolean errorOccurred,  // IN
-                          gboolean inputAvailable, // IN
-                          gpointer data)           // IN
+gboolean
+UnityX11HandleEvents(gpointer data) // IN
 {
    UnityPlatform *up = (UnityPlatform *) data;
    GList *incomingEvents = NULL;
@@ -1248,15 +1189,6 @@ UnityPlatformHandleEvents(gboolean errorOccurred,  // IN
 
    ASSERT(up);
    ASSERT(up->isRunning);
-
-   if (errorOccurred) {
-      /*
-       * XXX We should force an exit from unity mode here - our X connection just died.
-       */
-      return FALSE;
-   } else if (!inputAvailable) {
-      Panic("Unity event handler was invoked with no input and no error\n");
-   }
 
    Debug("Starting unity event handling\n");
    while (XEventsQueued(up->display, QueuedAfterFlush)) {
@@ -1952,9 +1884,6 @@ UnityPlatformSetTopWindowGroup(UnityPlatform *up,        // IN: Platform data
                                UnityWindowId *windows,   // IN: array of window ids
                                unsigned int windowCount) // IN: # of windows in the array
 {
-   UnityPlatformWindow *upw;
-   Atom data[5] = {0,0,0,0,0};
-   XWindowChanges winch;
    Window sibling = None;
    int i;
 
@@ -1965,11 +1894,10 @@ UnityPlatformSetTopWindowGroup(UnityPlatform *up,        // IN: Platform data
    /*
     * Restack everything bottom to top.
     */
-   data[0] = 2; // Magic source indicator to give full control
-   winch.stack_mode = data[2] = Above; // First window will go at the top of everything
    for (i = 0; i < windowCount; i++) {
-      unsigned int valueMask = CWStackMode;
+      UnityPlatformWindow *upw;
       Window curWindow;
+      Atom data[5] = {0,0,0,0,0};
 
       upw = UPWindow_Lookup(up, windows[i]);
       if (!upw) {
@@ -1979,25 +1907,48 @@ UnityPlatformSetTopWindowGroup(UnityPlatform *up,        // IN: Platform data
       curWindow = upw->clientWindow ? upw->clientWindow : upw->toplevelWindow;
       UPWindow_SetUserTime(up, upw);
 
-      winch.sibling = data[1] = sibling;
-
-      if (sibling != None) {
-         valueMask |= CWSibling;
-      }
-
       if (UnityPlatformWMProtocolSupported(up, UNITY_X11_WM__NET_RESTACK_WINDOW)) {
+         data[0] = 2;           // Magic source indicator to give full control
+         data[1] = sibling;
+         data[2] = Above;
+
          UnityPlatformSendClientMessage(up, up->rootWindows->windows[0],
                                         curWindow,
                                         up->atoms._NET_RESTACK_WINDOW,
                                         32, 5, data);
       } else {
-         XReconfigureWMWindow(up->display,
-                              curWindow,
-                              0, valueMask, &winch);
+         XWindowChanges winch = {
+            .stack_mode = Above,
+            .sibling = sibling
+         };
+         unsigned int valueMask = CWStackMode;
+
+         if (sibling != None) {
+            valueMask |= CWSibling;
+         }
+
+         /*
+          * As of writing, Metacity doesn't support _NET_RESTACK_WINDOW and
+          * will block our attempt to raise a window unless it's active, so
+          * we activate the window first.
+          */
+         if (UnityPlatformWMProtocolSupported(up, UNITY_X11_WM__NET_ACTIVE_WINDOW)) {
+            data[0] = 2;           // Magic source indicator to give full control
+            data[1] = UnityPlatformGetServerTime(up);
+            data[2] = None;
+            UnityPlatformSendClientMessage(up, up->rootWindows->windows[0],
+                                           curWindow,
+                                           up->atoms._NET_ACTIVE_WINDOW,
+                                           32, 5, data);
+         }
+
+         XReconfigureWMWindow(up->display, upw->toplevelWindow, 0, valueMask, &winch);
       }
 
-      sibling = curWindow;
+      sibling = upw->toplevelWindow;
    }
+
+   XSync(up->display, False);
 
    return TRUE;
 }
@@ -2847,7 +2798,7 @@ UnityPlatformSetDesktopConfig(UnityPlatform *up,                             // 
  *
  * UnityPlatformSetInitialDesktop --
  *
- *     Set a desktop specified by the desktop id as the initial state. 
+ *     Set a desktop specified by the desktop id as the initial state.
  *
  * Results:
  *     Returns TRUE if successful, and FALSE otherwise.
@@ -2890,6 +2841,12 @@ UnityPlatformSetDesktopActive(UnityPlatform *up,         // IN
                               UnityDesktopId desktopId)  // IN
 {
    ASSERT(up);
+
+   /*
+    * Update the uwt with the new active desktop info.
+    */
+
+   UnityWindowTracker_ChangeActiveDesktop(up->tracker, desktopId);
 
    if (desktopId >= up->desktopInfo.numDesktops) {
       return FALSE;

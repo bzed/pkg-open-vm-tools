@@ -90,10 +90,11 @@
  *-----------------------------------------------------------------------------
  */
 
-char*
-Util_GetCanonicalPath(const char *path) // IN
+char *
+Util_GetCanonicalPath(const char *path)  // IN:
 {
    char *canonicalPath = NULL;
+
 #if defined(__linux__) || defined(__APPLE__)
    canonicalPath = Posix_RealPath(path);
 #elif defined(_WIN32)
@@ -122,6 +123,7 @@ Util_GetCanonicalPath(const char *path) // IN
     *    assume remote.
     * 2. We do not resolve 8.3 names for remote paths.
     */
+
    if (remoteDrive) {
       canonicalPath = strdup(path);
    } else {
@@ -156,7 +158,7 @@ Util_GetCanonicalPath(const char *path) // IN
  */
 
 char *
-Util_GetCanonicalPathForHash(const char *path) // IN: UTF-8
+Util_GetCanonicalPathForHash(const char *path)  // IN: UTF-8
 {
    char *ret = NULL;
    char *cpath = Util_GetCanonicalPath(path);
@@ -191,7 +193,7 @@ Util_GetCanonicalPathForHash(const char *path) // IN: UTF-8
  */
 
 static char*
-UtilGetLegacyEncodedString(const char *path) // IN: UTF-8
+UtilGetLegacyEncodedString(const char *path)  // IN: UTF-8
 {
    char *ret = NULL;
    char *cpath = Util_GetCanonicalPath(path);
@@ -239,8 +241,8 @@ UtilGetLegacyEncodedString(const char *path) // IN: UTF-8
  *-----------------------------------------------------------------------------
  */
 
-char*
-Util_CompatGetCanonicalPath(const char *path) // IN: UTF-8
+char *
+Util_CompatGetCanonicalPath(const char *path)  // IN: UTF-8
 {
    char *cpath = Util_GetCanonicalPath(path);
    char *ret = NULL;
@@ -265,10 +267,10 @@ Util_CompatGetCanonicalPath(const char *path) // IN: UTF-8
  *      path case-sensitivity.
  *
  *      XXX: This implementation makes assumptions about the host filesystem's
- *           case sensitivity without any regard to what filesystem the provided
- *           paths actually use. There are many ways to break this assumption,
- *           on any of our supported host OSes! The return value of this function
- *           cannot be trusted.
+ *           case sensitivity without any regard to what filesystem the
+ *           provided paths actually use. There are many ways to break this
+ *           assumption, on any of our supported host OSes! The return value
+ *           of this function cannot be trusted.
  *
  * Results:
  *      TRUE if the paths are equivalenr, FALSE if they are not.
@@ -280,11 +282,12 @@ Util_CompatGetCanonicalPath(const char *path) // IN: UTF-8
  */
 
 Bool
-Util_CanonicalPathsIdentical(const char *path1, // IN
-                             const char *path2) // IN
+Util_CanonicalPathsIdentical(const char *path1,  // IN:
+                             const char *path2)  // IN:
 {
    ASSERT(path1);
    ASSERT(path2);
+
 #if defined(linux)
    return (strcmp(path1, path2) == 0);
 #elif defined(_WIN32)
@@ -360,7 +363,7 @@ Util_IsAbsolutePath(const char *path)  // IN: path to check
  */
 
 unsigned
-Util_GetPrime(unsigned n0)
+Util_GetPrime(unsigned n0)  // IN:
 {
    unsigned i, ii, n, nn;
 
@@ -384,6 +387,7 @@ Util_GetPrime(unsigned n0)
        * 65521 is the largest prime below 0xffff, which is where
        * we can stop.  Using it instead of 0xffff avoids overflowing ii.
        */
+
       nn = MIN(n, 65521U * 65521U);
       for (i = 3, ii = 9;; ii += 4*i+4, i += 2) {
          if (ii > nn) {
@@ -405,7 +409,8 @@ Util_GetPrime(unsigned n0)
  * gettid --
  *
  *      Retrieve unique thread identification suitable for kill or setpriority.
- *	Do not call this function directly, use Util_GetCurrentThreadId() instead.
+ *	Do not call this function directly, use Util_GetCurrentThreadId()
+ *      instead.
  *
  * Results:
  *      Unique thread identification on success.
@@ -481,15 +486,18 @@ Util_GetCurrentThreadId(void)
    }
    tid = getpid();
    ASSERT(tid != (pid_t)-1);
+
    return tid;
 #elif defined(sun)
    pid_t tid;
 
    tid = getpid();
    ASSERT(tid != (pid_t)-1);
+
    return tid;
 #elif defined(__APPLE__) || defined(__FreeBSD__)
    ASSERT_ON_COMPILE(sizeof(Util_ThreadID) == sizeof(pthread_t));
+
    return pthread_self();
 #elif defined(_WIN32)
    return GetCurrentThreadId();

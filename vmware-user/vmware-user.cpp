@@ -42,7 +42,6 @@ extern "C" {
 
 #include "vmwareuserInt.h"
 #include "vm_assert.h"
-#include "vm_app.h"
 #include "eventManager.h"
 #include "hgfsServerManager.h"
 #include "vmcheck.h"
@@ -59,12 +58,13 @@ extern "C" {
 #include "unity.h"
 #include "ghIntegration.h"
 #include "resolution.h"
+#include "system.h"
 
 #include "vm_atomic.h"
 #include "hostinfo.h"
 #include "vmwareuser_version.h"
-
 #include "embed_version.h"
+#include "vmware/guestrpc/tclodefs.h"
 } // extern "C"
 VM_EMBED_VERSION(VMWAREUSER_VERSION_STRING);
 
@@ -741,8 +741,11 @@ VMwareUserConfFileLoop(void *clientData) // IN
  *
  *-----------------------------------------------------------------------------
  */
+
 int
-main(int argc, char *argv[])
+main(int argc,         // IN
+     char *argv[],     // IN
+     char *envp[])     // IN
 {
    struct sigaction olds[ARRAYSIZE(gSignals)];
    int index;
@@ -918,7 +921,7 @@ main(int argc, char *argv[])
    EventManager_Add(gEventQueue, CONF_POLL_TIME, VMwareUserConfFileLoop,
                     &confDict);
 
-   Unity_Init(confDict, NULL);
+   Unity_Init(confDict, NULL, NULL);
    GHI_Init(NULL, NULL);
    Resolution_Init(TOOLS_DND_NAME, gXDisplay);
 
@@ -954,10 +957,29 @@ main(int argc, char *argv[])
 
 #if !defined(N_PLAT_NLM) && !defined(sun)
    {
+      const char **nativeEnvp;
+      char **utf8NativeEnvp;
+
+      /*
+       * Determine our pre-VMware wrapper native environment and pass that to
+       * Foundry so it can spawn applications.
+       */
+
+      nativeEnvp = System_GetNativeEnviron(const_cast<const char **>(envp));
+
+      /* Foundry takes its strings UTF-8. */
+      utf8NativeEnvp = Unicode_AllocList(const_cast<char **>(nativeEnvp),
+                                         -1,  // nativeEnvp is NULL terminated
+                                         STRING_ENCODING_DEFAULT);
+
       FoundryToolsDaemon_RegisterRoutines(gRpcIn,
                                           &confDict,
                                           gEventQueue,
+                                          utf8NativeEnvp,
                                           FALSE);
+
+      Unicode_FreeList(utf8NativeEnvp, -1);
+      System_FreeNativeEnviron(nativeEnvp);
    }
 #endif
 

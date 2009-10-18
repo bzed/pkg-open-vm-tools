@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -16,27 +16,23 @@
  *
  *********************************************************/
 
-/*
- * statelogger_backdoor_def.h --
+#ifndef _TIMESYNC_H_
+#define _TIMESYNC_H_
+
+/**
+ * @file timesync.h
  *
- *      Backdoor command definitions for record/replay.
+ * Definitions related to the time sync functionality.
  */
 
-#ifndef _STATELOGGER_BACKDOOR_DEF_H_
-#define _STATELOGGER_BACKDOOR_DEF_H_
+#define TOOLSOPTION_SYNCTIME                    "synctime"
+#define TOOLSOPTION_SYNCTIME_PERIOD             "synctime.period"
+#define TOOLSOPTION_SYNCTIME_ENABLE             "time.synchronize.tools.enable"
+#define TOOLSOPTION_SYNCTIME_STARTUP            "time.synchronize.tools.startup"
+#define TOOLSOPTION_SYNCTIME_SLEWCORRECTION     "time.synchronize.tools.slewCorrection"
+#define TOOLSOPTION_SYNCTIME_PERCENTCORRECTION  "time.synchronize.tools.percentCorrection"
 
-#define INCLUDE_ALLOW_MODULE
-#define INCLUDE_ALLOW_USERLEVEL
-#define INCLUDE_ALLOW_VMMEXT
-#define INCLUDE_ALLOW_VMCORE
-#define INCLUDE_ALLOW_VMKERNEL
-#include "includeCheck.h"
+#define TIMESYNC_SYNCHRONIZE                    "Time_Synchronize"
 
-#define STATELOGGER_BKDR_VM_REPLAYABLE             0
-#define STATELOGGER_BKDR_START_LOGGING             1
-#define STATELOGGER_BKDR_STOP_LOGGING              2
-#define STATELOGGER_BKDR_LAST_SNAPSHOT_UID         3
-#define STATELOGGER_BKDR_GET_BRANCH_COUNT          4
-#define STATELOGGER_BKDR_START_REPLAYING         100
+#endif /* _TIMESYNC_H_ */
 
-#endif /* _STATELOGGER_BACKDOOR_DEF_H_ */

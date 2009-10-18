@@ -35,10 +35,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="2009.09.18"
+TOOLS_VERSION="2009.10.15"
 AC_INIT(
    [open-vm-tools],
-   [2009.09.18],
+   [2009.10.15],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -596,12 +596,21 @@ AC_CHECK_FUNCS(
 AC_CHECK_FUNCS([ecvt])
 AC_CHECK_FUNCS([fcvt])
 
-AC_CHECK_LIB(
-   [pthread],
-   [pthread_mutex_init],
-   [HAVE_PTHREAD=yes],
-   [AC_MSG_ERROR(
-      [libpthread not found. Please install the libc/libpthread devel package(s).])])
+if test "$os" = "freebsd" -a "$osVersion" -ge 600000; then
+   AC_CHECK_LIB(
+      [thr],
+      [pthread_mutex_init],
+      [THREAD_LIB=-lthr],
+      [AC_MSG_ERROR(
+         [Unable to locate required threading library libthr.])])
+else
+   AC_CHECK_LIB(
+      [pthread],
+      [pthread_mutex_init],
+      [THREAD_LIB=-lpthread],
+      [AC_MSG_ERROR(
+         [libpthread not found. Please install the libc/libpthread devel package(s).])])
+fi
 
 # PAM prefix
 AC_ARG_WITH([pam-prefix],
@@ -733,11 +742,6 @@ AC_PATH_PROG(
 ###
 ### Headers
 ###
-
-AC_CHECK_DECL([SYS_eventfd],
-              [has_sys_eventfd="yes"],
-              [has_sys_eventfd="no"],
-              [ [#include <syscall.h>] ])
 
 AC_CHECK_HEADERS([crypt.h])
 AC_CHECK_HEADERS([inttypes.h])
@@ -1047,7 +1051,6 @@ AM_CONDITIONAL(HAVE_FUSE, test "$have_fuse" = "yes")
 AM_CONDITIONAL(HAVE_GNU_LD, test "$with_gnu_ld" = "yes")
 AM_CONDITIONAL(HAVE_GTKMM, test "$have_x" = "yes" -a "$with_gtkmm" = "yes")
 AM_CONDITIONAL(HAVE_PAM, test "$with_pam" = "yes")
-AM_CONDITIONAL(NEED_EVENTFD, test "$has_sys_eventfd" = "no")
 AM_CONDITIONAL(USE_SLASH_PROC, test "os" = "linux" -a "$have_glib_2_14" = "yes")
 
 ### Feature-specific flags / actions
@@ -1090,11 +1093,9 @@ if test "$HAVE_WCHAR_H" = "yes"; then
    LIB_STRING_CPPFLAGS="$LIB_STRING_CPPFLAGS -DGLIBC_VERSION_22"
 fi
 
-if test "$HAVE_PTHREAD" = "yes"; then
-   LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -lpthread"
-   VIX_LIBADD="$VIX_LIBADD -lpthread"
-   VMWARE_USER_LDADD="$VMWARE_USER_LDADD -lpthread"
-fi
+LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD $THREAD_LIB"
+VIX_LIBADD="$VIX_LIBADD $THREAD_LIB"
+VMWARE_USER_LDADD="$VMWARE_USER_LDADD $THREAD_LIB"
 
 ### Core Services definitions.
 
@@ -1113,6 +1114,7 @@ fi
 
 # Installation directories for core services plugins.
 TEST_PLUGIN_INSTALLDIR=$datadir/open-vm-tools/tests
+COMMON_PLUGIN_INSTALLDIR=$libdir/open-vm-tools/plugins/common
 VMSVC_PLUGIN_INSTALLDIR=$libdir/open-vm-tools/plugins/vmsvc
 VMUSR_PLUGIN_INSTALLDIR=$libdir/open-vm-tools/plugins/vmusr
 
@@ -1133,6 +1135,7 @@ AC_SUBST([VMTOOLS_LIBS])
 AC_SUBST([RPCGENFLAGS])
 AC_SUBST([XDR_LIBS])
 AC_SUBST([TEST_PLUGIN_INSTALLDIR])
+AC_SUBST([COMMON_PLUGIN_INSTALLDIR])
 AC_SUBST([VMSVC_PLUGIN_INSTALLDIR])
 AC_SUBST([VMUSR_PLUGIN_INSTALLDIR])
 if test "$os" = "freebsd" -a -n "$SYSDIR"; then

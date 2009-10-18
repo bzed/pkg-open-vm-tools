@@ -17,22 +17,14 @@
  *********************************************************/
 
 /*
- * syncMutex.c --
+ * syncMutexPthread.c --
  *
- *      Implements a non-recursive mutex in a platform independent way.
+ *      Implements a non-recursive mutex using pthreads
  */
 
-#if defined(_WIN32)
-#include <windows.h>
-#elif defined(N_PLAT_NLM)
-#include <nwerrno.h>
-#include <nwadv.h>
-#include <nwthread.h>
-#include <nwsemaph.h>
-#else
-#include <sys/poll.h>
+#include <pthread.h>
 #include <errno.h>
-#endif
+#include <stdlib.h>
 
 #include "vm_assert.h"
 #include "syncMutex.h"
@@ -54,20 +46,15 @@
  */
 
 Bool
-SyncMutex_Init(SyncMutex *that,      // OUT
-	       char const *path) // IN
+SyncMutex_Init(SyncMutex *that,   // OUT:
+	       char const *path)  // IN:
 {
-   ASSERT(that);
+   int error;
 
-#if defined(N_PLAT_NLM)
-   that->semaphoreHandle = OpenLocalSemaphore(0);
-#else
-   if (!SyncWaitQ_Init(&that->wq, path)) {
+   error = pthread_mutex_init(&that->_mutex, NULL);
+   if (error != 0) {
       return FALSE;
    }
-
-   Atomic_Write(&that->unlocked, TRUE);
-#endif
 
    return TRUE;
 }
@@ -85,15 +72,14 @@ SyncMutex_Init(SyncMutex *that,      // OUT
  */
 
 void
-SyncMutex_Destroy(SyncMutex *that) // IN
+SyncMutex_Destroy(SyncMutex *that)  // IN:
 {
-   ASSERT(that);
-
-#if defined(N_PLAT_NLM)
-   WaitOnLocalSemaphore(that->semaphoreHandle);
-   CloseLocalSemaphore(that->semaphoreHandle);
-#else
-   SyncWaitQ_Destroy(&that->wq);
+#ifdef VMX86_DEBUG
+   int error = 
+#endif
+      pthread_mutex_destroy(&that->_mutex);
+#ifdef VMX86_DEBUG
+   ASSERT(error != EBUSY);
 #endif
 }
 
@@ -114,72 +100,12 @@ SyncMutex_Destroy(SyncMutex *that) // IN
 Bool
 SyncMutex_Lock(SyncMutex *that) // IN
 {
-#if defined(N_PLAT_NLM)
-   ASSERT(that);
+   int error = pthread_mutex_lock(&that->_mutex);
 
-   WaitOnLocalSemaphore(that->semaphoreHandle);
-#else
-#if defined(VMX86_DEVEL)
-#define RETRY_TIMEOUT_MS (-1) // Infinite time out to catch bug #23716 (devel)
-#else
-#define RETRY_TIMEOUT_MS 5000 // Workaround for bug #23716
-#endif
-   
-   PollDevHandle handle;
-
-   ASSERT(that);
-
-   if (Atomic_ReadIfEqualWrite(&that->unlocked, TRUE, FALSE)) {
-      return TRUE;
+   ASSERT(error != EINVAL);
+   if (error != 0) {
+      return FALSE;
    }
-
-   for (;;) {
-      int status;
-
-      handle = SyncWaitQ_Add(&that->wq);
-      if (handle < 0) {
-         return FALSE;
-      }
-
-      if (Atomic_ReadIfEqualWrite(&that->unlocked, TRUE, FALSE)) {
-         if (!SyncWaitQ_Remove(&that->wq, handle)) {
-            return FALSE;
-         }
-
-         break;
-      }
-
-#if defined(_WIN32)
-      status = WaitForSingleObject((HANDLE) handle, RETRY_TIMEOUT_MS);
-      ASSERT(status != WAIT_FAILED);
-#else // #ifdef _WIN32
-      {
-	 struct pollfd p;
-	 p.events = POLLIN;
-	 p.fd     = handle;
-
-	 for (;;) {
-	    status = poll(&p, 1, RETRY_TIMEOUT_MS);
-	    if (status == 1 || status == 0) {
-	       break;
-	    }
-
-	    ASSERT(status < 0);
-	    if (errno != EINTR) {
-	       SyncWaitQ_Remove(&that->wq, handle);
-	       return FALSE;
-	    }
-
-	    /* We were interrupted by a signal, retry --hpreg */
-	 }
-      }
-#endif // #ifdef _WIN32
-
-      if (!SyncWaitQ_Remove(&that->wq, handle)) {
-         return FALSE;
-      }
-   }
-#endif
 
    return TRUE;
 }
@@ -201,17 +127,14 @@ SyncMutex_Lock(SyncMutex *that) // IN
 Bool
 SyncMutex_Unlock(SyncMutex *that) // IN
 {
-   ASSERT(that);
+   int error = pthread_mutex_unlock(&that->_mutex);
 
-#if defined(N_PLAT_NLM)
-   SignalLocalSemaphore(that->semaphoreHandle);
+   ASSERT(error != EINVAL);
+   if (error != 0) {
+      return FALSE;
+   }
 
    return TRUE;
-#else
-   Atomic_Write(&that->unlocked, TRUE);
-
-   return SyncWaitQ_WakeUp(&that->wq);
-#endif
 }
 
 
@@ -265,7 +188,6 @@ SyncMutex_CreateSingleton(Atomic_Ptr *lckStorage) // IN
 }
 
 
-#if !defined(N_PLAT_NLM)
 /*
  *-----------------------------------------------------------------------------
  *
@@ -283,11 +205,13 @@ SyncMutex_CreateSingleton(Atomic_Ptr *lckStorage) // IN
  */
 
 Bool
-SyncMutex_Trylock(SyncMutex *that)
+SyncMutex_Trylock(SyncMutex *that)  // IN:
 {
    ASSERT(that);
-   
-   return Atomic_ReadIfEqualWrite(&that->unlocked, TRUE, FALSE);
-}
+#ifdef VMX86_SERVER
+   NOT_IMPLEMENTED();
+   return FALSE;
+#else
+   return (0 == pthread_mutex_trylock(&that->_mutex));
 #endif
-
+}
