@@ -21,7 +21,7 @@
 #
 # Defines the custom GClosure marshal functions for the core services signals.
 #
-# @see vmtoolsApp.h
+# @see plugin.h
 #
 
 # The "capabilities" signal.
@@ -33,4 +33,8 @@ BOOLEAN:POINTER,STRING,STRING
 # The "session change" signal.
 # Used on Win32 only.
 VOID:POINTER,UINT,UINT
+
+# The "pre shutdown" signal.
+# Used on Win32 only.
+VOID:POINTER,POINTER
 

@@ -74,7 +74,6 @@
 #define INCLUDE_ALLOW_VMMEXT
 #define INCLUDE_ALLOW_MODULE
 #define INCLUDE_ALLOW_VMMON
-#define INCLUDE_ALLOW_VMNIXMOD
 #define INCLUDE_ALLOW_VMKERNEL
 #define INCLUDE_ALLOW_VMKDRIVERS
 #define INCLUDE_ALLOW_VMK_MODULE
@@ -350,10 +349,19 @@ EXTERN void WarningThrottled(uint32 *count, const char *fmt, ...)
 
 #if !defined VMM || defined MONITOR_APP // {
 
+#if defined VMKERNEL
+// vmkernel Panic() function does not want a trailing newline.
+#define _ASSERT_PANIC(name) \
+           Panic(_##name##Fmt, __FILE__, __LINE__)
+#define _ASSERT_PANIC_BUG(bug, name) \
+           Panic(_##name##Fmt " bugNr=%d", __FILE__, __LINE__, bug)
+
+#else /* !VMKERNEL */
 #define _ASSERT_PANIC(name) \
            Panic(_##name##Fmt "\n", __FILE__, __LINE__)
 #define _ASSERT_PANIC_BUG(bug, name) \
            Panic(_##name##Fmt " bugNr=%d\n", __FILE__, __LINE__, bug)
+#endif /* VMKERNEL */
 
 #define AssertLengthFmt     _AssertLengthFmt
 #define AssertUnexpectedFmt _AssertUnexpectedFmt

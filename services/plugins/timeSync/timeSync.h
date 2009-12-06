@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2003 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -16,26 +16,35 @@
  *
  *********************************************************/
 
-/*
- * guestInfoServer.h --
+#ifndef _TIMESYNC_INT_H_
+#define _TIMESYNC_INT_H_
+
+/**
+ * @file timeSync.h
  *
- *	GuestInfo server
+ * Functions and definitions related to syncing time.
  */
 
-#ifndef _GUEST_INFO_SERVER_H_
-#define _GUEST_INFO_SERVER_H_
-
+#define G_LOG_DOMAIN "timeSync"
 #include "vm_basic_types.h"
-#include "dbllnklst.h"
 
-#ifdef _WIN32
-void GuestInfoServer_Main(void *data);
-#endif
-Bool GuestInfoServer_Init(DblLnkLst_Links * eventQueue);
-void GuestInfoServer_Cleanup(void);
-void GuestInfoServer_VMResumedNotify(void);
-uint64 GuestInfo_GetAvailableDiskSpace(char *pathName);
-void GuestInfoServer_DisableDiskInfoQuery(Bool disable);
-Bool GuestInfoServer_SendUptime(void);
+Bool
+TimeSync_GetCurrentTime(int64 *secs,
+                        int64 *usecs);
 
-#endif // _GUEST_INFO_SERVER_H_
+Bool
+TimeSync_AddToCurrentTime(int64 deltaSecs,
+                          int64 deltaUsecs);
+
+Bool
+TimeSync_EnableTimeSlew(int64 delta,
+                        int64 timeSyncPeriod);
+
+Bool
+TimeSync_DisableTimeSlew(void);
+
+Bool
+TimeSync_IsTimeSlewEnabled(void);
+
+#endif /* _TIMESYNC_INT_H_ */
+

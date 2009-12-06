@@ -16,28 +16,26 @@
  *
  *********************************************************/
 
-#ifndef _VMTOOLS_H_
-#define _VMTOOLS_H_
+#ifndef _VMWARE_TOOLS_UTILS_H_
+#define _VMWARE_TOOLS_UTILS_H_
 
 /**
- * @file vmtools.h
+ * @file utils.h
  *
- *    Public functions from the VMTools shared library.
+ *    Public functions from the VMTools shared library, and other definitions.
  *
  * @addtogroup vmtools_utils
  * @{
  */
 
-#if !defined(G_LOG_DOMAIN)
-#  define G_LOG_DOMAIN VMTools_GetDefaultLogDomain()
-#endif
-
 #define  VMTOOLS_GUEST_SERVICE   "vmsvc"
 #define  VMTOOLS_USER_SERVICE    "vmusr"
 
-/* Needs to come before glib.h. */
-const char *
-VMTools_GetDefaultLogDomain(void);
+#if defined(__cplusplus)
+#  define VMTOOLS_EXTERN_C extern "C"
+#else
+#  define VMTOOLS_EXTERN_C
+#endif
 
 #include <glib.h>
 #if defined(G_PLATFORM_WIN32)
@@ -47,11 +45,21 @@ VMTools_GetDefaultLogDomain(void);
 #  include <sys/time.h>
 #endif
 
+
+/* Work around a glib limitation: it doesn't set G_INLINE_FUNC on Win32. */
+#if defined(G_PLATFORM_WIN32)
+#  if defined(G_INLINE_FUNC)
+#     undef G_INLINE_FUNC
+#  endif
+#  define G_INLINE_FUNC static __inline
+#endif
+
+
 /**
  * Converts an UTF-8 path to the local (i.e., glib) file name encoding.
  * This is a no-op on Windows, since the local encoding is always UTF-8
  * in glib. The returned value should not be freed directly; instead,
- * use VMTOOLS_FREE_FILENAME.
+ * use VMTOOLS_RELEASE_FILENAME_LOCAL.
  *
  * @param[in]  path  Path in UTF-8 (should not be NULL).
  * @param[out] err   Where to store errors (type: GError **; may be NULL).
@@ -81,36 +89,22 @@ VMTools_GetDefaultLogDomain(void);
 #  define VMTOOLS_RELEASE_FILENAME_LOCAL(path)   g_free(path)
 #endif
 
+G_BEGIN_DECLS
 
 void
 vm_free(void *ptr);
 
 void
-VMTools_SetDefaultLogDomain(const gchar *domain);
-
-void
-VMTools_ConfigLogging(GKeyFile *cfg);
-
-void
-VMTools_EnableLogging(gboolean enable);
-
-gchar *
-VMTools_GetToolsConfFile(void);
-
-GKeyFile *
-VMTools_LoadConfig(const gchar *path,
-                   GKeyFileFlags flags,
-                   gboolean autoUpgrade);
-
+VMTools_ConfigLogging(const gchar *defaultDomain,
+                      GKeyFile *cfg,
+                      gboolean force,
+                      gboolean reset);
 
 gboolean
-VMTools_ReloadConfig(const gchar *path,
-                     GKeyFileFlags flags,
-                     GKeyFile **config,
-                     time_t *mtime);
-
-void
-VMTools_ResetLogging(gboolean cleanDefault);
+VMTools_LoadConfig(const gchar *path,
+                   GKeyFileFlags flags,
+                   GKeyFile **config,
+                   time_t *mtime);
 
 gboolean
 VMTools_WriteConfig(const gchar *path,
@@ -137,7 +131,9 @@ VMTools_WrapArray(gconstpointer data,
                   guint elemSize,
                   guint count);
 
+G_END_DECLS
+
 /** @} */
 
-#endif /* _VMTOOLS_H_ */
+#endif /* _VMWARE_TOOLS_UTILS_H_ */
 

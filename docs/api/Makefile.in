@@ -250,14 +250,11 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 DOXYGEN_INPUT = $(top_srcdir)/docs/api $(top_srcdir)/docs/api/services \
-	$(top_srcdir)/lib/include/rpcChannel.h \
-	$(top_srcdir)/lib/include/vmtoolsApp.h \
-	$(top_srcdir)/lib/include/vmtools.h \
-	$(top_srcdir)/lib/include/vmrpcdbg.h $(top_srcdir)/libvmtools \
-	$(top_srcdir)/tests/vmrpcdbg
+	$(top_srcdir)/lib/include/vmware/tools \
+	$(top_srcdir)/libvmtools $(top_srcdir)/tests/vmrpcdbg
 DOXYGEN_CPP_PREDEFINED = G_LOCK_DEFINE_STATIC(x) G_LOG_DOMAIN=
 DOXYGEN_CPP_EXPAND = 
-DOXYGEN_EXTRA_PATTERNS = *.txt
+DOXYGEN_EXTRA_PATTERNS = *.c *.h *.txt
 all: all-am
 
 .SUFFIXES:

@@ -135,6 +135,10 @@ install: build
 	# Installing package
 	$(MAKE) DESTDIR=$(CURDIR)/debian/open-vm-tools install
 
+	rm -f debian/open-vm-tools/usr/lib/open-vm-tools/plugins/*/*.la
+	rm -rf debian/open-vm-tools/usr/share/open-vm-tools/tests
+	rmdir debian/open-vm-tools/usr/share/open-vm-tools
+
 	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper
 
 	install -D -m 0644 toolbox/smallIcon.xpm debian/open-vm-toolbox/usr/share/pixmaps/vmware-toolbox.xpm
@@ -153,6 +157,12 @@ install: build
 	mkdir -p debian/open-vm-tools/sbin
 	mv debian/open-vm-tools/usr/sbin/mount.vmhgfs debian/open-vm-tools/sbin/mount.vmhgfs
 
+	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/common/* debian/open-vm-tools/usr/lib/open-vm-tools/plugins
+	rmdir debian/open-vm-tools/usr/lib/open-vm-tools/plugins/common
+
+	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmsvc/* debian/open-vm-tools/usr/lib/open-vm-tools/plugins
+	rmdir debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmsvc
+
 	# Moving open-vm-toolbox files
 	mkdir -p debian/open-vm-toolbox/usr/bin
 	mv debian/open-vm-tools/usr/bin/vmware-user debian/open-vm-toolbox/usr/bin
@@ -160,6 +170,9 @@ install: build
 
 	mkdir -p debian/open-vm-toolbox/usr/share
 	mv debian/open-vm-tools/usr/share/applications debian/open-vm-toolbox/usr/share
+
+	mkdir -p debian/open-vm-toolbox/usr/lib/open-vm-tools
+	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmusr debian/open-vm-toolbox/usr/lib/open-vm-tools/plugins
 
 	# Installing configuration files
 	install -D -m 0644 debian/local/xautostart.conf debian/open-vm-toolbox/etc/vmware-tools/xautostart.conf

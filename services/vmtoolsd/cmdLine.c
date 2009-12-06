@@ -33,11 +33,12 @@
 #endif
 #include <glib/gi18n.h>
 
+#include "vm_assert.h"
 #include "conf.h"
 #include "rpcout.h"
 #include "str.h"
-#include "vmtools.h"
 #include "vmtoolsd_version.h"
+#include "vmware/tools/utils.h"
 
 
 /**
@@ -192,6 +193,8 @@ ToolsCore_ParseCommandLine(ToolsServiceState *state,
          N_("Uninstalls the service from the Service Control Manager."), NULL },
       { "displayname", 'd', 0, G_OPTION_ARG_STRING, &state->displayName,
          N_("Service display name (only used with -i)."), N_("name") },
+      { "console", '\0', 0, G_OPTION_ARG_NONE, &state->useConsole,
+         N_("Use the parent process's console window."), NULL },
 #else
       { "background", 'b', 0, G_OPTION_ARG_FILENAME, &state->pidFile,
          N_("Runs in the background and creates a pid file."), N_("pidfile") },
@@ -232,7 +235,6 @@ ToolsCore_ParseCommandLine(ToolsServiceState *state,
       exit(0);
    }
 
-   VMTools_EnableLogging(state->log);
    if (state->name == NULL) {
       state->name = VMTOOLS_GUEST_SERVICE;
       state->mainService = TRUE;
@@ -243,6 +245,11 @@ ToolsCore_ParseCommandLine(ToolsServiceState *state,
       }
       state->mainService = (strcmp(state->name, VMTOOLS_GUEST_SERVICE) == 0);
    }
+
+   VMTools_ConfigLogging(state->name,
+                         NULL,
+                         state->log,
+                         FALSE);
 
 #if defined(G_PLATFORM_WIN32)
    if (kill) {

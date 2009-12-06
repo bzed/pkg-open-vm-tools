@@ -31,13 +31,21 @@
 #include <glib-object.h>
 #include <gmodule.h>
 #include <time.h>
-#include "vmrpcdbg.h"
-#include "vmtoolsApp.h"
+#include "vmware/tools/plugin.h"
+#include "vmware/tools/rpcdebug.h"
 
 /* Used by the Windows implementation to communicate with other processes. */
 #if defined(G_PLATFORM_WIN32)
 #  define QUIT_EVENT_NAME_FMT         L"Global\\VMwareToolsQuitEvent_%s"
 #  define DUMP_STATE_EVENT_NAME_FMT   L"Global\\VMwareToolsDumpStateEvent_%s"
+#endif
+
+/* On Mac OS, G_MODULE_SUFFIX seems to be defined to "so"... */
+#if defined(__APPLE__)
+#  if defined(G_MODULE_SUFFIX)
+#     undef G_MODULE_SUFFIX
+#  endif
+#  define G_MODULE_SUFFIX "dylib"
 #endif
 
 /** Defines the internal data about a plugin. */
@@ -73,6 +81,7 @@ typedef struct ToolsServiceState {
    gchar         *pluginPath;
    GPtrArray     *plugins;
 #if defined(_WIN32)
+   gboolean       useConsole;
    gchar         *displayName;
 #else
    gchar         *pidFile;
@@ -116,7 +125,7 @@ ToolsCore_LoadPlugins(ToolsServiceState *state);
 
 void
 ToolsCore_ReloadConfig(ToolsServiceState *state,
-                       gboolean force);
+                       gboolean reset);
 
 void
 ToolsCore_RegisterPlugins(ToolsServiceState *state);

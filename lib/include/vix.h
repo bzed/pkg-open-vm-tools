@@ -214,6 +214,7 @@ enum {
    VIX_E_SNAPSHOT_MEMORY_ON_INDEPENDENT_DISK    = 13018,
    VIX_E_SNAPSHOT_MAXSNAPSHOTS                  = 13019,
    VIX_E_SNAPSHOT_MIN_FREE_SPACE                = 13020,
+   VIX_E_SNAPSHOT_HIERARCHY_TOODEEP             = 13021,
 
    /* Host Errors */
    VIX_E_HOST_DISK_INVALID_VALUE                = 14003,
@@ -419,6 +420,8 @@ enum {
    VIX_PROPERTY_VM_VMTEAM_PATHNAME                    = 105, 
    VIX_PROPERTY_VM_MEMORY_SIZE                        = 106,
    VIX_PROPERTY_VM_READ_ONLY                          = 107,
+   VIX_PROPERTY_VM_NAME                               = 108,
+   VIX_PROPERTY_VM_GUESTOS                            = 109,
    VIX_PROPERTY_VM_IN_VMTEAM                          = 128,
    VIX_PROPERTY_VM_POWER_STATE                        = 129,
    VIX_PROPERTY_VM_TOOLS_STATE                        = 152,
@@ -453,6 +456,7 @@ enum {
    VIX_PROPERTY_JOB_RESULT_SCREEN_IMAGE_DATA          = 3059,
    VIX_PROPERTY_JOB_RESULT_FILE_SIZE                  = 3061,
    VIX_PROPERTY_JOB_RESULT_FILE_MOD_TIME              = 3062,
+   VIX_PROPERTY_JOB_RESULT_EXTRA_ERROR_INFO           = 3084,
 
    /* Event properties; these are sent in the moreEventInfo for some events. */
    VIX_PROPERTY_FOUND_ITEM_LOCATION                   = 4010,

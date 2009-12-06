@@ -1,3 +1,16 @@
+open-vm-tools (2009.11.16-210370-1) unstable; urgency=low
+
+  * Merging upstream version 2009.11.16-210370.
+  * Moving vmusr plugins from open-vm-tools to open-vm-toolbox (Closes:
+    #539282, #557215).
+  * Correcting plugin location (Closes: #545222, #549044).
+  * Dropping la files (Closes: #551626).
+  * Adding open-vm-toolbox lintian overrides.
+  * Removing test plugin.
+  * Removing unused plugin symlinks.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 06 Dec 2009 07:45:05 +0100
+
 open-vm-tools (2009.10.15-201664-1) unstable; urgency=low
 
   * Merging upstream version 2009.10.15-201664.

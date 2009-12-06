@@ -27,16 +27,15 @@
 #define G_LOG_DOMAIN "testDebug"
 #include <glib-object.h>
 #include "util.h"
-#include "vmrpcdbg.h"
-#include "vmtools.h"
 #include "guestrpc/ghiGetBinaryHandlers.h"
 #include "vmware/guestrpc/tclodefs.h"
+#include "vmware/tools/rpcdebug.h"
 
 static gboolean
-TestDebugValidateReset(RpcInData *data, Bool ret);
+TestDebugValidateReset(RpcInData *data, gboolean ret);
 
 static gboolean
-TestDebugValidateUnknown(RpcInData *data, Bool ret);
+TestDebugValidateUnknown(RpcInData *data, gboolean ret);
 
 #define SET_OPTION_TEST ("Set_Option " TOOLSOPTION_BROADCASTIP " 1")
 
@@ -89,7 +88,7 @@ TestDebugHandleSignal(gpointer src,
 
 static gboolean
 TestDebugValidateReset(RpcInData *data,
-                       Bool ret)
+                       gboolean ret)
 {
    ToolsAppCtx *ctx = data->appCtx;
    g_assert(data->result != NULL);
@@ -162,7 +161,7 @@ TestDebugReceiveVersion(char *data,
                         size_t *resultLen)
 {
    g_debug("Received tools version message: %s\n", data);
-   RPCDEBUG_SET_RESULT("", result, resultLen);
+   RpcDebug_SetResult("", result, resultLen);
    return TRUE;
 }
 
@@ -178,7 +177,7 @@ TestDebugReceiveVersion(char *data,
 
 static gboolean
 TestDebugValidateUnknown(RpcInData *data,
-                         Bool ret)
+                         gboolean ret)
 {
    g_assert(strcmp(data->result, "Unknown Command") == 0);
    return !ret;

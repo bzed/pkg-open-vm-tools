@@ -71,7 +71,6 @@
 #define INCLUDE_ALLOW_VMMEXT
 #define INCLUDE_ALLOW_MODULE
 #define INCLUDE_ALLOW_VMMON
-#define INCLUDE_ALLOW_VMNIXMOD
 #define INCLUDE_ALLOW_VMKERNEL
 #define INCLUDE_ALLOW_VMKDRIVERS
 #define INCLUDE_ALLOW_VMK_MODULE
@@ -339,7 +338,7 @@ GetFrameAddr(void)
 #if (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ == 0))
    bp = (uintptr_t)__builtin_frame_address(0);
 #elif (__GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ <= 3)
-#  if defined(VMM64) || defined(VM_X86_64)
+#  if defined(VMM) || defined(VM_X86_64)
      __asm__ __volatile__("movq %%rbp, %0\n" : "=g" (bp));
 #  else
      __asm__ __volatile__("movl %%ebp, %0\n" : "=g" (bp));
@@ -563,14 +562,6 @@ typedef int pid_t;
 #else
 #define vmx86_log     0
 #define LOG_ONLY(x)
-#endif
-
-#ifdef VMX86_VMM_SERIAL_LOGGING
-#define vmx86_vmm_serial_log     1
-#define VMM_SERIAL_LOG_ONLY(x)   x
-#else
-#define vmx86_vmm_serial_log     0
-#define VMM_SERIAL_LOG_ONLY(x)
 #endif
 
 #ifdef VMX86_SERVER

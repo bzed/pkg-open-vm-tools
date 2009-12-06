@@ -16,11 +16,11 @@
  *
  *********************************************************/
 
-#ifndef _VMTOOLSAPP_H_
-#define _VMTOOLSAPP_H_
+#ifndef _VMWARE_TOOLS_PLUGIN_H_
+#define _VMWARE_TOOLS_PLUGIN_H_
 
 /**
- * @file vmtoolsApp.h
+ * @file plugin.h
  *
  *    Defines the interface between the core tools services and the plugins
  *    that are dynamically loaded into the service.
@@ -34,8 +34,9 @@
 #  include <windows.h>
 #  include <objbase.h>
 #endif
-#include "rpcChannel.h"
 #include "vmware/guestrpc/capabilities.h"
+#include "vmware/tools/guestrpc.h"
+#include "vmware/tools/utils.h"
 
 /**
  * Error reporting macro. Call this if the app encounters an error
@@ -144,6 +145,17 @@
  * @param[in]  data     Client data.
  */
 #define TOOLS_CORE_SIG_SESSION_CHANGE  "tcs_session_change"
+
+/**
+ * Signal sent when the pre shutdown event is received in the service.
+ *
+ * @param[in]  src      The source object.
+ * @param[in]  ctx      ToolsAppCtx *: The application context.
+ * @param[in]  handle   SERVICE_STATUS_HANDLE: Service status handle.
+ * @param[in]  data     Client data.
+ */
+#define TOOLS_CORE_SIG_PRESHUTDOWN "tcs_preshutdown"
+
 #endif
 
 
@@ -206,7 +218,7 @@ typedef struct ToolsAppCtx {
  *
  * @return TRUE if COM is initialized when the function returns.
  */
-static INLINE gboolean
+G_INLINE_FUNC gboolean
 ToolsCore_InitializeCOM(ToolsAppCtx *ctx)
 {
    if (!ctx->comInitialized) {
@@ -247,7 +259,7 @@ typedef struct ToolsAppCapability {
     * For old-style, the capability name. The RPC message for setting the
     * capability will be "tools.capability.[name]". Ignored for TOOLS_CAP_NEW.
     */
-   gchar               *name;
+   const gchar         *name;
    /**
     * The capability entry in the enum defined in guestCaps.h.
     * Used only for TOOLS_CAP_NEW.
@@ -399,11 +411,11 @@ typedef struct ToolsPluginData {
  * needs to export.
  */
 #if defined(G_PLATFORM_WIN32)
-#  define TOOLS_MODULE_EXPORT    __declspec(dllexport)
+#  define TOOLS_MODULE_EXPORT    VMTOOLS_EXTERN_C __declspec(dllexport)
 #elif defined(GCC_EXPLICIT_EXPORT)
-#  define TOOLS_MODULE_EXPORT    __attribute__((visibility("default")))
+#  define TOOLS_MODULE_EXPORT    VMTOOLS_EXTERN_C __attribute__((visibility("default")))
 #else
-#  define TOOLS_MODULE_EXPORT
+#  define TOOLS_MODULE_EXPORT    VMTOOLS_EXTERN_C
 #endif
 
 /**
@@ -421,5 +433,5 @@ typedef ToolsPluginData *(*ToolsPluginOnLoad)(ToolsAppCtx *ctx);
 
 /** @} */
 
-#endif /* _VMTOOLSAPP_H_ */
+#endif /* _VMWARE_TOOLS_PLUGIN_H_ */
 
