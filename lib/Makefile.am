@@ -50,9 +50,11 @@ if ENABLE_UNITY
    SUBDIRS += image
 endif
 SUBDIRS += impersonate
+SUBDIRS += lock
 SUBDIRS += message
 SUBDIRS += misc
 SUBDIRS += netUtil
+SUBDIRS += nothread
 SUBDIRS += panic
 SUBDIRS += panicDefault
 SUBDIRS += printer
@@ -74,7 +76,6 @@ endif
 SUBDIRS += SLPv2Parser
 SUBDIRS += string
 SUBDIRS += stubs
-SUBDIRS += sync
 SUBDIRS += syncDriver
 SUBDIRS += system
 SUBDIRS += unicode

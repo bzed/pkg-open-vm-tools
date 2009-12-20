@@ -104,15 +104,17 @@
  * fallocate() is only supported since the glibc-2.8 and
  * linux kernel-2.6.23. Presently the glibc in our toolchain is 2.3.
  */
-#ifdef __linux__
-   #ifndef SYS_fallocate
-      #ifdef __i386__
+#if defined(__linux__)
+   #if !defined(SYS_fallocate)
+      #if defined(__i386__)
          #define SYS_fallocate 324
       #elif __x86_64__
          #define SYS_fallocate 285
+      #elif __arm__
+         #define SYS_fallocate (__NR_SYSCALL_BASE+352) // newer glibc value
       #endif
    #endif
-   #ifndef FALLOC_FL_KEEP_SIZE
+   #if !defined(FALLOC_FL_KEEP_SIZE)
       #define FALLOC_FL_KEEP_SIZE 1
    #endif
 #endif
@@ -759,7 +761,11 @@ FileIO_Create(FileIODescriptor *file,    // OUT:
    ASSERT(file->lockToken == NULL);
    ASSERT_ON_COMPILE(FILEIO_ERROR_LAST < 16); /* See comment in fileIO.h */
 
-#if !defined(__FreeBSD__) && !defined(sun) && !defined(N_PLAT_NLM)
+#if defined(__APPLE__)
+   if (access & FILEIO_OPEN_EXCLUSIVE_LOCK_MACOS) {
+      flags |= O_EXLOCK;
+   }
+#elif !defined(__FreeBSD__) && !defined(sun) && !defined(N_PLAT_NLM)
    /*
     * If FILEIO_OPEN_EXCLUSIVE_LOCK or FILEIO_OPEN_MULTIWRITER_LOCK or
     * (FILEIO_OPEN_ACCESS_READ | FILEIO_OPEN_LOCKED) are passed, and we are
@@ -768,7 +774,7 @@ FileIO_Create(FileIODescriptor *file,    // OUT:
     * File_OnVMFS() unless really necessary.
     *
     * If the above conditions are met FILEIO_OPEN_LOCKED, is filtered out --
-    * vmfs will be handling the locking, so there is no need to create 
+    * vmfs will be handling the locking, so there is no need to create
     * lockfiles.
     */
    if ((access & (FILEIO_OPEN_EXCLUSIVE_LOCK |
@@ -1920,7 +1926,7 @@ FileIO_SetAllocSize(const FileIODescriptor *fd,  // IN
 #if defined(__APPLE__) || defined(__linux__)
    uint64 curSize;
    uint64 preallocLen;
-#ifdef __APPLE__
+#if defined(__APPLE__)
    fstore_t prealloc;
 #endif
 
@@ -1931,7 +1937,7 @@ FileIO_SetAllocSize(const FileIODescriptor *fd,  // IN
    }
    preallocLen = size - curSize;
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
    prealloc.fst_flags = 0;
    prealloc.fst_posmode = F_PEOFPOSMODE;
    prealloc.fst_offset = 0;
@@ -1940,17 +1946,8 @@ FileIO_SetAllocSize(const FileIODescriptor *fd,  // IN
 
    return fcntl(fd->posix, F_PREALLOCATE, &prealloc) != -1;
 #elif __linux__
-   {
-      int ret;
-
-      ret = syscall(SYS_fallocate, fd->posix, FALLOC_FL_KEEP_SIZE,
-                    curSize, preallocLen);
-      if (ret == 0) {
-         return TRUE;
-      }
-      errno = ret;
-      return FALSE;
-   }
+   return syscall(SYS_fallocate, fd->posix, FALLOC_FL_KEEP_SIZE,
+                  curSize, preallocLen) == 0;
 #endif
 
 #else

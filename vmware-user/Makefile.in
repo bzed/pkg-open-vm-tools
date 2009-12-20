@@ -113,10 +113,9 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	../lib/resolution/libResolution.la ../lib/rpcIn/libRpcIn.la \
 	../lib/rpcOut/libRpcOut.la ../lib/rpcVmx/libRpcVmx.la \
 	../lib/SLPv2Parser/libSLPv2Parser.la \
-	../lib/string/libString.la ../lib/sync/libSync.la \
-	../lib/syncDriver/libSyncDriver.la ../lib/system/libSystem.la \
-	$(am__append_4) $(am__append_5) ../lib/user/libUser.la \
-	../lib/vixTools/libVixTools.la \
+	../lib/string/libString.la ../lib/syncDriver/libSyncDriver.la \
+	../lib/system/libSystem.la $(am__append_4) $(am__append_5) \
+	../lib/user/libUser.la ../lib/vixTools/libVixTools.la \
 	../lib/hgfsHelper/libHgfsHelper.la \
 	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
 	../lib/wiper/libWiper.la ../lib/netUtil/libNetUtil.la \
@@ -126,12 +125,12 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	$(am__append_6) ../lib/dnd/libDnd.la \
 	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
 	../lib/message/libMessage.la ../lib/unicode/libUnicode.la \
-	../lib/auth/libAuth.la ../lib/misc/libMisc.la \
-	../lib/procMgr/libProcMgr.la \
+	../lib/auth/libAuth.la ../lib/procMgr/libProcMgr.la \
 	../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_7) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2) \
-	$(am__DEPENDENCIES_2)
+	$(am__append_7) $(am__DEPENDENCIES_1) ../lib/lock/libLock.la \
+	../lib/nothread/libNothread.la ../lib/misc/libMisc.la \
+	$(am__DEPENDENCIES_2) $(am__DEPENDENCIES_2)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -227,7 +226,9 @@ LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
 LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
 LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
+LIB_LOCK_CPPFLAGS = @LIB_LOCK_CPPFLAGS@
 LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
+LIB_NOTHREAD_CPPFLAGS = @LIB_NOTHREAD_CPPFLAGS@
 LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
 LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
@@ -365,10 +366,9 @@ vmware_user_LDADD = ../lib/conf/libConf.la \
 	../lib/resolution/libResolution.la ../lib/rpcIn/libRpcIn.la \
 	../lib/rpcOut/libRpcOut.la ../lib/rpcVmx/libRpcVmx.la \
 	../lib/SLPv2Parser/libSLPv2Parser.la \
-	../lib/string/libString.la ../lib/sync/libSync.la \
-	../lib/syncDriver/libSyncDriver.la ../lib/system/libSystem.la \
-	$(am__append_4) $(am__append_5) ../lib/user/libUser.la \
-	../lib/vixTools/libVixTools.la \
+	../lib/string/libString.la ../lib/syncDriver/libSyncDriver.la \
+	../lib/system/libSystem.la $(am__append_4) $(am__append_5) \
+	../lib/user/libUser.la ../lib/vixTools/libVixTools.la \
 	../lib/hgfsHelper/libHgfsHelper.la \
 	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
 	../lib/wiper/libWiper.la ../lib/netUtil/libNetUtil.la \
@@ -378,13 +378,13 @@ vmware_user_LDADD = ../lib/conf/libConf.la \
 	$(am__append_6) ../lib/dnd/libDnd.la \
 	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
 	../lib/message/libMessage.la ../lib/unicode/libUnicode.la \
-	../lib/auth/libAuth.la ../lib/misc/libMisc.la \
-	../lib/procMgr/libProcMgr.la \
+	../lib/auth/libAuth.la ../lib/procMgr/libProcMgr.la \
 	../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_7) -lcrypt -lstdc++ $(am__append_8) @GTK_LIBS@ \
-	$(am__append_9) @VMWARE_USER_LDADD@ @COMMON_XLIBS@ @ICU_LIBS@ \
-	$(am__append_10)
+	$(am__append_7) -lcrypt -lstdc++ $(am__append_8) \
+	../lib/lock/libLock.la ../lib/nothread/libNothread.la \
+	../lib/misc/libMisc.la @GTK_LIBS@ $(am__append_9) \
+	@VMWARE_USER_LDADD@ @COMMON_XLIBS@ @ICU_LIBS@ $(am__append_10)
 vmware_user_SOURCES = copyPaste.c $(am__append_11) \
 	copyPasteDnDWrapper.cpp debugStdio.c dnd.c $(am__append_12) \
 	$(top_srcdir)/services/plugins/vix/foundryToolsDaemon.c \

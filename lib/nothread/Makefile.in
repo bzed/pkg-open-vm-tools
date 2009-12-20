@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 ################################################################################
-### Copyright 2007 VMware, Inc.  All rights reserved.
+### Copyright 2009 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -49,7 +49,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = lib/sync
+subdir = lib/nothread
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
@@ -61,9 +61,9 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-libSync_la_LIBADD =
-am_libSync_la_OBJECTS = syncMutexPthread.lo
-libSync_la_OBJECTS = $(am_libSync_la_OBJECTS)
+libNothread_la_LIBADD =
+am_libNothread_la_OBJECTS = vthreadUL.lo
+libNothread_la_OBJECTS = $(am_libNothread_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -76,8 +76,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libSync_la_SOURCES)
-DIST_SOURCES = $(libSync_la_SOURCES)
+SOURCES = $(libNothread_la_SOURCES)
+DIST_SOURCES = $(libNothread_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -150,7 +150,9 @@ LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
 LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
 LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
+LIB_LOCK_CPPFLAGS = @LIB_LOCK_CPPFLAGS@
 LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
+LIB_NOTHREAD_CPPFLAGS = @LIB_NOTHREAD_CPPFLAGS@
 LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
 LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
@@ -268,8 +270,9 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-noinst_LTLIBRARIES = libSync.la
-libSync_la_SOURCES = syncMutexPthread.c
+noinst_LTLIBRARIES = libNothread.la
+libNothread_la_SOURCES = vthreadUL.c
+AM_CFLAGS = @LIB_NOTHREAD_CPPFLAGS@
 all: all-am
 
 .SUFFIXES:
@@ -283,9 +286,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/sync/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/nothread/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  lib/sync/Makefile
+	  $(AUTOMAKE) --gnu  lib/nothread/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -312,8 +315,8 @@ clean-noinstLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libSync.la: $(libSync_la_OBJECTS) $(libSync_la_DEPENDENCIES) 
-	$(LINK)  $(libSync_la_OBJECTS) $(libSync_la_LIBADD) $(LIBS)
+libNothread.la: $(libNothread_la_OBJECTS) $(libNothread_la_DEPENDENCIES) 
+	$(LINK)  $(libNothread_la_OBJECTS) $(libNothread_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -321,7 +324,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/syncMutexPthread.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vthreadUL.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

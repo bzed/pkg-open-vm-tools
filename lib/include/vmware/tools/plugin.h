@@ -135,26 +135,34 @@
 #define TOOLS_CORE_SIG_SHUTDOWN "tcs_shutdown"
 
 #if defined(G_PLATFORM_WIN32)
-/**
- * Signal sent when there's a change in the state of a user's session.
- *
- * @param[in]  src      The source object.
- * @param[in]  ctx      ToolsAppCtx *: The application context.
- * @param[in]  code     DWORD: Session state change code.
- * @param[in]  id       DWORD: Session ID.
- * @param[in]  data     Client data.
- */
-#define TOOLS_CORE_SIG_SESSION_CHANGE  "tcs_session_change"
 
 /**
- * Signal sent when the pre shutdown event is received in the service.
+ * Signal sent when the service receives a control message. For a list
+ * of control messages, see the documentation on MSDN:
+ *
+ *    http://msdn.microsoft.com/en-us/library/ms683241%28VS.85%29.aspx
+ *
+ * The signal is only available on Win32. Receiving this signal doesn't
+ * mean the service is running through the Windows SCM: plugins may detect
+ * equivalent notifications through other means and send this signal with
+ * the appropriate parameters so others can react to them.
  *
  * @param[in]  src      The source object.
  * @param[in]  ctx      ToolsAppCtx *: The application context.
- * @param[in]  handle   SERVICE_STATUS_HANDLE: Service status handle.
+ * @param[in]  handle   SERVICE_STATUS_HANDLE: Service status handle. May be
+ *                      NULL if process is not under SCM control.
+ * @param[in]  control  guint: The control code.
+ * @param[in]  evtType  guint: The event type.
+ * @param[in]  evtData  gpointer: Event data.
  * @param[in]  data     Client data.
+ *
+ * @return See MSDN documentation. NO_ERROR has precedence over
+ * ERROR_CALL_NOT_IMPLEMENTED; if any handler returns any value other than
+ * those two, then that value will be used as the return value, unless the
+ * Tools service itself also handles the control message, or the MSDN
+ * documentation specifies a return value.
  */
-#define TOOLS_CORE_SIG_PRESHUTDOWN "tcs_preshutdown"
+#define TOOLS_CORE_SIG_SERVICE_CONTROL  "tcs_service_control"
 
 #endif
 
@@ -329,8 +337,10 @@ typedef struct ToolsAppProvider {
     * @param[in]  ctx   The application context.
     * @param[in]  prov  The provider instance.
     * @param[in]  reg   The application registration data.
+    *
+    * @return Whether registration succeeded.
     */
-   void (*registerApp)(ToolsAppCtx *ctx, struct ToolsAppProvider *prov, gpointer reg);
+   gboolean (*registerApp)(ToolsAppCtx *ctx, struct ToolsAppProvider *prov, gpointer reg);
    /**
     * Shutdown callback (optional). Called when the service is being shut down.
     * The provider is responsible for keeping track of registrations and
@@ -357,8 +367,8 @@ typedef struct ToolsAppProvider {
 
 
 /**
- * Defines a "transport-specific" registration. The array contains data specific
- * to a "transport" implementation.
+ * Defines a "app-specific" registration. The array contains data specific
+ * to an "application provider" implementation.
  *
  * When the service is shutting down, if the @a data field is not NULL, the
  * array instance will be freed, including its backing element array.
@@ -395,12 +405,55 @@ typedef struct ToolsPluginSignalCb {
  *
  * When the plugin is shut down, if the @a regs field is not NULL, it (and its
  * element array) are freed with g_array_free().
+ *
+ * Plugins shouldn't try to free the returned structure, since the container
+ * will try to use it even after the shutdown signal is sent to plugins. The
+ * pointer should either point to statically allocated memory, or be leaked
+ * (which should't be a problem since it will only be really leaked when the
+ * process is shutting down).
  */
 typedef struct ToolsPluginData {
    /** Name of the application (required). */
    char                      *name;
-   /** List of features provided by the app. */
+   /**
+    * List of features provided by the app. Registration of applications
+    * happens in the same order provided by this array.
+    */
    GArray                    *regs;
+   /**
+    * Callback for registration errors. Whenever an entry provided in the #regs
+    * array fails to be registered, this function, if provided, will be called.
+    *
+    * The plugin has two options when this callback fires:
+    *
+    * . adjust its internal state so that the failed registration doesn't
+    *   affect the normal operation of the other functions provided by the
+    *   plugin, and return TRUE.
+    *
+    * . return FALSE so that the container does not try to register any more
+    *   features of the plugin.
+    *
+    * Note that in either case, registrations that succeeded will not be
+    * reverted, so the plugin should still make sure that those still work,
+    * event if just in a "disabled" state. The plugin will not be unloaded when
+    * these errors happen.
+    *
+    * Plugins can use the property of the #regs field that registration will
+    * happen in the order returned by the plugin's "on load" callback to have
+    * some control about what features to enable / disable.
+    *
+    * @param[in]  ctx      The application context.
+    * @param[in]  type     Type of the app that failed to register.
+    * @param[in]  data     App-specific data that failed to register. If NULL,
+    *                      it means that no provider of the given type exists.
+    * @param[in]  plugin   The plugin's registration data.
+    *
+    * @return See above. TRUE to continue registration, FALSE to stop.
+    */
+   gboolean (*errorCb)(ToolsAppCtx *ctx,
+                       ToolsAppType type,
+                       gpointer data,
+                       struct ToolsPluginData *plugin);
    /** Private plugin data. */
    gpointer                   _private;
 } ToolsPluginData;

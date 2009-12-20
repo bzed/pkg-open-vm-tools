@@ -38,6 +38,7 @@
    LOGLEVEL_VAR(vui), \
    LOGLEVEL_VAR(stats), \
    LOGLEVEL_VAR(cpucount), \
+   LOGLEVEL_VAR(ovhdmem), \
    \
    /* user/io */ \
    LOGLEVEL_VAR(disk), \
@@ -68,6 +69,8 @@
    LOGLEVEL_VAR(uhci), \
    LOGLEVEL_VAR(pci_ehci), \
    LOGLEVEL_VAR(ehci), \
+   LOGLEVEL_VAR(pci_xhci), \
+   LOGLEVEL_VAR(xhci), \
    LOGLEVEL_VAR(usb), \
    LOGLEVEL_VAR(vusbmouse), \
    LOGLEVEL_VAR(vusbkeyboard), \
@@ -221,6 +224,7 @@
    LOGLEVEL_VAR(brtalk), /* macWireless and wpa_supplicant */ \
    LOGLEVEL_VAR(button), \
    LOGLEVEL_VAR(util), \
+   LOGLEVEL_VAR(vmcf), \
    LOGLEVEL_VAR(win32util), \
    LOGLEVEL_VAR(largepage), \
    LOGLEVEL_VAR(guestAppMonitor), \

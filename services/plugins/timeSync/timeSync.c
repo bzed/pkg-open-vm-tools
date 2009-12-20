@@ -22,11 +22,6 @@
  * Plugin to handle time synchronization between the guest and host.
  */
 
-/* sync the time once a minute */
-#define TIME_SYNC_TIME     60
-/* only PERCENT_CORRECTION percent is corrected everytime */
-#define PERCENT_CORRECTION   50
-
 #include "timeSync.h"
 #include "backdoor.h"
 #include "backdoor_def.h"
@@ -45,6 +40,18 @@ VM_EMBED_VERSION(VMTOOLSD_VERSION_STRING);
 #endif
 
 
+/* Sync the time once a minute. */
+#define TIMESYNC_TIME 60
+/* Correct PERCENT_CORRECTION percent of the error each period. */
+#define TIMESYNC_PERCENT_CORRECTION 50
+
+/* When measuring the difference between time on the host and time in the
+ * guest we try up to TIMESYNC_MAX_SAMPLES times to read a sample
+ * where the two host reads are within TIMESYNC_GOOD_SAMPLE_THRESHOLD
+ * microseconds. */
+#define TIMESYNC_MAX_SAMPLES 4
+#define TIMESYNC_GOOD_SAMPLE_THRESHOLD 2000
+
 typedef struct TimeSyncData {
    gboolean    slewCorrection;
    uint32      slewPercentCorrection;
@@ -55,43 +62,27 @@ typedef struct TimeSyncData {
 
 
 /**
- * Set the guest OS time to the host OS time.
+ * Read the time reported by the Host OS.
  *
- * @param[in]  slewCorrection    Is clock slewing enabled?
- * @param[in]  syncOnce          Is this function called in a loop?
- * @param[in]  allowBackwardSync Can we sync time backwards when doing syncOnce?
- * @param[in]  _data             Time sync data.
+ * @param[out]  host                Time on the Host.
+ * @param[out]  apparentError       Apparent time error = apparent - real.
+ * @param[out]  apparentErrorValid  Did the platform inform us of apparentError.
+ * @param[out]  maxTimeError        Maximum amount of error than can go.
+ *                                  uncorrected.
  *
  * @return TRUE on success.
  */
 
 static gboolean
-TimeSyncDoSync(Bool slewCorrection,
-               Bool syncOnce,
-               Bool allowBackwardSync,
-               void *_data)
+TimeSyncReadHost(int64 *host, int64 *apparentError, Bool *apparentErrorValid,
+                 int64 *maxTimeError)
 {
    Backdoor_proto bp;
    int64 maxTimeLag;
    int64 interruptLag;
-   int64 guestSecs;
-   int64 guestUsecs;
    int64 hostSecs;
    int64 hostUsecs;
-   int64 diffSecs;
-   int64 diffUsecs;
-   int64 diff;
-   TimeSyncData *data = _data;
-   Bool timeLagCall = FALSE;
-#ifdef VMX86_DEBUG
-   static int64 lastHostSecs = 0;
-   int64 secs1, usecs1;
-   int64 secs2, usecs2;
-
-   TimeSync_GetCurrentTime(&secs1, &usecs1);
-#endif
-
-   g_debug("Synchronizing time.\n");
+   Bool timeLagCall;
 
    /*
     * We need 3 things from the host, and there exist 3 different versions of
@@ -100,7 +91,7 @@ TimeSyncDoSync(Bool slewCorrection,
     * 2) maximum time lag allowed (config option), which is a
     *    threshold that keeps the tools from being over eager about
     *    resetting the time when it is only a little bit off.
-    * 3) interrupt lag
+    * 3) interrupt lag (the amount that apparent time lags real time)
     *
     * First 2 versions of the call add interrupt lag to the maximum allowed
     * time lag, where as in the last call it is returned separately.
@@ -139,6 +130,7 @@ TimeSyncDoSync(Bool slewCorrection,
       g_debug("BDOOR_CMD_GETTIMEFULL_WITH_LAG not supported by current host, "
               "attempting BDOOR_CMD_GETTIMEFULL\n");
       interruptLag = 0;
+      timeLagCall = FALSE;
       bp.in.cx.halfs.low = BDOOR_CMD_GETTIMEFULL;
       Backdoor(&bp);
       if (bp.out.ax.word == BDOOR_MAGIC) {
@@ -154,47 +146,167 @@ TimeSyncDoSync(Bool slewCorrection,
    hostUsecs = bp.out.bx.word;
    maxTimeLag = bp.out.cx.word;
 
+   *host = hostSecs * US_PER_SEC + hostUsecs;
+   *apparentError = -interruptLag;
+   *apparentErrorValid = timeLagCall;
+   *maxTimeError = maxTimeLag;
+
    if (hostSecs <= 0) {
       g_warning("Invalid host OS time: %"FMT64"d secs, %"FMT64"d usecs.\n\n",
                 hostSecs, hostUsecs);
       return FALSE;
    }
 
-   /* Get the guest OS time */
-   if (!TimeSync_GetCurrentTime(&guestSecs, &guestUsecs)) {
-      g_warning("Unable to retrieve the guest OS time: %s.\n\n", Msg_ErrString());
+   return TRUE;
+}
+
+
+/**
+ * Read the Guest OS time and the Host OS time.
+ *
+ * There are three time domains that are revelant here:
+ * 1. Guest time     - the time reported by the guest
+ * 2. Apparent time  - the time reported by the virtualization layer
+ * 3. Host time      - the time reported by the host operating system.
+ *
+ * This function reports the host time, the guest time and the difference
+ * between apparent time and host time (apparentError).  The host and
+ * guest time may be sampled multiple times to ensure an accurate reading.
+ *
+ * @param[out]  host                Time on the Host.
+ * @param[out]  guest               Time in the Guest.
+ * @param[out]  apparentError       Apparent time error = apparent - real.
+ * @param[out]  apparentErrorValid  Did the platform inform us of apparentError.
+ * @param[out]  maxTimeError        Maximum amount of error than can go.
+ *                                  uncorrected.
+ *
+ * @return TRUE on success.
+ */
+
+static gboolean
+TimeSyncReadHostAndGuest(int64 *host, int64 *guest, 
+                         int64 *apparentError, Bool *apparentErrorValid,
+                         int64 *maxTimeError)
+{
+   int64 host1, host2, hostDiff;
+   int64 tmpGuest, tmpApparentError, tmpMaxTimeError;
+   Bool tmpApparentErrorValid;
+   int64 bestHostDiff = MAX_INT64;
+   int iter = 0;
+   DEBUG_ONLY(static int64 lastHost = 0);
+
+   *apparentErrorValid = FALSE;
+   *host = *guest = *apparentError = *maxTimeError = 0;
+
+   if (!TimeSyncReadHost(&host2, &tmpApparentError, 
+                         &tmpApparentErrorValid, &tmpMaxTimeError)) {
       return FALSE;
    }
 
-   diffSecs = hostSecs - guestSecs;
-   diffUsecs = hostUsecs - guestUsecs;
-   if (diffUsecs < 0) {
-      diffSecs -= 1;
-      diffUsecs += 1000000U;
-   }
-   diff = diffSecs * 1000000L + diffUsecs;
+   do {
+      iter++;
+      host1 = host2;
+
+      if (!TimeSync_GetCurrentTime(&tmpGuest)) {
+         g_warning("Unable to retrieve the guest OS time: %s.\n\n", 
+                   Msg_ErrString());
+         return FALSE;
+      }
+      
+      if (!TimeSyncReadHost(&host2, &tmpApparentError, 
+                            &tmpApparentErrorValid, &tmpMaxTimeError)) {
+         return FALSE;
+      }
+      
+      if (host1 < host2) {
+         hostDiff = host2 - host1;
+      } else {
+         hostDiff = 0;
+      }
+
+      if (hostDiff <= bestHostDiff) {
+         bestHostDiff = hostDiff;
+         *host = host1 + hostDiff / 2;
+         *guest = tmpGuest;
+         *apparentError = tmpApparentError;
+         *apparentErrorValid = tmpApparentErrorValid;
+         *maxTimeError = tmpMaxTimeError;
+      }
+   } while (iter < TIMESYNC_MAX_SAMPLES && 
+            bestHostDiff > TIMESYNC_GOOD_SAMPLE_THRESHOLD);
+
+   ASSERT(*host != 0 && *guest != 0);
 
 #ifdef VMX86_DEBUG
-   g_debug("Daemon: Guest clock lost %.6f secs; limit=%.2f; "
-           "%"FMT64"d secs since last update\n",
-           diff / 1000000.0, maxTimeLag / 1000000.0, hostSecs - lastHostSecs);
-   g_debug("Daemon: %d, %d, %"FMT64"d, %"FMT64"d, %"FMT64"d.\n",
-           syncOnce, slewCorrection, diff, maxTimeLag, interruptLag);
-   lastHostSecs = hostSecs;
+   g_debug("Daemon: Guest vs host error %.6fs; guest vs apparent error %.6fs; "
+           "limit=%.2fs; apparentError %.6fs; iter=%d error=%.6fs; "
+           "%.6f secs since last update\n",
+           (*guest - *host) / 1000000.0, 
+           (*guest - *host - *apparentError) / 1000000.0, 
+           *maxTimeError / 1000000.0, *apparentError / 1000000.0,
+           iter, bestHostDiff / 1000000.0,
+           (*host - lastHost) / 1000000.0);
+   lastHost = *host;
 #endif
+
+   return TRUE;
+}
+
+
+/**
+ * Set the guest OS time to the host OS time.
+ *
+ * @param[in]  slewCorrection    Is clock slewing enabled?
+ * @param[in]  syncOnce          Is this function called in a loop?
+ * @param[in]  allowBackwardSync Can we sync time backwards when doing syncOnce?
+ * @param[in]  _data             Time sync data.
+ *
+ * @return TRUE on success.
+ */
+
+static gboolean
+TimeSyncDoSync(Bool slewCorrection,
+               Bool syncOnce,
+               Bool allowBackwardSync,
+               void *_data)
+{
+   Backdoor_proto bp;
+   int64 guest, host;
+   int64 gosError, apparentError, maxTimeError;
+   Bool apparentErrorValid;
+   TimeSyncData *data = _data;
+
+#ifdef VMX86_DEBUG
+   int64 before;
+   int64 after;
+   TimeSync_GetCurrentTime(&before);
+#endif
+
+   g_debug("Synchronizing time: "
+           "syncOnce %d, slewCorrection %d, allowBackwardSync %d.\n",
+           syncOnce, slewCorrection, allowBackwardSync);
+
+   if (!TimeSyncReadHostAndGuest(&host, &guest, &apparentError, 
+                                 &apparentErrorValid, &maxTimeError)) {
+      return FALSE;
+   }
+
+   gosError = guest - host - apparentError;
 
    if (syncOnce) {
       /*
        * Non-loop behavior:
        *
        * Perform a step correction if:
-       * 1) The guest OS is behind the host OS by more than maxTimeLag + interruptLag.
+       * 1) The guest OS error is behind by more than maxTimeError.
        * 2) The guest OS is ahead of the host OS.
        */
-      if (diff > maxTimeLag + interruptLag || (diff < 0 && allowBackwardSync)) {
+      if (gosError < -maxTimeError || 
+          (gosError + apparentError > 0 && allowBackwardSync)) {
          TimeSync_DisableTimeSlew();
-         if (!TimeSync_AddToCurrentTime(diffSecs, diffUsecs)) {
-            g_warning("Unable to set the guest OS time: %s.\n\n", Msg_ErrString());
+         if (!TimeSync_AddToCurrentTime(-gosError + -apparentError)) {
+            g_warning("Unable to set the guest OS time: %s.\n\n", 
+                      Msg_ErrString());
             return FALSE;
          }
       }
@@ -213,21 +325,15 @@ TimeSyncDoSync(Bool slewCorrection,
        * during this synchronization cycle.
        */
 
-      if (diff > maxTimeLag + interruptLag) {
+      if (gosError < -maxTimeError) {
          TimeSync_DisableTimeSlew();
-         if (!TimeSync_AddToCurrentTime(diffSecs, diffUsecs)) {
+         if (!TimeSync_AddToCurrentTime(-gosError + -apparentError)) {
             g_warning("Unable to set the guest OS time: %s.\n\n", Msg_ErrString());
             return FALSE;
          }
-      } else if (slewCorrection && timeLagCall) {
-         int64 slewDiff;
-         int64 timeSyncPeriodUS = data->timeSyncPeriod * 1000000;
-
-         /* Don't consider interruptLag during clock slewing. */
-         slewDiff = diff - interruptLag;
-
-         /* Correct only data->slewPercentCorrection percent error. */
-         slewDiff = (data->slewPercentCorrection * slewDiff) / 100;
+      } else if (slewCorrection && apparentErrorValid) {
+         int64 timeSyncPeriodUS = data->timeSyncPeriod * US_PER_SEC;
+         int64 slewDiff = (-gosError * data->slewPercentCorrection) / 100;
 
          if (!TimeSync_EnableTimeSlew(slewDiff, timeSyncPeriodUS)) {
             g_warning("Unable to slew the guest OS time: %s.\n\n", Msg_ErrString());
@@ -239,10 +345,12 @@ TimeSyncDoSync(Bool slewCorrection,
    }
 
 #ifdef VMX86_DEBUG
-      TimeSync_GetCurrentTime(&secs2, &usecs2);
+      TimeSync_GetCurrentTime(&after);
 
-      g_debug("Time changed from %"FMT64"d.%"FMT64"d -> %"FMT64"d.%"FMT64"d\n",
-              secs1, usecs1, secs2, usecs2);
+      g_debug("Time changed from %"FMT64"d.%06"FMT64"d -> "
+              "%"FMT64"d.%06"FMT64"d\n",
+              before / US_PER_SEC, before % US_PER_SEC, 
+              after / US_PER_SEC, after % US_PER_SEC);
 #endif
 
    /*
@@ -474,46 +582,52 @@ TimeSyncSetOption(gpointer src,
                   const gchar *value,
                   ToolsPluginData *plugin)
 {
+   static gboolean syncBeforeLoop;
    TimeSyncData *data = plugin->_private;
 
    if (strcmp(option, TOOLSOPTION_SYNCTIME) == 0) {
       gboolean start;
-
       if (!ParseBoolOption(value, &start)) {
          return FALSE;
       }
 
       /*
        * Try the one-shot time sync if time sync transitions from
-       * 'off' to 'on'.
-       * Note that if TOOLSOPTION_SYNCTIME_ENABLE is absent from
-       * vmx config file it is considered to be TRUE.
+       * 'off' to 'on' and TOOLSOPTION_SYNCTIME_ENABLE is turned on.
+       * Note that during startup we receive TOOLSOPTION_SYNCTIME
+       * before receiving TOOLSOPTION_SYNCTIME_ENABLE and so the
+       * one-shot sync will not be done here. Nor should it because
+       * the startup synchronization behavior is controlled by
+       * TOOLSOPTION_SYNCTIME_STARTUP which is handled separately.
        */
-      if (data->timeSyncState == 0 && start &&
-          g_key_file_get_boolean(ctx->config, "vmsvc",
-                                 TOOLSOPTION_SYNCTIME_ENABLE, NULL)) {
-         TimeSyncDoSync(data->slewCorrection, TRUE, TRUE, data);
+      if (data->timeSyncState == 0 && start && syncBeforeLoop) {
+            TimeSyncDoSync(data->slewCorrection, TRUE, TRUE, data);
       }
-      data->timeSyncState = start;
 
       /* Now start/stop the loop. */
       if (!TimeSyncStartStopLoop(ctx, data, start)) {
          return FALSE;
       }
+
+      data->timeSyncState = start;
+
    } else if (strcmp(option, TOOLSOPTION_SYNCTIME_SLEWCORRECTION) == 0) {
       data->slewCorrection = strcmp(value, "0");
       g_debug("Daemon: Setting slewCorrection, %d.\n", data->slewCorrection);
+
    } else if (strcmp(option, TOOLSOPTION_SYNCTIME_PERCENTCORRECTION) == 0) {
       int32 percent;
+
       g_debug("Daemon: Setting slewPercentCorrection to %s.\n", value);
       if (!StrUtil_StrToInt(&percent, value)) {
          return FALSE;
       }
       if (percent <= 0 || percent > 100) {
-         data->slewPercentCorrection = PERCENT_CORRECTION;
+         data->slewPercentCorrection = TIMESYNC_PERCENT_CORRECTION;
       } else {
          data->slewPercentCorrection = percent;
       }
+
    } else if (strcmp(option, TOOLSOPTION_SYNCTIME_PERIOD) == 0) {
       uint32 period;
 
@@ -527,7 +641,7 @@ TimeSyncSetOption(gpointer src,
        * not running, just remember the new sync period value.
        */
       if (period != data->timeSyncPeriod) {
-         data->timeSyncPeriod = (period > 0) ? period : TIME_SYNC_TIME;
+         data->timeSyncPeriod = (period > 0) ? period : TIMESYNC_TIME;
 
          if (data->timer != NULL) {
             TimeSyncStartStopLoop(ctx, data, FALSE);
@@ -537,6 +651,7 @@ TimeSyncSetOption(gpointer src,
             }
          }
       }
+
    } else if (strcmp(option, TOOLSOPTION_SYNCTIME_STARTUP) == 0) {
       static gboolean doneAlready = FALSE;
       gboolean doSync;
@@ -553,9 +668,15 @@ TimeSyncSetOption(gpointer src,
 
       doneAlready = TRUE;
 
+   } else if (strcmp(option, TOOLSOPTION_SYNCTIME_ENABLE) == 0) {
+      if (!ParseBoolOption(value, &syncBeforeLoop)) {
+         return FALSE;
+      }
+
    } else {
       return FALSE;
    }
+
    return TRUE;
 }
 
@@ -613,9 +734,9 @@ ToolsOnLoad(ToolsAppCtx *ctx)
    };
 
    data->slewCorrection = FALSE;
-   data->slewPercentCorrection = PERCENT_CORRECTION;
+   data->slewPercentCorrection = TIMESYNC_PERCENT_CORRECTION;
    data->timeSyncState = -1;
-   data->timeSyncPeriod = TIME_SYNC_TIME;
+   data->timeSyncPeriod = TIMESYNC_TIME;
    data->timer = NULL;
 
    regData.regs = VMTools_WrapArray(regs, sizeof *regs, ARRAYSIZE(regs));

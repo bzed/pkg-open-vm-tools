@@ -120,9 +120,7 @@ sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg);
 #include "compat_version.h"
 #include "compat_workqueue.h"
 #include "compat_list.h"
-#if defined(HAVE_COMPAT_IOCTL) || defined(HAVE_UNLOCKED_IOCTL)
-#   include "compat_semaphore.h"
-#endif
+#include "compat_mutex.h"
 
 #include "vmware.h"
 
@@ -344,7 +342,7 @@ typedef struct VSockRecvPktInfo {
    VSockPacket pkt;
 } VSockRecvPktInfo;
 
-static DECLARE_MUTEX(registrationMutex);
+static compat_define_mutex(registrationMutex);
 static int devOpenCount = 0;
 static int vsockVmciSocketCount = 0;
 static int vsockVmciKernClientCount = 0;
@@ -515,7 +513,7 @@ VMCISock_GetAFValue(void)
 {
    int afvalue;
 
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
 
    /*
     * Kernel clients are required to explicitly register themselves before they
@@ -529,7 +527,7 @@ VMCISock_GetAFValue(void)
    afvalue = VSockVmciGetAFValue();
 
 exit:
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
    return afvalue;
 }
 EXPORT_SYMBOL(VMCISock_GetAFValue);
@@ -559,7 +557,7 @@ VMCISock_GetLocalCID(void)
 {
    int cid;
 
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
 
    /*
     * Kernel clients are required to explicitly register themselves before they
@@ -573,7 +571,7 @@ VMCISock_GetLocalCID(void)
    cid = VMCI_GetContextID();
 
 exit:
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
    return cid;
 }
 EXPORT_SYMBOL(VMCISock_GetLocalCID);
@@ -601,9 +599,9 @@ EXPORT_SYMBOL(VMCISock_GetLocalCID);
 void
 VMCISock_KernelRegister(void)
 {
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    vsockVmciKernClientCount++;
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
 }
 EXPORT_SYMBOL(VMCISock_KernelRegister);
 
@@ -629,10 +627,10 @@ EXPORT_SYMBOL(VMCISock_KernelRegister);
 void
 VMCISock_KernelDeregister(void)
 {
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    vsockVmciKernClientCount--;
    VSockVmciTestUnregister();
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
 }
 EXPORT_SYMBOL(VMCISock_KernelDeregister);
 
@@ -688,9 +686,9 @@ VSockVmci_GetAFValue(void)
 {
    int afvalue;
 
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    afvalue = VSockVmciGetAFValue();
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
 
    return afvalue;
 }
@@ -1614,6 +1612,7 @@ VSockVmciRecvListen(struct sock *sk,   // IN
 
    pending->compat_sk_state = SS_CONNECTING;
    vpending->produceSize = vpending->consumeSize = qpSize;
+   vpending->queuePairSize = qpSize;
 
    NOTIFYCALL(vpending, processRequest, pending);
 
@@ -1718,6 +1717,7 @@ VSockVmciRecvConnectingServer(struct sock *listener, // IN: the listening socket
     * specifying the ATTACH_ONLY flag below.
     */
    err = VMCIEvent_Subscribe(VMCI_EVENT_QP_PEER_DETACH,
+                             VMCI_FLAG_EVENT_NONE,
                              VSockVmciPeerDetachCB,
                              pending,
                              &detachSubId);
@@ -1732,6 +1732,11 @@ VSockVmciRecvConnectingServer(struct sock *listener, // IN: the listening socket
 
    /* Now attach to the queue pair the client created. */
    handle = pkt->u.handle;
+
+   /*
+    * vpending->localAddr always has a context id so we do not
+    * need to worry about VMADDR_CID_ANY in this case.
+    */
    isLocal = vpending->remoteAddr.svm_cid == vpending->localAddr.svm_cid;
    flags = VMCI_QPFLAG_ATTACH_ONLY;
    flags |= isLocal ? VMCI_QPFLAG_LOCAL : 0;
@@ -1874,6 +1879,7 @@ VSockVmciRecvConnectingClient(struct sock *sk,       // IN: socket
           vsk->detachSubId != VMCI_INVALID_ID) {
          skerr = EPROTO;
          err = -EINVAL;
+
          goto destroy;
       }
 
@@ -2038,6 +2044,7 @@ VSockVmciRecvConnectingClientNegotiate(struct sock *sk,   // IN: socket
     * once and add a way to lookup sockets by queue pair handle.
     */
    err = VMCIEvent_Subscribe(VMCI_EVENT_QP_PEER_ATTACH,
+                             VMCI_FLAG_EVENT_NONE,
                              VSockVmciPeerAttachCB,
                              sk,
                              &attachSubId);
@@ -2047,6 +2054,7 @@ VSockVmciRecvConnectingClientNegotiate(struct sock *sk,   // IN: socket
    }
 
    err = VMCIEvent_Subscribe(VMCI_EVENT_QP_PEER_DETACH,
+                             VMCI_FLAG_EVENT_NONE,
                              VSockVmciPeerDetachCB,
                              sk,
                              &detachSubId);
@@ -2500,10 +2508,10 @@ __VSockVmciBind(struct sock *sk,          // IN/OUT
       return -EADDRNOTAVAIL;
    }
 
-   newAddr.svm_cid = cid;
+   newAddr.svm_cid = addr->svm_cid;
 
    switch (sk->compat_sk_socket->type) {
-   case SOCK_STREAM:
+   case SOCK_STREAM: {
       spin_lock_bh(&vsockTableLock);
 
       if (addr->svm_port == VMADDR_PORT_ANY) {
@@ -2543,7 +2551,10 @@ __VSockVmciBind(struct sock *sk,          // IN/OUT
 
       }
       break;
-   case SOCK_DGRAM:
+   }
+   case SOCK_DGRAM: {
+      uint32 flags = 0;
+
       /* VMCI will select a resource ID for us if we provide VMCI_INVALID_ID. */
       newAddr.svm_port = addr->svm_port == VMADDR_PORT_ANY ?
                             VMCI_INVALID_ID :
@@ -2555,12 +2566,15 @@ __VSockVmciBind(struct sock *sk,          // IN/OUT
          goto out;
       }
 
-      err = VSockVmciDatagramCreateHnd(newAddr.svm_port, 0,
+      if (newAddr.svm_cid == VMADDR_CID_ANY) {
+         flags = VMCI_FLAG_ANYCID_DG_HND;
+      }
+
+      err = VSockVmciDatagramCreateHnd(newAddr.svm_port, flags,
                                        VSockVmciRecvDgramCB, sk,
                                        &vsk->dgHandle,
                                        vsk->trusted);
       if (err != VMCI_SUCCESS ||
-          vsk->dgHandle.context == VMCI_INVALID_ID ||
           vsk->dgHandle.resource == VMCI_INVALID_ID) {
          err = VSockVmci_ErrorToVSockError(err);
          goto out;
@@ -2568,11 +2582,12 @@ __VSockVmciBind(struct sock *sk,          // IN/OUT
 
       newAddr.svm_port = VMCI_HANDLE_TO_RESOURCE_ID(vsk->dgHandle);
       break;
-   default:
+   }
+   default: {
       err = -EINVAL;
       goto out;
    }
-
+   }
    /*
     * VSockVmci_GetAFValue() acquires a mutex and may sleep, so fill the
     * field after unlocking socket tables.
@@ -2676,9 +2691,9 @@ __VSockVmciCreate(struct net *net,       // IN: Network namespace
     * If we go this far, we know the socket family is registered, so there's no
     * need to register it now.
     */
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    vsockVmciSocketCount++;
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
 
    sock_init_data(sock, sk);
 
@@ -2859,10 +2874,10 @@ VSockVmciSkDestruct(struct sock *sk) // IN
 
    NOTIFYCALL(vsk, socketDestruct, sk);
 
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    vsockVmciSocketCount--;
    VSockVmciTestUnregister();
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
 
 
    VSOCK_STATS_CTLPKT_DUMP_ALL();
@@ -3015,18 +3030,20 @@ VSockVmciRegisterAddressFamily(void)
     * Create the datagram handle that we will use to send and receive all
     * VSocket control messages for this context.
     */
-    err = VSockVmciDatagramCreateHnd(VSOCK_PACKET_RID, 0,
+    err = VSockVmciDatagramCreateHnd(VSOCK_PACKET_RID,
+                                     VMCI_FLAG_ANYCID_DG_HND,
                                      VSockVmciRecvStreamCB, NULL,
                                      &vmciStreamHandle,
                                      TRUE);
    if (err < 0 ||
-       vmciStreamHandle.context == VMCI_INVALID_ID ||
+       vmciStreamHandle.context != VMCI_INVALID_ID ||
        vmciStreamHandle.resource == VMCI_INVALID_ID) {
       Warning("Unable to create datagram handle. (%d)\n", err);
-      return VSockVmci_ErrorToVSockError(err);
+      goto error;
    }
 
    err = VMCIEvent_Subscribe(VMCI_EVENT_QP_RESUMED,
+                             VMCI_FLAG_EVENT_NONE,
                              VSockVmciQPResumedCB,
                              NULL,
                              &qpResumedSubId);
@@ -3072,7 +3089,10 @@ error:
       VMCIEvent_Unsubscribe(qpResumedSubId);
       qpResumedSubId = VMCI_INVALID_ID;
    }
-   VMCIDatagram_DestroyHnd(vmciStreamHandle);
+
+   if (!VMCI_HANDLE_INVALID(vmciStreamHandle)) {
+      VMCIDatagram_DestroyHnd(vmciStreamHandle);
+   }
    return err;
 }
 
@@ -3362,7 +3382,6 @@ VSockVmciStreamConnect(struct socket *sock,   // IN
    lock_sock(sk);
 
    /* XXX AF_UNSPEC should make us disconnect like AF_INET. */
-
    switch (sock->state) {
    case SS_CONNECTED:
       err = -EISCONN;
@@ -3405,6 +3424,14 @@ VSockVmciStreamConnect(struct socket *sock,   // IN
          if ((err = __VSockVmciBind(sk, &localAddr))) {
             goto out;
          }
+      }
+
+      /*
+       * For the client stream sockets, we always want to make sure that
+       * we have a specific context id.
+       */
+      if (vsk->localAddr.svm_cid == VMADDR_CID_ANY) {
+         vsk->localAddr.svm_cid = VMCI_GetContextID();
       }
 
       sk->compat_sk_state = SS_CONNECTING;
@@ -4024,6 +4051,7 @@ VSockVmciDgramSendmsg(struct kiocb *kiocb,          // UNUSED
 
    dg->dst = VMCI_MAKE_HANDLE(remoteAddr->svm_cid, remoteAddr->svm_port);
    dg->src = VMCI_MAKE_HANDLE(vsk->localAddr.svm_cid, vsk->localAddr.svm_port);
+
    dg->payloadSize = len;
 
    err = VMCIDatagram_Send(dg);
@@ -4095,25 +4123,27 @@ VSockVmciStreamSetsockopt(struct socket *sock,       // IN/OUT
 
    switch (optname) {
    case SO_VMCI_BUFFER_SIZE:
-      if (val < vsk->queuePairMinSize || val > vsk->queuePairMaxSize) {
-         err = -EINVAL;
-         goto out;
+      if (val < vsk->queuePairMinSize) {
+         vsk->queuePairMinSize = val;
       }
+
+      if (val > vsk->queuePairMaxSize) {
+         vsk->queuePairMaxSize = val;
+      }
+
       vsk->queuePairSize = val;
       break;
 
    case SO_VMCI_BUFFER_MAX_SIZE:
       if (val < vsk->queuePairSize) {
-         err = -EINVAL;
-         goto out;
+         vsk->queuePairSize = val;
       }
       vsk->queuePairMaxSize = val;
       break;
 
    case SO_VMCI_BUFFER_MIN_SIZE:
       if (val > vsk->queuePairSize) {
-         err = -EINVAL;
-         goto out;
+         vsk->queuePairSize = val;
       }
       vsk->queuePairMinSize = val;
       break;
@@ -4122,8 +4152,6 @@ VSockVmciStreamSetsockopt(struct socket *sock,       // IN/OUT
       err = -ENOPROTOOPT;
       break;
    }
-
-out:
 
    ASSERT(vsk->queuePairMinSize <= vsk->queuePairSize &&
           vsk->queuePairSize <= vsk->queuePairMaxSize);
@@ -4864,9 +4892,9 @@ int
 VSockVmciDevOpen(struct inode *inode,  // IN
                  struct file *file)    // IN
 {
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    devOpenCount++;
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
    return 0;
 }
 
@@ -4892,10 +4920,10 @@ int
 VSockVmciDevRelease(struct inode *inode,  // IN
                     struct file *file)    // IN
 {
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    devOpenCount--;
    VSockVmciTestUnregister();
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
    return 0;
 }
 
@@ -5062,9 +5090,9 @@ VSockVmciExit(void)
 {
    unregister_ioctl32_handlers();
    misc_deregister(&vsockVmciDevice);
-   down(&registrationMutex);
+   compat_mutex_lock(&registrationMutex);
    VSockVmciUnregisterAddressFamily();
-   up(&registrationMutex);
+   compat_mutex_unlock(&registrationMutex);
 
    VSockVmciUnregisterProto();
 }

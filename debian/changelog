@@ -1,3 +1,12 @@
+open-vm-tools (2009.12.16-217847-1) unstable; urgency=low
+
+  * Adding explicit debian source version 1.0 until switch to 3.0.
+  * Merging upstream version 2009.12.16-217847.
+  * Rediffing kvers.patch.
+  * Rediffing procps.patch.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 20 Dec 2009 13:36:35 +0100
+
 open-vm-tools (2009.11.16-210370-1) unstable; urgency=low
 
   * Merging upstream version 2009.11.16-210370.

@@ -76,16 +76,16 @@ libvmtools_la_DEPENDENCIES = ../lib/backdoor/libBackdoor.la \
 	../lib/file/libFile.la ../lib/guestApp/libGuestApp.la \
 	../lib/guestInfo/libGuestInfo.la \
 	../lib/guestRpc/libGuestRpc.la ../lib/hgfs/libHgfs.la \
-	../lib/message/libMessage.la ../lib/misc/libMisc.la \
-	../lib/netUtil/libNetUtil.la ../lib/panic/libPanic.la \
-	../lib/procMgr/libProcMgr.la \
+	../lib/message/libMessage.la ../lib/netUtil/libNetUtil.la \
+	../lib/panic/libPanic.la ../lib/procMgr/libProcMgr.la \
 	../lib/rpcChannel/libRpcChannel.la ../lib/rpcOut/libRpcOut.la \
 	../lib/rpcVmx/libRpcVmx.la ../lib/string/libString.la \
-	../lib/sync/libSync.la ../lib/syncDriver/libSyncDriver.la \
-	../lib/system/libSystem.la ../lib/stubs/libStubsCS.la \
-	../lib/unicode/libUnicode.la ../lib/user/libUser.la \
-	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
-	../lib/wiper/libWiper.la $(am__append_1)
+	../lib/syncDriver/libSyncDriver.la ../lib/system/libSystem.la \
+	../lib/stubs/libStubsCS.la ../lib/unicode/libUnicode.la \
+	../lib/user/libUser.la ../lib/vmCheck/libVmCheck.la \
+	../lib/vmSignal/libVmSignal.la ../lib/wiper/libWiper.la \
+	../lib/lock/libLock.la ../lib/nothread/libNothread.la \
+	../lib/misc/libMisc.la $(am__append_1)
 am_libvmtools_la_OBJECTS = libvmtools_la-signalSource.lo \
 	libvmtools_la-vmtools.lo libvmtools_la-vmtoolsConfig.lo \
 	libvmtools_la-vmtoolsLog.lo libvmtools_la-rpcin.lo \
@@ -180,7 +180,9 @@ LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
 LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
 LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
+LIB_LOCK_CPPFLAGS = @LIB_LOCK_CPPFLAGS@
 LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
+LIB_NOTHREAD_CPPFLAGS = @LIB_NOTHREAD_CPPFLAGS@
 LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
 LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
@@ -305,16 +307,16 @@ libvmtools_la_LIBADD = ../lib/backdoor/libBackdoor.la \
 	../lib/file/libFile.la ../lib/guestApp/libGuestApp.la \
 	../lib/guestInfo/libGuestInfo.la \
 	../lib/guestRpc/libGuestRpc.la ../lib/hgfs/libHgfs.la \
-	../lib/message/libMessage.la ../lib/misc/libMisc.la \
-	../lib/netUtil/libNetUtil.la ../lib/panic/libPanic.la \
-	../lib/procMgr/libProcMgr.la \
+	../lib/message/libMessage.la ../lib/netUtil/libNetUtil.la \
+	../lib/panic/libPanic.la ../lib/procMgr/libProcMgr.la \
 	../lib/rpcChannel/libRpcChannel.la ../lib/rpcOut/libRpcOut.la \
 	../lib/rpcVmx/libRpcVmx.la ../lib/string/libString.la \
-	../lib/sync/libSync.la ../lib/syncDriver/libSyncDriver.la \
-	../lib/system/libSystem.la ../lib/stubs/libStubsCS.la \
-	../lib/unicode/libUnicode.la ../lib/user/libUser.la \
-	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
-	../lib/wiper/libWiper.la @LIBVMTOOLS_LIBADD@ @GLIB2_LIBS@ \
+	../lib/syncDriver/libSyncDriver.la ../lib/system/libSystem.la \
+	../lib/stubs/libStubsCS.la ../lib/unicode/libUnicode.la \
+	../lib/user/libUser.la ../lib/vmCheck/libVmCheck.la \
+	../lib/vmSignal/libVmSignal.la ../lib/wiper/libWiper.la \
+	../lib/lock/libLock.la ../lib/nothread/libNothread.la \
+	../lib/misc/libMisc.la @LIBVMTOOLS_LIBADD@ @GLIB2_LIBS@ \
 	@ICU_LIBS@ $(am__append_1)
 
 # Recompile the rpcIn library with GLIB support.
@@ -326,7 +328,8 @@ libvmtools_la_SOURCES = signalSource.c vmtools.c vmtoolsConfig.c \
 libvmtools_la_CPPFLAGS = -DVMTOOLS_USE_GLIB -DNO_LOG_STUB \
 	@GLIB2_CPPFLAGS@ $(am__empty)
 # We require GCC, so we're fine passing compiler-specific flags.
-# Needed for OS's that don't link shared libraries against libc by default, e.g. FreeBSD
+# Needed for OS's that don't link shared libraries against libc by
+#default, e.g. FreeBSD
 libvmtools_la_LDFLAGS = -Wl,-z,defs -Wl,-lc
 all: all-am
 

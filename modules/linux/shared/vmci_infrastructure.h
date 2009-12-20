@@ -51,7 +51,10 @@ typedef enum {
 
 /* Used to determine what checkpoint state to get and set. */
 #define VMCI_NOTIFICATION_CPT_STATE 0x1
-#define VMCI_WELLKNOWN_CPT_STATE 0x2
+#define VMCI_WELLKNOWN_CPT_STATE    0x2
+#define VMCI_DG_OUT_STATE           0x3
+#define VMCI_DG_IN_STATE            0x4
+#define VMCI_DG_IN_SIZE_STATE       0x5
 
 /* Used to control the VMCI device in the vmkernel */
 #define VMCI_DEV_RESET            0x01
@@ -88,6 +91,38 @@ VMCI_Hash(VMCIHandle handle, // IN
 
    for (i = 0; i < sizeof handle; i++) {
       hash = ((hash << 5) + hash) + (uint8)(handleValue >> (i * 8));
+   }
+   return hash & (size - 1);
+}
+
+
+/*
+ *-------------------------------------------------------------------------
+ *
+ *  VMCI_HashId --
+ *
+ *     Hash function used by the Simple Datagram API. Hashes only a VMCI id
+ *     (not the full VMCI handle) Based on the djb2
+ *     hash function by Dan Bernstein.
+ *
+ *  Result:
+ *     Returns guest call size.
+ *
+ *  Side effects:
+ *     None.
+ *
+ *-------------------------------------------------------------------------
+ */
+
+static INLINE int
+VMCI_HashId(VMCIId id,      // IN
+            unsigned size)  // IN
+{
+   unsigned     i;
+   int          hash        = 5381;
+
+   for (i = 0; i < sizeof id; i++) {
+      hash = ((hash << 5) + hash) + (uint8)(id >> (i * 8));
    }
    return hash & (size - 1);
 }
