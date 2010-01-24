@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,20 +16,25 @@
  *
  *********************************************************/
 
-/*
- * vmxnet3_version.h --
- *
- * Version definitions for the Linux vmxnet3 driver.
- */
+#ifndef __COMPAT_AUTOCONF_H__
+#   define __COMPAT_AUTOCONF_H__
 
-#ifndef _VMXNET3_VERSION_H_
-#define _VMXNET3_VERSION_H_
+#define INCLUDE_ALLOW_VMMON
+#define INCLUDE_ALLOW_MODULE
+#define INCLUDE_ALLOW_VMCORE
+#define INCLUDE_ALLOW_DISTRIBUTE
+#include "includeCheck.h"
 
-#define VMXNET3_DRIVER_VERSION          1.0.5.0
-#define VMXNET3_DRIVER_VERSION_COMMAS   1,0,5,0
-#define VMXNET3_DRIVER_VERSION_STRING   "1.0.5.0"
 
-/* a 32-bit int, each byte encode a verion number in VMXNET3_DRIVER_VERSION */
-#define VMXNET3_DRIVER_VERSION_NUM      0x01000500
+#ifndef LINUX_VERSION_CODE
+#   error "Include compat_version.h before compat_autoconf.h"
+#endif
 
-#endif /* _VMXNET3_VERSION_H_ */
+/* autoconf.h moved from linux/autoconf.h to generated/autoconf.h in 2.6.33-rc1. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+#   include <linux/autoconf.h>
+#else
+#   include <generated/autoconf.h>
+#endif
+
+#endif /* __COMPAT_AUTOCONF_H__ */

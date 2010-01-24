@@ -1,3 +1,13 @@
+open-vm-tools (2010.01.19-226760-1) unstable; urgency=low
+
+  * Updating year in copyright file.
+  * Merging upstream version 2010.01.19-226760.
+  * Correcting plugins handling (Closes: #564069).
+  * Updating packaging for upstreams vmxnet3 module removal.
+  * Updating packaging for upstreams test plugin removal.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 24 Jan 2010 09:55:47 +0100
+
 open-vm-tools (2009.12.16-217847-1) unstable; urgency=low
 
   * Adding explicit debian source version 1.0 until switch to 3.0.

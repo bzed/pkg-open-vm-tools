@@ -10,7 +10,6 @@ build:
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmmemctl
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmsync
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmxnet
-	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmxnet3
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vsock
 
 clean:
@@ -21,7 +20,6 @@ clean:
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmmemctl clean
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmsync clean
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmxnet clean
-	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vmxnet3 clean
 	$(MAKE) OVT_SOURCE_DIR=$(OVT_SOURCE_DIR) -C modules/linux/vsock clean
 
 distclean:	clean

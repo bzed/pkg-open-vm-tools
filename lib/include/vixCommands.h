@@ -2130,7 +2130,7 @@ VixMsgPauseStateChangedEvent;
 typedef
 #include "vmware_pack_begin.h"
 struct VixMsgWaitForUserActionRequest {
-   VixCommandResponseHeader   header;
+   VixCommandRequestHeader    header;
 
    int32                      userType;
    int32                      userAction;
@@ -2228,6 +2228,14 @@ typedef enum VixCommandSecurityCategory {
     * commands.
     */
    VIX_COMMAND_CATEGORY_PRIVILEGED,
+
+   /*
+    * A command that may or may not be privileged. Usually, extra inspection
+    * of the payload is required to make the determination. This should be
+    * used sparingly, since must always be accompanied by "deep packet
+    * inspection" code in the VMX (mainDispatch.c).
+    */
+   VIX_COMMAND_CATEGORY_MIXED,
 } VixCommandSecurityCategory;
 
 /*
@@ -2612,6 +2620,10 @@ VixError VixMsg_AllocGenericRequestMsg(int opCode,
 VixError VixMsg_ParseGenericRequestMsg(const VixCommandGenericRequest *request,
                                        int *options,
                                        VixPropertyListImpl *propertyList);
+
+void *VixMsg_MallocClientData(size_t size);
+void *VixMsg_ReallocClientData(void *ptr, size_t size);
+char *VixMsg_StrdupClientData(const char *s, Bool *allocateFailed);
 
 #endif   // VIX_HIDE_FROM_JAVA
 

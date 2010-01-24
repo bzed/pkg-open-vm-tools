@@ -128,8 +128,7 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	../lib/auth/libAuth.la ../lib/procMgr/libProcMgr.la \
 	../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_7) $(am__DEPENDENCIES_1) ../lib/lock/libLock.la \
-	../lib/nothread/libNothread.la ../lib/misc/libMisc.la \
+	$(am__append_7) $(am__DEPENDENCIES_1) ../lib/misc/libMisc.la \
 	$(am__DEPENDENCIES_2) $(am__DEPENDENCIES_2)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -171,6 +170,8 @@ COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CUNIT_CPPFLAGS = @CUNIT_CPPFLAGS@
+CUNIT_LIBS = @CUNIT_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -223,14 +224,7 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
-LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
-LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
-LIB_LOCK_CPPFLAGS = @LIB_LOCK_CPPFLAGS@
-LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
-LIB_NOTHREAD_CPPFLAGS = @LIB_NOTHREAD_CPPFLAGS@
-LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
-LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -348,7 +342,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = @GTK_CPPFLAGS@ $(am__append_1) @VMWARE_USER_CPPFLAGS@ \
 	-I$(top_builddir)/include -I$(top_srcdir)/lib/dndGuest \
-	-DRESOLUTION_X11 -I$(top_srcdir)/services/plugins/vix
+	-DRESOLUTION_X11 -I$(top_srcdir)/services/plugins/vix \
+	@GTHREAD_CPPFLAGS@ $(am__empty)
 AM_CXXFLAGS = $(AM_CFLAGS)
 # In the absence of the linker options --start-group and --end-group (which
 # can't be put in LDADD), we need to bring the following libraries out of
@@ -382,9 +377,9 @@ vmware_user_LDADD = ../lib/conf/libConf.la \
 	../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
 	$(am__append_7) -lcrypt -lstdc++ $(am__append_8) \
-	../lib/lock/libLock.la ../lib/nothread/libNothread.la \
-	../lib/misc/libMisc.la @GTK_LIBS@ $(am__append_9) \
-	@VMWARE_USER_LDADD@ @COMMON_XLIBS@ @ICU_LIBS@ $(am__append_10)
+	../lib/misc/libMisc.la @GTHREAD_LIBS@ @GTK_LIBS@ \
+	$(am__append_9) @VMWARE_USER_LDADD@ @COMMON_XLIBS@ @ICU_LIBS@ \
+	$(am__append_10)
 vmware_user_SOURCES = copyPaste.c $(am__append_11) \
 	copyPasteDnDWrapper.cpp debugStdio.c dnd.c $(am__append_12) \
 	$(top_srcdir)/services/plugins/vix/foundryToolsDaemon.c \

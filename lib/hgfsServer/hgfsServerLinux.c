@@ -57,7 +57,6 @@
 #include "posix.h"
 #include "file.h"
 #include "util.h"
-#include "userlock.h"
 #include "su.h"
 #include "codeset.h"
 #include "unicodeOperations.h"
@@ -3676,7 +3675,7 @@ HgfsServerRead(char const *packetIn,     // IN: incoming packet
     * this and the subsequent read atomic.
     */
 
-   MXUser_AcquireExclLock(session->fileIOLock);
+   HGFS_LOCK_ACQUIRE(session->fileIOLock);
 
    if (!sequentialOpen) {
 #   ifdef linux
@@ -3696,13 +3695,13 @@ HgfsServerRead(char const *packetIn,     // IN: incoming packet
          status = errno;
          LOG(4, ("%s: could not seek to %"FMT64"u: %s\n", __FUNCTION__,
                  offset, strerror(status)));
-         MXUser_ReleaseExclLock(session->fileIOLock);
+         HGFS_LOCK_RELEASE(session->fileIOLock);
          goto error;
       }
    }
 
    error = read(fd, payload, requiredSize);
-   MXUser_ReleaseExclLock(session->fileIOLock);
+   HGFS_LOCK_RELEASE(session->fileIOLock);
 #endif
    if (error < 0) {
       status = errno;
@@ -3856,7 +3855,7 @@ HgfsServerWrite(char const *packetIn,     // IN: incoming packet
     * this and the subsequent write atomic.
     */
 
-   MXUser_AcquireExclLock(session->fileIOLock);
+   HGFS_LOCK_ACQUIRE(session->fileIOLock);
    if (!sequentialOpen) {
 #   ifdef linux
       {
@@ -3875,13 +3874,13 @@ HgfsServerWrite(char const *packetIn,     // IN: incoming packet
          status = errno;
          LOG(4, ("%s: could not seek to %"FMT64"u: %s\n", __FUNCTION__,
                  offset, strerror(status)));
-         MXUser_ReleaseExclLock(session->fileIOLock);
+         HGFS_LOCK_RELEASE(session->fileIOLock);
          goto error;
       }
    }
 
    error = write(fd, payload, requiredSize);
-   MXUser_ReleaseExclLock(session->fileIOLock);
+   HGFS_LOCK_RELEASE(session->fileIOLock);
 #endif
    if (error < 0) {
       status = errno;
@@ -4543,7 +4542,7 @@ HgfsServerSetattr(char const *packetIn,     // IN: incoming packet
       status = HgfsSetattrFromName(cpName, cpNameSize, &attr, hints,
 				   caseFlags, session);
    }
-   if (!HgfsPackSetattrReply(packetIn, status, &packetOut, &packetOutSize)) {
+   if (!HgfsPackSetattrReply(packetIn, status, attr.requestType, &packetOut, &packetOutSize)) {
       status = EPROTO;
       goto exit;
    }
@@ -4671,7 +4670,8 @@ HgfsServerCreateDir(char const *packetIn,     // IN: incoming packet
       LOG(4, ("%s: error: %s\n", __FUNCTION__, strerror(error)));
       return error;
    }
-   if (!HgfsPackCreateDirReply(packetIn, 0, &packetOut, &packetOutSize)) {
+   if (!HgfsPackCreateDirReply(packetIn, 0, info.requestType,
+                               &packetOut, &packetOutSize)) {
       return EPROTO;
    }
    if (!HgfsPacketSend(packetOut, packetOutSize, session, 0)) {
@@ -4718,11 +4718,12 @@ HgfsServerDeleteFile(char const *packetIn,     // IN: incoming packet
    size_t packetOutSize;
    size_t localNameLen;
    HgfsShareInfo shareInfo;
+   HgfsOp op;
 
    ASSERT(packetIn);
    ASSERT(session);
 
-   if (!HgfsUnpackDeleteRequest(packetIn, packetSize, &cpName, &cpNameSize,
+   if (!HgfsUnpackDeleteRequest(packetIn, packetSize, &op, &cpName, &cpNameSize,
                                 &hints, &file, &caseFlags)) {
       return EPROTO;
    }
@@ -4776,7 +4777,7 @@ HgfsServerDeleteFile(char const *packetIn,     // IN: incoming packet
 
       return error;
    }
-   if (!HgfsPackDeleteReply(packetIn, 0, &packetOut, &packetOutSize)) {
+   if (!HgfsPackDeleteReply(packetIn, 0, op, &packetOut, &packetOutSize)) {
       return EPROTO;
    }
    if (!HgfsPacketSend(packetOut, packetOutSize, session, 0)) {
@@ -4823,11 +4824,12 @@ HgfsServerDeleteDir(char const *packetIn,     // IN: incoming packet
    size_t packetOutSize;
    size_t localNameLen;
    HgfsShareInfo shareInfo;
+   HgfsOp op;
 
    ASSERT(packetIn);
    ASSERT(session);
 
-   if (!HgfsUnpackDeleteRequest(packetIn, packetSize, &cpName, &cpNameSize,
+   if (!HgfsUnpackDeleteRequest(packetIn, packetSize,  &op, &cpName, &cpNameSize,
                                 &hints, &file, &caseFlags)) {
       return EPROTO;
    }
@@ -4889,7 +4891,7 @@ HgfsServerDeleteDir(char const *packetIn,     // IN: incoming packet
       return error;
    }
 
-   if (!HgfsPackDeleteReply(packetIn, 0, &packetOut, &packetOutSize)) {
+   if (!HgfsPackDeleteReply(packetIn, 0, op, &packetOut, &packetOutSize)) {
       return EPROTO;
    }
    if (!HgfsPacketSend(packetOut, packetOutSize, session, 0)) {
@@ -4930,9 +4932,9 @@ HgfsServerRename(char const *packetIn,     // IN: incoming packet
    char *localNewName = NULL;
    size_t localNewNameLen;
    char *cpOldName;
-   uint32 cpOldNameLen;
+   size_t cpOldNameLen;
    char *cpNewName;
-   uint32 cpNewNameLen;
+   size_t cpNewNameLen;
    HgfsHandle srcFile = HGFS_INVALID_HANDLE;
    HgfsHandle targetFile = HGFS_INVALID_HANDLE;
    HgfsRenameHint hints = 0;
@@ -4944,11 +4946,12 @@ HgfsServerRename(char const *packetIn,     // IN: incoming packet
    char *packetOut;
    size_t packetOutSize;
    HgfsShareInfo shareInfo;
+   HgfsOp op;
 
    ASSERT(packetIn);
    ASSERT(session);
 
-   if (!HgfsUnpackRenameRequest(packetIn, packetSize, &cpOldName, &cpOldNameLen,
+   if (!HgfsUnpackRenameRequest(packetIn, packetSize, &op, &cpOldName, &cpOldNameLen,
                                 &cpNewName, &cpNewNameLen, &hints, &srcFile,
                                 &targetFile, &oldCaseFlags, &newCaseFlags)) {
       return EPROTO;
@@ -5106,7 +5109,7 @@ HgfsServerRename(char const *packetIn,     // IN: incoming packet
     */
    status = 0;
    HgfsUpdateNodeNames(localOldName, localNewName, session);
-   if (!HgfsPackRenameReply(packetIn, status, &packetOut, &packetOutSize)) {
+   if (!HgfsPackRenameReply(packetIn, status, op, &packetOut, &packetOutSize)) {
       status = EPROTO;
       goto exit;
    }
