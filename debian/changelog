@@ -1,3 +1,10 @@
+open-vm-tools (2010.02.23-236320-1) unstable; urgency=low
+
+  * Updating to standards 3.8.4.
+  * Merging upstream version 2010.02.23-236320.
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 27 Feb 2010 16:34:11 +0100
+
 open-vm-tools (2010.01.19-226760-1) unstable; urgency=low
 
   * Updating year in copyright file.

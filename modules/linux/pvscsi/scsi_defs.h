@@ -71,7 +71,7 @@
 #define SCSI_CMD_COPY                  0x18  // autonomous copy from/to another device
 #define SCSI_CMD_ERASE                 0x19  //
 #define SCSI_CMD_MODE_SENSE            0x1a  // read device parameters
-#define SCSI_CMD_START_UNIT            0x1b  // load/unload medium
+#define SCSI_CMD_START_UNIT            0x1b  // start or stop unit
 #define SCSI_CMD_SCAN                  0x1b  // perform scan
 #define SCSI_CMD_STOP_PRINT            0x1b  // interrupt printing
 #define SCSI_CMD_RECV_DIAGNOSTIC       0x1c  // read self-test results
@@ -257,6 +257,7 @@
 #define SCSI_ASC_COMMAND_PHASE_ERROR                           0x4a
 #define SCSI_ASC_DATA_PHASE_ERROR                              0x4b
 #define SCSI_ASC_MEDIUM_REMOVAL_FAILED                         0x53  // w/ 0x4 it is failed, 0x5 is prevented
+#define SCSI_ASCQ_MEDIUM_REMOVAL_PREVENTED                     0x02
 #define SCSI_ASC_INSUFFICIENT_REGISTRATION_RESOURCES           0x55  // during persistent reservations
 #define SCSI_ASCQ_INSUFFICIENT_REGISTRATION_RESOURCES          0x04
 #define SCSI_ASCQ_ASYMMETRIC_ACCESS_STATE_CHANGED              0x06
@@ -671,7 +672,9 @@ typedef struct {
 #define SCSI_MS_PAGE_CDAUDIO  0x0e     // CD-ROM audio (CDROM)
 #define SCSI_MS_PAGE_COMPRESS 0x0f     // data compression (TAPE)
 #define SCSI_MS_PAGE_CONFIG   0x10     // device configuration (TAPE)
+#define SCSI_MS_PAGE_POWER    0x1a     // power condition (CDROM)
 #define SCSI_MS_PAGE_EXCEPT   0x1c     // informal exception (ALL:SCSI-3)
+#define SCSI_MS_PAGE_TIMEOUT  0x1d     // time-out and protect (CDROM)
 #define SCSI_MS_PAGE_CDCAPS   0x2a     // CD-ROM capabilities and mechanical status (CDROM)
 // more defined...
 #define SCSI_MS_PAGE_ALL      0x3f     // all available pages (ALL)
@@ -795,10 +798,10 @@ typedef struct {
 typedef
 #include "vmware_pack_begin.h"
 struct {
-   uint8   pageCode:6,
+   uint8   page:6,      // page code: 0x08
            reserved1:1,
            ps:1;
-   uint8   pageLength;
+   uint8   len;         // page length (0x12)
    uint8   rcd:1,
            mf:1,
            wce:1,   // set if device has a write cache and it is enabled
@@ -885,7 +888,7 @@ struct {
    uint8    page  :6,      // page code: 0x0a
             spf   :1,
             ps    :1;
-   uint8    pageLength;  // page length (0x0a)
+   uint8    len;           // page length (0x0a)
    uint8    rlec     :1,
             gltsd    :1,
             d_sense  :1,
@@ -976,17 +979,52 @@ typedef struct {
 } SCSICDROMAudioPage;
 
 typedef struct {
+   uint8    page     :6,   // page code: 0x1a
+                     :1,
+            ps       :1;
+   uint8    len;           // page length 0x0a
+   uint8    reserved;
+   uint8    standby  :1,   // standby timer enabled
+            idle     :1,   // idle timer enabled
+                     :6;
+   uint32   idleTimer;     // inactivity time until idle (100 ms)
+   uint32   standbyTimer;  // inactivity time until standby (100 ms)
+} SCSICDROMPowerPage;
+
+typedef struct {
+   uint8    page     :6,   // page code: 0x1d
+                     :1,
+            ps       :1;
+   uint8    len;           // page length 0x08
+   uint8    reserved1[2];
+   uint8    swpp     :1,   // software write protect
+            disp     :1,   // make unit unavailable until power is reapplied
+            tmoe     :1,   // time out parameters are in effect
+                     :5;
+   uint8    reserved2;
+   uint16   minTimeOut1;   // "Group 1 Minimum Time-out (Seconds)"
+   uint16   minTimeOut2;   // "Group 2 Minimum Time-out (Seconds)"
+} SCSICDROMTimeoutPage;
+
+typedef struct {
    uint8    page     :6,   // page code: 0x2a
                      :1,
             ps       :1;
-   uint8    len;           // page length 0x12
+   uint8    len;           // page length 0x1e
    uint8    cdrRd    :1,   // CD-R read per Orange Book Part II
             cdeRd    :1,   // CD-E read per Orange Book Part III
             method2  :1,   // CD-R media w/ Addressing Method 2
-                     :5;
+            dvdromRd :1,   // DVD-ROM media read
+            dvdrRd   :1,   // DVD-R media read
+            dvdramRd :1,   // DVD-RAM media read
+                     :2;
    uint8    cdrWr    :1,   // CD-R write per Orange Book Part II
             cdeWr    :1,   // CD-E write per Orange Book Part III
-                     :6;
+            testWr   :1,   // drive supports test write function
+                     :1,
+            dvdrWr   :1,   // DVD-R media write
+            dvdramWr :1,   // DVD-RAM media write
+                     :2;
    uint8    audioPlay:1,   // drive is capable of audio play
             composite:1,   // drive is capable of delivering composite audio+video
             digPort1 :1,   // drive supports digital output (IEC958) on port 1
@@ -994,7 +1032,7 @@ typedef struct {
             mode2Form1:1,  // drive reads Mode 2 Form 1 (XA) format
             mode2Form2:1,  // drive reads Mode 2 Form 2 format
             multiSession:1,// drive reads multi-session or Photo-CD discs
-                     :1;
+            buf      :1;   // drive supports buffer underrun free recording
    uint8    cdDA     :1,   // CD-DA commands (Red Book) supported
             daAccu   :1,   // CD-DA stream is accurate
             rwSupported:1, // R-W supported
@@ -1002,7 +1040,7 @@ typedef struct {
             c2Ptrs   :1,   // C2 Error Pointers supported
             isrc     :1,   // drive returns International Standard Recording Code Info
             upc      :1,   // drive returns Media Catalog Number
-                     :1;
+            barcode  :1;   // drive returns disc bar code
    uint8    lock     :1,   // PREVENT/ALLOW commands lock media into drive
             lockState:1,   // current state of drive
             jumpers  :1,   // state of prevent/allow jumpers
@@ -1013,19 +1051,28 @@ typedef struct {
             scm      :1,   // separate channel mute
             sdp      :1,   // supports disc present in MECHANISM STATUS command
             sss      :1,   // s/w slot selection w/ LOAD/UNLOCK command
-                     :4;
-   uint16   maxSpeed;      // maximum speed supported (in KB/s)
+            scc      :1,   // supports both sides of discs
+            rwinlin  :1,   // can read raw R-W subchannel data from lead-in
+                     :2;
+   uint16   oMaxSpeed;     // (obsolete) maximum speed supported (in KB/s)
    uint16   numVolLevels;  // number of volume levels supported
    uint16   bufSize;       // buffer size supported by drive (KBytes)
-   uint16   curSpeed;      // current speed selected (in KB/s)
-   uint8    reserved;
+   uint16   oCurSpeed;     // (obsolete) current speed selected (in KB/s)
+   uint8    reserved1;
    uint8             :1,   // format of digital data output
             bck      :1,   // data is valid on the falling edge of BCK
             rck      :1,   // HIGH on LRCK indicates left channel
             lsbf     :1,   // LSB first
             length   :2,
                      :2;
-   uint8    reserved2[2];
+   uint16   oMaxWrSpeed;   // (obsolete) maximum write speed supported (in KB/s)
+   uint16   oCurWrSpeed;   // (obsolete) current write speed (in KB/s)
+   uint16   copyRev;       // version of DVD Content Protection supported
+   uint8    reserved2[3];
+   uint8    rotation :2,   // current rotation control
+                     :6;
+   uint16   curWrSpeed;    // current write speed (in KB/s)
+   uint16   numWrDescs;    // number of write speed performance descriptors
 } SCSICDROMCapabilitiesPage;
 
 typedef struct {
@@ -1422,6 +1469,24 @@ struct {
 }
 #include "vmware_pack_end.h"
 SCSIVerify10Cmd;
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint8    opcode;
+   uint8    relAdr  :1,         // relative address
+            bytChk  :1,         // byte
+            blkvfy  :1,         // blank blocks verification, scsi-2 rev 8.
+                    :1,  
+            dpo     :1,         // cache control bit
+            resvd   :3;         // reserved
+   uint64   lbn;                // logical block address
+   uint32   length;             // verification length
+   uint8    reserved;
+   uint8    control;            // control byte
+}
+#include "vmware_pack_end.h"
+SCSIVerify16Cmd;
 
 typedef
 #include "vmware_pack_begin.h"
@@ -1865,6 +1930,114 @@ SCSIPlayMSFCmd;
 
 
 /*
+ * SetStreaming packet data.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint8  opcode;
+   uint8  reserved1:5,
+          reserved2:3;
+   uint8  reserved3[7];
+   uint16 parameterListLength;
+   uint8  control;
+}
+#include "vmware_pack_end.h"
+SCSISetStreamingCmd;
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint8  ra:1,            // optimize for switching between reads and writes
+          exact:1,         // support exact performance request
+          rdd:1,           // restore logical unit defaults
+          reserved1:5;
+   uint8  reserved2[3];
+   uint32 start;           // first LBA
+   uint32 end;             // last LBA
+   uint32 readSize;        // number of KB per readTime 
+   uint32 readTime;        // number of ms for one readSize
+   uint32 writeSize;       // number of KB per writeTime
+   uint32 writeTime;       // number of ms for one writeSize
+}
+#include "vmware_pack_end.h"
+SCSISSPerformanceDescriptor;
+
+
+/*
+ * SetReadAhead packet data.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint8  opcode;
+   uint8  reserved1:5,
+          reserved2:3;
+   uint32 trigger;        // when this LBA is read, read-ahead at readAhead
+   uint32 readAhead;      // LBA at which read-ahead should begin
+   uint8  control;
+}
+#include "vmware_pack_end.h"
+SCSISetReadAheadCmd;
+
+
+/*
+ * GetPerformance packet data.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint8 opcode;
+#define SCSI_GP_EXCEPTIONS_NONE 0x0
+#define SCSI_GP_EXCEPTIONS_ALL  0x1
+#define SCSI_GP_EXCEPTIONS_SOME 0x2
+   uint8  exceptions:2,    // report nominal performance or exceptions
+          write:1,         // report write performance
+          tolerance:2,     // report performance with some tolerance
+          reserved1:3;
+   uint32 start;           // starting LBA for performance data
+   uint8  reserved2[2];
+   uint16 maxDescriptors;  // maximum number of performance descriptors
+   uint8  reserved3;
+   uint8  control;
+}
+#include "vmware_pack_end.h"
+SCSIGetPerformanceCmd;
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 dataLen;         // length of data to follow
+   uint8  exceptions:1,    // reported performance is for exceptions
+          write:1,         // reported performance is for writes
+          reserved1:6;
+   uint8  reserved2[3];
+}
+#include "vmware_pack_end.h"
+SCSIGetPerfResponseHeader;
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 startLBA;       // first LBA tracked by this descriptor
+   uint32 startPerf;      // performance (KB/s) at startLBA
+   uint32 endLBA;         // last LBA tracked by this descriptor
+   uint32 endPerf;        // performance (KB/s) at endLBA
+}
+#include "vmware_pack_end.h"
+SCSIGetPerfResponseNominal;
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 lba;            // there exists a seek delay between LBA - 1 and LBA
+   uint16 time;           // expected additional delay (tenths of ms)
+}
+#include "vmware_pack_end.h"
+SCSIGetPerfResponseException;
+
+
+/*
  * Definitions for MMC Features and Profiles. See MMC-2, Section 5 for details.
  * The response to a GET CONFIGURATION (0x46) command consists of a Feature
  * Header with zero or more Feature Descriptors.
@@ -1890,13 +2063,16 @@ SCSIFeatureHeader;
 typedef
 #include "vmware_pack_begin.h"
 struct {
-#define SCSI_FEAT_CODE_PROFILELIST     0x0
-#define SCSI_FEAT_CODE_CORE            0x1
-#define SCSI_FEAT_CODE_MORPHING        0x2
-#define SCSI_FEAT_CODE_REMOVABLEMEDIUM 0x3
-#define SCSI_FEAT_CODE_RANDOMREADABLE  0x10
-#define SCSI_FEAT_CODE_DVDREAD         0x1F
-#define SCSI_FEAT_CODE_VMWARE_LAST     0xFF80
+#define SCSI_FEAT_CODE_PROFILELIST         0x0
+#define SCSI_FEAT_CODE_CORE                0x1
+#define SCSI_FEAT_CODE_MORPHING            0x2
+#define SCSI_FEAT_CODE_REMOVABLEMEDIUM     0x3
+#define SCSI_FEAT_CODE_RANDOMREADABLE      0x10
+#define SCSI_FEAT_CODE_DVDREAD             0x1F
+#define SCSI_FEAT_CODE_POWERMANAGEMENT     0x100
+#define SCSI_FEAT_CODE_TIMEOUT             0x105
+#define SCSI_FEAT_CODE_REALTIMESTREAMING   0x107
+#define SCSI_FEAT_CODE_VMWARE_LAST         0xFF80
    uint16 code;
    uint8  featureCurrent:1,
           persistent:1,
@@ -2143,6 +2319,34 @@ SCSICdb_IsWrite(uint8 cdb0)       // IN
        || cdb0 == SCSI_CMD_WRITE16;
 }
 
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * SCSICdb_ModifiesMedia --
+ *
+ *      This function returns TRUE if the scsi command passed as an argument
+ *      changes the storage medium
+ *
+ *      XXX PR 520576 This list needs to be expanded upon in order accurately
+ *                    represent all command types that modify the underlying
+ *                    storage medium
+ *
+ * Results:
+ *      TRUE/FALSE
+ *
+ * Side effects:
+ *      None.
+ *
+ *---------------------------------------------------------------------------
+ */
+
+static INLINE Bool
+SCSICdb_ModifiesMedia(uint8 cdb0)       // IN
+{
+   return SCSICdb_IsWrite(cdb0) ||
+          cdb0 == SCSI_CMD_WRITE_SAME16;
+}
 
 /*
  *---------------------------------------------------------------------------

@@ -64,18 +64,17 @@ CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libMisc_la_LIBADD =
 am__libMisc_la_SOURCES_DIST = atomic.c base64.c codesetOld.c \
-	dbllnklst.c dynarray.c dynbuf.c escape.c hashTable.c \
-	hostinfo.c hostinfoPosix.c hostname.c hostType.c idLinux.c \
-	iovector.c machineID.c miscSolaris.c posixDlopen.c \
-	posixPosix.c random.c timeutil.c util_misc.c utilMem.c \
-	vmstdio.c strutil.c codeset.c
+	dynarray.c dynbuf.c escape.c hashTable.c hostinfo.c \
+	hostinfoPosix.c hostname.c hostType.c idLinux.c iovector.c \
+	machineID.c miscSolaris.c posixDlopen.c posixPosix.c random.c \
+	timeutil.c util_misc.c utilMem.c vmstdio.c strutil.c codeset.c
 @HAVE_ICU_TRUE@am__objects_1 = codeset.lo
-am_libMisc_la_OBJECTS = atomic.lo base64.lo codesetOld.lo dbllnklst.lo \
-	dynarray.lo dynbuf.lo escape.lo hashTable.lo hostinfo.lo \
-	hostinfoPosix.lo hostname.lo hostType.lo idLinux.lo \
-	iovector.lo machineID.lo miscSolaris.lo posixDlopen.lo \
-	posixPosix.lo random.lo timeutil.lo util_misc.lo utilMem.lo \
-	vmstdio.lo strutil.lo $(am__objects_1)
+am_libMisc_la_OBJECTS = atomic.lo base64.lo codesetOld.lo dynarray.lo \
+	dynbuf.lo escape.lo hashTable.lo hostinfo.lo hostinfoPosix.lo \
+	hostname.lo hostType.lo idLinux.lo iovector.lo machineID.lo \
+	miscSolaris.lo posixDlopen.lo posixPosix.lo random.lo \
+	timeutil.lo util_misc.lo utilMem.lo vmstdio.lo strutil.lo \
+	$(am__objects_1)
 libMisc_la_OBJECTS = $(am_libMisc_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -279,12 +278,11 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libMisc.la
-libMisc_la_SOURCES = atomic.c base64.c codesetOld.c dbllnklst.c \
-	dynarray.c dynbuf.c escape.c hashTable.c hostinfo.c \
-	hostinfoPosix.c hostname.c hostType.c idLinux.c iovector.c \
-	machineID.c miscSolaris.c posixDlopen.c posixPosix.c random.c \
-	timeutil.c util_misc.c utilMem.c vmstdio.c strutil.c \
-	$(am__append_1)
+libMisc_la_SOURCES = atomic.c base64.c codesetOld.c dynarray.c \
+	dynbuf.c escape.c hashTable.c hostinfo.c hostinfoPosix.c \
+	hostname.c hostType.c idLinux.c iovector.c machineID.c \
+	miscSolaris.c posixDlopen.c posixPosix.c random.c timeutil.c \
+	util_misc.c utilMem.c vmstdio.c strutil.c $(am__append_1)
 all: all-am
 
 .SUFFIXES:
@@ -340,7 +338,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/base64.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/codeset.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/codesetOld.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dbllnklst.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dynarray.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dynbuf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/escape.Plo@am__quote@

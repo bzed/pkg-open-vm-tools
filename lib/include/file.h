@@ -72,21 +72,29 @@ typedef enum {
 
 EXTERN FileMacosUnmountStatus FileMacos_UnmountDev(char const *bsdDev,
                                                    Bool wholeDev,
-                                                   Bool eject);
+                                                   Bool eject,
+                                                   Bool su);
 
 EXTERN void FileMacos_MountDevAsyncNoResult(char const *bsdSliceDev,
                                             Bool su);
 
 EXTERN Bool FileMacos_IsOnExternalDevice(int fd);
 EXTERN Bool FileMacos_IsOnSparseDmg(int fd);
+EXTERN Bool FileMacos_IsSliceDevice(char const *bsdDev);
 
 EXTERN char *FileMacos_DiskDevToDiskName(char const *bsdDiskDev);
 
-EXTERN char *FileMacos_SliceDevToSliceUUID(char const *bsdSliceDev);
-EXTERN char *FileMacos_SliceUUIDToSliceDev(char const *uuid);
+EXTERN char *FileMacos_DiskDeviceToUniqueID(char const *bsdPath);
+EXTERN char *FileMacos_UniqueIDToDiskDevice(char const *identifier);
 #elif defined VMX86_SERVER
 EXTERN int File_GetVMFSBlockSize(ConstUnicode pathName, uint32 *blockSize);
 EXTERN int File_GetVMFSfsType(ConstUnicode pathName, char **fsType);
+EXTERN int File_GetVMFSMountInfo(ConstUnicode pathName,
+                                 char **fsType,
+                                 uint32 *version,
+                                 char **remoteIP,
+                                 char **remoteMountPoint,
+                                 char **localMountPoint);
 #endif
 
 EXTERN Bool File_Exists(ConstUnicode pathName);

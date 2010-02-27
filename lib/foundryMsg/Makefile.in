@@ -62,7 +62,7 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libFoundryMsg_la_LIBADD =
-am_libFoundryMsg_la_OBJECTS = foundryMsg.lo foundryThreads.lo \
+am_libFoundryMsg_la_OBJECTS = foundryMsg.lo \
 	foundryPropertyListCommon.lo vixTranslateErrOpenSource.lo
 libFoundryMsg_la_OBJECTS = $(am_libFoundryMsg_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
@@ -267,8 +267,8 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libFoundryMsg.la
-libFoundryMsg_la_SOURCES = foundryMsg.c foundryThreads.c \
-	foundryPropertyListCommon.c vixTranslateErrOpenSource.c
+libFoundryMsg_la_SOURCES = foundryMsg.c foundryPropertyListCommon.c \
+	vixTranslateErrOpenSource.c
 all: all-am
 
 .SUFFIXES:
@@ -322,7 +322,6 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/foundryMsg.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/foundryPropertyListCommon.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/foundryThreads.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vixTranslateErrOpenSource.Plo@am__quote@
 
 .c.o:

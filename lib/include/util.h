@@ -48,6 +48,8 @@
    #include <CoreFoundation/CFData.h>
    #include <CoreFoundation/CFNumber.h>
    #include <CoreFoundation/CFDictionary.h>
+   #include <CoreFoundation/CFArray.h>
+   #include <CoreFoundation/CFString.h>
 #endif
 
 #include "vm_assert.h"
@@ -72,17 +74,20 @@ typedef pid_t Util_ThreadID;
 
 #ifdef __APPLE__
 EXTERN char *Util_CFStringToUTF8CString(CFStringRef s);
-EXTERN char *Util_IORegGetStringProperty(io_object_t entry, CFStringRef property);
+EXTERN char *Util_IORegCopyStringProperty(io_object_t entry, CFStringRef property);
 EXTERN Bool Util_IORegGetNumberProperty(io_object_t entry, CFStringRef property,
                                         CFNumberType type, void *val);
 EXTERN Bool Util_IORegGetBooleanProperty(io_object_t entry, CFStringRef property,
                                          Bool *boolVal);
-EXTERN CFDataRef Util_IORegGetDataProperty(io_object_t entry, CFStringRef property);
+EXTERN CFDataRef Util_IORegCopyDataProperty(io_object_t entry, CFStringRef property);
+EXTERN CFDictionaryRef Util_IORegCopyDictionaryProperty(io_object_t entry,
+                                                        CFStringRef property);
 EXTERN CFMutableDictionaryRef UtilMacos_CreateCFDictionary(
    unsigned int numPairs, ...);
 EXTERN io_service_t Util_IORegGetDeviceObjectByName(const char *deviceName);
 EXTERN char *Util_GetBSDName(const char *deviceName);
 EXTERN char *Util_IORegGetDriveType(const char *deviceName);
+EXTERN uint64 Util_GetPartitionOffset(const char *bsdDev);
 EXTERN char *Util_GetMacOSDefaultVMPath();
 
 /* 
@@ -108,6 +113,15 @@ typedef struct RemoteDiscList {
 
 EXTERN RemoteDiscList *Util_GetRemoteDiscList(void);
 EXTERN void Util_FreeRemoteDiscList(RemoteDiscList *list);
+
+/*
+ * Additional keys for disk/partition device properties.
+ */
+EXTERN const CFStringRef kUtilMacosDeviceSerialNumberKey;
+EXTERN const CFStringRef kUtilMacosVolumeOffsetKey;
+
+EXTERN CFDictionaryRef UtilMacos_CopyDiskDeviceProperties(const char *bsdDev);
+EXTERN CFArrayRef UtilMacos_CopyDiskDeviceBSDNames(const char *parentDisk);
 #endif // __APPLE__
 
 
@@ -532,5 +546,71 @@ Util_FreeStringList(char **list,      // IN/OUT: the list to free
 {
    Util_FreeList((void **) list, length);
 }
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * fls0 --
+ *
+ *      Highest bit set in the 'n', or -1 if all bits are clear.
+ *
+ * Results:
+ *      fls0 (== floor(log2(n)) for n != 0)
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static INLINE int
+fls0(unsigned int n)
+{
+   if (n) {
+#ifdef _MSC_VER
+#  ifdef VM_X86_64
+      unsigned long idx;
+
+      _BitScanReverse(&idx, n);
+      return idx;
+#  else
+      int idx;
+
+      __asm bsr eax, n
+      __asm mov idx, eax
+      return idx;
+#  endif
+#else
+      int idx;
+
+      __asm__ __volatile__("bsrl %1, %0"
+                           :"=r"(idx)
+                           :"rm"(n)
+                           :"cc");
+      return idx;
+#endif
+   }
+   return -1;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Util_Log2 --
+ *
+ *      Compute floor(log2(n)).  Returns -1 for n == 0 (-1 == log2(0.5))
+ *
+ * Results:
+ *      floor(log2(n))
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+#define Util_Log2(n) fls0(n)
 
 #endif /* UTIL_H */

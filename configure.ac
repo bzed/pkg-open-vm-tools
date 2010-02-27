@@ -39,10 +39,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="2010.01.19"
+TOOLS_VERSION="2010.02.23"
 AC_INIT(
    [open-vm-tools],
-   [2010.01.19],
+   [2010.02.23],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -811,6 +811,14 @@ AC_CHECK_HEADER(
    [wchar.h],
    [HAVE_WCHAR_H="yes"],
    [HAVE_WCHAR_H="no"])
+
+if test "$os" = "linux"; then
+   # Make sure kernel-headers package is installed.
+   AC_CHECK_HEADER(
+      [linux/unistd.h],
+      [],
+      [AC_MSG_ERROR(linux/unistd.h is not found. Please install kernel-headers/linux-userspace-headers/linux-libc-dev package.)])
+fi
 
 if test "$enable_multimon" != "no"; then
    AC_CHECK_HEADER(

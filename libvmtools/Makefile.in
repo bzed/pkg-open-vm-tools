@@ -85,7 +85,8 @@ libvmtools_la_DEPENDENCIES = ../lib/backdoor/libBackdoor.la \
 	../lib/user/libUser.la ../lib/vmCheck/libVmCheck.la \
 	../lib/vmSignal/libVmSignal.la ../lib/wiper/libWiper.la \
 	../lib/misc/libMisc.la $(am__append_1)
-am_libvmtools_la_OBJECTS = libvmtools_la-signalSource.lo \
+am_libvmtools_la_OBJECTS = libvmtools_la-fileLogger.lo \
+	libvmtools_la-signalSource.lo libvmtools_la-stdLogger.lo \
 	libvmtools_la-vmtools.lo libvmtools_la-vmtoolsConfig.lo \
 	libvmtools_la-vmtoolsLog.lo libvmtools_la-rpcin.lo \
 	libvmtools_la-stub-log.lo
@@ -315,8 +316,9 @@ libvmtools_la_LIBADD = ../lib/backdoor/libBackdoor.la \
 # Recompile the rpcIn library with GLIB support.
 
 # Recompile the stub for Log_* functions, but not Log() itself (see -DNO_LOG_STUB).
-libvmtools_la_SOURCES = signalSource.c vmtools.c vmtoolsConfig.c \
-	vmtoolsLog.c $(top_srcdir)/lib/rpcIn/rpcin.c \
+libvmtools_la_SOURCES = fileLogger.c signalSource.c stdLogger.c \
+	vmtools.c vmtoolsConfig.c vmtoolsLog.c \
+	$(top_srcdir)/lib/rpcIn/rpcin.c \
 	$(top_srcdir)/lib/stubs/stub-log.c
 libvmtools_la_CPPFLAGS = -DVMTOOLS_USE_GLIB -DNO_LOG_STUB \
 	@GLIB2_CPPFLAGS@ $(am__empty)
@@ -393,8 +395,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-fileLogger.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-rpcin.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-signalSource.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-stdLogger.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-stub-log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-vmtools.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmtools_la-vmtoolsConfig.Plo@am__quote@
@@ -421,12 +425,26 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
+libvmtools_la-fileLogger.lo: fileLogger.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-fileLogger.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-fileLogger.Tpo -c -o libvmtools_la-fileLogger.lo `test -f 'fileLogger.c' || echo '$(srcdir)/'`fileLogger.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-fileLogger.Tpo $(DEPDIR)/libvmtools_la-fileLogger.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fileLogger.c' object='libvmtools_la-fileLogger.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-fileLogger.lo `test -f 'fileLogger.c' || echo '$(srcdir)/'`fileLogger.c
+
 libvmtools_la-signalSource.lo: signalSource.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-signalSource.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-signalSource.Tpo -c -o libvmtools_la-signalSource.lo `test -f 'signalSource.c' || echo '$(srcdir)/'`signalSource.c
 @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-signalSource.Tpo $(DEPDIR)/libvmtools_la-signalSource.Plo
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='signalSource.c' object='libvmtools_la-signalSource.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-signalSource.lo `test -f 'signalSource.c' || echo '$(srcdir)/'`signalSource.c
+
+libvmtools_la-stdLogger.lo: stdLogger.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-stdLogger.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-stdLogger.Tpo -c -o libvmtools_la-stdLogger.lo `test -f 'stdLogger.c' || echo '$(srcdir)/'`stdLogger.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmtools_la-stdLogger.Tpo $(DEPDIR)/libvmtools_la-stdLogger.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='stdLogger.c' object='libvmtools_la-stdLogger.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmtools_la-stdLogger.lo `test -f 'stdLogger.c' || echo '$(srcdir)/'`stdLogger.c
 
 libvmtools_la-vmtools.lo: vmtools.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmtools_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmtools_la-vmtools.lo -MD -MP -MF $(DEPDIR)/libvmtools_la-vmtools.Tpo -c -o libvmtools_la-vmtools.lo `test -f 'vmtools.c' || echo '$(srcdir)/'`vmtools.c

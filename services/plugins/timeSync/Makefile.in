@@ -49,6 +49,9 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@SOLARIS_TRUE@am__append_1 = slewAdjtime.c
+@FREEBSD_TRUE@am__append_2 = slewAdjtime.c
+@LINUX_TRUE@am__append_3 = slewLinux.c
 subdir = services/plugins/timeSync
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in COPYING
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -70,8 +73,14 @@ am__installdirs = "$(DESTDIR)$(plugindir)"
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(plugin_LTLIBRARIES)
 libtimeSync_la_DEPENDENCIES =
+am__libtimeSync_la_SOURCES_DIST = timeSync.c timeSyncPosix.c \
+	slewAdjtime.c slewLinux.c
+@SOLARIS_TRUE@am__objects_1 = libtimeSync_la-slewAdjtime.lo
+@FREEBSD_TRUE@am__objects_2 = libtimeSync_la-slewAdjtime.lo
+@LINUX_TRUE@am__objects_3 = libtimeSync_la-slewLinux.lo
 am_libtimeSync_la_OBJECTS = libtimeSync_la-timeSync.lo \
-	libtimeSync_la-timeSyncPosix.lo
+	libtimeSync_la-timeSyncPosix.lo $(am__objects_1) \
+	$(am__objects_2) $(am__objects_3)
 libtimeSync_la_OBJECTS = $(am_libtimeSync_la_OBJECTS)
 libtimeSync_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
@@ -89,7 +98,7 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libtimeSync_la_SOURCES)
-DIST_SOURCES = $(libtimeSync_la_SOURCES)
+DIST_SOURCES = $(am__libtimeSync_la_SOURCES_DIST)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -282,7 +291,8 @@ plugin_LTLIBRARIES = libtimeSync.la
 libtimeSync_la_CPPFLAGS = @PLUGIN_CPPFLAGS@
 libtimeSync_la_LDFLAGS = @PLUGIN_LDFLAGS@
 libtimeSync_la_LIBADD = @VMTOOLS_LIBS@
-libtimeSync_la_SOURCES = timeSync.c timeSyncPosix.c
+libtimeSync_la_SOURCES = timeSync.c timeSyncPosix.c $(am__append_1) \
+	$(am__append_2) $(am__append_3)
 all: all-am
 
 .SUFFIXES:
@@ -352,6 +362,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtimeSync_la-slewAdjtime.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtimeSync_la-slewLinux.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtimeSync_la-timeSync.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtimeSync_la-timeSyncPosix.Plo@am__quote@
 
@@ -389,6 +401,20 @@ libtimeSync_la-timeSyncPosix.lo: timeSyncPosix.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='timeSyncPosix.c' object='libtimeSync_la-timeSyncPosix.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libtimeSync_la-timeSyncPosix.lo `test -f 'timeSyncPosix.c' || echo '$(srcdir)/'`timeSyncPosix.c
+
+libtimeSync_la-slewAdjtime.lo: slewAdjtime.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libtimeSync_la-slewAdjtime.lo -MD -MP -MF $(DEPDIR)/libtimeSync_la-slewAdjtime.Tpo -c -o libtimeSync_la-slewAdjtime.lo `test -f 'slewAdjtime.c' || echo '$(srcdir)/'`slewAdjtime.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libtimeSync_la-slewAdjtime.Tpo $(DEPDIR)/libtimeSync_la-slewAdjtime.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='slewAdjtime.c' object='libtimeSync_la-slewAdjtime.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libtimeSync_la-slewAdjtime.lo `test -f 'slewAdjtime.c' || echo '$(srcdir)/'`slewAdjtime.c
+
+libtimeSync_la-slewLinux.lo: slewLinux.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libtimeSync_la-slewLinux.lo -MD -MP -MF $(DEPDIR)/libtimeSync_la-slewLinux.Tpo -c -o libtimeSync_la-slewLinux.lo `test -f 'slewLinux.c' || echo '$(srcdir)/'`slewLinux.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libtimeSync_la-slewLinux.Tpo $(DEPDIR)/libtimeSync_la-slewLinux.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='slewLinux.c' object='libtimeSync_la-slewLinux.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libtimeSync_la-slewLinux.lo `test -f 'slewLinux.c' || echo '$(srcdir)/'`slewLinux.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
