@@ -1,3 +1,10 @@
+open-vm-tools (2010.03.20-243334-2) unstable; urgency=low
+
+  * Addding dkms support based on the work of Evan Broder
+    <broder@mit.edu> on the ubuntu package (Closes: #516251).
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 27 Mar 2010 17:09:36 +0100
+
 open-vm-tools (2010.03.20-243334-1) unstable; urgency=low
 
   * Simplyfing initramfs triggers (Closes: #516355).

@@ -132,6 +132,10 @@ install: build
 	dh_prep
 	dh_installdirs
 
+	# Installing dkms version
+	mkdir -p debian/open-vm-dkms/usr/src
+	sh modules/linux/dkms.sh . debian/open-vm-dkms/usr/src
+
 	# Installing package
 	$(MAKE) DESTDIR=$(CURDIR)/debian/open-vm-tools install
 
