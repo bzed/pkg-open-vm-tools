@@ -78,7 +78,8 @@ VMToolsLogOutputDebugString(const gchar *domain,
                             gpointer _data);
 #endif
 
-typedef LogHandlerData * (*LogHandlerConfigFn)(const gchar *domain,
+typedef LogHandlerData * (*LogHandlerConfigFn)(const gchar *defaultDomain,
+                                               const gchar *domain,
                                                const gchar *name,
                                                GKeyFile *cfg);
 
@@ -103,6 +104,7 @@ static LogHandler gHandlers[] = {
    { 3,  "outputdebugstring", VMDebugOutputConfig },
    { -1, NULL,                VMDebugOutputConfig },
 #else
+   { 3,  "syslog",            VMSysLoggerConfig },
    { -1, NULL,                VMStdLoggerConfig },
 #endif
 };
@@ -232,21 +234,19 @@ VMToolsLogFormat(const gchar *message,
    }
 
    if (msg != NULL && data->convertToLocal) {
-      size_t msgCurrLen;
-      gchar *msgCurr = g_locale_from_utf8(msg, strlen(msg), NULL, &msgCurrLen, NULL);
-
-      /*
-       * The log messages from glib itself (and probably other libraries based
-       * on glib) do not include a trailing new line. Most of our code does. So
-       * we detect whether the original message already had a new line, and
-       * remove it, to avoid having two newlines when printing our log messages.
-       */
-      if (msgCurr != NULL && msgCurr[msgCurrLen - 2] == '\n') {
-         msgCurr[msgCurrLen - 1] = '\0';
-      }
-
+      gchar *msgCurr = g_locale_from_utf8(msg, len, NULL, &len, NULL);
       g_free(msg);
       msg = msgCurr;
+   }
+
+   /*
+    * The log messages from glib itself (and probably other libraries based
+    * on glib) do not include a trailing new line. Most of our code does. So
+    * we detect whether the original message already had a new line, and
+    * remove it, to avoid having two newlines when printing our log messages.
+    */
+   if (msg != NULL && msg[len - 2] == '\n') {
+      msg[len - 1] = '\0';
    }
 
    return msg;
@@ -425,7 +425,7 @@ VMToolsConfigLogDomain(const gchar *domain,
          goto exit;
       }
 
-      data = configfn(domain, handler, cfg);
+      data = configfn(gLogDomain, domain, handler, cfg);
    } else if (strcmp(domain, gLogDomain) == 0) {
       /*
        * If no handler defined and we're configuring the default domain,
@@ -433,7 +433,7 @@ VMToolsConfigLogDomain(const gchar *domain,
        */
       hid = DEFAULT_HANDLER->id;
       configfn = DEFAULT_HANDLER->configfn;
-      data = configfn(domain, NULL, cfg);
+      data = configfn(gLogDomain, domain, NULL, cfg);
       ASSERT(data != NULL);
    } else {
       /* An inherited handler. Just create a dummy instance. */
@@ -739,7 +739,7 @@ VMTools_ConfigLogging(const gchar *defaultDomain,
    }
 
    gLogDomain = g_strdup(defaultDomain);
-   gErrorData = DEFAULT_HANDLER->configfn(gLogDomain, NULL, NULL);
+   gErrorData = DEFAULT_HANDLER->configfn(gLogDomain, gLogDomain, NULL, NULL);
 
    /*
     * Configure the default domain first. See function documentation for

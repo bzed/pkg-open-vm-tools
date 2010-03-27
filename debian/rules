@@ -179,7 +179,7 @@ install: build
 	cp -a lib/backdoor lib/hgfs lib/hgfsBd lib/include lib/message lib/misc lib/rpcOut debian/$(psource)/usr/src/modules/$(sname)/lib
 	cd debian/$(psource)/usr/src/modules/$(sname); \
 	find . -name ".dep*" -or -name ".lib*" -or -name "*.o" -or -name "*.la" -or -name "*.lo" | xargs rm -rf
-	cp debian/Makefile debian/$(psource)/usr/src/modules/$(sname)/Makefile
+	cp debian/local/Makefile debian/$(psource)/usr/src/modules/$(sname)/Makefile
 	# Copy the needed debian/ pieces to the proper location
 	cp debian/*modules.in* \
 		debian/$(psource)/usr/src/modules/$(sname)/debian

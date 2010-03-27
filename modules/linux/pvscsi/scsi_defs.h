@@ -110,6 +110,7 @@
 #define SCSI_CMD_CHANGE_DEF            0x40  // set SCSI version
 #define SCSI_CMD_WRITE_SAME            0x41  //
 #define SCSI_CMD_READ_SUBCHANNEL       0x42  // read subchannel data and status
+#define SCSI_CMD_UNMAP                 0x42  // unmap blocks on TP devices
 #define SCSI_CMD_READ_TOC              0x43  // read contents table
 #define SCSI_CMD_READ_HEADER           0x44  // read LBN header
 #define SCSI_CMD_PLAY_AUDIO10          0x45  // audio playback
@@ -232,6 +233,9 @@
 #define SCSI_ASC_LU_NOT_READY_ASCQ_MANUAL_INTERVENTION_REQUIRED   0x03
 #define SCSI_ASC_LU_NOT_READY_ASCQ_TARGET_PORT_IN_TRANSITION      0x0a  // an ascq
 #define SCSI_ASC_LU_NOT_READY_ASCQ_TARGET_PORT_IN_STANDBY_MODE    0x0b  // an ascq
+#define SCSI_ASC_COPY_FAILED                                   0x0d
+#define SCSI_ASC_COPY_FAILED_ASCQ_UNREACHABLE                  0x02
+#define SCSI_ASC_LU_NOT_READY_ASCQ_SPACE_ALLOCATION_IN_PROGRESS   0x14  // an ascq
 #define SCSI_ASC_LU_NO_RESPONSE_TO_SELECTION                   0x05  // logical unit doesn't respond to selection
 #define SCSI_ASC_NO_REFERENCE_POSITION_FOUND                   0x06
 #define SCSI_ASC_WRITE_ERROR                                   0x0c  // Write error
@@ -245,11 +249,13 @@
 #define SCSI_ASC_INVALID_FIELD_IN_PARAMETER_LIST               0x26
 #define SCSI_ASC_WRITE_PROTECTED                               0x27  // device is write protected
 // Thin provisioning extention 07/27/07 approved in spc4r20a
-#define SCSI_ASC_WRITE_PROTECTED_ASCQ_SPACE_ALLOCATION_FAILED  0x07
+#define SCSI_ASC_WRITE_PROTECTED_ASCQ_SPACE_ALLOCATION_FAILED  0x07  // an ascq
 #define SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED                       0x28  // after changing medium
 #define SCSI_ASC_POWER_ON_OR_RESET                             0x29  // device power-on or SCSI reset
 #define SCSI_ASC_ASYMMETRIC_ACCESS_STATE_CHANGED               0x2a
 #define SCSI_ASC_INCOMPATIBLE_MEDIUM                           0x30  // Generic bad medium error
+#define SCSI_ASC_EVENT_STATUS_NOTIFICATION                         0x38 // event status notification
+#define SCSI_ASC_EVENT_STATUS_NOT_ASCQ_TP_SOFT_THRESHOLD_REACHED   0x07 // ascq
 #define SCSI_ASC_SAVING_PARAMS_NOT_SUPPORTED                   0x39  // Saving parameters not supported
 #define SCSI_ASC_MEDIUM_NOT_PRESENT                            0x3a  // changing medium
 #define SCSI_ASC_MEDIUM_NOT_PRESENT_ASCQ_TRAY_OPEN             0x02  // an ascq
@@ -470,6 +476,7 @@ typedef struct {
 #define SCSI_INQ_PAGE_0x00 0x00
 #define SCSI_INQ_PAGE_0x80 0x80
 #define SCSI_INQ_PAGE_0x83 0x83
+#define SCSI_INQ_PAGE_0xB1 0xb1
 
 /*
  * The following structures define the Page format supported by the
@@ -593,6 +600,36 @@ struct SCSI2InqPage83ResponseDescriptor {
 }
 #include "vmware_pack_end.h"
 SCSI2InqPage83ResponseDescriptor;
+
+#define SCSI_INQ_PAGE_B1_LEN                   64
+
+// Inquiry page 0xB1: Medium Rotation Rate
+#define SCSI_ROTATION_RATE_NOT_REPORTED        0x0
+#define SCSI_ROTATION_RATE_NON_ROTATING_MEDIUM 0x1
+
+// Inquiry page 0xB1: Form Factor
+#define SCSI_FORM_FACTOR_NOT_REPORTED          0x0
+
+/*
+ * Format of INQUIRY EVPD Page B1 response
+ * SBC3-r18, Section 6.5.3 table 138 Page 178
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct SCSIInqPageB1ResponseHeader {
+   uint8  devClass	:5,
+   	  pQual		:3;
+   uint8  pageCode;
+   uint8  reserved1;
+   uint8  pageLength;
+   uint16 mediumRotationRate;
+   uint8  reserved2;
+   uint8  formFactor:4,
+          reserved3:4;
+   uint8  reserved4[56];
+}
+#include "vmware_pack_end.h"
+SCSIInqPageB1ResponseHeader;
 
 typedef
 #include "vmware_pack_begin.h"
@@ -846,6 +883,51 @@ struct {
 }
 #include "vmware_pack_end.h"
 SCSIReserveCmd;
+
+/*
+ * Command structure for a SCSI Unmap command.
+ * Ref: SBC 3 r21, Section 5.23.1 table 70
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint8    opcode;
+   uint8    reserved[5];
+   uint8    groupNumber :5,
+            reserved1   :3;
+   uint16   paramListLength;
+   uint8    control;
+}
+#include "vmware_pack_end.h"
+SCSIUnmapCmd;
+
+/*
+ * UNMAP parameter list header
+ * Ref: SBC 3 r21, Section 5.23.2 table 72
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint16   dataLength;
+   uint16   blockDescriptorDataLength;
+   uint8    reserved1[4];
+}
+#include "vmware_pack_end.h"
+SCSIUnmapParamListHeader;
+
+/*
+ * UNMAP block descriptor
+ * Ref: SBC 3 r21, Section 5.23.2 table 74
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint64   lba;
+   uint32   numBlocks;
+   uint8    reserved1[4];
+}
+#include "vmware_pack_end.h"
+SCSIUnmapBlockDescriptor;
 
 /*
  * There are three mandatory mode parameter pages for all device
@@ -1299,6 +1381,9 @@ struct {
 #include "vmware_pack_end.h"
 SCSIReadCapacity16Cmd;
 
+/*
+ * Format of READ CAP(16) response: sbc2r09 (Sec 5.2.12).
+ */
 typedef
 #include "vmware_pack_begin.h"
 struct {
@@ -1307,6 +1392,28 @@ struct {
 }
 #include "vmware_pack_end.h"
 SCSIReadCapacity16Response;
+
+/*
+ * Format of READ CAP(16) response: sbc3r21 (Sec 5.14.2)
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint64 lbn;
+   uint32 blocksize;
+   uint8  reserved1:4,
+          p_type:3,
+          prot_en:1;
+   uint8  pi_exp:4,
+          lbs_exp:4;
+   uint8  firstalignedlbahi:6,
+          tprz:1,
+          tpe:1;
+   uint8  firstalignedlbalo;
+   uint8  reserved2[16];
+}
+#include "vmware_pack_end.h"
+SCSI3ReadCapacity16Response;
 
 /*
  * Format of SYNCHRONIZE CACHE (10) and (16) request and response blocks.

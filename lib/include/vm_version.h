@@ -83,7 +83,7 @@
  * hard-coded value for every other product.
  */
 #if defined(VMX86_DESKTOP)
-   #define PRODUCT_VERSION    7,0,0,PRODUCT_BUILD_NUMBER_NUMERIC  /* WORKSTATION_VERSION_NUMERIC below has to match this */
+   #define PRODUCT_VERSION    7,0,0,PRODUCT_BUILD_NUMBER_NUMERIC  /* WORKSTATION_VERSION_NUMBER below has to match this */
 #elif defined(VMX86_TOOLS)
    #define PRODUCT_VERSION    TOOLS_VERSION_EXT_CURRENT_CSV
 #elif defined(VMX86_VCB)
@@ -91,7 +91,7 @@
 #elif defined(VMX86_VLICENSE)
    #define PRODUCT_VERSION    1,1,2,PRODUCT_BUILD_NUMBER_NUMERIC
 #else
-   #define PRODUCT_VERSION    3,1,0,PRODUCT_BUILD_NUMBER_NUMERIC  /* PLAYER_VERSION_NUMERIC below has to match this */
+   #define PRODUCT_VERSION    3,1,0,PRODUCT_BUILD_NUMBER_NUMERIC  /* PLAYER_VERSION_NUMBER below has to match this */
 #endif
 
 /*
@@ -194,7 +194,7 @@
 #define ESX_RELEASE ESX_RELEASE_UPDATE "." ESX_RELEASE_PATCH
 #define GSX_VERSION "e.x.p"
 #define VMSERVER_VERSION "e.x.p"
-#define WORKSTATION_VERSION_NUMERIC "7.1.0" /* this version number should always match real WS version number */
+#define WORKSTATION_VERSION_NUMBER "7.1.0" /* this version number should always match real WS version number */
 #define WORKSTATION_VERSION "e.x.p"
 #define WORKSTATION_ENTERPRISE_VERSION "e.x.p"
 #define ACE_MANAGEMENT_SERVER_VERSION "e.x.p"
@@ -202,11 +202,11 @@
 #define CONSOLE_VERSION "4.1.0"
 #define P2V_VERSION "e.x.p"
 #define P2V_FILE_VERSION 3,0,0,0
-#define PLAYER_VERSION_NUMERIC "3.1.0" /* this version number should always match real Player version number */
+#define PLAYER_VERSION_NUMBER "3.1.0" /* this version number should always match real Player version number */
 #define PLAYER_VERSION "e.x.p"
 #define V2V_VERSION "e.x.p"
 #define V2V_FILE_VERSION 1,0,0,0
-#define FUSION_VERSION "3.0.2"
+#define FUSION_VERSION "e.x.p"
 
 // These must match VIE_FILEVERSION above
 #define SYSIMAGE_VERSION "4.0.0"
@@ -217,8 +217,8 @@
 #define VPX_VERSION "e.x.p"
 #define WBC_VERSION "e.x.p"
 #define SDK_VERSION "4.1.0"
-#define FOUNDRY_VERSION "e.x.p"
-#define FOUNDRY_FILE_VERSION 1,8,1,PRODUCT_BUILD_NUMBER_NUMERIC
+#define FOUNDRY_VERSION "1.10.0"
+#define FOUNDRY_FILE_VERSION 1,10,0,PRODUCT_BUILD_NUMBER_NUMERIC
 #define VMLS_VERSION "e.x.p"
 #define VLICENSE_VERSION "1.1.2"
 #define DDK_VERSION "e.x.p"
@@ -254,6 +254,16 @@
  * The current Tools version, derived from vm_tools_version.h. Do not modify this.
  */
 #define TOOLS_VERSION TOOLS_VERSION_CURRENT_STR
+
+/*
+ * USB Arbitrator Component version. This encompasses the USB Arbitrator, hcmon, and
+ * vmusb. This is used by the installer to determine if an upgrade should take place. The
+ * major version should be bumped with every major hosted release (and the minor to 0)
+ * while the minor version should be bumped with each change affecting the USB Arbitrator.
+ *
+ * Currently set to 2.x for the hosted10 branch.
+ */
+#define USB_ARBITRATOR_COMPONENT_VERSION_NUMBER "2.0"
 
 #ifdef VMX86_VPX
 #define VIM_API_TYPE "VirtualCenter"
@@ -439,7 +449,7 @@
 #define PRODUCT_VERSION_WORKSTATION_5 PRODUCT_WORKSTATION_BRIEF_NAME " 5.x"
 #define PRODUCT_VERSION_WORKSTATION_6 PRODUCT_WORKSTATION_BRIEF_NAME " 6.0"
 #define PRODUCT_VERSION_WORKSTATION_65 PRODUCT_WORKSTATION_BRIEF_NAME " 6.5"
-#define PRODUCT_VERSION_WORKSTATION_70 PRODUCT_WORKSTATION_BRIEF_NAME " 7.0"
+#define PRODUCT_VERSION_WORKSTATION_7 PRODUCT_WORKSTATION_BRIEF_NAME " 7.x"
 #define PRODUCT_VERSION_WORKSTATION_80 PRODUCT_WORKSTATION_BRIEF_NAME " 8.0"
 #define PRODUCT_VERSION_WORKSTATION_ENTERPRISE_1 "ACE 1.x"
 #define PRODUCT_VERSION_WORKSTATION_ENTERPRISE_2 "ACE 2.0"

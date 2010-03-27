@@ -57,6 +57,7 @@
 #include "vmware/guestrpc/tclodefs.h"
 #include "vmware/tools/plugin.h"
 #include "vmware/tools/utils.h"
+#include "vmware/tools/vmbackup.h"
 
 #if !defined(__APPLE__)
 #include "embed_version.h"
@@ -114,7 +115,7 @@ static Bool SetGuestInfo(ToolsAppCtx *ctx, GuestInfoType key,
 static Bool DiskInfoChanged(PGuestDiskInfo diskInfo);
 static void GuestInfoClearCache(void);
 static GuestNicList *NicInfoV3ToV2(const NicInfoV3 *infoV3);
-static void TweakGatherLoop(ToolsAppCtx *ctx);
+static void TweakGatherLoop(ToolsAppCtx *ctx, gboolean enable);
 
 
 /**
@@ -216,7 +217,32 @@ GuestInfoServerConfReload(gpointer src,
                           ToolsAppCtx *ctx,
                           gpointer data)
 {
-   TweakGatherLoop(ctx);
+   TweakGatherLoop(ctx, TRUE);
+}
+
+
+/*
+ ******************************************************************************
+ * GuestInfoServerIOFreeze --                                           */ /**
+ *
+ * IO freeze signal handler. Disables info gathering while I/O is frozen.
+ * See bug 529653.
+ *
+ * @param[in]  src      The source object.
+ * @param[in]  ctx      The application context.
+ * @param[in]  freeze   Whether I/O is being frozen.
+ * @param[in]  data     Unused.
+ *
+ ******************************************************************************
+ */
+
+static void
+GuestInfoServerIOFreeze(gpointer src,
+                        ToolsAppCtx *ctx,
+                        gboolean freeze,
+                        gpointer data)
+{
+   TweakGatherLoop(ctx, !freeze);
 }
 
 
@@ -1045,14 +1071,14 @@ NicInfoV3ToV2(const NicInfoV3 *infoV3)
 
    nicList = Util_SafeCalloc(sizeof *nicList, 1);
 
-   XDRUTIL_ARRAYAPPEND(nicList, nics, infoV3->nics.nics_len);
+   (void)XDRUTIL_ARRAYAPPEND(nicList, nics, infoV3->nics.nics_len);
    XDRUTIL_FOREACH(i, infoV3, nics) {
       GuestNicV3 *nic = XDRUTIL_GETITEM(infoV3, nics, i);
       GuestNic *oldNic = XDRUTIL_GETITEM(nicList, nics, i);
 
       Str_Strcpy(oldNic->macAddress, nic->macAddress, sizeof oldNic->macAddress);
 
-      XDRUTIL_ARRAYAPPEND(oldNic, ips, nic->ips.ips_len);
+      (void)XDRUTIL_ARRAYAPPEND(oldNic, ips, nic->ips.ips_len);
 
       XDRUTIL_FOREACH(j, nic, ips) {
          IpAddressEntry *ipEntry = XDRUTIL_GETITEM(nic, ips, j);
@@ -1086,7 +1112,8 @@ NicInfoV3ToV2(const NicInfoV3 *infoV3)
  * This function is responsible for creating, manipulating, and resetting the
  * GuestInfoGather loop timeout source.
  *
- * @param[in]  ctx   The app context.
+ * @param[in]  ctx      The app context.
+ * @param[in]  enable   Whether to enable the gather loop.
  *
  * @sa CONFNAME_GUESTINFO_POLLINTERVAL
  *
@@ -1094,25 +1121,30 @@ NicInfoV3ToV2(const NicInfoV3 *infoV3)
  */
 
 static void
-TweakGatherLoop(ToolsAppCtx *ctx)
+TweakGatherLoop(ToolsAppCtx *ctx,
+                gboolean enable)
 {
    GError *gError = NULL;
-   gint pollInterval = GUESTINFO_TIME_INTERVAL_MSEC;
+   gint pollInterval = 0;
 
-   /*
-    * Check the config registry for a custom poll interval, converting from
-    * seconds to milliseconds.
-    */
-   if (g_key_file_has_key(ctx->config, CONFGROUPNAME_GUESTINFO,
-                          CONFNAME_GUESTINFO_POLLINTERVAL, NULL)) {
-      pollInterval = g_key_file_get_integer(ctx->config, CONFGROUPNAME_GUESTINFO,
-                                            CONFNAME_GUESTINFO_POLLINTERVAL, &gError);
-      pollInterval *= 1000;
+   if (enable) {
+      pollInterval = GUESTINFO_TIME_INTERVAL_MSEC;
 
-      if (pollInterval < 0 || gError) {
-         g_warning("Invalid %s.%s value.  Using default.\n",
-                   CONFGROUPNAME_GUESTINFO, CONFNAME_GUESTINFO_POLLINTERVAL);
-         pollInterval = GUESTINFO_TIME_INTERVAL_MSEC;
+      /*
+       * Check the config registry for a custom poll interval, converting from
+       * seconds to milliseconds.
+       */
+      if (g_key_file_has_key(ctx->config, CONFGROUPNAME_GUESTINFO,
+                             CONFNAME_GUESTINFO_POLLINTERVAL, NULL)) {
+         pollInterval = g_key_file_get_integer(ctx->config, CONFGROUPNAME_GUESTINFO,
+                                               CONFNAME_GUESTINFO_POLLINTERVAL, &gError);
+         pollInterval *= 1000;
+
+         if (pollInterval < 0 || gError) {
+            g_warning("Invalid %s.%s value.  Using default.\n",
+                      CONFGROUPNAME_GUESTINFO, CONFNAME_GUESTINFO_POLLINTERVAL);
+            pollInterval = GUESTINFO_TIME_INTERVAL_MSEC;
+         }
       }
    }
 
@@ -1121,6 +1153,7 @@ TweakGatherLoop(ToolsAppCtx *ctx)
     * timeout source.
     */
    if (guestInfoPollInterval == pollInterval) {
+      ASSERT(pollInterval || gatherTimeoutSource == NULL);
       return;
    }
 
@@ -1187,6 +1220,7 @@ ToolsOnLoad(ToolsAppCtx *ctx)
       ToolsPluginSignalCb sigs[] = {
          { TOOLS_CORE_SIG_CAPABILITIES, GuestInfoServerSendUptime, NULL },
          { TOOLS_CORE_SIG_CONF_RELOAD, GuestInfoServerConfReload, NULL },
+         { TOOLS_CORE_SIG_IO_FREEZE, GuestInfoServerIOFreeze, NULL },
          { TOOLS_CORE_SIG_RESET, GuestInfoServerReset, NULL },
          { TOOLS_CORE_SIG_SET_OPTION, GuestInfoServerSetOption, NULL },
          { TOOLS_CORE_SIG_SHUTDOWN, GuestInfoServerShutdown, NULL }
@@ -1205,7 +1239,7 @@ ToolsOnLoad(ToolsAppCtx *ctx)
       /*
        * Set up the GuestInfoGather loop.
        */
-      TweakGatherLoop(ctx);
+      TweakGatherLoop(ctx, TRUE);
 
       return &regData;
    }

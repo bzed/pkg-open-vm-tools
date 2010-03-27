@@ -116,6 +116,27 @@ static int unityX11ErrorCount = 0;
 Bool
 UnityPlatformIsSupported(void)
 {
+   Display *dpy;
+   int major;
+   int event_base;
+   int error_base;
+
+   dpy = GDK_DISPLAY();
+   /*
+    * Unity/X11 doesn't yet work with the new vmwgfx driver.  Until that is
+    * fixed, we have to disable the feature.
+    *
+    * As for detecting which driver is in use, the legacy driver provides the
+    * VMWARE_CTRL extension for resolution and topology operations, while the
+    * new driver is instead controlled via XRandR.  If we don't find said
+    * extension, then we'll assume the new driver is in use and disable Unity.
+    */
+   if (XQueryExtension(dpy, "VMWARE_CTRL", &major, &event_base, &error_base) ==
+       False) {
+      Debug("Unity is not yet supported under the vmwgfx driver.\n");
+      return FALSE;
+   }
+
    return TRUE;
 }
 
@@ -3028,6 +3049,111 @@ UnityPlatformUnstickWindow(UnityPlatform *up,      // IN
 
 void
 UnityPlatformSetConfigDesktopColor(UnityPlatform *up, int desktopColor)
+{
+   ASSERT(up);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * UnityPlatformRequestWindowContents --
+ *
+ *     Validate the list of supplied window IDs and once validated add them to a list
+ *     of windows whose contents should be sent to the host.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+UnityPlatformRequestWindowContents(UnityPlatform *up,
+                                   UnityWindowId windowIds[],
+                                   uint32 numWindowIds)
+{
+   ASSERT(up);
+
+   /* Not implemented */
+   return FALSE;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * UnityPlatformConfirmMinimizeOperation --
+ *
+ *     Minimize a window (if allowed) by the host.
+ *
+ * Results:
+ *     Returns TRUE if successful, and FALSE otherwise.
+ *
+ * Side effects:
+ *     None.
+ *
+ *------------------------------------------------------------------------------
+ */
+
+Bool
+UnityPlatformConfirmMinimizeOperation(UnityPlatform *up,        // IN
+                                      UnityWindowId windowId,   // IN
+                                      uint32 sequence,          // IN
+                                      Bool allow)               // IN
+{
+   ASSERT(up);
+   return FALSE;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * UnityPlatformSetInterlockMinimizeOperation --
+ *
+ *     Enable (or Disable) the interlocking (relaying) of minimize operations
+ *     through the host.
+ *
+ * Results:
+ *     None.
+ *
+ * Side effects:
+ *     None.
+ *
+ *------------------------------------------------------------------------------
+ */
+
+void UnityPlatformSetInterlockMinimizeOperation(UnityPlatform *up,   // IN
+                                                Bool enabled)        // IN
+{
+   ASSERT(up);
+}
+
+
+/*
+ *------------------------------------------------------------------------------
+ *
+ * UnityPlatformWillRemoveWindow --
+ *
+ *    Called when a window is removed from the UnityWindowTracker.
+ *
+ *    NOTE: This function is called with the platform lock held.
+ *
+ * Results:
+ *    None.
+ *
+ * Side effects:
+ *    None.
+ *------------------------------------------------------------------------------
+ */
+
+void
+UnityPlatformWillRemoveWindow(UnityPlatform *up,      // IN
+                              UnityWindowId windowId) // IN
 {
    ASSERT(up);
 }

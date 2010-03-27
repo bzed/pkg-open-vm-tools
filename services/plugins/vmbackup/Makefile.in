@@ -72,7 +72,8 @@ pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(plugin_LTLIBRARIES)
 libvmbackup_la_DEPENDENCIES =
 am_libvmbackup_la_OBJECTS = libvmbackup_la-scriptOps.lo \
-	libvmbackup_la-stateMachine.lo libvmbackup_la-syncDriverOps.lo
+	libvmbackup_la-stateMachine.lo libvmbackup_la-syncDriverOps.lo \
+	libvmbackup_la-vmBackupSignals.lo
 libvmbackup_la_OBJECTS = $(am_libvmbackup_la_OBJECTS)
 libvmbackup_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
@@ -282,9 +283,14 @@ plugindir = @VMSVC_PLUGIN_INSTALLDIR@
 plugin_LTLIBRARIES = libvmbackup.la
 libvmbackup_la_CPPFLAGS = @PLUGIN_CPPFLAGS@
 libvmbackup_la_LDFLAGS = @PLUGIN_LDFLAGS@
-libvmbackup_la_LIBADD = @VMTOOLS_LIBS@
-libvmbackup_la_SOURCES = scriptOps.c stateMachine.c syncDriverOps.c
-all: all-am
+libvmbackup_la_LIBADD = @GOBJECT_LIBS@ @VMTOOLS_LIBS@
+libvmbackup_la_SOURCES = scriptOps.c stateMachine.c syncDriverOps.c \
+	vmBackupSignals.c
+BUILT_SOURCES = vmBackupSignals.c vmBackupSignals.h
+CLEANFILES = vmBackupSignals.c vmBackupSignals.h
+EXTRA_DIST = vmBackupSignals.gm
+all: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .lo .o .obj
@@ -356,6 +362,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-scriptOps.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-stateMachine.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-syncDriverOps.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-vmBackupSignals.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -398,6 +405,13 @@ libvmbackup_la-syncDriverOps.lo: syncDriverOps.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='syncDriverOps.c' object='libvmbackup_la-syncDriverOps.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmbackup_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmbackup_la-syncDriverOps.lo `test -f 'syncDriverOps.c' || echo '$(srcdir)/'`syncDriverOps.c
+
+libvmbackup_la-vmBackupSignals.lo: vmBackupSignals.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmbackup_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmbackup_la-vmBackupSignals.lo -MD -MP -MF $(DEPDIR)/libvmbackup_la-vmBackupSignals.Tpo -c -o libvmbackup_la-vmBackupSignals.lo `test -f 'vmBackupSignals.c' || echo '$(srcdir)/'`vmBackupSignals.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmbackup_la-vmBackupSignals.Tpo $(DEPDIR)/libvmbackup_la-vmBackupSignals.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='vmBackupSignals.c' object='libvmbackup_la-vmBackupSignals.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmbackup_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmbackup_la-vmBackupSignals.lo `test -f 'vmBackupSignals.c' || echo '$(srcdir)/'`vmBackupSignals.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -479,13 +493,15 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-check: check-am
+check: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile $(LTLIBRARIES)
 installdirs:
 	for dir in "$(DESTDIR)$(plugindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-install: install-am
+install: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-am
 install-exec: install-exec-am
 install-data: install-data-am
 uninstall: uninstall-am
@@ -502,6 +518,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
@@ -509,6 +526,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-am
 
 clean-am: clean-generic clean-libtool clean-pluginLTLIBRARIES \
@@ -584,6 +602,14 @@ uninstall-am: uninstall-pluginLTLIBRARIES
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-pluginLTLIBRARIES
 
+
+vmBackupSignals.c: $(top_srcdir)/services/plugins/vmbackup/vmBackupSignals.gm
+	glib-genmarshal --body $(top_srcdir)/services/plugins/vmbackup/vmBackupSignals.gm > \
+	   $@ || (rm -f $@ && exit 1)
+
+vmBackupSignals.h: $(top_srcdir)/services/plugins/vmbackup/vmBackupSignals.gm
+	glib-genmarshal --header $(top_srcdir)/services/plugins/vmbackup/vmBackupSignals.gm > \
+	   $@ || (rm -f $@ && exit 1)
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

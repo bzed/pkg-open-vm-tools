@@ -1,3 +1,12 @@
+open-vm-tools (2010.03.20-243334-1) unstable; urgency=low
+
+  * Simplyfing initramfs triggers (Closes: #516355).
+  * Merging upstream version 2010.03.20-243334.
+  * Moving local Makefile to subdirectory.
+  * Adding build-depends to libfuse-dev.
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 27 Mar 2010 11:01:55 +0100
+
 open-vm-tools (2010.02.23-236320-1) unstable; urgency=low
 
   * Updating to standards 3.8.4.

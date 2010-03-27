@@ -48,6 +48,7 @@
 
 #include "vm_basic_types.h"
 #include "community_source.h"
+#include "x86vendor.h"
 
 /*
  * The linux kernel's ptrace.h stupidly defines the bare
@@ -161,20 +162,6 @@ typedef enum {
 #undef CPUIDREG
    CPUID_NUM_REGS
 } CpuidReg;
-
-/*
- * CPU vendors
- */
-
-typedef enum {
-   CPUID_VENDOR_UNKNOWN,
-   CPUID_VENDOR_COMMON,
-   CPUID_VENDOR_INTEL,
-   CPUID_VENDOR_AMD,
-   CPUID_VENDOR_CYRIX,
-   CPUID_VENDOR_VIA,
-   CPUID_NUM_VENDORS
-} CpuidVendor;
 
 #define CPUID_INTEL_VENDOR_STRING       "GenuntelineI"
 #define CPUID_AMD_VENDOR_STRING         "AuthcAMDenti"
@@ -405,6 +392,18 @@ FIELDDEF(  B, ECX, INTEL,   8,  8, LEVEL_TYPE,          NA,  FALSE)            \
 FIELDDEF(  B, EDX, INTEL,   0, 32, X2APIC_ID,           NA,  FALSE)
 
 /*    LEVEL, REG, VENDOR, POS, SIZE, NAME,       MON SUPP, CPL3, [FUNC] */
+#define CPUID_FIELD_DATA_LEVEL_400                                             \
+FIELDDEF(400, EAX, COMMON,  0, 32, NUM_HYP_LEVELS,      NA,  FALSE)            \
+FIELDDEF(400, EBX, COMMON,  0, 32, HYPERVISOR1,         NA,  FALSE)            \
+FIELDDEF(400, ECX, COMMON,  0, 32, HYPERVISOR2,         NA,  FALSE)            \
+FIELDDEF(400, EDX, COMMON,  0, 32, HYPERVISOR3,         NA,  FALSE)
+
+/*    LEVEL, REG, VENDOR, POS, SIZE, NAME,       MON SUPP, CPL3, [FUNC] */
+#define CPUID_FIELD_DATA_LEVEL_410                                             \
+FIELDDEF(410, EAX, COMMON,  0, 32, TSC_HZ,              NA,  FALSE)            \
+FIELDDEF(410, EBX, COMMON,  0, 32, ACPIBUS_HZ,          NA,  FALSE)
+
+/*    LEVEL, REG, VENDOR, POS, SIZE, NAME,       MON SUPP, CPL3, [FUNC] */
 #define CPUID_FIELD_DATA_LEVEL_80                                              \
 FIELDDEF( 80, EAX, COMMON,  0, 32, NUM_EXT_LEVELS,      NA,  FALSE)            \
 FIELDDEF( 80, EBX, AMD,     0, 32, AMD_VENDOR1,         NA,  FALSE)            \
@@ -488,10 +487,10 @@ FIELDDEFA(88, EAX, COMMON,  0,  8, PHYSBITS,            NA,  FALSE, PHYS_BITS) \
 FIELDDEFA(88, EAX, COMMON,  8,  8, VIRTBITS,            NA,  FALSE, VIRT_BITS) \
 FIELDDEFA(88, ECX, AMD,     0,  8, CORE_COUNT,          NA,  FALSE, AMD_CORE_COUNT) \
 FIELDDEFA(88, ECX, AMD,    12,  4, APICID_COREID_SIZE,  NA,  FALSE, AMD_APICID_COREID_SIZE) \
-FIELDDEFA(8A, EAX, AMD,     0,  8, SVM_REVISION,        NO,  FALSE, SVM_REVISION) \
+FIELDDEFA(8A, EAX, AMD,     0,  8, SVM_REVISION,        YES, FALSE, SVM_REVISION) \
 FLAGDEF(  8A, EAX, AMD,     8,  1, SVM_HYPERVISOR,      NO,  FALSE)            \
 FIELDDEF( 8A, EAX, AMD,     9, 23, SVMEAX_RSVD,         NO,  FALSE)            \
-FIELDDEF( 8A, EBX, AMD,     0, 32, SVM_N_ASIDS,         NO,  FALSE)            \
+FIELDDEF( 8A, EBX, AMD,     0, 32, SVM_N_ASIDS,         ANY, FALSE)            \
 FIELDDEF( 8A, ECX, AMD,     0, 32, SVMECX_RSVD,         NO,  FALSE)            \
 FLAGDEFA( 8A, EDX, AMD,     0,  1, SVM_NP,              YES, FALSE, NPT)       \
 FLAGDEF(  8A, EDX, AMD,     1,  1, SVM_LBR,             NO,  FALSE)            \
@@ -516,6 +515,8 @@ FIELDDEF( 8A, EDX, AMD,    11, 21, SVMEDX_RSVD1,        NO,  FALSE)
    CPUID_FIELD_DATA_LEVEL_6                                           \
    CPUID_FIELD_DATA_LEVEL_A                                           \
    CPUID_FIELD_DATA_LEVEL_B                                           \
+   CPUID_FIELD_DATA_LEVEL_400                                         \
+   CPUID_FIELD_DATA_LEVEL_410                                         \
    CPUID_FIELD_DATA_LEVEL_80                                          \
    CPUID_FIELD_DATA_LEVEL_81                                          \
    CPUID_FIELD_DATA_LEVEL_8x                                          \
