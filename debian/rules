@@ -135,6 +135,8 @@ install: build
 	# Installing dkms version
 	mkdir -p debian/open-vm-dkms/usr/src
 	sh modules/linux/dkms.sh . debian/open-vm-dkms/usr/src
+	find debian/open-vm-dkms/usr/src -name COPYING | xargs rm -f
+	find debian/open-vm-dkms/usr/src -name "Makefile*" | xargs chmod 0755
 
 	# Installing package
 	$(MAKE) DESTDIR=$(CURDIR)/debian/open-vm-tools install

@@ -2,12 +2,12 @@
 
 ### BEGIN INIT INFO
 # Provides:		open-vm-tools
-# Required-Start:	$local_fs
-# Required-Stop:	$local_fs
+# Required-Start:	$local_fs $remote_fs
+# Required-Stop:	$local_fs $remote_fs
 # X-Start-Before:	$network
 # X-Stop-After:		$network
 # Default-Start:	S
-# Default-Stop:		0 6
+# Default-Stop:		0 1 6
 # Description:		Runs the open-vm-tools services
 # Short-Description:	Runs the open-vm-tools services
 ### END INIT INFO

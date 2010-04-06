@@ -50,7 +50,7 @@ Package: open-vm-tools-dbg
 Section: contrib/debug
 Priority: extra
 Architecture: amd64 i386
-Depends: open-vm-tools (= ${binary:Version}), open-vm-toolbox (= ${binary:Version})
+Depends: ${misc:Depends}, open-vm-tools (= ${binary:Version}), open-vm-toolbox (= ${binary:Version})
 Description: tools and components for VMware guest systems (debug)
  The Open Virtual Machine Tools (open-vm-tools) are the open source
  implementation of VMware Tools. They are a set of guest operating system
@@ -61,7 +61,7 @@ Description: tools and components for VMware guest systems (debug)
 
 Package: open-vm-source
 Architecture: all
-Depends: debhelper (>= 7), quilt, make, bzip2
+Depends: ${misc:Depends}, debhelper (>= 7), quilt, make, bzip2
 Recommends: module-assistant, open-vm-tools
 Suggests: open-vm-toolbox
 Description: Source for VMware guest systems driver
@@ -71,7 +71,7 @@ Description: Source for VMware guest systems driver
 
 Package: open-vm-dkms
 Architecture: all
-Depends: dkms
+Depends: ${misc:Depends}, dkms, make
 Recommends: open-vm-tools
 Suggests: open-vm-toolbox
 Description: Source for VMware guest systems driver (DKMS)

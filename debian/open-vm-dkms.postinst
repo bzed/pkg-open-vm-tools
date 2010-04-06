@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 NAME="open-vm-tools"
 PACKAGE_NAME="open-vm-dkms"
 CVERSION="$(dpkg-query -W -f='${Version}' ${PACKAGE_NAME} | awk -F "-" '{ print $1 }' | cut -d\: -f2)"

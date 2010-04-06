@@ -1,3 +1,15 @@
+open-vm-tools (2010.03.20-243334-3) unstable; urgency=low
+
+  * Adding misc depends.
+  * Running open-vm-dkms postinst script with set -e.
+  * Adding remote_fs to init depends.
+  * Avoid including license files in open-vm-dkms.
+  * Marking makefiles in open-vm-dkms executable to please lintian.
+  * Adding make to open-vm-dkms depends.
+  * Also stopping in runlevel 1.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 06 Apr 2010 22:42:58 +0200
+
 open-vm-tools (2010.03.20-243334-2) unstable; urgency=low
 
   * Addding dkms support based on the work of Evan Broder
