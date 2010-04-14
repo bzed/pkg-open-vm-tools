@@ -1,3 +1,21 @@
+open-vm-tools (2010.03.20-243334-4) unstable; urgency=low
+
+  * Updating date and version in manpage headers.
+  * Adding manpage for vmxnet3.
+  * Adding manpage for vmci.
+  * Fixing spelling typo in vmsync manpage.
+  * Adding manpage for vmsock.
+  * Update formating of newly added manpages.
+  * Adding vmware-toolbox-cmd manpage.
+  * Adding guestlib manpage.
+  * Adding libvmtools manpage.
+  * Renaming guestlib manpage to libguestlib.
+  * Including vmware-toolbox-cmd manpage in open-vm-tools package.
+  * Updating initscript start/stop declarations (Closes: #576843,
+    #577163).
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 14 Apr 2010 18:59:32 +0200
+
 open-vm-tools (2010.03.20-243334-3) unstable; urgency=low
 
   * Adding misc depends.

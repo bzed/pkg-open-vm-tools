@@ -204,7 +204,7 @@ binary-arch: build install
 	dh_installdocs
 	dh_install
 	dh_installman
-	dh_installinit --update-rcd-params='start 38 S . stop 38 0 6 .'
+	dh_installinit --update-rcd-params='start 38 2 3 4 5 . stop 38 0 1 6 .'
 	dh_installmodules
 	dh_lintian
 	dh_link
