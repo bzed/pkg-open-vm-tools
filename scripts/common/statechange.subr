@@ -1,6 +1,6 @@
 #!/bin/sh
 ##########################################################
-# Copyright (C) 2006-2008 VMware, Inc. All rights reserved.
+# Copyright (C) 2010 VMware, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -22,11 +22,26 @@
 # time the VMware Tools are installed.
 ##########################################################################
 
-echo `date` ": Executing '$0'"
 
-scriptsdir="`dirname $0`/scripts/`basename $0`.d"
-if [ -d "$scriptsdir" ]; then
-   for scriptfile in "$scriptsdir"/*; do
-      [ -x "$scriptfile" ] && "$scriptfile" poweroff-vm
-   done
-fi
+#
+# Panic --
+#
+#    Write a formatted error message to stderr and exit.
+#
+# Results:
+#    Stderr is spammed, program exits with exit code 1.
+#
+# Side effects:
+#    None.
+#
+
+Panic() {
+   fmt="`date '+%b %d %H:%M:%S'` `basename \"$0\"`"
+   if [ -n "$1" ]; then
+      fmt="${fmt}: $1"
+      shift
+   fi
+
+   printf >&2 "${fmt}\n" "$@"
+   exit 1
+}

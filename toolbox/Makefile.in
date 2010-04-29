@@ -31,6 +31,7 @@
 ### Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ################################################################################
 
+
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkglibdir = $(libdir)/@PACKAGE@
@@ -69,7 +70,7 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 @HAVE_X11_TRUE@am__EXEEXT_1 = vmware-toolbox$(EXEEXT)
-am__installdirs = "$(DESTDIR)$(bindir)"
+am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(catalogsdir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am__vmware_toolbox_SOURCES_DIST = debugStdio.c toolbox-gtk.c \
@@ -117,6 +118,14 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 SOURCES = $(vmware_toolbox_SOURCES) $(vmware_toolbox_cmd_SOURCES)
 DIST_SOURCES = $(am__vmware_toolbox_SOURCES_DIST) \
 	$(vmware_toolbox_cmd_SOURCES)
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
+catalogsDATA_INSTALL = $(INSTALL_DATA)
+DATA = $(catalogs_DATA)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -345,6 +354,11 @@ vmware_toolbox_cmd_SOURCES = debugStdio.c toolbox-cmd.c \
 @HAVE_ICU_TRUE@                             $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
 @HAVE_ICU_TRUE@                             $(LDFLAGS) -o $@
 
+
+# Message catalogs.
+catalogsdir = $(datadir)/open-vm-tools/messages
+catalogs_DATA = messages/toolboxcmd_de.vmsg \
+	messages/toolboxcmd_ja.vmsg messages/toolboxcmd_zh.vmsg
 all: all-am
 
 .SUFFIXES:
@@ -686,6 +700,23 @@ mostlyclean-libtool:
 
 clean-libtool:
 	-rm -rf .libs _libs
+install-catalogsDATA: $(catalogs_DATA)
+	@$(NORMAL_INSTALL)
+	test -z "$(catalogsdir)" || $(MKDIR_P) "$(DESTDIR)$(catalogsdir)"
+	@list='$(catalogs_DATA)'; for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  f=$(am__strip_dir) \
+	  echo " $(catalogsDATA_INSTALL) '$$d$$p' '$(DESTDIR)$(catalogsdir)/$$f'"; \
+	  $(catalogsDATA_INSTALL) "$$d$$p" "$(DESTDIR)$(catalogsdir)/$$f"; \
+	done
+
+uninstall-catalogsDATA:
+	@$(NORMAL_UNINSTALL)
+	@list='$(catalogs_DATA)'; for p in $$list; do \
+	  f=$(am__strip_dir) \
+	  echo " rm -f '$(DESTDIR)$(catalogsdir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(catalogsdir)/$$f"; \
+	done
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -762,9 +793,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS)
+all-am: Makefile $(PROGRAMS) $(DATA)
 installdirs:
-	for dir in "$(DESTDIR)$(bindir)"; do \
+	for dir in "$(DESTDIR)$(bindir)" "$(DESTDIR)$(catalogsdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -811,7 +842,7 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-catalogsDATA
 
 install-dvi: install-dvi-am
 
@@ -847,7 +878,7 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-binPROGRAMS
+uninstall-am: uninstall-binPROGRAMS uninstall-catalogsDATA
 
 .MAKE: install-am install-strip
 
@@ -855,15 +886,16 @@ uninstall-am: uninstall-binPROGRAMS
 	clean-generic clean-libtool ctags distclean distclean-compile \
 	distclean-generic distclean-libtool distclean-tags distdir dvi \
 	dvi-am html html-am info info-am install install-am \
-	install-binPROGRAMS install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-binPROGRAMS
+	install-binPROGRAMS install-catalogsDATA install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-binPROGRAMS \
+	uninstall-catalogsDATA
 
 
 @HAVE_X11_TRUE@   install-exec-hook:

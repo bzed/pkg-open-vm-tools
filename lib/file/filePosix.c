@@ -389,6 +389,7 @@ File_IsRemote(ConstUnicode pathName)  // IN: Path name
        * All files and file systems are treated as "directly attached"
        * on ESX.  See bug 158284.
        */
+
       return FALSE;
    } else {
       struct statfs sfbuf;
@@ -419,30 +420,6 @@ File_IsRemote(ConstUnicode pathName)  // IN: Path name
    }
 }
 #endif /* !FreeBSD && !sun */
-
-
-/*
- *----------------------------------------------------------------------
- *
- * File_OnVMFS --
- *
- *      Return TRUE if file is on a VMFS file system.
- *
- * Results:
- *      TRUE   Caller is running on ESX (all FS are consider VMFS)
- *      FALSE  Otherwise
- *
- * Side effects:
- *      None
- *
- *----------------------------------------------------------------------
- */
-
-Bool
-File_OnVMFS(ConstUnicode pathName)  // IN:
-{
-   return HostType_OSIsVMK();
-}
 
 
 /*
@@ -1095,9 +1072,8 @@ File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File to test
 
    File_SplitName(fullPath, NULL, &parentPath, NULL);
 
-   if (!File_OnVMFS(pathName)) {
-      Log(LGPFX" %s: File %s not on VMFS volume\n", __func__,
-          UTF8(pathName));
+   if (!HostType_OSIsVMK()) {
+      Log(LGPFX" %s: File %s not on VMFS volume\n", __func__, UTF8(pathName));
       ret = -1;
       goto bail;
    }
@@ -1456,18 +1432,60 @@ FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
                           Bool *bind)           // OUT: Mounted with --[r]bind?
 {
    FILE *f;
-   struct mntent *mnt;
+   struct mntent mnt;
+   char *buf;
+   size_t size;
+   size_t used;
+   char *ret = NULL;
 
    ASSERT(canPath);
    ASSERT(bind);
 
+   size = 4 * FILE_MAXPATH;  // Should suffice for most locales
+
+retry:
    f = setmntent(MOUNTED, "r");
    if (f == NULL) {
       return NULL;
    }
 
-   /* XXX getmntent() is not thread-safe. Use getmntent_r() instead. */
-   while ((mnt = getmntent(f)) != NULL) {
+   buf = Util_SafeMalloc(size);
+
+   while (Posix_Getmntent_r(f, &mnt, buf, size) != NULL) {
+
+      /*
+       * Our Posix_Getmntent_r graciously sets errno when the buffer 
+       * is too small, but on UTF-8 based platforms Posix_Getmntent_r
+       * is #defined to the system's getmntent_r, which can simply 
+       * truncate the strings with no other indication.  See how much 
+       * space it used and increase the buffer size if needed.  Note
+       * that if some of the strings are empty, they may share a
+       * common nul in the buffer, and the resulting size calculation 
+       * will be a little over-zealous.
+       */
+
+      used = 0;  
+      if (mnt.mnt_fsname) {
+         used += strlen(mnt.mnt_fsname) + 1;
+      } 
+      if (mnt.mnt_dir) {
+         used += strlen(mnt.mnt_dir) + 1;
+      } 
+      if (mnt.mnt_type) {
+         used += strlen(mnt.mnt_type) + 1;
+      } 
+      if (mnt.mnt_opts) {
+         used += strlen(mnt.mnt_opts) + 1;
+      } 
+      if (used >= size || !mnt.mnt_fsname || !mnt.mnt_dir || 
+          !mnt.mnt_type || !mnt.mnt_opts) {
+         size += 4 * FILE_MAXPATH;
+         ASSERT(size <= 32 * FILE_MAXPATH);
+         free(buf);
+         endmntent(f);
+         goto retry;
+      }
+
       /*
        * NB: A call to realpath is not needed as getmntent() already
        *     returns it in canonical form.  Additionally, it is bad
@@ -1477,9 +1495,7 @@ FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
        *     all expecting.
        */
 
-      if (strcmp(mnt->mnt_dir, canPath) == 0) {
-         endmntent(f);
-
+      if (strcmp(mnt.mnt_dir, canPath) == 0) {
          /*
           * The --bind and --rbind options behave differently. See 
           * FilePosixGetBlockDevice() for details.
@@ -1489,16 +1505,20 @@ FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
           * always "bind".
           */
 
-         *bind = strstr(mnt->mnt_opts, "bind") != NULL;
+         *bind = strstr(mnt.mnt_opts, "bind") != NULL;
 
-         return Util_SafeStrdup(mnt->mnt_fsname);
+         ret = Util_SafeStrdup(mnt.mnt_fsname);
+
+	 break;
       }
    }
 
    // 'canPath' is not a mount point.
    endmntent(f);
 
-   return NULL;
+   free(buf);
+
+   return ret;
 }
 #endif
 
@@ -2075,9 +2095,9 @@ File_SupportsFileSize(ConstUnicode pathName,  // IN:
                       uint64 fileSize)        // IN:
 {
    Unicode fullPath;
+   Unicode folderPath;
 
    Bool supported = FALSE;
-   Unicode folderPath = NULL;
 
    /* All supported filesystems can hold at least 2GB - 1 files. */
    if (fileSize <= 0x7FFFFFFF) {
@@ -2099,23 +2119,11 @@ File_SupportsFileSize(ConstUnicode pathName,  // IN:
    }
 
    /* 
-    * This function expects a filename. If given one, truncate the name to
-    * point to the parent directory so we can get accurate results from
-    * File_OnVMFS. If handed a directory directly, no truncation is necessary.
-    */
-
-   if (File_IsDirectory(pathName)) {
-      folderPath = Unicode_Duplicate(fullPath);
-   } else {
-      File_SplitName(fullPath, NULL, &folderPath, NULL);
-   }
-
-   /* 
     * We know that VMFS supports large files - But they have limitations
     * See function File_VMFSSupportsFileSize() - PR 146965
     */
 
-   if (File_OnVMFS(folderPath)) {
+   if (HostType_OSIsVMK()) {
       supported = File_VMFSSupportsFileSize(pathName, fileSize);
       goto out;
    }
@@ -2134,15 +2142,22 @@ File_SupportsFileSize(ConstUnicode pathName,  // IN:
    }
 
    /*
-    * On unknown filesystems create temporary file and use it as a test.
+    * On unknown filesystems create a temporary file in the argument file's
+    * parent directory and use it as a test.
     */
 
+   if (File_IsDirectory(pathName)) {
+      folderPath = Unicode_Duplicate(fullPath);
+   } else {
+      folderPath = NULL;
+      File_SplitName(fullPath, NULL, &folderPath, NULL);
+   }
+
    supported = FilePosixCreateTestFileSize(folderPath, fileSize);
+   Unicode_Free(folderPath);
 
 out:
    Unicode_Free(fullPath);
-   Unicode_Free(folderPath);
-
    return supported;
 }
 

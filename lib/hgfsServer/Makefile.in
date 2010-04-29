@@ -63,7 +63,7 @@ CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libHgfsServer_la_LIBADD =
 am_libHgfsServer_la_OBJECTS = hgfsServer.lo hgfsServerLinux.lo \
-	hgfsDirNotifyStub.lo
+	hgfsServerPacketUtil.lo hgfsDirNotifyStub.lo
 libHgfsServer_la_OBJECTS = $(am_libHgfsServer_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -268,7 +268,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libHgfsServer.la
 libHgfsServer_la_SOURCES = hgfsServer.c hgfsServerLinux.c \
-	hgfsDirNotifyStub.c
+	hgfsServerPacketUtil.c hgfsDirNotifyStub.c
 AM_CFLAGS = -DVMTOOLS_USE_GLIB @GLIB2_CPPFLAGS@
 all: all-am
 
@@ -324,6 +324,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsDirNotifyStub.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsServer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsServerLinux.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsServerPacketUtil.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

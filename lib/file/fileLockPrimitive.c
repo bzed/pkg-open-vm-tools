@@ -121,12 +121,11 @@ Sleeper(LockValues *myValues,  // IN/OUT:
 
    myValues->waitTime += msecSleepTime;
 
+   /* Clamp individual sleeps to avoid Windows issues */
    while (msecSleepTime) {
       uint32 sleepTime = (msecSleepTime > 900) ? 900 : msecSleepTime;
 
-      FileSleeper(sleepTime);
-
-      msecSleepTime -= sleepTime;
+      msecSleepTime -= FileSleeper(sleepTime, sleepTime);
    }
 
    return 0;
@@ -883,7 +882,8 @@ Scanner(ConstUnicode lockDir,    // IN:
          ptr = ptr->next;
       }
 
-      FileSleeper(FILELOCK_PROGRESS_SAMPLE); // relax
+      FileSleeper(FILELOCK_PROGRESS_SAMPLE,
+                  FILELOCK_PROGRESS_SAMPLE); // relax
    }
 
    /* Clean up anything still on the list; they are no longer important */
@@ -1102,62 +1102,6 @@ NumberScan(ConstUnicode lockDir,      // IN:
 /*
  *-----------------------------------------------------------------------------
  *
- * SimpleRandomNumber --
- *
- *      Return a random number in the range of 0 and 2^16-1.
- *
- * Results:
- *      Random number is returned.
- *
- * Side Effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-static uint32
-SimpleRandomNumber(const char *machineID,    // IN:
-                   const char *executionID)  // IN:
-{
-   static Atomic_Ptr atomic; /* Implicitly initialized to NULL. --mbellon */
-   char *context;
-
-   context = Atomic_ReadPtr(&atomic);
-
-   if (context == NULL) {
-      void *p;
-      uint32 value = 0;
-
-      /*
-       * Use the machineID and executionID to hopefully start each machine
-       * and process/thread at a different place in the answer stream.
-       */
-
-      while (*machineID) {
-         value += *machineID++;
-      }
-
-      while (*executionID) {
-         value += *executionID++;
-      }
-
-      p = Random_QuickSeed(value);
-
-      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, p)) {
-         free(p);
-      }
-
-      context = Atomic_ReadPtr(&atomic);
-      ASSERT(context);
-   }
-
-   return (Random_Quick(context) >> 8) & 0xFFFF;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
  * MakeDirectory --
  *
  *      Create a directory.
@@ -1221,9 +1165,7 @@ MakeDirectory(ConstUnicode pathName)  // IN:
  */
 
 static int
-CreateEntryDirectory(const char *machineID,    // IN:
-                     const char *executionID,  // IN:
-                     ConstUnicode lockDir,     // IN:
+CreateEntryDirectory(ConstUnicode lockDir,     // IN:
                      Unicode *entryDirectory,  // OUT:
                      Unicode *entryFilePath,   // OUT:
                      Unicode *memberFilePath,  // OUT:
@@ -1295,7 +1237,7 @@ CreateEntryDirectory(const char *machineID,    // IN:
       }
 
       /* There is a small chance of collision/failure; grab stings now */
-      randomNumber = SimpleRandomNumber(machineID, executionID);
+      randomNumber = (FileSimpleRandom() >> 8) & 0xFFFF;
 
       *memberName = Unicode_Format("M%05u%s", randomNumber, FILELOCK_SUFFIX);
 
@@ -1545,9 +1487,7 @@ FileLockIntrinsic(ConstUnicode pathName,   // IN:
     * entry and member path names.
     */
 
-   *err = CreateEntryDirectory(myValues.machineID, myValues.executionID,
-                               lockDir,
-                               &entryDirectory, &entryFilePath,
+   *err = CreateEntryDirectory(lockDir, &entryDirectory, &entryFilePath,
                                &memberFilePath, &myValues.memberName);
 
    switch (*err) {
@@ -1803,9 +1743,7 @@ FileLockHackVMX(ConstUnicode pathName)  // IN:
    LOG(1, ("%s on %s (%s, %s).\n", __FUNCTION__, UTF8(pathName),
        myValues.machineID, myValues.executionID));
 
-   err = CreateEntryDirectory(myValues.machineID, myValues.executionID,
-                              lockDir,
-                              &entryDirectory, &entryFilePath,
+   err = CreateEntryDirectory(lockDir, &entryDirectory, &entryFilePath,
                               &memberFilePath, &myValues.memberName);
 
    if (err != 0) {

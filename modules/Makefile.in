@@ -497,7 +497,6 @@ $(MODULES):
 	   MODULEBUILDDIR=$(modulesrc)/$(MODULES_OS)        \
 	   $(EXTRA_ARGS) -C "$(modulesrc)/$(MODULES_OS)/$@"
 
-@LINUX_TRUE@export pvscsidir := $(MODULES_DIR)/drivers/scsi
 @LINUX_TRUE@export vmblockdir := $(MODULES_DIR)/fs/vmblock
 @LINUX_TRUE@export vmcidir := $(MODULES_DIR)/drivers/misc
 @LINUX_TRUE@export vmhgfsdir := $(MODULES_DIR)/fs/vmhgfs

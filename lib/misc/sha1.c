@@ -1,6 +1,22 @@
 /*********************************************************
  * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation version 2.1 and no later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the Lesser GNU General Public
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+ *
+ *********************************************************/
+
+/*********************************************************
  * The contents of this file are subject to the terms of the Common
  * Development and Distribution License (the "License") version 1.0
  * and no later version.  You may not use this file except in
@@ -56,14 +72,17 @@ A million repetitions of "a"
 #      include <string.h>
 #endif
 
-#ifdef USERLEVEL
 #include "vmware.h"
-#endif
 #ifdef VMKBOOT
 #include "vm_libc.h"
 #endif
+#if defined(VMKERNEL)
+#include "vmkernel.h"
+#include "vm_libc.h"
+#endif /* VMKERNEL */
 #include "sha1.h"
 #include "vm_basic_asm.h"
+#include "vmk_exports.h"
 
 /* If the endianess is not defined (it is done in string.h of glibc 2.1.1), we
    default to LE --hpreg */
@@ -174,6 +193,7 @@ void SHA1Init(SHA1_CTX* context)
     context->state[4] = 0xC3D2E1F0;
     context->count[0] = context->count[1] = 0;
 }
+VMK_KERNEL_EXPORT(SHA1Init);
 
 
 /* Run your data through this. */
@@ -205,6 +225,7 @@ void SHA1Update(SHA1_CTX* context,
     else i = 0;
     memcpy(&context->buffer[j], &data[i], len - i);
 }
+VMK_KERNEL_EXPORT(SHA1Update);
 
 
 /* Add padding and return the message digest. */
@@ -238,4 +259,4 @@ void SHA1Final(unsigned char digest[SHA1_HASH_LEN], SHA1_CTX* context)
 //    SHA1Transform(context->state, context->buffer);
 //#endif
 }
-
+VMK_KERNEL_EXPORT(SHA1Final);

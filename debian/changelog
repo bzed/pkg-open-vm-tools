@@ -1,3 +1,12 @@
+open-vm-tools (2010.04.25-253928-1) unstable; urgency=low
+
+  * Merging upstream version 2010.04.25-253928.
+  * Updating packaging for upstreams pvscsi module removal.
+  * Removing remote_fs from initscript again (Closes: #577163).
+  * Updating lintian overrides for open-vm-tools.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 29 Apr 2010 22:01:51 +0200
+
 open-vm-tools (2010.03.20-243334-4) unstable; urgency=low
 
   * Updating date and version in manpage headers.

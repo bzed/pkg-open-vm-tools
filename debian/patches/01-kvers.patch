@@ -1,18 +1,6 @@
 Author: Cyril Brulebois <cyril.brulebois@enst-bretagne.fr>
 Description: Replacing uname call with KVERS, overwriting seemed not to work.
 
-diff -Naurp open-vm-tools.orig/modules/linux/pvscsi/Makefile open-vm-tools/modules/linux/pvscsi/Makefile
---- open-vm-tools.orig/modules/linux/pvscsi/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/pvscsi/Makefile	2009-12-20 12:18:02.000000000 +0000
-@@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
- endif
- 
- 
--VM_UNAME = $(shell uname -r)
-+VM_UNAME = $(KVERS)
- 
- # Header directory for the running kernel
- HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 diff -Naurp open-vm-tools.orig/modules/linux/vmblock/Makefile open-vm-tools/modules/linux/vmblock/Makefile
 --- open-vm-tools.orig/modules/linux/vmblock/Makefile	2009-12-17 21:26:31.000000000 +0000
 +++ open-vm-tools/modules/linux/vmblock/Makefile	2009-12-20 12:18:02.000000000 +0000

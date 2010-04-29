@@ -2,8 +2,8 @@
 
 ### BEGIN INIT INFO
 # Provides:		open-vm-tools
-# Required-Start:	$local_fs $remote_fs
-# Required-Stop:	$local_fs $remote_fs
+# Required-Start:	$local_fs
+# Required-Stop:	$local_fs
 # X-Start-Before:	$network
 # X-Stop-After:		$network
 # Default-Start:	2 3 4 5
