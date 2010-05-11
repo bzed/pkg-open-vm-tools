@@ -77,7 +77,7 @@ binary-modules: prep-deb-files
 	$(MAKE)
 
 	# Installing the modules
-	set -e; for MODULE in pvscsi vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock; \
+	set -e; for MODULE in vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock; \
 	do \
 		install -D -m 0644 modules/linux/$$MODULE.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/$$MODULE.ko; \
 	done
@@ -141,6 +141,8 @@ install: build
 	# Installing package
 	$(MAKE) DESTDIR=$(CURDIR)/debian/open-vm-tools install
 
+	# Removing useless files
+	rm -f debian/open-vm-tools/usr/lib/*.la
 	rm -f debian/open-vm-tools/usr/lib/open-vm-tools/plugins/*/*.la
 
 	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper

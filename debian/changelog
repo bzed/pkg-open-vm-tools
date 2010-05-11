@@ -1,3 +1,10 @@
+open-vm-tools (2010.04.25-253928-2) unstable; urgency=low
+
+  * Dropping la files.
+  * Updating rules for pvscsi removal (Closes: #581160).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 11 May 2010 20:10:45 +0200
+
 open-vm-tools (2010.04.25-253928-1) unstable; urgency=low
 
   * Merging upstream version 2010.04.25-253928.
