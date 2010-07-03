@@ -67,6 +67,11 @@
 
 #include "vm_basic_types.h"
 
+#define BALLOON_NAME                    "vmmemctl"
+#define BALLOON_NAME_VERBOSE            "VMware memory control driver"
+
+#define BALLOON_POLL_PERIOD             1 /* sec */
+
 /*
  * Page allocation flags
  */
@@ -86,6 +91,7 @@ typedef struct {
    uint32 nPagesTarget;
 
    /* adjustment rates */
+   uint32 rateNoSleepAlloc;
    uint32 rateAlloc;
    uint32 rateFree;
 
@@ -116,9 +122,11 @@ typedef struct {
  * Operations
  */
 
-extern int  Balloon_ModuleInit(void);
-extern void Balloon_ModuleCleanup(void);
+Bool Balloon_Init(BalloonGuest guestType);
+void Balloon_Cleanup(void);
 
-extern void Balloon_GetStats(BalloonStats *stats);
+void Balloon_QueryAndExecute(void);
+
+const BalloonStats *Balloon_GetStats(void);
 
 #endif	/* VMBALLOON_H */

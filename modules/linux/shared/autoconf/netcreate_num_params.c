@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2004 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,20 +17,32 @@
  *********************************************************/
 
 /*
- * Detect whether we have 'struct poll_wqueues'
- * 2.6.x kernels always had this struct.  Stock 2.4.x kernels
- * never had it, but some distros backported epoll patch.
+ * During 2.6.33 merge window net_proto_ops->create() method was changed -
+ * a new 'kern' field, signalling whether socket is being created by kernel
+ * or userspace application, was added to it. Unfortunately, some
+ * distributions, such as RHEL 6, have backported the change to earlier
+ * kernels, so we can't rely solely on kernel version to determine number of
+ * arguments.
  */
 
 #include "compat_version.h"
 #include "compat_autoconf.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
-#include <linux/poll.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+#   error This compile test intentionally fails.
+#else
 
-void poll_test(void) {
-        struct poll_wqueues test;
+#include <linux/net.h>
 
-        return poll_initwait(&test);
+static int TestCreate(struct net *net,
+                      struct socket *sock, int protocol,
+                      int kern)
+{
+   return 0;
 }
+
+struct net_proto_family testFamily = {
+   .create = TestCreate,
+};
+
 #endif

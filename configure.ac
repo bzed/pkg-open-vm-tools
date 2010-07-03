@@ -39,10 +39,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="2010.04.25"
+TOOLS_VERSION="2010.06.16"
 AC_INIT(
    [open-vm-tools],
-   [2010.04.25],
+   [2010.06.16],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -465,6 +465,14 @@ else
    fi
 
    AC_CHECK_LIB(
+      [Xi],
+      [XOpenDevice],
+      [COMMON_XLIBS="-lXi $COMMON_XLIBS"],
+      [AC_MSG_ERROR(
+         [libXi not found. Please configure without X11 (using --without-x), or install the libXi devel package(s).])],
+      [$COMMON_XLIBS])
+
+   AC_CHECK_LIB(
       [Xrender],
       [XRenderQueryVersion],
       [COMMON_XLIBS="-lXrender $COMMON_XLIBS"],
@@ -656,7 +664,7 @@ if test "$with_procps" = "yes"; then
 
    # Some distros provide libproc-${version}.so only, others provide the
    # libproc.so symlink. Try both to see what sticks (but only try the 3.2.7
-   # version - adding every possible version here would be a mess).
+   # and 3.2.8 versions - adding every possible version here would be a mess).
    #
    # Users can help by providing CUSTOM_PROCPS_NAME / CUSTOM_PROCPS_LIBS if
    # necessary.
@@ -674,6 +682,21 @@ if test "$with_procps" = "yes"; then
                      VMWARE_USER_LDADD="$VMWARE_USER_LDADD $PROCPS_LIBS"
                     ],
                     [])
+
+   if test "$have_procps" = "no"; then
+      AC_VMW_CHECK_LIB([proc-3.2.8],
+                       [PROCPS],
+                       [],
+                       [],
+                       [],
+                       [],
+                       [getstat],
+                       [
+                        have_procps=yes;
+                        VMWARE_USER_LDADD="$VMWARE_USER_LDADD $PROCPS_LIBS"
+                       ],
+                       [])
+   fi
 
    if test "$have_procps" = "no"; then
       AC_VMW_CHECK_LIB([proc-3.2.7],
@@ -990,7 +1013,7 @@ if test "$os" = "linux"; then
    CPPFLAGS="$CPPFLAGS -D_BSD_SOURCE"
    CPPFLAGS="$CPPFLAGS -D_SVID_SOURCE"
 
-   MODULES="$MODULES vmmemctl vmsync vmci vsock"
+   MODULES="$MODULES vmsync vmci vsock"
    MODULES="$MODULES vmxnet vmblock vmhgfs"
    buildHgfsmounter=yes
 fi
@@ -1215,6 +1238,7 @@ AC_CONFIG_FILES([                      \
    lib/hgfsServerPolicyGuest/Makefile  \
    lib/image/Makefile                  \
    lib/impersonate/Makefile            \
+   lib/lock/Makefile                   \
    lib/message/Makefile                \
    lib/misc/Makefile                   \
    lib/netUtil/Makefile                \

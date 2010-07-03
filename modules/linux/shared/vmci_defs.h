@@ -69,6 +69,25 @@
 #define VMCI_IMR_DATAGRAM      0x1
 #define VMCI_IMR_NOTIFICATION  0x2
 
+/* Interrupt type. */
+typedef enum VMCIIntrType {
+   VMCI_INTR_TYPE_INTX = 0,
+   VMCI_INTR_TYPE_MSI =  1,
+   VMCI_INTR_TYPE_MSIX = 2
+} VMCIIntrType;
+
+/*
+ * Maximum MSI/MSI-X interrupt vectors in the device.
+ */
+#define VMCI_MAX_INTRS 2
+
+/*
+ * Supported interrupt vectors.  There is one for each ICR value above,
+ * but here they indicate the position in the vector array/message ID.
+ */
+#define VMCI_INTR_DATAGRAM     0
+#define VMCI_INTR_NOTIFICATION 1
+
 /*
  * We have a fixed set of resource IDs available in the VMX.
  * This allows us to have a very simple implementation since we statically
@@ -92,7 +111,10 @@ typedef uint32 VMCI_Resource;
 #define VMCI_EVENT_UNSUBSCRIBE    9
 #define VMCI_QUEUEPAIR_ALLOC      10
 #define VMCI_QUEUEPAIR_DETACH     11
-#define VMCI_VSOCK_VMX_LOOKUP     12
+/*
+ * VMCI_VSOCK_VMX_LOOKUP was assigned to 12 for Fusion 3.0/3.1,
+ * WS 7.0/7.1 and ESX 4.1
+ */
 #define VMCI_HGFS_TRANSPORT       13
 #define VMCI_RESOURCE_MAX         14
 
@@ -265,6 +287,7 @@ static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID,
 #define VMCI_ERROR_QUEUEPAIR_NODATA      (-36)
 #define VMCI_ERROR_BUSMEM_INVALIDATION   (-37)
 #define VMCI_ERROR_MODULE_NOT_LOADED     (-38)
+#define VMCI_ERROR_DEVICE_NOT_FOUND      (-39)
 
 /* VMCI clients should return error code withing this range */
 #define VMCI_ERROR_CLIENT_MIN     (-500)

@@ -104,6 +104,11 @@ GuestApp_GetPtrGrabCap(const char *channel); // IN
 Bool
 GuestApp_Log(const char *s); // IN
 
+#ifdef _WIN32
+LPWSTR
+GuestApp_GetInstallPathW(void);
+#endif
+
 char *
 GuestApp_GetInstallPath(void);
 
@@ -121,9 +126,6 @@ GuestApp_IsDiskShrinkEnabled(void);
 
 Bool
 GuestApp_IsDiskShrinkCapable(void);
-
-Bool
-GuestApp_DiskShrink(void);
 
 void
 GuestApp_GetPos(int16 *x,  // OUT

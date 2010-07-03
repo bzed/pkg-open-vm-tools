@@ -209,8 +209,7 @@ static unsigned int VSockVmciPoll(struct file *file,
 static int VSockVmciListen(struct socket *sock, int backlog);
 static int VSockVmciShutdown(struct socket *sock, int mode);
 
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 typedef int VSockSetsockoptLenType;
 #else
 typedef unsigned int VSockSetsockoptLenType;
@@ -236,7 +235,7 @@ static int VSockVmciCreate(
                            struct net *net,
 #endif
                            struct socket *sock, int protocol
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+#ifdef VMW_NETCREATE_KERNARG
                            , int kern
 #endif
                           );
@@ -1594,7 +1593,7 @@ VSockVmciRecvListen(struct sock *sk,   // IN
       protoInt &= VSockVmciNewProtoSupportedVersions();
 
       /* We choose the highest possible protocol version and use that one. */
-      pos = fls(protoInt);
+      pos = mssb32(protoInt);
       if (pos) {
          activeProtoVersion = (1 << (pos - 1));
          if (VSockVmciProtoToNotifyStruct(pending, &activeProtoVersion, FALSE)) {
@@ -3472,7 +3471,7 @@ VSockVmciStreamConnect(struct socket *sock,   // IN
     * a notification of an error.
     */
    timeout = sock_sndtimeo(sk, flags & O_NONBLOCK);
-   compat_init_prepare_to_wait(sk->compat_sk_sleep, &wait, TASK_INTERRUPTIBLE);
+   compat_init_prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
 
    while (sk->compat_sk_state != SS_CONNECTED && sk->compat_sk_err == 0) {
       if (timeout == 0) {
@@ -3495,7 +3494,7 @@ VSockVmciStreamConnect(struct socket *sock,   // IN
          goto outWaitError;
       }
 
-      compat_cont_prepare_to_wait(sk->compat_sk_sleep, &wait, TASK_INTERRUPTIBLE);
+      compat_cont_prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
    }
 
    if (sk->compat_sk_err) {
@@ -3507,7 +3506,7 @@ VSockVmciStreamConnect(struct socket *sock,   // IN
    }
 
 outWait:
-   compat_finish_wait(sk->compat_sk_sleep, &wait, TASK_RUNNING);
+   compat_finish_wait(sk_sleep(sk), &wait, TASK_RUNNING);
 out:
    release_sock(sk);
    return err;
@@ -3567,7 +3566,7 @@ VSockVmciAccept(struct socket *sock,     // IN
     * upon connection establishment.
     */
    timeout = sock_sndtimeo(listener, flags & O_NONBLOCK);
-   compat_init_prepare_to_wait(listener->compat_sk_sleep, &wait, TASK_INTERRUPTIBLE);
+   compat_init_prepare_to_wait(sk_sleep(listener), &wait, TASK_INTERRUPTIBLE);
 
    while ((connected = VSockVmciDequeueAccept(listener)) == NULL &&
           listener->compat_sk_err == 0) {
@@ -3583,7 +3582,7 @@ VSockVmciAccept(struct socket *sock,     // IN
          goto outWait;
       }
 
-      compat_cont_prepare_to_wait(listener->compat_sk_sleep, &wait, TASK_INTERRUPTIBLE);
+      compat_cont_prepare_to_wait(sk_sleep(listener), &wait, TASK_INTERRUPTIBLE);
    }
 
    if (listener->compat_sk_err) {
@@ -3617,7 +3616,7 @@ VSockVmciAccept(struct socket *sock,     // IN
    }
 
 outWait:
-   compat_finish_wait(listener->compat_sk_sleep, &wait, TASK_RUNNING);
+   compat_finish_wait(sk_sleep(listener), &wait, TASK_RUNNING);
 out:
    release_sock(listener);
    return err;
@@ -3715,7 +3714,7 @@ VSockVmciPoll(struct file *file,    // IN
    sk = sock->sk;
    vsk = vsock_sk(sk);
 
-   poll_wait(file, sk->compat_sk_sleep, wait);
+   poll_wait(file, sk_sleep(sk), wait);
    mask = 0;
 
    if (sk->compat_sk_err) {
@@ -4314,7 +4313,7 @@ VSockVmciStreamSendmsg(struct kiocb *kiocb,          // UNUSED
       goto out;
    }
 
-   compat_init_prepare_to_wait(sk->compat_sk_sleep, &wait, TASK_INTERRUPTIBLE);
+   compat_init_prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
 
    while (totalWritten < len) {
       Bool sentWrote;
@@ -4352,7 +4351,7 @@ VSockVmciStreamSendmsg(struct kiocb *kiocb,          // UNUSED
             goto outWait;
          }
 
-         compat_cont_prepare_to_wait(sk->compat_sk_sleep,
+         compat_cont_prepare_to_wait(sk_sleep(sk),
                                      &wait, TASK_INTERRUPTIBLE);
       }
 
@@ -4404,7 +4403,7 @@ outWait:
    if (totalWritten > 0) {
       err = totalWritten;
    }
-   compat_finish_wait(sk->compat_sk_sleep, &wait, TASK_RUNNING);
+   compat_finish_wait(sk_sleep(sk), &wait, TASK_RUNNING);
 out:
    release_sock(sk);
    return err;
@@ -4590,7 +4589,7 @@ VSockVmciStreamRecvmsg(struct kiocb *kiocb,          // UNUSED
       goto out;
    }
 
-   compat_init_prepare_to_wait(sk->compat_sk_sleep, &wait, TASK_INTERRUPTIBLE);
+   compat_init_prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
 
    while ((ready = VSockVmciStreamHasData(vsk)) < target &&
           sk->compat_sk_err == 0 &&
@@ -4630,7 +4629,7 @@ VSockVmciStreamRecvmsg(struct kiocb *kiocb,          // UNUSED
          goto outWait;
       }
 
-      compat_cont_prepare_to_wait(sk->compat_sk_sleep, &wait, TASK_INTERRUPTIBLE);
+      compat_cont_prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
    }
 
    if (sk->compat_sk_err) {
@@ -4694,7 +4693,7 @@ VSockVmciStreamRecvmsg(struct kiocb *kiocb,          // UNUSED
    err = copied;
 
 outWait:
-   compat_finish_wait(sk->compat_sk_sleep, &wait, TASK_RUNNING);
+   compat_finish_wait(sk_sleep(sk), &wait, TASK_RUNNING);
 out:
    release_sock(sk);
    return err;
@@ -4728,7 +4727,7 @@ VSockVmciCreate(
 #endif
                 struct socket *sock,  // IN
                 int protocol          // IN
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+#ifdef VMW_NETCREATE_KERNARG
                 , int kern            // IN
 #endif
                )

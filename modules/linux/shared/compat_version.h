@@ -33,9 +33,8 @@
 
 #include <linux/version.h>
 
-/* Appeared in 2.1.90 --hpreg */
 #ifndef KERNEL_VERSION
-#   define KERNEL_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
+#   error KERNEL_VERSION macro is not defined, environment is busted
 #endif
 
 
@@ -99,11 +98,6 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 8)
 /*  New netif_rx_ni() --hpreg */
 #   define KERNEL_2_4_8
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 22)
-/*  New vmap() */
-#   define KERNEL_2_4_22
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 2)

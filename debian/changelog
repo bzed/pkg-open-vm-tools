@@ -1,3 +1,14 @@
+open-vm-tools (2010.06.16-268169-1) unstable; urgency=low
+
+  * Merging upstream version 2010.06.16-268169.
+  * Updating standards version to 3.9.0.
+  * Updating README.source.
+  * Rediffing kvers.patch.
+  * Dropping procps.patch, not required anymore.
+  * Updating packaging for upstreams vmmemctl module removal.
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 03 Jul 2010 21:34:25 +0200
+
 open-vm-tools (2010.04.25-253928-2) unstable; urgency=low
 
   * Dropping la files.

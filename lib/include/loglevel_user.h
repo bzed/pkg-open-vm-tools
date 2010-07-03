@@ -33,7 +33,6 @@
    LOGLEVEL_VAR(aio), \
    LOGLEVEL_VAR(passthrough), \
    LOGLEVEL_VAR(tools), \
-   LOGLEVEL_VAR(vsockLookup), \
    LOGLEVEL_VAR(license), \
    LOGLEVEL_VAR(vui), \
    LOGLEVEL_VAR(stats), \
@@ -71,7 +70,7 @@
    LOGLEVEL_VAR(pci_ehci), \
    LOGLEVEL_VAR(ehci), \
    LOGLEVEL_VAR(pci_xhci), \
-   LOGLEVEL_VAR(xhci), \
+   LOGLEVEL_VAR(usb_xhci), \
    LOGLEVEL_VAR(usb), \
    LOGLEVEL_VAR(vusbmouse), \
    LOGLEVEL_VAR(vusbkeyboard), \
@@ -96,6 +95,7 @@
    LOGLEVEL_VAR(vmxnet3), \
    LOGLEVEL_VAR(pci_vmxnet3), \
    LOGLEVEL_VAR(vcpuhotplug), \
+   LOGLEVEL_VAR(vcpuNUMA), \
    LOGLEVEL_VAR(heci), \
    LOGLEVEL_VAR(vmiopluginlib), \
    \
@@ -152,7 +152,6 @@
    LOGLEVEL_VAR(macbw), \
    LOGLEVEL_VAR(macfi), \
    LOGLEVEL_VAR(vmkcfg), \
-   LOGLEVEL_VAR(vmxfer), \
    LOGLEVEL_VAR(poll), \
    LOGLEVEL_VAR(barrier), \
    LOGLEVEL_VAR(mstat), \
@@ -181,6 +180,8 @@
    LOGLEVEL_VAR(mainMem), \
    LOGLEVEL_VAR(mainMemReplayCheck), \
    LOGLEVEL_VAR(memoryHotplug), \
+   LOGLEVEL_VAR(numa), \
+   LOGLEVEL_VAR(numaHost), \
    LOGLEVEL_VAR(remoteDevice), \
    LOGLEVEL_VAR(vncDecode), \
    LOGLEVEL_VAR(vncEncode), \
@@ -194,7 +195,6 @@
    LOGLEVEL_VAR(battery), \
    LOGLEVEL_VAR(fakeDma), \
    LOGLEVEL_VAR(shader), \
-   LOGLEVEL_VAR(numa), \
    LOGLEVEL_VAR(machPoll), \
    LOGLEVEL_VAR(replayVMX), \
    LOGLEVEL_VAR(vmWindowController), \
@@ -202,6 +202,7 @@
    LOGLEVEL_VAR(duiMKS), \
    LOGLEVEL_VAR(worker), \
    LOGLEVEL_VAR(duiDevices), \
+   LOGLEVEL_VAR(duiLocalization), \
    LOGLEVEL_VAR(duiProxyApps), \
    LOGLEVEL_VAR(docker), \
    LOGLEVEL_VAR(vmIPC), \

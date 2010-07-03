@@ -78,7 +78,7 @@ enum VixCommonCommandOptionValues {
    VIX_COMMAND_FORWARD_TO_GUEST              = 0x04,
    VIX_COMMAND_GUEST_RETURNS_STRING          = 0x08,
    VIX_COMMAND_GUEST_RETURNS_INTEGER_STRING  = 0x10,
-   VIX_COMMAND_GUEST_RETURNS_ENCODED_STRING  = 0x20,
+   /* DEPRECATED VIX_COMMAND_GUEST_RETURNS_ENCODED_STRING  = 0x20, */
    VIX_COMMAND_GUEST_RETURNS_PROPERTY_LIST   = 0x40,
    VIX_COMMAND_GUEST_RETURNS_BINARY          = 0x80,
    // We cannot add more constants here. This is stored in a uint8,
@@ -727,6 +727,22 @@ enum VixListDirectoryOptions {
    VIX_LIST_DIRECTORY_USE_OFFSET = 0x01
 };
 
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgListFilesRequest {
+   VixCommandRequestHeader header;
+
+   int32                   fileOptions;
+   uint32                  guestPathNameLength;
+   uint32                  patternLength;
+   int32                   index;
+   int32                   maxResults;
+   uint64                  offset;
+}
+#include "vmware_pack_end.h"
+VixMsgListFilesRequest;
+
+
 /*
  * This is used to reply to several operations, like testing whether
  * a file or registry key exists on the client.
@@ -758,27 +774,6 @@ struct VixMsgCreateFileRequest {
 }
 #include "vmware_pack_end.h"
 VixMsgCreateFileRequest;
-
-
-/*
- * **********************************************************
- * Hot add and remove a disk in a running VM.
- */
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgHotDiskRequest {
-   VixCommandRequestHeader header;
-   int32                    hotDiskOptions;
-   uint32                   adapterTypeLength;
-   uint32                   typeLength;
-   uint32                   nameLength;
-   uint32                   modeLength;
-   uint32                   deviceTypeLength;
-   int32                    adapterNum;
-   int32                    targetNum;
-}
-#include "vmware_pack_end.h"
-VixMsgHotDiskRequest;
 
 
 /*
@@ -1166,33 +1161,6 @@ VixMsgListRollingTierResponse;
 
 
 /*
- * Fork a running VM.
- */
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgVMForkRequest {
-   VixCommandRequestHeader    header;
-
-   int32                      options;
-   Bool                       disconnectRemovable;
-
-   uint32                     cfgFileNameLen;
-   uint32                     displayNameLen;
-}
-#include "vmware_pack_end.h"
-VixMsgVMForkRequest;
-
-
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgVMForkResponse {
-   VixCommandResponseHeader  header;
-}
-#include "vmware_pack_end.h"
-VixMsgVMForkResponse;
-
-
-/*
  * Stop recording or playback of a snapshot event log.
  */
 typedef
@@ -1366,35 +1334,6 @@ struct VixMsgSetSharedFolderRequest {
 #include "vmware_pack_end.h"
 VixMsgSetSharedFolderRequest;
 
-
-
-/*
- * **********************************************************
- * Get properties of a disk.
- */
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgGetDiskPropertiesRequest {
-   VixCommandRequestHeader   header;
-
-   int32                     options;
-   uint32                    diskPathNameLength;
-}
-#include "vmware_pack_end.h"
-VixMsgGetDiskPropertiesRequest;
-
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgGetDiskPropertiesResponse {
-   VixCommandResponseHeader  header;
-
-   int64                     capacity;
-   int64                     spaceUsed;
-   int32                     diskLibDiskType;
-   uint32                    physicalPathLength;
-}
-#include "vmware_pack_end.h"
-VixMsgGetDiskPropertiesResponse;
 
 /*
  * **********************************************************
@@ -2088,8 +2027,8 @@ enum {
    VIX_COMMAND_VM_RESET                         = 2,
    VIX_COMMAND_VM_SUSPEND                       = 3,
    VIX_COMMAND_RUN_PROGRAM                      = 4,
-   VIX_COMMAND_GET_PROPERTY                     = 5,
-   VIX_COMMAND_SET_PROPERTY                     = 6,
+   /* DEPRECATED VIX_COMMAND_GET_PROPERTY                     = 5, */
+   /* DEPRECATED VIX_COMMAND_SET_PROPERTY                     = 6, */
    VIX_COMMAND_KEYSTROKES                       = 7,
    VIX_COMMAND_READ_REGISTRY                    = 8,
    VIX_COMMAND_WRITE_REGISTRY                   = 10,
@@ -2116,8 +2055,8 @@ enum {
    VIX_COMMAND_DELETE_VM                        = 32,
    VIX_COMMAND_SYNCDRIVER_FREEZE                = 33,
    VIX_COMMAND_SYNCDRIVER_THAW                  = 34,
-   VIX_COMMAND_HOT_ADD_DISK                     = 35,
-   VIX_COMMAND_HOT_REMOVE_DISK                  = 36,
+   /* DEPRECATED VIX_COMMAND_HOT_ADD_DISK                     = 35, */
+   /* DEPRECATED VIX_COMMAND_HOT_REMOVE_DISK                  = 36, */
    VIX_COMMAND_SET_GUEST_PRINTER                = 37,
    VIX_COMMAND_WAIT_FOR_TOOLS                   = 38,
    VIX_COMMAND_CREATE_RUNNING_VM_SNAPSHOT       = 39,
@@ -2129,10 +2068,10 @@ enum {
    VIX_COMMAND_ADD_SHARED_FOLDER                = 45,
    VIX_COMMAND_RUN_SCRIPT_IN_GUEST              = 46,
    VIX_COMMAND_OPEN_VM                          = 47,
-   VIX_COMMAND_GET_DISK_PROPERTIES              = 48,
+   /* DEPRECATED VIX_COMMAND_GET_DISK_PROPERTIES              = 48, */
    VIX_COMMAND_OPEN_URL                         = 49,
    VIX_COMMAND_GET_HANDLE_STATE                 = 50,
-   VIX_COMMAND_SET_HANDLE_STATE                 = 51,
+   /* DEPRECATED VIX_COMMAND_SET_HANDLE_STATE                 = 51, */
    VIX_COMMAND_CREATE_WORKING_COPY              = 55, // DELETE this when we switch remote foundry to VIM
    VIX_COMMAND_DISCARD_WORKING_COPY             = 56, // DELETE this when we switch remote foundry to VIM
    VIX_COMMAND_SAVE_WORKING_COPY                = 57, // DELETE this when we switch remote foundry to VIM
@@ -2157,7 +2096,7 @@ enum {
    VIX_CREATE_SESSION_KEY_COMMAND               = 83,
    VMXI_HGFS_SEND_PACKET_COMMAND                = 84,
    VIX_COMMAND_KILL_PROCESS                     = 85,
-   VIX_VM_FORK_COMMAND                          = 86,
+   /* DEPRECATED VIX_VM_FORK_COMMAND                          = 86, */
    VIX_COMMAND_LOGOUT_IN_GUEST                  = 87,
    VIX_COMMAND_READ_VARIABLE                    = 88,
    VIX_COMMAND_WRITE_VARIABLE                   = 89,
@@ -2200,7 +2139,7 @@ enum {
 
    VIX_COMMAND_VM_PAUSE                         = 122,
    VIX_COMMAND_VM_UNPAUSE                       = 123,
-   VIX_COMMAND_GET_SNAPSHOT_LOG_INFO            = 124,
+   /* DEPRECATED VIX_COMMAND_GET_SNAPSHOT_LOG_INFO            = 124, */
    VIX_COMMAND_SET_REPLAY_SPEED                 = 125,
 
    /* DEPRECATED VIX_COMMAND_ANSWER_USER_MESSAGE              = 126, */
@@ -2214,8 +2153,8 @@ enum {
    VIX_COMMAND_ADD_TIMEMARKER                   = 131,
 
    VIX_COMMAND_WAIT_FOR_USER_ACTION_IN_GUEST    = 132,
-   VIX_COMMAND_VMDB_END_TRANSACTION             = 133,
-   VIX_COMMAND_VMDB_SET                         = 134,
+   /* DEPRECATED VIX_COMMAND_VMDB_END_TRANSACTION             = 133, */
+   /* DEPRECATED VIX_COMMAND_VMDB_SET                         = 134, */
 
    VIX_COMMAND_CHANGE_VIRTUAL_HARDWARE          = 135,
 
@@ -2277,6 +2216,10 @@ enum {
 
    VIX_COMMAND_CHANGE_DISPLAY_TOPOLOGY_MODES    = 175,
 
+   VIX_COMMAND_QUERY_CHILDREN                   = 176,
+
+   VIX_COMMAND_LIST_FILES                       = 177,
+
    /*
     * HOWTO: Adding a new Vix Command. Step 2a.
     *
@@ -2287,7 +2230,7 @@ enum {
     * Once a new command is added here, a command info field needs to be added
     * in bora/lib/foundryMsg. as well.
     */
-   VIX_COMMAND_LAST_NORMAL_COMMAND              = 176,
+   VIX_COMMAND_LAST_NORMAL_COMMAND              = 178,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,

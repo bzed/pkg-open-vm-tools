@@ -77,7 +77,7 @@ binary-modules: prep-deb-files
 	$(MAKE)
 
 	# Installing the modules
-	set -e; for MODULE in vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock; \
+	set -e; for MODULE in vmblock vmci vmhgfs vmsync vmxnet vsock; \
 	do \
 		install -D -m 0644 modules/linux/$$MODULE.o debian/$(PACKAGE)-$(KVERS)/lib/modules/$(KVERS)/misc/$$MODULE.ko; \
 	done

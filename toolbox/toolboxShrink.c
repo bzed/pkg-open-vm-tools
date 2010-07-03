@@ -29,7 +29,9 @@
 #include "toolboxGtkInt.h"
 #include "debug.h"
 #include "guestApp.h"
+#include "rpcout.h"
 #include "wiper.h"
+#include "vmware/guestrpc/tclodefs.h"
 
 /*
  * Globals
@@ -245,7 +247,7 @@ Shrink_OnShrinkClicked(GtkButton *btn,     // IN: unused
       if (disks_to_shrink > 0) {
          if (ToolsMain_YesNoBox("Shrink Disk",
                                 "Do you want to shrink the disk(s)?\n")) {
-            if (GuestApp_DiskShrink()) {
+            if (RpcOut_sendOne(NULL, NULL, DISK_SHRINK_CMD)) {
                ToolsMain_MsgBox("Information", "The shrink process has finished.");
             }
             gtk_clist_unselect_all(GTK_CLIST(shrinkList));

@@ -2,8 +2,8 @@ Author: Cyril Brulebois <cyril.brulebois@enst-bretagne.fr>
 Description: Replacing uname call with KVERS, overwriting seemed not to work.
 
 diff -Naurp open-vm-tools.orig/modules/linux/vmblock/Makefile open-vm-tools/modules/linux/vmblock/Makefile
---- open-vm-tools.orig/modules/linux/vmblock/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/vmblock/Makefile	2009-12-20 12:18:02.000000000 +0000
+--- open-vm-tools.orig/modules/linux/vmblock/Makefile	2010-06-18 01:02:36.000000000 +0200
++++ open-vm-tools/modules/linux/vmblock/Makefile	2010-07-03 20:59:43.128041723 +0200
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -14,8 +14,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmblock/Makefile open-vm-tools/modu
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 diff -Naurp open-vm-tools.orig/modules/linux/vmci/Makefile open-vm-tools/modules/linux/vmci/Makefile
---- open-vm-tools.orig/modules/linux/vmci/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/vmci/Makefile	2009-12-20 12:18:02.000000000 +0000
+--- open-vm-tools.orig/modules/linux/vmci/Makefile	2010-06-18 01:02:36.000000000 +0200
++++ open-vm-tools/modules/linux/vmci/Makefile	2010-07-03 20:59:46.384042352 +0200
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -26,20 +26,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmci/Makefile open-vm-tools/modules
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 diff -Naurp open-vm-tools.orig/modules/linux/vmhgfs/Makefile open-vm-tools/modules/linux/vmhgfs/Makefile
---- open-vm-tools.orig/modules/linux/vmhgfs/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/vmhgfs/Makefile	2009-12-20 12:18:02.000000000 +0000
-@@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
- endif
- 
- 
--VM_UNAME = $(shell uname -r)
-+VM_UNAME = $(KVERS)
- 
- # Header directory for the running kernel
- HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
-diff -Naurp open-vm-tools.orig/modules/linux/vmmemctl/Makefile open-vm-tools/modules/linux/vmmemctl/Makefile
---- open-vm-tools.orig/modules/linux/vmmemctl/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/vmmemctl/Makefile	2009-12-20 12:18:02.000000000 +0000
+--- open-vm-tools.orig/modules/linux/vmhgfs/Makefile	2010-06-18 01:02:36.000000000 +0200
++++ open-vm-tools/modules/linux/vmhgfs/Makefile	2010-07-03 20:59:49.264041335 +0200
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -50,8 +38,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmmemctl/Makefile open-vm-tools/mod
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 diff -Naurp open-vm-tools.orig/modules/linux/vmsync/Makefile open-vm-tools/modules/linux/vmsync/Makefile
---- open-vm-tools.orig/modules/linux/vmsync/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/vmsync/Makefile	2009-12-20 12:18:02.000000000 +0000
+--- open-vm-tools.orig/modules/linux/vmsync/Makefile	2010-06-18 01:02:36.000000000 +0200
++++ open-vm-tools/modules/linux/vmsync/Makefile	2010-07-03 20:59:56.041024330 +0200
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -62,8 +50,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmsync/Makefile open-vm-tools/modul
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 diff -Naurp open-vm-tools.orig/modules/linux/vmxnet/Makefile open-vm-tools/modules/linux/vmxnet/Makefile
---- open-vm-tools.orig/modules/linux/vmxnet/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/vmxnet/Makefile	2009-12-20 12:18:02.000000000 +0000
+--- open-vm-tools.orig/modules/linux/vmxnet/Makefile	2010-06-18 01:02:36.000000000 +0200
++++ open-vm-tools/modules/linux/vmxnet/Makefile	2010-07-03 21:00:00.172042218 +0200
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -74,8 +62,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmxnet/Makefile open-vm-tools/modul
  # Header directory for the running kernel
  HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 diff -Naurp open-vm-tools.orig/modules/linux/vsock/Makefile open-vm-tools/modules/linux/vsock/Makefile
---- open-vm-tools.orig/modules/linux/vsock/Makefile	2009-12-17 21:26:31.000000000 +0000
-+++ open-vm-tools/modules/linux/vsock/Makefile	2009-12-20 12:18:02.000000000 +0000
+--- open-vm-tools.orig/modules/linux/vsock/Makefile	2010-06-18 01:02:36.000000000 +0200
++++ open-vm-tools/modules/linux/vsock/Makefile	2010-07-03 21:00:05.380042340 +0200
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
