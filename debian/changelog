@@ -1,3 +1,12 @@
+open-vm-tools (2010.06.16-268169-3) unstable; urgency=low
+
+  * Updating local Makefile to inject symvers files to fix vmhgfs and
+    vsock modules, thanks to Joe Gooch <mrwizard@k12system.com> (Closes:
+    #579721).
+  * Updating standards version to 3.9.1.
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 14 Aug 2010 12:59:39 +0200
+
 open-vm-tools (2010.06.16-268169-2) unstable; urgency=low
 
   * Removing vmmemctl fom initscript (Closes: #588356).
