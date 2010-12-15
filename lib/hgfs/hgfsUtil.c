@@ -16,20 +16,6 @@
  *
  *********************************************************/
 
-/*********************************************************
- * The contents of this file are subject to the terms of the Common
- * Development and Distribution License (the "License") version 1.0
- * and no later version.  You may not use this file except in
- * compliance with the License.
- *
- * You can obtain a copy of the License at
- *         http://www.opensource.org/licenses/cddl1.php
- *
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- *********************************************************/
-
 /*
  * hgfsUtil.c --
  *
@@ -233,7 +219,6 @@ HgfsConvertFromInternalStatus(HgfsInternalStatus status) // IN
       return HGFS_STATUS_INVALID_PARAMETER;
    case ERROR_NOT_SAME_DEVICE:
       return HGFS_STATUS_NOT_SAME_DEVICE;
-   case ERROR_INTERNAL_ERROR:
    case HGFS_INTERNAL_STATUS_ERROR:
    default:
       return HGFS_STATUS_GENERIC_ERROR;
@@ -277,7 +262,6 @@ HgfsConvertFromInternalStatus(HgfsInternalStatus status) // IN
       return HGFS_STATUS_INVALID_PARAMETER;
    case EXDEV:
       return HGFS_STATUS_NOT_SAME_DEVICE;
-   case EINTERNAL:
    case HGFS_INTERNAL_STATUS_ERROR:
    default:
       return HGFS_STATUS_GENERIC_ERROR;

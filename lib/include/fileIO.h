@@ -52,6 +52,24 @@
 
 #include "iovector.h"        // for struct iovec
 
+#if defined(VMX86_STATS)
+
+struct StatsUserBlock;
+
+#define FILEIO_STATS_VARS \
+   uint32 readIn, readDirect; \
+   uint32 writeIn, writeDirect; \
+   uint32 readvIn, readvDirect; \
+   uint32 writevIn, writevDirect; \
+   uint32 preadvIn, preadDirect; \
+   uint32 pwritevIn, pwriteDirect; \
+   uint64 bytesRead, bytesWritten; \
+   uint32 numReadCoalesced, numWriteCoalesced; \
+   struct StatsUserBlock *stats;
+#else
+#define FILEIO_STATS_VARS
+#endif
+
 #if defined(_WIN32)
 
 # include <windows.h>
@@ -61,6 +79,7 @@ typedef struct FileIODescriptor {
    uint32 flags;
    Unicode fileName;
    void *lockToken;
+   FILEIO_STATS_VARS
 } FileIODescriptor;
 
 #else
@@ -70,6 +89,7 @@ typedef struct FileIODescriptor {
    int flags;
    Unicode fileName;
    void *lockToken;
+   FILEIO_STATS_VARS
 } FileIODescriptor;
 
 #endif
@@ -164,19 +184,12 @@ typedef enum {
  */
 #define FILEIO_OPEN_EXCLUSIVE_LOCK_MACOS (1 << 16)
 
-/*
- * Flag passed to open() to not attempt to get the lun attributes as part of
- * the open operation. Applicable only to opening of SCSI devices. This
- * definition must match the definition of USEROBJ_OPEN_NOATTR in
- * user_vsiTypes.h and FS_OPEN_NOATTR in fs_public.h
- */
-#define O_NOATTR 0x04000000
-// Flag passed to open() to get multiwriter VMFS lock.  This definition must
-// match USEROBJ_OPEN_MULTIWRITER_LOCK in user_vsiTypes.h.
-#define O_MULTIWRITER_LOCK 0x08000000
 // Flag passed to open() to get exclusive VMFS lock.  This definition must
 // match USEROBJ_OPEN_EXCLUSIVE_LOCK in user_vsiTypes.h.
 #define O_EXCLUSIVE_LOCK 0x10000000
+// Flag passed to open() to get multiwriter VMFS lock.  This definition must
+// match USEROBJ_OPEN_MULTIWRITER_LOCK in user_vsiTypes.h.
+#define O_MULTIWRITER_LOCK 0x08000000
 
 /* File Access check args */
 #define FILEIO_ACCESS_READ       (1 << 0)
@@ -353,6 +366,12 @@ void FileIO_Init(FileIODescriptor *fd,
 
 void FileIO_Cleanup(FileIODescriptor *fd);
 
+void FileIO_StatsInit(FileIODescriptor *fd);
+
+void FileIO_StatsLog(FileIODescriptor *fd);
+
+void FileIO_StatsExit(const FileIODescriptor *fd);
+
 const char *FileIO_ErrorEnglish(FileIOResult status);
 
 void FileIO_OptionalSafeInitialize(void);
@@ -411,7 +430,5 @@ EXTERN Bool FileIO_ResetExcludedFromTimeMachine(char const *pathName);
 EXTERN Bool FileIO_SetExcludedFromTimeMachine(char const *pathName,
                                               Bool isExcluded);
 #endif
-
-Bool FileIO_SupportsPrealloc(const char *pathName, Bool fsCheck);
 
 #endif // _FILEIO_H_

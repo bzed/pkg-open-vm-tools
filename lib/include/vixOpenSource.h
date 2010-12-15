@@ -336,9 +336,6 @@ VixError VixPropertyList_SetPtr(VixPropertyListImpl *propList,
                                 int propertyID,
                                 void *value);
 
-int VixPropertyList_NumItems(VixPropertyListImpl *propList);
-
-Bool VixPropertyList_Empty(VixPropertyListImpl *propList);
 
 
 #endif   // VIX_HIDE_FROM_JAVA
@@ -380,28 +377,6 @@ enum {
 
 
 /*
- * Options for VixVM_ListFileSystemsInGuest()
- */
-enum {
-   VIX_FILESYSTEMS_SHOW_ALL     = 0x000,
-};
-
-
-/*
- * These are the property flags for each file.  This is a superset
- * of the values defined in the public header.
- */
-
-enum {
-   //VIX_FILE_ATTRIBUTES_DIRECTORY     = 0x0001,
-   //VIX_FILE_ATTRIBUTES_SYMLINK       = 0x0002,
-   VIX_FILE_ATTRIBUTES_HIDDEN          = 0x0004,
-   VIX_FILE_ATTRIBUTES_READONLY        = 0x0008,
-};
-
-
-
-/*
  *-----------------------------------------------------------------------------
  *
  * VixDebug --
@@ -413,11 +388,11 @@ enum {
  *
  *      VIX_DEBUG(("test debug message: %s %d\n", stringArg, intArg));
  *       
- *       Output will go to logfile if VIX_DEBUG_PREFERENCE_NAME is non-zero
+ *       Output will got to logfile if VIX_DEBUG_PREFERNCE_NAME is non-zero
  *
  *      VIX_DEBUG_LEVEL(3, ("test debug message: %s %d\n", stringArg, intArg));
  *
- *       Output will go to logfile if VIX_DEBUG_PREFERENCE_NAME is >=
+ *       Output will got to logfile if VIX_DEBUG_PREFERNCE_NAME is >=
  *       the first argument to the macro.
  * 
  *-----------------------------------------------------------------------------

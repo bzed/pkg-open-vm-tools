@@ -4,7 +4,7 @@ Priority: extra
 Maintainer: Debian VMware Maintainers <vmware@lists.debian-maintainers.org>
 Uploaders: Daniel Baumann <daniel@debian.org>
 Build-Depends:
- debhelper (>= 7), autotools-dev, quilt, libdumbnet-dev, libfuse-dev,
+ debhelper (>= 7), autotools-dev, quilt, chrpath, libdumbnet-dev, libfuse-dev,
  libgtk2.0-dev, libgtkmm-2.4-dev, libicu-dev, libnotify-dev, libpam0g-dev,
  libproc-dev [i386], liburiparser-dev (>= 0.7), libx11-dev, libxinerama-dev,
  libxss-dev, libxtst-dev, quilt
@@ -65,16 +65,6 @@ Depends: ${misc:Depends}, debhelper (>= 7), quilt, make, bzip2
 Recommends: module-assistant, open-vm-tools
 Suggests: open-vm-toolbox
 Description: Source for VMware guest systems driver
- This package provides the source code for the open-vm kernel modules.
- The open-vm-tools package is also required in order to make use of these
- modules. Kernel source or headers are required to compile these modules.
-
-Package: open-vm-dkms
-Architecture: all
-Depends: ${misc:Depends}, dkms, make
-Recommends: open-vm-tools
-Suggests: open-vm-toolbox
-Description: Source for VMware guest systems driver (DKMS)
  This package provides the source code for the open-vm kernel modules.
  The open-vm-tools package is also required in order to make use of these
  modules. Kernel source or headers are required to compile these modules.

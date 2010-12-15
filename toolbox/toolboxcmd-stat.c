@@ -24,7 +24,13 @@
 
 #include <time.h>
 #include "toolboxCmdInt.h"
-#include "vmware/tools/i18n.h"
+
+
+/*
+ * Local Functions
+ */
+
+static int OpenHandle(VMGuestLibHandle *glHandle,VMGuestLibError *glError);
 
 
 /*
@@ -51,16 +57,12 @@ OpenHandle(VMGuestLibHandle *glHandle, // OUT: The guestlib handle
 {
    *glError = VMGuestLib_OpenHandle(glHandle);
    if (*glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.openhandle.failed,
-                            "OpenHandle failed: %s\n"),
-                        VMGuestLib_GetErrorText(*glError));
+      fprintf(stderr, "OpenHandle failed: %s\n", VMGuestLib_GetErrorText(*glError));
       return EX_UNAVAILABLE;
    }
    *glError = VMGuestLib_UpdateInfo(*glHandle);
    if (*glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.update.failed,
-                            "UpdateInfo failed: %s\n"),
-                        VMGuestLib_GetErrorText(*glError));
+      fprintf(stderr, "UpdateInfo failed: %s\n", VMGuestLib_GetErrorText(*glError));
       return EX_TEMPFAIL;
    }
    return 0;  // We don't return EXIT_SUCCESSS to indicate that this is not
@@ -72,7 +74,7 @@ OpenHandle(VMGuestLibHandle *glHandle, // OUT: The guestlib handle
 /*
  *-----------------------------------------------------------------------------
  *
- * StatProcessorSpeed  --
+ * Stat_ProcessorSpeed  --
  *
  *      Gets the Processor Speed.
  *
@@ -86,8 +88,8 @@ OpenHandle(VMGuestLibHandle *glHandle, // OUT: The guestlib handle
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatProcessorSpeed(void)
+int
+Stat_ProcessorSpeed(void)
 {
    uint32 speed;
    Backdoor_proto bp;
@@ -95,8 +97,7 @@ StatProcessorSpeed(void)
    Backdoor(&bp);
    speed = bp.out.ax.word;
    if (speed < 0) {
-      ToolsCmd_PrintErr("%s",
-                        SU_(stat.getspeed.failed, "Unable to get processor speed.\n"));
+      fprintf(stderr, "Unable to get processor speed\n");
       return EX_TEMPFAIL;
    }
    printf("%u MHz\n", speed);
@@ -107,7 +108,7 @@ StatProcessorSpeed(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatHostTime  --
+ * Stat_HostTime  --
  *
  *      Gets the host machine's time.
  *
@@ -121,8 +122,8 @@ StatProcessorSpeed(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatHostTime(void)
+int
+Stat_HostTime(void)
 {
    int64 hostSecs;
    int64 hostUsecs;
@@ -143,15 +144,13 @@ StatHostTime(void)
    hostUsecs = bp.out.bx.word;
 
    if (hostSecs <= 0) {
-      ToolsCmd_PrintErr("%s",
-                        SU_(stat.gettime.failed, "Unable to get host time.\n"));
+      fprintf(stderr, "Unable to get host time\n");
       return EX_TEMPFAIL;
    }
-
+   
    sec = hostSecs + (hostUsecs / 1000000);
    if (strftime(buf, sizeof buf, "%d %b %Y %H:%M:%S", localtime(&sec)) == 0) {
-      ToolsCmd_PrintErr("%s",
-                        SU_(stat.formattime.failed, "Unable to format host time.\n"));
+      fprintf(stderr, "Unable to format host time\n");
       return EX_TEMPFAIL;
    }
    printf("%s\n", buf);
@@ -162,7 +161,7 @@ StatHostTime(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatGetSessionID --
+ * Stat_GetSessionID --
  *
  *      Gets the Session ID for the virtual machine
  *      Works only if the host is ESX.
@@ -177,8 +176,8 @@ StatHostTime(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatGetSessionID(void)
+int
+Stat_GetSessionID(void)
 {
    int exitStatus = EXIT_SUCCESS;
    uint64 session;
@@ -191,9 +190,8 @@ StatGetSessionID(void)
    }
    glError = VMGuestLib_GetSessionId(glHandle, &session);
    if (glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.getsession.failed,
-                            "Failed to get session ID: %s\n"),
-                        VMGuestLib_GetErrorText(glError));
+      fprintf(stderr, "Failed to get session ID: %s\n",
+              VMGuestLib_GetErrorText(glError));
       exitStatus = EX_TEMPFAIL;
    } else {
       printf("0x%"FMT64"x\n", session);
@@ -206,7 +204,7 @@ StatGetSessionID(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatGetMemoryBallooned  --
+ * Stat_GetMemoryBallooned  --
  *
  *      Retrieves memory ballooned.
  *      Works only if the host is ESX.
@@ -221,8 +219,8 @@ StatGetSessionID(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatGetMemoryBallooned(void)
+int
+Stat_GetMemoryBallooned(void)
 {
    int exitStatus = EXIT_SUCCESS;
    uint32 memBallooned;
@@ -235,9 +233,7 @@ StatGetMemoryBallooned(void)
    }
    glError = VMGuestLib_GetMemBalloonedMB(glHandle, &memBallooned);
    if (glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.balloon.failed,
-                            "Failed to get ballooned memory: %s\n"),
-                        VMGuestLib_GetErrorText(glError));
+      fprintf(stderr, "Failed to get CPU Limit: %s\n", VMGuestLib_GetErrorText(glError));
       exitStatus = EX_TEMPFAIL;
    } else {
       printf("%u MHz\n", memBallooned);
@@ -250,7 +246,7 @@ StatGetMemoryBallooned(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatGetMemoryReservation  --
+ * Stat_GetMemoryReservation  --
  *
  *      Retrieves min memory.
  *      Works only if the host is ESX.
@@ -265,8 +261,8 @@ StatGetMemoryBallooned(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatGetMemoryReservation(void)
+int
+Stat_GetMemoryReservation(void)
 {
    int exitStatus = EXIT_SUCCESS;
    uint32  memReservation;
@@ -279,9 +275,7 @@ StatGetMemoryReservation(void)
    }
    glError = VMGuestLib_GetMemReservationMB(glHandle, &memReservation);
    if (glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.memres.failed,
-                            "Failed to get memory reservation: %s\n"),
-                        VMGuestLib_GetErrorText(glError));
+      fprintf(stderr, "Failed to get CPU Limit: %s\n", VMGuestLib_GetErrorText(glError));
       exitStatus = EX_TEMPFAIL;
    } else {
       printf("%u MB\n", memReservation);
@@ -294,7 +288,7 @@ StatGetMemoryReservation(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatGetMemorySwapped  --
+ * Stat_GetMemorySwapped  --
  *
  *      Retrieves swapped memory.
  *      Works only if the host is ESX.
@@ -310,8 +304,8 @@ StatGetMemoryReservation(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatGetMemorySwapped(void)
+int
+Stat_GetMemorySwapped(void)
 {
    int exitStatus = EXIT_SUCCESS;
    uint32 memSwapped;
@@ -324,9 +318,7 @@ StatGetMemorySwapped(void)
    }
    glError = VMGuestLib_GetMemSwappedMB(glHandle, &memSwapped);
    if (glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.memswap.failed,
-                            "Failed to get swapped memory: %s\n"),
-                        VMGuestLib_GetErrorText(glError));
+      fprintf(stderr, "Failed to get CPU Limit: %s\n", VMGuestLib_GetErrorText(glError));
       exitStatus = EX_TEMPFAIL;
    } else {
       printf("%u MB\n", memSwapped);
@@ -339,7 +331,7 @@ StatGetMemorySwapped(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatGetMemoryLimit --
+ * Stat_GetMemoryLimit --
  *
  *      Retrieves max memory.
  *      Works only if the host is ESX.
@@ -354,8 +346,8 @@ StatGetMemorySwapped(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatGetMemoryLimit(void)
+int
+Stat_GetMemoryLimit(void)
 {
    int exitStatus = EXIT_SUCCESS;
    uint32 memLimit;
@@ -368,9 +360,7 @@ StatGetMemoryLimit(void)
    }
    glError = VMGuestLib_GetMemLimitMB(glHandle, &memLimit);
    if (glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.maxmem.failed,
-                            "Failed to get memory limit: %s\n"),
-                        VMGuestLib_GetErrorText(glError));
+      fprintf(stderr, "Failed to get CPU Limit: %s\n", VMGuestLib_GetErrorText(glError));
       exitStatus = EX_TEMPFAIL;
    } else {
       printf("%u MB\n", memLimit);
@@ -383,7 +373,7 @@ StatGetMemoryLimit(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatGetCpuReservation  --
+ * Stat_GetCpuReservation  --
  *
  *      Retrieves cpu min speed.
  *      Works only if the host is ESX.
@@ -398,8 +388,8 @@ StatGetMemoryLimit(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatGetCpuReservation(void)
+int
+Stat_GetCpuReservation(void)
 {
    int exitStatus = EXIT_SUCCESS;
    uint32 cpuReservation;
@@ -412,9 +402,7 @@ StatGetCpuReservation(void)
    }
    glError = VMGuestLib_GetCpuReservationMHz(glHandle, &cpuReservation);
    if (glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.cpumin.failed,
-                            "Failed to get CPU minimum: %s\n"),
-                        VMGuestLib_GetErrorText(glError));
+      fprintf(stderr, "Failed to get CPU Limit: %s\n", VMGuestLib_GetErrorText(glError));
       exitStatus = EX_TEMPFAIL;
    } else {
       printf("%u MHz\n", cpuReservation);
@@ -427,7 +415,7 @@ StatGetCpuReservation(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * StatGetCpuLimit  --
+ * Stat_GetCpuLimit  --
  *
  *      Retrieves cpu max speed .
  *      Works only if the host is ESX.
@@ -442,8 +430,8 @@ StatGetCpuReservation(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-StatGetCpuLimit(void)
+int
+Stat_GetCpuLimit(void)
 {
    int exitStatus = EXIT_SUCCESS;
    uint32 cpuLimit;
@@ -456,9 +444,7 @@ StatGetCpuLimit(void)
    }
    glError = VMGuestLib_GetCpuLimitMHz(glHandle, &cpuLimit);
    if (glError != VMGUESTLIB_ERROR_SUCCESS) {
-      ToolsCmd_PrintErr(SU_(stat.cpumax.failed,
-                            "Failed to get CPU limit: %s\n"),
-                        VMGuestLib_GetErrorText(glError));
+      fprintf(stderr, "Failed to get CPU Limit: %s\n", VMGuestLib_GetErrorText(glError));
       exitStatus = EX_TEMPFAIL;
    } else {
       printf("%u MHz\n", cpuLimit);
@@ -466,90 +452,3 @@ StatGetCpuLimit(void)
    VMGuestLib_CloseHandle(glHandle);
    return exitStatus;
 }
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * Stat_Command --
- *
- *      Handle and parse stat commands.
- *
- * Results:
- *      Returns EXIT_SUCCESS on success.
- *      Returns the appropriate exit codes on errors.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-int
-Stat_Command(char **argv,      // IN: Command line arguments
-             int argc,         // IN: Length of command line arguments
-             gboolean quiet)   // IN
-{
-   if (toolbox_strcmp(argv[optind], "hosttime") == 0) {
-      return StatHostTime();
-   } else if (toolbox_strcmp(argv[optind], "sessionid") == 0) {
-      return StatGetSessionID();
-   } else if (toolbox_strcmp(argv[optind], "balloon") == 0) {
-      return StatGetMemoryBallooned();
-   } else if (toolbox_strcmp(argv[optind], "swap") == 0) {
-      return StatGetMemorySwapped();
-   } else if (toolbox_strcmp(argv[optind], "memlimit") == 0) {
-      return StatGetMemoryLimit();
-   } else if (toolbox_strcmp(argv[optind], "memres") == 0) {
-      return StatGetMemoryReservation();
-   } else if (toolbox_strcmp(argv[optind], "cpures") == 0) {
-      return StatGetCpuReservation();
-   } else if (toolbox_strcmp(argv[optind], "cpulimit") == 0) {
-      return StatGetCpuLimit();
-   } else if (toolbox_strcmp(argv[optind], "speed") == 0) {
-      return StatProcessorSpeed();
-   } else {
-      ToolsCmd_UnknownEntityError(argv[0],
-                                  SU_(arg.subcommand, "subcommand"),
-                                  argv[optind]);
-      return EX_USAGE;
-   }
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * Stat_Help --
- *
- *      Prints the help for the stat command.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-Stat_Help(const char *progName, // IN: The name of the program obtained from argv[0]
-          const char *cmd)      // IN
-{
-   g_print(SU_(help.stat, "%s: print useful guest and host information\n"
-                          "Usage: %s %s <subcommand>\n\n"
-                          "Subcommands:\n"
-                          "   hosttime: print the host time\n"
-                          "   speed: print the CPU speed in MHz\n"
-                          "ESX guests only subcommands:\n"
-                          "   sessionid: print the current session id\n"
-                          "   balloon: print memory ballooning information\n"
-                          "   swap: print memory swapping information\n"
-                          "   memlimit: print memory limit information\n"
-                          "   memres: print memory reservation information\n"
-                          "   cpures: print CPU reservation information\n"
-                          "   cpulimit: print CPU limit information\n"),
-           cmd, progName, cmd);
-}
-

@@ -23,9 +23,6 @@
  */
 
 #include "toolboxCmdInt.h"
-#include "vmware/guestrpc/tclodefs.h"
-#include "vmware/guestrpc/timesync.h"
-#include "vmware/tools/i18n.h"
 
 
 /*
@@ -56,7 +53,7 @@ TimeSyncSet(Bool enable) // IN: status
 /*
  *-----------------------------------------------------------------------------
  *
- *  TimeSyncEnable --
+ *  TimeSync_Enable --
  *
  *      Enable time sync.
  *
@@ -69,11 +66,13 @@ TimeSyncSet(Bool enable) // IN: status
  *-----------------------------------------------------------------------------
  */
 
-static int
-TimeSyncEnable(void)
+int
+TimeSync_Enable(int quiet_flag) // IN: verbosity flag
 {
    TimeSyncSet(TRUE);
-   ToolsCmd_Print("%s\n", SU_(option.enabled, "Enabled"));
+   if (!quiet_flag) {
+      printf("Enabled\n");
+   }
    return EXIT_SUCCESS;
 }
 
@@ -81,7 +80,7 @@ TimeSyncEnable(void)
 /*
  *-----------------------------------------------------------------------------
  *
- *  TimeSyncDisable --
+ *  TimeSync_Disable --
  *
  *      Disable time sync.
  *
@@ -94,11 +93,13 @@ TimeSyncEnable(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-TimeSyncDisable(void)
+int
+TimeSync_Disable(int quiet_flag) // IN: verbosity flag
 {
    TimeSyncSet(FALSE);
-   ToolsCmd_Print("%s\n", SU_(option.disabled, "Disabled"));
+   if (!quiet_flag) {
+      printf("Disabled\n");
+   }
    return EXIT_SUCCESS;
 }
 
@@ -106,100 +107,26 @@ TimeSyncDisable(void)
 /*
  *-----------------------------------------------------------------------------
  *
- *  TimeSyncStatus --
+ *  TimeSync_Status --
  *
  *      Checks the status of time sync in VMX.
  *
  * Results:
- *      EXIT_SUCCESS: time sync is enabled.
- *      EX_UNAVAILABLE: time sync is disabled.
+ *      EXIT_SUCCESS
  *
  * Side effects:
  *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-static int
-TimeSyncStatus(void)
-{
-   Bool status = FALSE;
-   if (GuestApp_OldGetOptions() & VMWARE_GUI_SYNC_TIME) {
-      status = TRUE;
-   }
-   if (status) {
-      ToolsCmd_Print("%s\n", SU_(option.enabled, "Enabled"));
-      return EXIT_SUCCESS;
-   } else {
-      ToolsCmd_Print("%s\n", SU_(option.disabled, "Disabled"));
-      return EX_UNAVAILABLE;
-   }
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * TimeSyncCommand --
- *
- *      Parse and Handle timesync commands.
- *
- * Results:
- *      Returns EXIT_SUCCESS on success.
- *      Returns the appropriate exit code errors.
- *
- * Side effects:
- *      Might enable time sync, which would change the time in the guest os.
  *
  *-----------------------------------------------------------------------------
  */
 
 int
-TimeSync_Command(char **argv,     // IN: command line arguments
-                 int argc,        // IN: The length of the command line arguments
-                 gboolean quiet)  // IN
+TimeSync_Status(void)
 {
-   if (toolbox_strcmp(argv[optind], "enable") == 0) {
-      return TimeSyncEnable();
-   } else if (toolbox_strcmp(argv[optind], "disable") == 0) {
-      return TimeSyncDisable();
-   } else if (toolbox_strcmp(argv[optind], "status") == 0) {
-      return TimeSyncStatus();
-   } else {
-      ToolsCmd_UnknownEntityError(argv[0],
-                                  SU_(arg.subcommand, "subcommand"),
-                                  argv[optind]);
-      return EX_USAGE;
+   Bool status = FALSE;
+   if (GuestApp_OldGetOptions() & VMWARE_GUI_SYNC_TIME) {
+      status = TRUE;
    }
+   printf("%s\n", status ? "Enabled" : "Disabled");
+   return EXIT_SUCCESS;
 }
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * TimeSync_Help --
- *
- *      Prints the help for timesync command.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-TimeSync_Help(const char *progName, // IN: The name of the program obtained from argv[0]
-              const char *cmd)      // IN
-{
-   g_print(SU_(help.timesync, "%s: functions for controlling time synchronization on the guest OS\n"
-                              "Usage: %s %s <subcommand>\n\n"
-                              "Subcommands:\n"
-                              "   enable: enable time synchronization\n"
-                              "   disable: disable time synchronization\n"
-                              "   status: print the time synchronization status\n"),
-           cmd, progName, cmd);
-}
-

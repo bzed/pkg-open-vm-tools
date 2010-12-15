@@ -1,3 +1,17 @@
+open-vm-tools (1:8.4.2-261024-1) unstable; urgency=low
+
+  * Merging upstream version 8.4.2-261024.
+  * Re-enabling vmmemctl (Closes: #606327).
+  * Re-enabling pvscsi.
+  * Re-enabling vmxnet3.
+  * Rediffing kvers.patch.
+  * Updating modules to standards version 3.9.1.
+  * Removing dkms package, doesn't work with 8.4.2 yet.
+  * Excluding plugins from shlibdeps.
+  * Setting rpath for plugins.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 15 Dec 2010 01:08:45 +0100
+
 open-vm-tools (2010.06.16-268169-3) unstable; urgency=low
 
   * Updating local Makefile to inject symvers files to fix vmhgfs and
