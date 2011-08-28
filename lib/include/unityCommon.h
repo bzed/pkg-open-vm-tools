@@ -188,8 +188,9 @@
 #ifndef _UNITY_COMMON_H_
 #define _UNITY_COMMON_H_
 
-#define UNITY_MAX_SETTOP_WINDOW_COUNT 100
+#include "vmware.h"
 
+#define UNITY_MAX_SETTOP_WINDOW_COUNT 100
 
 /*
  * Unity, GHI GuestRPC interface.
@@ -235,14 +236,14 @@
 #define UNITY_RPC_WINDOW_UNSTICK          "unity.window.unstick"
 #define UNITY_RPC_CONFIRM_OPERATION       "unity.operation.confirm"
 #define UNITY_RPC_WINDOW_CONTENTS_REQUEST "unity.window.contents.request"
+#define UNITY_RPC_REGISTER_PBRPCSERVER    "unity.register.pbrpcserver"
+#define UNITY_RPC_SEND_MOUSE_WHEEL        "unity.sendMouseWheel"
 
 #define GHI_RPC_GUEST_SHELL_ACTION                    "ghi.guest.shell.action"
 #define GHI_RPC_SET_GUEST_HANDLER                     "ghi.guest.handler.set"
 #define GHI_RPC_RESTORE_DEFAULT_GUEST_HANDLER         "ghi.guest.handler.restoreDefault"
 #define GHI_RPC_OUTLOOK_SET_TEMP_FOLDER               "ghi.guest.outlook.set.tempFolder"
 #define GHI_RPC_OUTLOOK_RESTORE_TEMP_FOLDER           "ghi.guest.outlook.restore.tempFolder"
-#define GHI_RPC_TRASH_FOLDER_ACTION                   "ghi.guest.trashFolder.action"
-#define GHI_RPC_TRASH_FOLDER_GET_ICON                 "ghi.guest.trashFolder.getIcon"
 #define GHI_RPC_TRAY_ICON_START_UPDATES               "ghi.guest.trayIcon.startUpdates"
 #define GHI_RPC_TRAY_ICON_STOP_UPDATES                "ghi.guest.trayIcon.stopUpates"
 #define GHI_RPC_TRAY_ICON_SEND_EVENT                  "ghi.guest.trayIcon.sendEvent"
@@ -268,7 +269,6 @@
 #define UNITY_RPC_UNITY_ACTIVE            "unity.active"
 #define GHI_RPC_LAUNCHMENU_CHANGE         "tools.ghi.launchmenu.change"
 #define GHI_RPC_PROTOCOL_HANDLER_INFO     "tools.ghi.protocolhandler.info"
-#define GHI_RPC_TRASH_FOLDER_STATE        "ghi.guest.trashFolder.state"
 #define GHI_RPC_TRAY_ICON_UPDATE          "ghi.guest.trayIcon.update"
 #define GHI_RPC_HOST_SHELL_ACTION         "ghi.host.shell.action"
 #define UNITY_RPC_REQUEST_OPERATION       "unity.operation.request"
@@ -433,6 +433,37 @@ typedef uint32 UnityIconSize; // Number of pixels on the larger side of the icon
 
 #define UNITY_DEFAULT_COLOR "#c0c0c0"
 
+/*
+ * List of operations that can be interlocked with the host, via a request, confirm,
+ * acknowledge sequence of RPCs.
+ */
+typedef enum {
+   MINIMIZE = 1
+} UnityOperations;
+
+
+/*
+ * List of features (as a bitmask) which may be optionally enabled when entering
+ * Unity mode. By default all these features are disabled.
+ */
+typedef enum {
+   UNITY_ADD_HIDDEN_WINDOWS_TO_TRACKER = 1,
+   UNITY_INTERLOCK_MINIMIZE_OPERATION = 1 << 1,
+   UNITY_SEND_WINDOW_CONTENTS = 1 << 2,
+   UNITY_DISABLE_COMPOSITING_IN_GUEST = 1 << 3
+}  UnityFeatures;
+
+
+/*
+ * UNITY_RPC_REGISTER_PBRPCSERVER includes an enumerated Address Family to distinguish
+ * between PBRPC servers listening on TCP/IP sockets and those listening on VSockets.
+ */
+typedef enum {
+   InvalidAddressFamily = 0,
+   VSocketAddressFamily = 1,
+   INET4AddressFamily = 2
+} UnityPBRPCAddressFamily;
+
 
 /*
  * Multipage Doxygen documentation.
@@ -496,10 +527,11 @@ execPath ::= ? UTF-8 string uniquely identifying JUST the executable ?
                          @ref UNITY_RPC_GET_WINDOW_PATH.
    @return
    @verbatim
-<retval> := <name><nul><icon_data>{<icon_data>}
+<retval> := <name><nul><count><nul><icon_data>{<icon_data>}
 
 <name> := name of application
-<icon_data> := count<nul>width<nul>height<nul>size<nul>bgraData<nul><nul>
+<count> := number of icons returned
+<icon_data> := width<nul>height<nul>bgraSize<nul>bgraData<nul>
 <nul> := '\0'
 @endverbatim
    @note        Icon data is in BGRA format. An alpha channel value of 255 means
@@ -520,13 +552,17 @@ execPath ::= ? UTF-8 string uniquely identifying JUST the executable ?
    @brief       Get the start menu sub-tree for a given item
    @todo        Move this into a GHI-specific header.
    @code
-   UNITY_RPC_OPEN_LAUNCHMENU root
+   UNITY_RPC_OPEN_LAUNCHMENU root [flags]
    @endcode
-   @param[in] root      Name of sub-tree, or "" for root of start menu.
+   @param[in] root  Name of sub-tree, or "" for root of start menu.
+   @param[in] flags @ref UNITY_START_MENU_FLAG_USE_PROGRAMS_FOLDER_AS_ROOT
    @return
-   <tt>"count handle"</tt>
-   \li @c count Number of items in the sub-tree.
-   \li @c handle Opaque handle passed to @ref UNITY_RPC_GET_LAUNCHMENU_ITEM.
+@verbatim
+retval ::= count handle
+
+count  ::= ? Number of items in the sub-tree. ?
+handle ::= ? Opaque 32-bit integer used with subsequent calls to UNITY_RPC_GET_LAUNCHMENU_ITEM. ?
+@endverbatim
 
 
    @def         UNITY_RPC_GET_LAUNCHMENU_ITEM
@@ -537,7 +573,15 @@ execPath ::= ? UTF-8 string uniquely identifying JUST the executable ?
    @endcode
    @param[in] handle    Handle returned by @ref UNITY_RPC_OPEN_LAUNCHMENU.
    @param[in] index     index of the item to retrieve (zero-indexed).
-   @return Executable path corresponding to menu item as UTF-8, or ""
+   @return
+@verbatim
+retval ::= name '\0' flags '\0' shellPath '\0' localName
+
+name ::= ? Canonical item name used as a unique ID. ?
+flags ::= 0 | 1 (* 0 = leaf node, 1 = directory *)
+shellPath ::= ? Opaque executable path sent to UNITY_RPC_SHELL_OPEN. ?
+localName ::= ? Localized item name displayed by UI. ?
+@endverbatim
    @sa UNITY_RPC_SHELL_OPEN
 
 
@@ -789,6 +833,24 @@ desktop where the upper right <tt>{1,2}</tt> is the currently active desktop.
    @endcode
    @param[in] XDR_REP XDR Encoded (see unity.x) representation of arguments.
 
+   @def         UNITY_RPC_SEND_MOUSE_WHEEL
+   @brief       Send mouse wheel events to the window under the mouse.
+   @code
+   UNITY_RPC_SEND_MOUSE_WHEEL horizontal deltaX deltaY deltaZ modifierFlags
+   @endcode
+   @param[in] horizontal 0 to send vertical mouse wheel event, 1 for horizontal
+   @param[in] deltaX the horizontal distance the wheel is rotated
+   @param[in] deltaY the vertial distance the wheel is rotated
+   @param[in] deltaZ the distance the wheel is rotated in the Z axis
+   @param[in] modifierFlags modifier flags pressed during the event
+
+   @def         UNITY_RPC_WINDOW_CONTENTS_REQUEST
+   @brief       Request the asynchronous delivery of window contents.
+   @code
+   UNITY_RPC_WINDOW_CONTENTS_REQUEST XDR_REP
+   @endcode
+   @param[in] XDR_REP XDR Encoded (see unity.x) representation of arguments.
+
    @}
 */
 
@@ -868,6 +930,27 @@ desktop where the upper right <tt>{1,2}</tt> is the currently active desktop.
    @brief       Acknowledge that a previously confirmed operations has been performed.
    @code
    UNITY_RPC_ACK_OPERATION XDR_REP
+   @endcode
+   @param[in] XDR_REP XDR Encoded (see unity.x) representation of arguments.
+
+   @def         UNITY_RPC_WINDOW_CONTENTS_START
+   @brief       The start of data for the pixel contents of the window.
+   @code
+   UNITY_RPC_WINDOW_CONTENTS_START XDR_REP
+   @endcode
+   @param[in] XDR_REP XDR Encoded (see unity.x) representation of arguments.
+
+   @def         UNITY_RPC_WINDOW_CONTENTS_CHUNK
+   @brief       One (<64KB) chunk of Pixel Data for a previously started window.
+   @code
+   UNITY_RPC_WINDOW_CONTENTS_CHUNK XDR_REP
+   @endcode
+   @param[in] XDR_REP XDR Encoded (see unity.x) representation of arguments.
+
+   @def         UNITY_RPC_WINDOW_CONTENTS_END
+   @brief       The end of data for the pixel contents of the window.
+   @code
+   UNITY_RPC_WINDOW_CONTENTS_END XDR_REP
    @endcode
    @param[in] XDR_REP XDR Encoded (see unity.x) representation of arguments.
 

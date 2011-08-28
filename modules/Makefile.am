@@ -3,12 +3,13 @@ all: modules
 .PHONY: modules $(MODULES)
 modules: $(MODULES)
 
-modulesrc = $(top_srcdir)/modules
+modulesrc = $(abs_top_srcdir)/modules
 
 $(MODULES):
-	$(MAKE) VM_UNAME=$(KERNEL_RELEASE) MV=mv RM=rm    \
-	   OVT_SOURCE_DIR=$(abs_top_srcdir) $(EXTRA_ARGS) \
-	   -C "$(modulesrc)/$(MODULES_OS)/$@"
+	$(MAKE) VM_UNAME=$(KERNEL_RELEASE) MV=mv RM=rm      \
+	   OVT_SOURCE_DIR=$(abs_top_srcdir)                 \
+	   MODULEBUILDDIR=$(modulesrc)/$(MODULES_OS)        \
+	   $(EXTRA_ARGS) -C "$(modulesrc)/$(MODULES_OS)/$@"
 
 if FREEBSD_CUSTOM_SYSDIR
 EXTRA_ARGS =
@@ -16,18 +17,18 @@ EXTRA_ARGS += "SYSDIR=@SYSDIR@"
 endif
 
 if LINUX
-export pvscsidir := $(MODULES_DIR)/drivers/scsi
+export LINUXINCLUDE := @LINUXINCLUDE@
 export vmblockdir := $(MODULES_DIR)/fs/vmblock
 export vmcidir := $(MODULES_DIR)/drivers/misc
 export vmhgfsdir := $(MODULES_DIR)/fs/vmhgfs
-export vmmemctldir := $(MODULES_DIR)/drivers/misc
 export vmsyncdir := $(MODULES_DIR)/drivers/misc
 export vmxnetdir := $(MODULES_DIR)/drivers/net
-export vmxnet3dir := $(MODULES_DIR)/drivers/net
 export vsockdir := $(MODULES_DIR)/net/vsock
 if WITH_ROOT_PRIVILEGES
 export DEPMOD := depmod -a
 endif WITH_ROOT_PRIVILEGES
+
+include_HEADERS = $(top_srcdir)/lib/include/vmci_sockets.h
 endif LINUX
 
 if SOLARIS
@@ -52,6 +53,7 @@ clean-local:
 	   fi                                                                  \
 	done
 	rm -f $(modulesrc)/$(MODULES_OS)/*.o $(modulesrc)/$(MODULES_OS)/*.ko
+	rm -f $(modulesrc)/$(MODULES_OS)/VMwareVMCIModule.symvers
 
 install-exec-hook:
 if SOLARIS
