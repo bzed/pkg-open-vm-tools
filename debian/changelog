@@ -1,3 +1,18 @@
+open-vm-tools (2:8.8.0+2011.09.23-491607-2) unstable; urgency=low
+
+  * Adding doxygen to build-depends for api documentation.
+  * Adding libcunit1-dev to build-depends for test suites.
+  * Adding dmks package again, it had to be dropped right before the
+    squeeze release (Closes: #632220).
+  * Removing open-vm-source in favour of open-vm-dkms (Closes: #518014).
+  * Minimizing rules file.
+  * Adding open-vm-tools-dev package, containing only the api
+    documentation for now.
+  * Moving package back to main as it is in the same category as
+    xserver-xorg-video-vmware where it was in the first place.
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sun, 09 Oct 2011 23:07:34 +0200
+
 open-vm-tools (2:8.8.0+2011.09.23-491607-1) unstable; urgency=low
 
   * Marking binary architecture-dependend packages as linux and kfreebsd
