@@ -54,7 +54,7 @@
 #include <unistd.h>
 #endif
 
-#if defined(sun) || defined(__FreeBSD__)
+#if defined(sun) || defined(__FreeBSD__) || defined(__APPLE__)
 #include <sys/stat.h>
 #endif
 
@@ -102,11 +102,7 @@
 #include "netutil.h"
 #endif
 
-/* All but MacOS use impersonation functions. */
-#if !defined(__APPLE__)
 #include "impersonate.h"
-#endif
-
 #include "vixOpenSource.h"
 #include "vixToolsInt.h"
 
@@ -336,7 +332,7 @@ static const char *fileExtendedInfoWindowsFormatString = "<fxi>"
                                           "<ct>%"FMT64"u</ct>"
                                           "<at>%"FMT64"u</at>"
                                           "</fxi>";
-#elif !defined(__APPLE__)
+#else
 static const char *fileExtendedInfoLinuxFormatString = "<fxi>"
                                           "<Name>%s</Name>"
                                           "<ft>%d</ft>"
@@ -494,9 +490,7 @@ static VixError VixToolsImpersonateUserImplEx(char const *credentialTypeStr,
                                               char const *obfuscatedNamePassword,
                                               void **userToken);
 
-#if !defined(__APPLE__)
 static VixError VixToolsDoesUsernameMatchCurrentUser(const char *username);
-#endif
 
 static Bool VixToolsPidRefersToThisProcess(ProcMgr_Pid pid);
 
@@ -1432,7 +1426,7 @@ VixToolsStartProgramImpl(const char *requestName,            // IN
     * For non-Windows, we use the user's $HOME if workingDir isn't supplied.
     */
    if (NULL == workingDir) {
-#if defined(linux) || defined(sun) || defined(__FreeBSD__)
+#if defined(linux) || defined(sun) || defined(__FreeBSD__) || defined(__APPLE__)
       char *username = NULL;
 
       if (!ProcMgr_GetImpersonatedUserInfo(&username, &workingDirectory)) {
@@ -2366,11 +2360,7 @@ static Bool
 VixToolsComputeEnabledProperty(GKeyFile *confDictRef,            // IN
                                const char *varName)              // IN
 {
-#if !defined(__APPLE__)
    return VixToolsGetAPIDisabledFromConf(confDictRef, varName);
-#else
-   return FALSE;
-#endif
 }
 
 
@@ -3394,7 +3384,6 @@ VixToolsReadEnvVariables(VixCommandRequestHeader *requestMsg,   // IN
    }
 
    readRequest = (VixMsgReadEnvironmentVariablesRequest *) requestMsg;
-
    err = VixToolsImpersonateUser(requestMsg, &userToken);
    if (VIX_OK != err) {
       goto abort;
@@ -4573,6 +4562,7 @@ VixToolsListProcessesExGenerateData(uint32 numPids,          // IN
                if (VIX_OK != err) {
                   goto abort;
                }
+               break;
             }
             epList = epList->next;
          }
@@ -4603,20 +4593,20 @@ VixToolsListProcessesExGenerateData(uint32 numPids,          // IN
     */
    if (numPids > 0) {
       for (i = 0; i < numPids; i++) {
+         // ignore it if its on the exited list -- we added it above
+         if (VixToolsFindExitedProgramState(pids[i])) {
+            continue;
+         }
          for (j = 0; j < procList->procCount; j++) {
-            // ignore it if its on the exited list -- we added it above
-            if (VixToolsFindExitedProgramState(pids[i])) {
-               continue;
-            }
             if (pids[i] == procList->procIdList[j]) {
                err = VixToolsPrintProcInfoEx(&dynBuffer,
-                                             procList->procCmdList[i],
-                                             procList->procIdList[i],
+                                             procList->procCmdList[j],
+                                             procList->procIdList[j],
                                              (NULL == procList->procOwnerList
-                                              || NULL == procList->procOwnerList[i])
-                                             ? "" : procList->procOwnerList[i],
+                                              || NULL == procList->procOwnerList[j])
+                                             ? "" : procList->procOwnerList[j],
                                              (NULL == procList->startTime)
-                                             ? 0 : (int) procList->startTime[i],
+                                             ? 0 : (int) procList->startTime[j],
                                              0, 0);
                if (VIX_OK != err) {
                   goto abort;
@@ -4769,6 +4759,23 @@ VixToolsListProcessesEx(VixCommandRequestHeader *requestMsg, // IN
       goto abort;
    }
    impersonatingVMWareUser = TRUE;
+
+#if defined(__APPLE__)
+   /*
+    * On MacOS, to fetch info on processes owned by others
+    * we need to be root. Even /bin/ps and /bin/top in
+    * MacOS have the setuid bit set to allow any user
+    * list all processes. For linux & FreeBSD, this API
+    * does return info on all processes by all users. So
+    * to keep the result consistent on MacOS, we need to
+    * stop impersonating user for this API.
+    *
+    * NOTE: We still do the impersonation before this
+    * to authenticate the user as usual.
+    */
+   VixToolsUnimpersonateUser(userToken);
+   impersonatingVMWareUser = FALSE;
+#endif
 
    key = listRequest->key;
    offset = listRequest->offset;
@@ -5772,7 +5779,7 @@ VixToolsGetFileExtendedInfoLength(const char *filePathName,   // IN
 
 #ifdef _WIN32
    fileExtendedInfoBufferSize = strlen(fileExtendedInfoWindowsFormatString);
-#elif !defined(__APPLE__)
+#else
    fileExtendedInfoBufferSize = strlen(fileExtendedInfoLinuxFormatString);
 #endif
 
@@ -5780,7 +5787,7 @@ VixToolsGetFileExtendedInfoLength(const char *filePathName,   // IN
    fileExtendedInfoBufferSize += 10 + 20 + (20 * 2); // properties + size + times
 #ifdef _WIN32
    fileExtendedInfoBufferSize += 20;                // createTime
-#elif !defined(__APPLE__)
+#else
    fileExtendedInfoBufferSize += 10 * 3;            // uid, gid, perms
 #endif
 
@@ -5910,7 +5917,6 @@ abort:
 VixError
 VixToolsSetFileAttributes(VixCommandRequestHeader *requestMsg)    // IN
 {
-#if !defined(__APPLE__)
    VixError err = VIX_OK;
    Bool impersonatingVMWareUser = FALSE;
    void *userToken = NULL;
@@ -6124,9 +6130,6 @@ abort:
    VixToolsLogoutUser(userToken);
 
    return err;
-#else
-   return VIX_E_NOT_SUPPORTED;
-#endif
 } // VixToolsSetGuestFileAttributes
 
 
@@ -6210,7 +6213,6 @@ VixToolsPrintFileExtendedInfo(const char *filePathName,     // IN
                               char **destPtr,               // IN/OUT
                               char *endDestPtr)             // IN
 {
-#if !defined(__APPLE__)
    int64 fileSize = 0;
    VmTimeType modTime = 0;
    VmTimeType accessTime = 0;
@@ -6327,7 +6329,6 @@ VixToolsPrintFileExtendedInfo(const char *filePathName,     // IN
    free(symlinkTarget);
 #endif
    free(escapedFileName);
-#endif   // !defined(__APPLE__)
 } // VixToolsPrintFileExtendedInfo
 
 
@@ -6910,13 +6911,15 @@ VixToolsImpersonateUserImplEx(char const *credentialTypeStr,         // IN
    *userToken = NULL;
 
 ///////////////////////////////////////////////////////////////////////
-// NOTE: The following 3 lines need to be uncommented to disable FreeBSD
-// support for VMODL Guest Operations completely - THE KILL SWITCH
+// NOTE: The following lines need to be uncommented to disable either
+// FreeBSD and/or MacOS support for VMODL Guest Operations completely.
 //#if defined(__FreeBSD__)
-//   err = VIX_E_NOT_SUPPORTED;
+//   return VIX_E_NOT_SUPPORTED;
+//#endif
+//#if defined(__APPLE__)
+//   return VIX_E_NOT_SUPPORTED;
 //#endif
 ///////////////////////////////////////////////////////////////////////
-#if !defined(__APPLE__)
    {
       AuthToken authToken;
       char *unobfuscatedUserName = NULL;
@@ -7067,10 +7070,6 @@ abort:
       Util_ZeroFreeString(unobfuscatedPassword);
    }
 
-#else
-   err = VIX_E_NOT_SUPPORTED;
-#endif   // else linux
-
    return err;
 } // VixToolsImpersonateUserImplEx
 
@@ -7095,7 +7094,7 @@ VixToolsUnimpersonateUser(void *userToken)
    if (PROCESS_CREATOR_USER_TOKEN != userToken) {
 #if defined(_WIN32)
       Impersonate_Undo();
-#elif defined(linux) || defined(sun) || defined(__FreeBSD__)
+#else
       ProcMgr_ImpersonateUserStop();
 #endif
    }
@@ -7148,7 +7147,6 @@ VixToolsLogoutUser(void *userToken)    // IN
 static char *
 VixToolsGetImpersonatedUsername(void *userToken)
 {
-#if !defined(__APPLE__)
    char *userName = NULL;
    char *homeDir = NULL;
 
@@ -7158,9 +7156,6 @@ VixToolsGetImpersonatedUsername(void *userToken)
    free(homeDir);
 
    return userName;
-#else
-   return Util_SafeStrdup("XXX failed to get username XXX");
-#endif
 } // VixToolsUnimpersonateUser
 
 
@@ -8206,7 +8201,6 @@ abort:
 #endif
 
 
-#if !defined(__APPLE__)
 /*
  *-----------------------------------------------------------------------------
  *
@@ -8413,7 +8407,6 @@ abort:
    
    return err;
 }
-#endif  /* #if !defined(__APPLE__) */
 
 
 /*

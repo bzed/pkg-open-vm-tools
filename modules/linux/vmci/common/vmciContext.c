@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2011 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,7 +34,6 @@
 #include "vmciEvent.h"
 #include "vmciKernelAPI.h"
 #include "vmciQueuePair.h"
-#include "vmciResource.h"
 #if defined(VMKERNEL)
 #  include "vmciVmkInt.h"
 #  include "vm_libc.h"
@@ -46,8 +45,7 @@
 static void VMCIContextFreeContext(VMCIContext *context);
 static Bool VMCIContextExists(VMCIId cid);
 static int VMCIContextFireNotification(VMCIId contextID,
-                                       VMCIPrivilegeFlags privFlags,
-                                       const char *domain);
+                                       VMCIPrivilegeFlags privFlags);
 
 /*
  * List of current VMCI contexts.
@@ -180,36 +178,6 @@ VMCIContext_CheckAndSignalNotify(VMCIContext *context) // IN:
 /*
  *----------------------------------------------------------------------
  *
- * VMCIContextGetDomainName --
- *
- *      Internal function for retrieving a context domain name, if
- *      supported by the platform. The returned pointer can only be
- *      assumed valid while a reference count is held on the given
- *      context.
- *
- * Results:
- *      Pointer to name if appropriate. NULL otherwise.
- *
- * Side effects:
- *      None.
- *
- *----------------------------------------------------------------------
- */
-
-static INLINE char *
-VMCIContextGetDomainName(VMCIContext *context) // IN
-{
-#ifdef VMKERNEL
-   return context->domainName;
-#else
-   return NULL;
-#endif
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
  * VMCIContext_Init --
  *
  *      Initializes the VMCI context module.
@@ -231,13 +199,13 @@ VMCIContext_Init(void)
    VMCIList_Init(&contextList.head);
 
    err = VMCI_InitLock(&contextList.lock, "VMCIContextListLock",
-                       VMCI_LOCK_RANK_HIGHER);
+                       VMCI_LOCK_RANK_CONTEXTLIST);
    if (err < VMCI_SUCCESS) {
       return err;
    }
 
    err = VMCI_InitLock(&contextList.firingLock, "VMCIContextFiringLock",
-                       VMCI_LOCK_RANK_MIDDLE_LOW);
+                       VMCI_LOCK_RANK_CONTEXTFIRE);
    if (err < VMCI_SUCCESS) {
       VMCI_CleanupLock(&contextList.lock);
    }
@@ -320,12 +288,6 @@ VMCIContext_InitContext(VMCIId cid,                   // IN
 
    context->userVersion = userVersion;
 
-   context->wellKnownArray = VMCIHandleArray_Create(0);
-   if (context->wellKnownArray == NULL) {
-      result = VMCI_ERROR_NO_MEM;
-      goto error;
-   }
-
    context->queuePairArray = VMCIHandleArray_Create(0);
    if (!context->queuePairArray) {
       result = VMCI_ERROR_NO_MEM;
@@ -351,7 +313,7 @@ VMCIContext_InitContext(VMCIId cid,                   // IN
    }
 
    result = VMCI_InitLock(&context->lock, "VMCIContextLock",
-                          VMCI_LOCK_RANK_HIGHER);
+                          VMCI_LOCK_RANK_CONTEXT);
    if (result < VMCI_SUCCESS) {
       goto error;
    }
@@ -393,10 +355,6 @@ VMCIContext_InitContext(VMCIId cid,                   // IN
    VMCI_ReleaseLock(&contextList.lock, flags);
 
 #ifdef VMKERNEL
-   /*
-    * Set default domain name.
-    */
-   VMCIContext_SetDomainName(context, "");
    VMCIContext_SetFSRState(context, FALSE, VMCI_INVALID_ID, eventHnd, FALSE);
 #endif
 
@@ -413,9 +371,6 @@ VMCIContext_InitContext(VMCIId cid,                   // IN
 error:
    if (context->notifierArray) {
       VMCIHandleArray_Destroy(context->notifierArray);
-   }
-   if (context->wellKnownArray) {
-      VMCIHandleArray_Destroy(context->wellKnownArray);
    }
    if (context->queuePairArray) {
       VMCIHandleArray_Destroy(context->queuePairArray);
@@ -492,22 +447,8 @@ VMCIContextFreeContext(VMCIContext *context)  // IN
    VMCIHandle tempHandle;
 
    /* Fire event to all contexts interested in knowing this context is dying. */
-   VMCIContextFireNotification(context->cid, context->privFlags,
-                               VMCIContextGetDomainName(context));
+   VMCIContextFireNotification(context->cid, context->privFlags);
 
-   /*
-    * Cleanup all wellknown mappings owned by context. Ideally these would
-    * be removed already but we maintain this list to make sure no resources
-    * are leaked. It is updated by the VMCIDatagramAdd/RemoveWellKnownMap.
-    */
-   ASSERT(context->wellKnownArray);
-   tempHandle = VMCIHandleArray_RemoveTail(context->wellKnownArray);
-   while (!VMCI_HANDLE_EQUAL(tempHandle, VMCI_INVALID_HANDLE)) {
-      VMCIDatagramRemoveWellKnownMap(tempHandle.resource, context->cid);
-      tempHandle = VMCIHandleArray_RemoveTail(context->wellKnownArray);
-   }
-
-#ifndef VMKERNEL
    /*
     * Cleanup all queue pair resources attached to context.  If the VM dies
     * without cleaning up, this code will make sure that no resources are
@@ -516,27 +457,15 @@ VMCIContextFreeContext(VMCIContext *context)  // IN
 
    tempHandle = VMCIHandleArray_GetEntry(context->queuePairArray, 0);
    while (!VMCI_HANDLE_EQUAL(tempHandle, VMCI_INVALID_HANDLE)) {
-      VMCIQPBroker_Lock();
-      if (VMCIQPBroker_Detach(tempHandle, context, TRUE) < VMCI_SUCCESS) {
+      if (VMCIQPBroker_Detach(tempHandle, context) < VMCI_SUCCESS) {
          /*
           * When VMCIQPBroker_Detach() succeeds it removes the handle from the
           * array.  If detach fails, we must remove the handle ourselves.
           */
          VMCIHandleArray_RemoveEntry(context->queuePairArray, tempHandle);
       }
-      VMCIQPBroker_Unlock();
       tempHandle = VMCIHandleArray_GetEntry(context->queuePairArray, 0);
    }
-#else
-   /*
-    * On ESX, all entries in the queuePairArray have been cleaned up
-    * either by the regular VMCI device destroy path or by the world
-    * cleanup destroy path. We assert that no resources are leaked.
-    */
-
-   ASSERT(VMCI_HANDLE_EQUAL(VMCIHandleArray_GetEntry(context->queuePairArray, 0),
-                            VMCI_INVALID_HANDLE));
-#endif /* !VMKERNEL */
 
    /*
     * It is fine to destroy this without locking the callQueue, as
@@ -553,7 +482,6 @@ VMCIContextFreeContext(VMCIContext *context)  // IN
    }
 
    VMCIHandleArray_Destroy(context->notifierArray);
-   VMCIHandleArray_Destroy(context->wellKnownArray);
    VMCIHandleArray_Destroy(context->queuePairArray);
    VMCIHandleArray_Destroy(context->doorbellArray);
    VMCIHandleArray_Destroy(context->pendingDoorbellArray);
@@ -1051,6 +979,7 @@ VMCIContext_FindAndUpdateSrcFSR(VMCIId migrateCid,      // IN
  *
  *----------------------------------------------------------------------
  */
+
 Bool
 VMCIContext_IsActiveHnd(VMCIContext *context, // IN
                         uintptr_t eventHnd)   // IN
@@ -1063,6 +992,36 @@ VMCIContext_IsActiveHnd(VMCIContext *context, // IN
    isActive = VMCIHost_IsActiveHnd(&context->hostContext, eventHnd);
    VMCI_ReleaseLock(&context->lock, flags);
    return isActive;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContext_GetActiveHnd --
+ *
+ *      Returns the curent event handle.
+ *
+ * Results:
+ *      The current active handle.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+uintptr_t
+VMCIContext_GetActiveHnd(VMCIContext *context) // IN
+{
+   VMCILockFlags flags;
+   uintptr_t activeHnd;
+
+   ASSERT(context);
+   VMCI_GrabLock(&context->lock, &flags);
+   activeHnd = VMCIHost_GetActiveHnd(&context->hostContext);
+   VMCI_ReleaseLock(&context->lock, flags);
+   return activeHnd;
 }
 
 
@@ -1300,81 +1259,6 @@ VMCIContext_GetPrivFlags(VMCIId contextID)  // IN
 /*
  *----------------------------------------------------------------------
  *
- * VMCIContext_AddWellKnown --
- *
- *      Wrapper to call VMCIHandleArray_AppendEntry().
- *
- * Results:
- *      VMCI_SUCCESS on success, error code otherwise.
- *
- * Side effects:
- *      As in VMCIHandleArray_AppendEntry().
- *
- *----------------------------------------------------------------------
- */
-
-int
-VMCIContext_AddWellKnown(VMCIId contextID,    // IN:
-                         VMCIId wellKnownID)  // IN:
-{
-   VMCILockFlags flags;
-   VMCIHandle wkHandle;
-   VMCIContext *context = VMCIContext_Get(contextID);
-   if (context == NULL) {
-      return VMCI_ERROR_NOT_FOUND;
-   }
-   wkHandle = VMCI_MAKE_HANDLE(VMCI_WELL_KNOWN_CONTEXT_ID, wellKnownID);
-   VMCI_GrabLock(&context->lock, &flags);
-   VMCIHandleArray_AppendEntry(&context->wellKnownArray, wkHandle);
-   VMCI_ReleaseLock(&context->lock, flags);
-   VMCIContext_Release(context);
-
-   return VMCI_SUCCESS;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * VMCIContext_RemoveWellKnown --
- *
- *      Wrapper to call VMCIHandleArray_RemoveEntry().
- *
- * Results:
- *      VMCI_SUCCESS if removed, error code otherwise.
- *
- * Side effects:
- *      As in VMCIHandleArray_RemoveEntry().
- *
- *----------------------------------------------------------------------
- */
-
-int
-VMCIContext_RemoveWellKnown(VMCIId contextID,    // IN:
-                            VMCIId wellKnownID)  // IN:
-{
-   VMCILockFlags flags;
-   VMCIHandle wkHandle, tmpHandle;
-   VMCIContext *context = VMCIContext_Get(contextID);
-   if (context == NULL) {
-      return VMCI_ERROR_NOT_FOUND;
-   }
-   wkHandle = VMCI_MAKE_HANDLE(VMCI_WELL_KNOWN_CONTEXT_ID, wellKnownID);
-   VMCI_GrabLock(&context->lock, &flags);
-   tmpHandle = VMCIHandleArray_RemoveEntry(context->wellKnownArray, wkHandle);
-   VMCI_ReleaseLock(&context->lock, flags);
-   VMCIContext_Release(context);
-
-   if (VMCI_HANDLE_EQUAL(tmpHandle, VMCI_INVALID_HANDLE)) {
-      return VMCI_ERROR_NOT_FOUND;
-   }
-   return VMCI_SUCCESS;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
  * VMCIContext_AddNotification --
  *
  *      Add remoteCID to list of contexts current contexts wants
@@ -1400,6 +1284,14 @@ VMCIContext_AddNotification(VMCIId contextID,  // IN:
    VMCIContext *context = VMCIContext_Get(contextID);
    if (context == NULL) {
       return VMCI_ERROR_NOT_FOUND;
+   }
+
+   if (VMCI_CONTEXT_IS_VM(contextID) && VMCI_CONTEXT_IS_VM(remoteCID)) {
+      VMCI_DEBUG_LOG(4, (LGPFX"Context removed notifications for other VMs not "
+                         "supported (src=0x%x, remote=0x%x).\n",
+                         contextID, remoteCID));
+      result = VMCI_ERROR_DST_UNREACHABLE;
+      goto out;
    }
 
    if (context->privFlags & VMCI_PRIVILEGE_FLAG_RESTRICTED) {
@@ -1485,8 +1377,7 @@ VMCIContext_RemoveNotification(VMCIId contextID,  // IN:
 
 static int
 VMCIContextFireNotification(VMCIId contextID,             // IN
-                            VMCIPrivilegeFlags privFlags, // IN
-                            const char *domain)           // IN
+                            VMCIPrivilegeFlags privFlags) // IN
 {
    uint32 i, arraySize;
    VMCIListItem *next;
@@ -1521,8 +1412,7 @@ VMCIContextFireNotification(VMCIId contextID,             // IN
        */
 
       if (VMCIHandleArray_HasEntry(subCtx->notifierArray, contextHandle) &&
-          !VMCIDenyInteraction(privFlags, subCtx->privFlags, domain,
-                               VMCIContextGetDomainName(subCtx))) {
+          !VMCIDenyInteraction(privFlags, subCtx->privFlags)) {
          VMCIHandleArray_AppendEntry(&subscriberArray,
                                      VMCI_MAKE_HANDLE(subCtx->cid,
                                                       VMCI_EVENT_HANDLER));
@@ -1610,9 +1500,15 @@ VMCIContext_GetCheckpointState(VMCIId contextID,    // IN:
       array = context->notifierArray;
       getContextID = TRUE;
    } else if (cptType == VMCI_WELLKNOWN_CPT_STATE) {
-      ASSERT(context->wellKnownArray);
-      array = context->wellKnownArray;
-      getContextID = FALSE;
+      /*
+       * For compatibility with VMX'en with VM to VM communication, we
+       * always return zero wellknown handles.
+       */
+
+      *bufSize = 0;
+      *cptBufPtr = NULL;
+      result = VMCI_SUCCESS;
+      goto release;
    } else if (cptType == VMCI_DOORBELL_CPT_STATE) {
       ASSERT(context->doorbellArray);
       array = context->doorbellArray;
@@ -1696,19 +1592,27 @@ VMCIContext_SetCheckpointState(VMCIId contextID, // IN:
    uint32 numIDs = bufSize / sizeof(VMCIId);
    ASSERT(cptBuf);
 
-   if (cptType != VMCI_NOTIFICATION_CPT_STATE &&
-       cptType != VMCI_WELLKNOWN_CPT_STATE) {
+   if (cptType == VMCI_WELLKNOWN_CPT_STATE && numIDs > 0) {
+      /*
+       * We would end up here if VMX with VM to VM communication
+       * attempts to restore a checkpoint with wellknown handles.
+       */
+
+      VMCI_WARNING((LGPFX"Attempt to restore checkpoint with obsolete "
+                    "wellknown handles.\n"));
+      return VMCI_ERROR_OBSOLETE;
+   }
+
+   if (cptType != VMCI_NOTIFICATION_CPT_STATE) {
       VMCI_DEBUG_LOG(4, (LGPFX"Invalid cpt state (type=%d).\n", cptType));
       return VMCI_ERROR_INVALID_ARGS;
    }
 
    for (i = 0; i < numIDs && result == VMCI_SUCCESS; i++) {
       currentID = ((VMCIId *)cptBuf)[i];
-      if (cptType == VMCI_NOTIFICATION_CPT_STATE) {
-         result = VMCIContext_AddNotification(contextID, currentID);
-      } else if (cptType == VMCI_WELLKNOWN_CPT_STATE) {
-         result = VMCIDatagramRequestWellKnownMap(currentID, contextID,
-                                                  VMCIContext_GetPrivFlags(contextID));
+      result = VMCIContext_AddNotification(contextID, currentID);
+      if (result != VMCI_SUCCESS) {
+         break;
       }
    }
    if (result != VMCI_SUCCESS) {
@@ -2034,23 +1938,20 @@ VMCIContext_NotifyDoorbell(VMCIId srcCID,                   // IN
    dstContext = VMCIContext_Get(handle.context);
    if (dstContext == NULL) {
       VMCI_DEBUG_LOG(4, (LGPFX"Invalid context (ID=0x%x).\n", handle.context));
-      return VMCI_ERROR_INVALID_ARGS;
+      return VMCI_ERROR_NOT_FOUND;
    }
 
    if (srcCID != handle.context) {
       VMCIPrivilegeFlags dstPrivFlags;
-#if !defined(VMKERNEL)
-      char *srcDomain = NULL;
-#else
-      char srcDomain[VMCI_DOMAIN_NAME_MAXLEN];
 
-      result = VMCIContext_GetDomainName(srcCID, srcDomain, sizeof srcDomain);
-      if (result < VMCI_SUCCESS) {
-         VMCI_WARNING((LGPFX"Failed to get domain name for source context "
-                       "(ID=0x%x).\n", srcCID));
+      if (VMCI_CONTEXT_IS_VM(srcCID) && VMCI_CONTEXT_IS_VM(handle.context)) {
+         VMCI_DEBUG_LOG(4, (LGPFX"Doorbell notification from VM to VM not "
+                            "supported (src=0x%x, dst=0x%x).\n",
+                            srcCID, handle.context));
+         result = VMCI_ERROR_DST_UNREACHABLE;
          goto out;
       }
-#endif
+
       result = VMCIDoorbellGetPrivFlags(handle, &dstPrivFlags);
       if (result < VMCI_SUCCESS) {
          VMCI_WARNING((LGPFX"Failed to get privilege flags for destination "
@@ -2064,8 +1965,7 @@ VMCIContext_NotifyDoorbell(VMCIId srcCID,                   // IN
          srcPrivFlags = VMCIContext_GetPrivFlags(srcCID);
       }
 
-      if (VMCIDenyInteraction(srcPrivFlags, dstPrivFlags, srcDomain,
-                              VMCIContextGetDomainName(dstContext))) {
+      if (VMCIDenyInteraction(srcPrivFlags, dstPrivFlags)) {
          result = VMCI_ERROR_NO_ACCESS;
          goto out;
       }
@@ -2191,92 +2091,6 @@ VMCIContext_SignalPendingDatagrams(VMCIId contextID)
    VMCIContext_Release(context);
 }
 
-
-/*
- *----------------------------------------------------------------------
- *
- * VMCIContext_SetDomainName --
- *
- *      Sets the domain name of the given context.
- *
- * Results:
- *      VMCI_SUCCESS on success, error code otherwise.
- *
- * Side effects:
- *      None.
- *
- *----------------------------------------------------------------------
- */
-
-int
-VMCIContext_SetDomainName(VMCIContext *context,   // IN;
-                          const char *domainName) // IN:
-{
-   size_t domainNameLen;
-
-   if (!context || !domainName) {
-      return VMCI_ERROR_INVALID_ARGS;
-   }
-
-   domainNameLen = strlen(domainName);
-   if (domainNameLen >= sizeof context->domainName) {
-      return VMCI_ERROR_NO_MEM;
-   }
-
-   memcpy(context->domainName, domainName, domainNameLen + 1);
-
-   return VMCI_SUCCESS;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * VMCIContext_GetDomainName --
- *
- *      Returns the domain name of the given context.
- *
- * Results:
- *      VMCI_SUCCESS on success, error code otherwise.
- *
- * Side effects:
- *      None.
- *
- *----------------------------------------------------------------------
- */
-
-int
-VMCIContext_GetDomainName(VMCIId contextID,         // IN:
-                          char *domainName,         // OUT:
-                          size_t domainNameBufSize) // IN:
-{
-   VMCIContext *context;
-   int rv = VMCI_SUCCESS;
-   size_t domainNameLen;
-
-   if (contextID == VMCI_INVALID_ID || !domainName || !domainNameBufSize) {
-      return VMCI_ERROR_INVALID_ARGS;
-   }
-
-   context = VMCIContext_Get(contextID);
-   if (!context) {
-      return VMCI_ERROR_NOT_FOUND;
-   }
-
-   domainNameLen = strlen(context->domainName);
-   if (domainNameLen >= domainNameBufSize) {
-      rv = VMCI_ERROR_NO_MEM;
-      goto out;
-   }
-
-   memcpy(domainName, context->domainName, domainNameLen + 1);
-
-out:
-   VMCIContext_Release(context);
-   return rv;
-}
-
-
 #endif // defined(VMKERNEL)
 
 
@@ -2394,7 +2208,7 @@ VMCI_IsContextOwner(VMCIId contextID,   // IN
  *      by this caller.
  *
  * Results:
- *      VMCI_SUCCESS on success, error code otherwise.
+ *      TRUE if context supports host queue pairs, FALSE otherwise.
  *
  * Side effects:
  *      None.
@@ -2412,5 +2226,226 @@ VMCIContext_SupportsHostQP(VMCIContext *context)    // IN: Context structure
       return FALSE;
    }
    return TRUE;
+#endif
+}
+
+
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContext_QueuePairCreate --
+ *
+ *      Registers that a new queue pair handle has been allocated by
+ *      the context.
+ *
+ * Results:
+ *      VMCI_SUCCESS on success, appropriate error code otherewise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+VMCIContext_QueuePairCreate(VMCIContext *context, // IN: Context structure
+                            VMCIHandle handle)    // IN
+{
+   VMCILockFlags flags;
+   int result;
+
+   if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
+      return VMCI_ERROR_INVALID_ARGS;
+   }
+
+   VMCI_GrabLock(&context->lock, &flags);
+   if (!VMCIHandleArray_HasEntry(context->queuePairArray, handle)) {
+      VMCIHandleArray_AppendEntry(&context->queuePairArray, handle);
+      result = VMCI_SUCCESS;
+   } else {
+      result = VMCI_ERROR_DUPLICATE_ENTRY;
+   }
+   VMCI_ReleaseLock(&context->lock, flags);
+
+   return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContext_QueuePairDestroy --
+ *
+ *      Unregisters a queue pair handle that was previously registered
+ *      with VMCIContext_QueuePairCreate.
+ *
+ * Results:
+ *      VMCI_SUCCESS on success, appropriate error code otherewise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+VMCIContext_QueuePairDestroy(VMCIContext *context, // IN: Context structure
+                             VMCIHandle handle)    // IN
+{
+   VMCILockFlags flags;
+   VMCIHandle removedHandle;
+
+   if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
+      return VMCI_ERROR_INVALID_ARGS;
+   }
+
+   VMCI_GrabLock(&context->lock, &flags);
+   removedHandle = VMCIHandleArray_RemoveEntry(context->queuePairArray, handle);
+   VMCI_ReleaseLock(&context->lock, flags);
+
+   if (VMCI_HANDLE_INVALID(removedHandle)) {
+      return VMCI_ERROR_NOT_FOUND;
+   } else {
+      return VMCI_SUCCESS;
+   }
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContext_QueuePairExists --
+ *
+ *      Determines whether a given queue pair handle is registered
+ *      with the given context.
+ *
+ * Results:
+ *      TRUE, if queue pair is registered with context. FALSE, otherwise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+VMCIContext_QueuePairExists(VMCIContext *context, // IN: Context structure
+                            VMCIHandle handle)    // IN
+{
+   VMCILockFlags flags;
+   Bool result;
+
+   if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
+      return VMCI_ERROR_INVALID_ARGS;
+   }
+
+   VMCI_GrabLock(&context->lock, &flags);
+   result = VMCIHandleArray_HasEntry(context->queuePairArray, handle);
+   VMCI_ReleaseLock(&context->lock, flags);
+
+   return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContext_RegisterGuestMem --
+ *
+ *      Tells the context that guest memory is available for
+ *      access. This should only be used when unquiescing the VMCI
+ *      device of a guest.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      Notifies host side endpoints of queue pairs that the queue pairs
+ *      can be accessed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+VMCIContext_RegisterGuestMem(VMCIContext *context) // IN: Context structure
+{
+#ifdef VMKERNEL
+   uint32 numQueuePairs;
+   uint32 cur;
+
+   /*
+    * It is safe to access the queue pair array here, since no changes
+    * to the queuePairArray can take place until after the unquiescing
+    * is complete.
+    */
+
+   numQueuePairs = VMCIHandleArray_GetSize(context->queuePairArray);
+   for (cur = 0; cur < numQueuePairs; cur++) {
+      VMCIHandle handle;
+      handle = VMCIHandleArray_GetEntry(context->queuePairArray, cur);
+      if (!VMCI_HANDLE_EQUAL(handle, VMCI_INVALID_HANDLE)) {
+         int res;
+
+         res = VMCIQPBroker_Map(handle, context, NULL);
+         if (res < VMCI_SUCCESS) {
+            VMCI_WARNING(("Failed to map guest memory for queue pair "
+                          "(handle=0x%x:0x%x, res=%d).\n",
+                          handle.context, handle.resource, res));
+         }
+      }
+   }
+#endif
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContext_ReleaseGuestMem --
+ *
+ *      Releases all the contexts references to guest memory. This
+ *      should only be used when qiescing or cleaning up the VMCI
+ *      device of a guest.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+VMCIContext_ReleaseGuestMem(VMCIContext *context, // IN: Context structure
+                            VMCIGuestMemID gid)   // IN: reference to guest
+{
+#ifdef VMKERNEL
+   uint32 numQueuePairs;
+   uint32 cur;
+
+   /*
+    * It is safe to access the queue pair array here, since no changes
+    * to the queuePairArray can take place when the the quiescing
+    * has been initiated.
+    */
+
+   numQueuePairs = VMCIHandleArray_GetSize(context->queuePairArray);
+   for (cur = 0; cur < numQueuePairs; cur++) {
+      VMCIHandle handle;
+      handle = VMCIHandleArray_GetEntry(context->queuePairArray, cur);
+      if (!VMCI_HANDLE_EQUAL(handle, VMCI_INVALID_HANDLE)) {
+         int res;
+
+         res = VMCIQPBroker_Unmap(handle, context, gid);
+         if (res < VMCI_SUCCESS) {
+            VMCI_WARNING(("Failed to unmap guest memory for queue pair "
+                          "(handle=0x%x:0x%x, res=%d).\n",
+                          handle.context, handle.resource, res));
+         }
+      }
+   }
 #endif
 }

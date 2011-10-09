@@ -1,3 +1,18 @@
+open-vm-tools (2:8.8.0+2011.09.23-491607-1) unstable; urgency=low
+
+  * Marking binary architecture-dependend packages as linux and kfreebsd
+    only.
+  * Removing legacy symlink for vmware-user desktop file in vmware-
+    toolbox (Closes: #639811).
+  * Merging upstream version 8.8.0+2011.09.23-491607:
+    - works with binutils-gold (Closes: #556756).
+  * Removing liburiparser-dev from build-depends as upstream dropped
+    unity support.
+  * Building with libproc-dev on amd64 again.
+  * Dropping disabling of dnet support (Closes: #639767).
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sun, 09 Oct 2011 18:01:42 +0200
+
 open-vm-tools (2:8.4.2+2011.08.21-471295-1) unstable; urgency=low
 
   * Merging upstream version 8.4.2+2011.08.21-471295 (Closes: #608823):

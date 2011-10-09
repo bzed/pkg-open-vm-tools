@@ -185,9 +185,11 @@
 
 /*
  * VMRC ActiveX CLSIDs and ProgIDs
+ *
+ * VMRC is versioned x.y.z - ProgID is intentionally built using only x.y
  */
-#define PRODUCT_VMRC_PLUGIN_GUID_EMBEDDED      291BA977-564B-4626-B868-A968FB8D4591
-#define PRODUCT_VMRC_PLUGIN_GUID_TYPELIB       70ABCAB7-6B45-4555-ABFC-8BC686E5ACFE
+#define PRODUCT_VMRC_PLUGIN_GUID_EMBEDDED      6FB1850B-AC2A-4AEA-9847-EBCE6AB2A62E
+#define PRODUCT_VMRC_PLUGIN_GUID_TYPELIB       EC950991-C7CE-455C-ABF3-12FC11F9C136
 #define PRODUCT_VMRC_PLUGIN_PROGID_EMBEDDED_BASE "VMware.RemoteConsole"
 #define PRODUCT_VMRC_PLUGIN_PROGID_EMBEDDED    PRODUCT_VMRC_PLUGIN_PROGID_EMBEDDED_BASE "." \
                                                XSTR(VMRC_PLUGIN_VERSION_BASE)
@@ -204,7 +206,7 @@
 #endif
 
 #define PRODUCT_VMRC_PLUGIN_CURRENT_MIMETYPE \
-   "application/x-vmware-remote-console-2011"
+   "application/x-vmware-remote-console"
 
 /*
  * legacy plugin mimetypes (currently unused but here for reference)

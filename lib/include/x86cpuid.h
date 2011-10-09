@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998-2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2011 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -159,7 +159,8 @@ enum {
 };
 
 
-/* SVM CPUID feature leaf */
+/* Named feature leaves */
+#define CPUID_MWAIT_FEATURES       5
 #define CPUID_SVM_FEATURES         0x8000000a
 
 
@@ -295,10 +296,9 @@ FIELD(  1,  0, EBX, COMMON, 24,  8, APICID,                        ANY, FALSE) \
 FLAG(   1,  0, ECX, COMMON, 0,   1, SSE3,                          YES, TRUE)  \
 FLAG(   1,  0, ECX, COMMON, 1,   1, PCLMULQDQ,                     YES, TRUE)  \
 FLAG(   1,  0, ECX, INTEL,  2,   1, DTES64,                        NO,  FALSE) \
-FLAG(   1,  0, ECX, COMMON, 3,   1, MWAIT,                         ANY, FALSE) \
+FLAG(   1,  0, ECX, COMMON, 3,   1, MWAIT,                         YES, FALSE) \
 FLAG(   1,  0, ECX, INTEL,  4,   1, DSCPL,                         NO,  FALSE) \
 FLAG(   1,  0, ECX, INTEL,  5,   1, VMX,                           YES, FALSE) \
-FLAG(   1,  0, ECX, VIA,    5,   1, VIA_VMX,                       YES, FALSE) \
 FLAG(   1,  0, ECX, INTEL,  6,   1, SMX,                           NO,  FALSE) \
 FLAG(   1,  0, ECX, INTEL,  7,   1, EIST,                          NO,  FALSE) \
 FLAG(   1,  0, ECX, INTEL,  8,   1, TM2,                           NO,  FALSE) \
@@ -391,9 +391,13 @@ FIELD(  6,  0, EBX, INTEL,   0,  4, NUM_INTR_THRESHOLDS,           NA,  FALSE) \
 FLAG(   6,  0, ECX, INTEL,   0,  1, HW_COORD_FEEDBACK,             NA,  FALSE) \
 FLAG(   6,  0, ECX, INTEL,   3,  1, ENERGY_PERF_BIAS,              NA,  FALSE)
 
+
+#define CPUID_7_EBX_3
+
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_7                                               \
 FLAG(   7,  0, EBX, INTEL,   0,  1, FSGSBASE,                      YES, FALSE) \
+CPUID_7_EBX_3 \
 FLAG(   7,  0, EBX, INTEL,   7,  1, SMEP,                          YES, FALSE) \
 FLAG(   7,  0, EBX, INTEL,   9,  1, ENFSTRG,                       YES, FALSE)
 
@@ -464,7 +468,7 @@ FIELD( 81,  0, EBX, INTEL,   0, 32, UNKNOWN81EBX,                  ANY, FALSE) \
 FIELD( 81,  0, EBX, AMD,     0, 16, LEAF81_BRAND_ID,               ANY, FALSE) \
 FIELD( 81,  0, EBX, AMD,    16, 16, UNDEF,                         ANY, FALSE) \
 FLAG(  81,  0, ECX, COMMON,  0,  1, LAHF64,                        YES, TRUE)  \
-FLAG(  81,  0, ECX, AMD,     1,  1, CMPLEGACY,                     NO,  FALSE) \
+FLAG(  81,  0, ECX, AMD,     1,  1, CMPLEGACY,                     ANY, FALSE) \
 FLAG(  81,  0, ECX, AMD,     2,  1, SVM,                           YES, FALSE) \
 FLAG(  81,  0, ECX, AMD,     3,  1, EXTAPICSPC,                    YES, FALSE) \
 FLAG(  81,  0, ECX, AMD,     4,  1, CR8AVAIL,                      YES, FALSE) \
@@ -509,6 +513,8 @@ FLAG(  81,  0, EDX, COMMON, 29,  1, LM,                            YES, FALSE) \
 FLAG(  81,  0, EDX, AMD,    30,  1, 3DNOWPLUS,                     YES, TRUE)  \
 FLAG(  81,  0, EDX, AMD,    31,  1, 3DNOW,                         YES, TRUE)
 
+#define CPUID_8A_EDX_11 \
+FLAG(  8A,  0, EDX, AMD,    11,  1, SVMEDX_RSVD1,                      NO,  FALSE)
 #define CPUID_8A_EDX_13_31 \
 FIELD( 8A,  0, EDX, AMD,    13, 19, SVMEDX_RSVD2,                      NO,  FALSE)
 
@@ -568,7 +574,7 @@ FIELD( 8A,  0, EBX, AMD,     0, 32, SVM_NUM_ASIDS,                 YES, FALSE) \
 FIELD( 8A,  0, ECX, AMD,     0, 32, SVMECX_RSVD,                   NO,  FALSE) \
 FLAG(  8A,  0, EDX, AMD,     0,  1, SVM_NPT,                       YES, FALSE) \
 FLAG(  8A,  0, EDX, AMD,     1,  1, SVM_LBR,                       NO,  FALSE) \
-FLAG(  8A,  0, EDX, AMD,     2,  1, SVM_LOCK,                      YES, FALSE) \
+FLAG(  8A,  0, EDX, AMD,     2,  1, SVM_LOCK,                      ANY, FALSE) \
 FLAG(  8A,  0, EDX, AMD,     3,  1, SVM_NRIP,                      YES, FALSE) \
 FLAG(  8A,  0, EDX, AMD,     4,  1, SVM_TSC_RATE_MSR,              NO,  FALSE) \
 FLAG(  8A,  0, EDX, AMD,     5,  1, SVM_VMCB_CLEAN,                YES, FALSE) \
@@ -576,7 +582,7 @@ FLAG(  8A,  0, EDX, AMD,     6,  1, SVM_FLUSH_BY_ASID,             YES, FALSE) \
 FLAG(  8A,  0, EDX, AMD,     7,  1, SVM_DECODE_ASSISTS,            YES, FALSE) \
 FIELD( 8A,  0, EDX, AMD,     8,  2, SVMEDX_RSVD0,                  NO,  FALSE) \
 FLAG(  8A,  0, EDX, AMD,    10,  1, SVM_PAUSE_FILTER,              NO,  FALSE) \
-FLAG(  8A,  0, EDX, AMD,    11,  1, SVMEDX_RSVD1,                  NO,  FALSE) \
+CPUID_8A_EDX_11 \
 FLAG(  8A,  0, EDX, AMD,    12,  1, SVM_PAUSE_THRESHOLD,           NO,  FALSE) \
 CPUID_8A_EDX_13_31
 

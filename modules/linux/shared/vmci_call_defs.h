@@ -98,9 +98,10 @@ typedef struct VMCIDatagram {
     1024 * (sizeof(VMCIDatagram) + sizeof(VMCIEventData_Max)))
 
 /*
- * Struct for sending VMCI_DATAGRAM_REQUEST_MAP and VMCI_DATAGRAM_REMOVE_MAP
- * datagrams. Struct size is 32 bytes. All fields in struct are aligned to
- * their natural alignment.
+ * Struct for sending VMCI_DATAGRAM_REQUEST_MAP and
+ * VMCI_DATAGRAM_REMOVE_MAP datagrams. Struct size is 32 bytes. All
+ * fields in struct are aligned to their natural alignment. These
+ * datagrams are obsoleted by the removal of VM to VM communication.
  */
 typedef struct VMCIDatagramWellKnownMapMsg {
    VMCIDatagram hdr;
@@ -279,8 +280,10 @@ VMCIEventMsgPayload(VMCIEventMsg *eMsg) // IN:
 /* Flags for VMCI QueuePair API. */
 #define VMCI_QPFLAG_ATTACH_ONLY 0x1 /* Fail alloc if QP not created by peer. */
 #define VMCI_QPFLAG_LOCAL       0x2 /* Only allow attaches from local context. */
+#define VMCI_QPFLAG_NONBLOCK    0x4 /* Host won't block when guest is quiesced. */
 /* Update the following (bitwise OR flags) while adding new flags. */
-#define VMCI_QP_ALL_FLAGS       (VMCI_QPFLAG_ATTACH_ONLY | VMCI_QPFLAG_LOCAL)
+#define VMCI_QP_ALL_FLAGS       (VMCI_QPFLAG_ATTACH_ONLY | VMCI_QPFLAG_LOCAL | \
+                                 VMCI_QPFLAG_NONBLOCK)
 
 /*
  * Structs used for QueuePair alloc and detach messages.  We align fields of

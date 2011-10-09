@@ -86,16 +86,8 @@
 #include "vm_basic_types.h"
 #include "vm_basic_defs.h"
 
-
-/*
- * XXX old file code
- */
-
-#ifdef FILECODEINT
-#error "Don't define FILECODEINT.  It is obsolete."
-#endif
-#ifdef FILECODE
-#error "Don't define FILECODE.  It is obsolete."
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /*
@@ -164,12 +156,6 @@ EXTERN void LogThrottled(uint32 *count, const char *fmt, ...)
             PRINTF_DECL(2, 3);
 EXTERN void WarningThrottled(uint32 *count, const char *fmt, ...)
             PRINTF_DECL(2, 3);
-
-/* DB family:  messages which are parsed by logfile database system */
-#define WarningDB Warning
-#define LogDB Log
-#define WarningThrottledDB WarningThrottled
-#define LogThrottledDB LogThrottled
 
 
 /*
@@ -389,5 +375,8 @@ EXTERN void WarningThrottled(uint32 *count, const char *fmt, ...)
       assertions \
    }
 
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* ifndef _VM_ASSERT_H_ */
