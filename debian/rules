@@ -46,14 +46,14 @@ override_dh_auto_install:
 	mkdir -p debian/open-vm-toolbox/usr/lib/open-vm-tools/plugins
 	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmusr debian/open-vm-toolbox/usr/lib/open-vm-tools/plugins
 
+override_dh_builddeb:
+	dh_builddeb -- -Zgzip -z9
+
+override_dh_fixperms:
+	dh_fixperms -Xsbin/mount.vmhgfs
+
 override_dh_installinit:
 	dh_installinit --update-rcd-params='start 38 2 3 4 5 . stop 38 0 1 6 .'
 
 override_dh_strip:
 	dh_strip --dbg-package=open-vm-tools-dbg
-
-override_dh_fixperms:
-	dh_fixperms -Xsbin/mount.vmhgfs
-
-override_dh_builddeb:
-	dh_builddeb -- -Zgzip -z9
