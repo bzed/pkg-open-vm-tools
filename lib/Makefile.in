@@ -81,11 +81,12 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = guestRpc appUtil auth backdoor dict dynxdr err file \
-	foundryMsg guestApp hgfs hgfsBd hgfsHelper hgfsServer \
-	hgfsServerManagerGuest hgfsServerPolicyGuest impersonate lock \
-	message misc netUtil panic panicDefault printer procMgr \
-	rpcChannel rpcIn rpcOut rpcVmx slashProc string stubs \
-	syncDriver system unicode user vmCheck vmSignal wiper xdg
+	foundryMsg glibUtils guestApp hgfs hgfsBd hgfsHelper \
+	hgfsServer hgfsServerManagerGuest hgfsServerPolicyGuest \
+	impersonate lock message misc netUtil panic panicDefault \
+	printer procMgr rpcChannel rpcIn rpcOut rpcVmx slashProc \
+	string stubs syncDriver system unicode user vmCheck vmSignal \
+	wiper xdg
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
   dir0=`pwd`; \
@@ -298,11 +299,12 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = guestRpc $(am__append_1) auth backdoor dict dynxdr err file \
-	foundryMsg guestApp hgfs hgfsBd hgfsHelper hgfsServer \
-	hgfsServerManagerGuest hgfsServerPolicyGuest impersonate lock \
-	message misc netUtil panic panicDefault printer procMgr \
-	rpcChannel rpcIn rpcOut rpcVmx $(am__append_2) string stubs \
-	syncDriver system unicode user vmCheck vmSignal wiper xdg
+	foundryMsg glibUtils guestApp hgfs hgfsBd hgfsHelper \
+	hgfsServer hgfsServerManagerGuest hgfsServerPolicyGuest \
+	impersonate lock message misc netUtil panic panicDefault \
+	printer procMgr rpcChannel rpcIn rpcOut rpcVmx $(am__append_2) \
+	string stubs syncDriver system unicode user vmCheck vmSignal \
+	wiper xdg
 all: all-recursive
 
 .SUFFIXES:

@@ -1,3 +1,10 @@
+open-vm-tools (2:8.8.0+2011.10.26-514583-1) unstable; urgency=low
+
+  * Merging upstream version 8.8.0+2011.10.26-514583.
+  * Correcting typo in example fstab line of vmhgfs manpage.
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Tue, 01 Nov 2011 21:44:24 +0100
+
 open-vm-tools (2:8.8.0+2011.09.23-491607-3) unstable; urgency=low
 
   * Sorting overrides in rules alphabetically.

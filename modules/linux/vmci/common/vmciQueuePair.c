@@ -1284,7 +1284,8 @@ VMCIQPBrokerAttach(QPBrokerEntry *entry,          // IN
       }
    }
 
-   if (entry->qp.flags != (flags & ~VMCI_QPFLAG_ATTACH_ONLY)) {
+   if ((entry->qp.flags & ~VMCI_QPFLAG_NONBLOCK) !=
+       (flags & ~(VMCI_QPFLAG_ATTACH_ONLY | VMCI_QPFLAG_NONBLOCK))) {
       return VMCI_ERROR_QUEUEPAIR_MISMATCH;
    }
 
@@ -1332,6 +1333,13 @@ VMCIQPBrokerAttach(QPBrokerEntry *entry,          // IN
          if (result < VMCI_SUCCESS) {
             return result;
          }
+         if (entry->qp.flags & VMCI_QPFLAG_NONBLOCK) {
+            result = VMCIHost_MapQueueHeaders(entry->produceQ, entry->consumeQ);
+            if (result < VMCI_SUCCESS) {
+               VMCIHost_ReleaseUserMemory(entry->produceQ, entry->consumeQ);
+               return result;
+            }
+         }
          entry->state = VMCIQPB_ATTACHED_MEM;
       } else {
          entry->state = VMCIQPB_ATTACHED_NO_MEM;
@@ -1346,8 +1354,23 @@ VMCIQPBrokerAttach(QPBrokerEntry *entry,          // IN
       return VMCI_ERROR_UNAVAILABLE;
    } else {
       /*
+       * For non-blocking queue pairs, we cannot rely on enqueue/dequeue to map
+       * in the pages on the host-side, since it may block, so we make an attempt
+       * here.
+       */
+
+      if (flags & VMCI_QPFLAG_NONBLOCK) {
+         result = VMCIHost_MapQueueHeaders(entry->produceQ, entry->consumeQ);
+         if (result < VMCI_SUCCESS) {
+            return result;
+         }
+         entry->qp.flags |= VMCI_QPFLAG_NONBLOCK;
+      }
+
+      /*
        * The host side has successfully attached to a queue pair.
        */
+
       entry->state = VMCIQPB_ATTACHED_MEM;
    }
 
@@ -1593,6 +1616,7 @@ VMCIQPBroker_Detach(VMCIHandle  handle,   // IN
 
    if (contextId != VMCI_HOST_CONTEXT_ID) {
       int result;
+      Bool headersMapped;
 
       ASSERT(!isLocal);
 
@@ -1602,8 +1626,9 @@ VMCIQPBroker_Detach(VMCIHandle  handle,   // IN
        * more recent VMX'en may detach from a queue pair in the quiesced state.
        */
 
+      VMCI_AcquireQueueMutex(entry->produceQ, TRUE);
+      headersMapped = entry->produceQ->qHeader || entry->consumeQ->qHeader;
       if (QPBROKERSTATE_HAS_MEM(entry)) {
-         VMCI_AcquireQueueMutex(entry->produceQ);
          result = VMCIHost_UnmapQueueHeaders(INVALID_VMCI_GUEST_MEM_ID,
                                              entry->produceQ,
                                              entry->consumeQ);
@@ -1617,14 +1642,13 @@ VMCIQPBroker_Detach(VMCIHandle  handle,   // IN
          } else {
             VMCIHost_UnregisterUserMemory(entry->produceQ, entry->consumeQ);
          }
-         VMCI_ReleaseQueueMutex(entry->produceQ);
-      } else {
-         VMCI_AcquireQueueMutex(entry->produceQ);
+      }
+      if (!headersMapped) {
          QueuePairResetSavedHeaders(entry);
-         VMCI_ReleaseQueueMutex(entry->produceQ);
-         if (entry->wakeupCB) {
-            entry->wakeupCB(entry->clientData);
-         }
+      }
+      VMCI_ReleaseQueueMutex(entry->produceQ);
+      if (!headersMapped && entry->wakeupCB) {
+         entry->wakeupCB(entry->clientData);
       }
    } else {
       if (entry->wakeupCB) {
@@ -1729,13 +1753,21 @@ VMCIQPBroker_Map(VMCIHandle  handle,      // IN
        * immediately since the guest memory is already registered.
        */
 
-      VMCI_AcquireQueueMutex(entry->produceQ);
-      QueuePairResetSavedHeaders(entry);
-      VMCI_ReleaseQueueMutex(entry->produceQ);
-      if (entry->wakeupCB) {
-         entry->wakeupCB(entry->clientData);
+      VMCI_AcquireQueueMutex(entry->produceQ, TRUE);
+      if (entry->qp.flags & VMCI_QPFLAG_NONBLOCK) {
+         result = VMCIHost_MapQueueHeaders(entry->produceQ, entry->consumeQ);
+      } else {
+         result = VMCI_SUCCESS;
       }
-      result = VMCI_SUCCESS;
+      if (result == VMCI_SUCCESS) {
+         QueuePairResetSavedHeaders(entry);
+      }
+      VMCI_ReleaseQueueMutex(entry->produceQ);
+      if (result == VMCI_SUCCESS) {
+         if (entry->wakeupCB) {
+            entry->wakeupCB(entry->clientData);
+         }
+      }
    } else  if (contextId != VMCI_HOST_CONTEXT_ID) {
       QueuePairPageStore pageStore;
 
@@ -1747,7 +1779,7 @@ VMCIQPBroker_Map(VMCIHandle  handle,      // IN
       pageStore.pages = guestMem;
       pageStore.len = QPE_NUM_PAGES(entry->qp);
 
-      VMCI_AcquireQueueMutex(entry->produceQ);
+      VMCI_AcquireQueueMutex(entry->produceQ, TRUE);
       QueuePairResetSavedHeaders(entry);
       result = VMCIHost_RegisterUserMemory(&pageStore, entry->produceQ, entry->consumeQ);
       VMCI_ReleaseQueueMutex(entry->produceQ);
@@ -1835,8 +1867,14 @@ QueuePairSaveHeaders(QPBrokerEntry *entry) // IN
 static void
 QueuePairResetSavedHeaders(QPBrokerEntry *entry) // IN
 {
+   if (vmkernel) {
+      VMCI_LockQueueHeader(entry->produceQ);
+   }
    entry->produceQ->savedHeader = NULL;
    entry->consumeQ->savedHeader = NULL;
+   if (vmkernel) {
+      VMCI_UnlockQueueHeader(entry->produceQ);
+   }
 }
 
 
@@ -1904,7 +1942,7 @@ VMCIQPBroker_Unmap(VMCIHandle  handle,   // IN
              entry->state != VMCIQPB_ATTACHED_NO_MEM);
       ASSERT(!isLocal);
 
-      VMCI_AcquireQueueMutex(entry->produceQ);
+      VMCI_AcquireQueueMutex(entry->produceQ, TRUE);
       result = QueuePairSaveHeaders(entry);
       if (result < VMCI_SUCCESS) {
          VMCI_WARNING((LGPFX"Failed to save queue headers for queue pair "
@@ -2805,7 +2843,7 @@ VMCIQPGuestEndpoints_Convert(Bool toLocal,     // IN
             consQ = (VMCIQueue *)entry->consumeQ;
             oldConsQ = oldProdQ = NULL;
 
-            VMCI_AcquireQueueMutex(prodQ);
+            VMCI_AcquireQueueMutex(prodQ, TRUE);
 
             result = VMCI_ConvertToLocalQueue(consQ, prodQ,
                                               entry->qp.consumeSize,
