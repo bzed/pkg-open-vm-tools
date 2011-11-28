@@ -270,10 +270,6 @@ typedef enum {
    CPUID_NUM_FIELD_SUPPORTEDS
 } CpuidFieldSupported;
 
-
-#define CPUID_1_ECX_29
-
-
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_0                                               \
 FIELD(  0,  0, EAX, COMMON,  0, 32, NUMLEVELS,                     ANY, FALSE) \
@@ -313,7 +309,7 @@ FLAG(   1,  0, ECX, INTEL,  17,  1, PCID,                          YES, FALSE) \
 FLAG(   1,  0, ECX, INTEL,  18,  1, DCA,                           NO,  FALSE) \
 FLAG(   1,  0, ECX, COMMON, 19,  1, SSE41,                         YES, TRUE)  \
 FLAG(   1,  0, ECX, COMMON, 20,  1, SSE42,                         YES, TRUE)  \
-FLAG(   1,  0, ECX, INTEL,  21,  1, x2APIC,                        ANY, FALSE) \
+FLAG(   1,  0, ECX, COMMON, 21,  1, x2APIC,                        ANY, FALSE) \
 FLAG(   1,  0, ECX, INTEL,  22,  1, MOVBE,                         YES, TRUE)  \
 FLAG(   1,  0, ECX, COMMON, 23,  1, POPCNT,                        YES, TRUE)  \
 FLAG(   1,  0, ECX, COMMON, 24,  1, TSC_DEADLINE,                  NO,  FALSE) \
@@ -321,9 +317,9 @@ FLAG(   1,  0, ECX, COMMON, 25,  1, AES,                           YES, TRUE)  \
 FLAG(   1,  0, ECX, COMMON, 26,  1, XSAVE,                         YES, FALSE) \
 FLAG(   1,  0, ECX, COMMON, 27,  1, OSXSAVE,                       ANY, FALSE) \
 FLAG(   1,  0, ECX, COMMON, 28,  1, AVX,                           YES, FALSE) \
-CPUID_1_ECX_29                                                                 \
+FLAG(   1,  0, ECX, COMMON, 29,  1, F16C,                          YES, TRUE)  \
 FLAG(   1,  0, ECX, COMMON, 30,  1, RDRAND,                        YES, TRUE)  \
-FLAG(   1,  0, ECX, COMMON, 31,  1, HYPERVISOR,                    ANY, FALSE) \
+FLAG(   1,  0, ECX, COMMON, 31,  1, HYPERVISOR,                    ANY, TRUE)  \
 FLAG(   1,  0, EDX, COMMON, 0,   1, FPU,                           YES, TRUE)  \
 FLAG(   1,  0, EDX, COMMON, 1,   1, VME,                           YES, FALSE) \
 FLAG(   1,  0, EDX, COMMON, 2,   1, DE,                            YES, FALSE) \
@@ -399,7 +395,8 @@ FLAG(   6,  0, ECX, INTEL,   3,  1, ENERGY_PERF_BIAS,              NA,  FALSE)
 FLAG(   7,  0, EBX, INTEL,   0,  1, FSGSBASE,                      YES, FALSE) \
 CPUID_7_EBX_3 \
 FLAG(   7,  0, EBX, INTEL,   7,  1, SMEP,                          YES, FALSE) \
-FLAG(   7,  0, EBX, INTEL,   9,  1, ENFSTRG,                       YES, FALSE)
+FLAG(   7,  0, EBX, INTEL,   9,  1, ENFSTRG,                       YES, FALSE) \
+FLAG(   7,  0, EBX, INTEL,  10,  1, INVPCID,                       NO,  FALSE)
 
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_A                                               \
@@ -433,8 +430,19 @@ FLAG(   D,  0, EAX, COMMON,  2,  1, XCR0_MASTER_YMM_H,             YES, FALSE) \
 FIELD(  D,  0, EAX, COMMON,  3, 29, XCR0_MASTER_LOWER,             NO,  FALSE) \
 FIELD(  D,  0, EBX, COMMON,  0, 32, XSAVE_ENABLED_SIZE,            ANY, FALSE) \
 FIELD(  D,  0, ECX, COMMON,  0, 32, XSAVE_MAX_SIZE,                YES, FALSE) \
-FIELD(  D,  0, EDX, COMMON,  0, 32, XCR0_MASTER_UPPER,             NO,  FALSE) \
-FLAG(   D,  1, EAX, COMMON,  0,  1, XSAVEOPT,                      NO,  FALSE)
+FIELD(  D,  0, EDX, COMMON,  0, 29, XCR0_MASTER_UPPER,             NO,  FALSE) \
+FLAG(   D,  0, EDX, AMD,     30, 1, XCR0_MASTER_LWP,               NO,  FALSE) \
+FLAG(   D,  0, EDX, COMMON,  31, 1, XCR0_MASTER_EXTENDED_XSAVE,    NO,  FALSE) \
+FLAG(   D,  1, EAX, COMMON,  0,  1, XSAVEOPT,                      NO,  FALSE) \
+FIELD(  D,  2, EAX, COMMON,  0, 32, XSAVE_YMM_SIZE,                YES, FALSE) \
+FIELD(  D,  2, EBX, COMMON,  0, 32, XSAVE_YMM_OFFSET,              YES, FALSE) \
+FIELD(  D,  2, ECX, COMMON,  0, 32, XSAVE_YMM_RSVD1,               YES, FALSE) \
+FIELD(  D,  2, EDX, COMMON,  0, 32, XSAVE_YMM_RSVD2,               YES, FALSE) \
+FIELD(  D, 62, EAX, AMD,     0, 32, XSAVE_LWP_SIZE,                NO,  FALSE) \
+FIELD(  D, 62, EBX, AMD,     0, 32, XSAVE_LWP_OFFSET,              NO,  FALSE) \
+FIELD(  D, 62, ECX, AMD,     0, 32, XSAVE_LWP_RSVD1,               NO,  FALSE) \
+FIELD(  D, 62, EDX, AMD,     0, 32, XSAVE_LWP_RSVD2,               NO,  FALSE)
+
 
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_400                                             \

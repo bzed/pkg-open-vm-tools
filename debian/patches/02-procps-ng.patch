@@ -1,0 +1,27 @@
+Author: Daniel Baumann <daniel.baumann@progress-technologies.net>
+Description: Set procps name to procps-ng.
+
+diff -Naurp open-vm-tools.orig/configure open-vm-tools/configure
+--- open-vm-tools.orig/configure	2011-11-28 18:33:16.004611294 +0100
++++ open-vm-tools/configure	2011-11-28 19:32:18.306176627 +0100
+@@ -19350,7 +19350,7 @@ fi
+ 
+ if test "$with_procps" = "yes"; then
+    if test -z "$CUSTOM_PROCPS_NAME"; then
+-      CUSTOM_PROCPS_NAME=proc
++      CUSTOM_PROCPS_NAME=proc-ng
+    fi
+ 
+    # XXX: no pkg-config and no procps-config means we need to
+diff -Naurp open-vm-tools.orig/configure.ac open-vm-tools/configure.ac
+--- open-vm-tools.orig/configure.ac	2011-11-28 18:33:16.004611294 +0100
++++ open-vm-tools/configure.ac	2011-11-28 19:32:23.766210276 +0100
+@@ -597,7 +597,7 @@ fi
+ 
+ if test "$with_procps" = "yes"; then
+    if test -z "$CUSTOM_PROCPS_NAME"; then
+-      CUSTOM_PROCPS_NAME=proc
++      CUSTOM_PROCPS_NAME=proc-ng
+    fi
+ 
+    # XXX: no pkg-config and no procps-config means we need to
