@@ -308,7 +308,7 @@ HgfsParseRequest(HgfsPacket *packet,         // IN: request packet
          localInput->id = request->id;
       }
       ASSERT_DEVEL(0);
-      return HGFS_ERROR_PROTOCOL;
+      return FALSE;
    }
 
    if (request->op < HGFS_OP_OPEN_V3) {
@@ -331,20 +331,24 @@ HgfsParseRequest(HgfsPacket *packet,         // IN: request packet
       HgfsHeader *header = (HgfsHeader *)request;
       localInput->v4header = TRUE;
       localInput->id = header->requestId;
+      localInput->op = header->op;
 
       if (packetSize >= offsetof(HgfsHeader, sessionId) + sizeof header->sessionId) {
-         if (header->op != HGFS_OP_CREATE_SESSION_V4) {
+         if (packetSize < header->packetSize ||
+            header->packetSize < header->headerSize) {
+            LOG(4, ("%s: Malformed HGFS packet received - inconsistent header"
+               " and packet sizes!\n", __FUNCTION__));
+            result = HGFS_ERROR_PROTOCOL;
+         }
+
+         if ((HGFS_ERROR_SUCCESS == result) &&
+             (header->op != HGFS_OP_CREATE_SESSION_V4)) {
             session = HgfsServerTransportGetSessionInfo(transportSession,
                                                         header->sessionId);
             if (!session || session->state != HGFS_SESSION_STATE_OPEN) {
                LOG(4, ("%s: HGFS packet with invalid session id!\n", __FUNCTION__));
                result = HGFS_ERROR_STALE_SESSION;
             }
-         } else if (packetSize < header->packetSize ||
-            header->packetSize < header->headerSize) {
-            LOG(4, ("%s: Malformed HGFS packet received - inconsistent header"
-               " and packet sizes!\n", __FUNCTION__));
-            result = HGFS_ERROR_PROTOCOL;
          }
       } else {
          LOG(4, ("%s: Malformed HGFS packet received - header is too small!\n",
@@ -353,7 +357,6 @@ HgfsParseRequest(HgfsPacket *packet,         // IN: request packet
       }
 
       if (HGFS_ERROR_SUCCESS == result) { // Passed all tests
-         localInput->op = header->op;
          localInput->payload = (char *)request + header->headerSize;
          localInput->payloadSize = header->packetSize - header->headerSize;
       }
@@ -362,16 +365,36 @@ HgfsParseRequest(HgfsPacket *packet,         // IN: request packet
               __FUNCTION__));
       result = HGFS_ERROR_PROTOCOL;
    }
+
    if (HGFS_ERROR_SUCCESS != result) {
       LOG(4, ("%s: Malformed HGFS packet received!\n", __FUNCTION__));
-   }
-
-   if (!session) {
+   } else if ((NULL == session) && (!localInput->v4header)) {
       session = HgfsServerTransportGetSessionInfo(transportSession,
                                                   transportSession->defaultSessionId);
+      if (NULL == session) {
+         /*
+          * Create a new session if the default session doesn't exist.
+          */
+         if (!HgfsServerAllocateSession(transportSession,
+                                        transportSession->channelCapabilities,
+                                        &session)) {
+            result = HGFS_ERROR_NOT_ENOUGH_MEMORY;
+         } else {
+            result = HgfsServerTransportAddSessionToList(transportSession,
+                                                         session);
+            if (HGFS_ERROR_SUCCESS != result) {
+               LOG(4, ("%s: Could not add session to the list.\n", __FUNCTION__));
+            } else {
+               transportSession->defaultSessionId = session->sessionId;
+               HgfsServerSessionGet(session);
+            }
+         }
+      }
    }
-   ASSERT(session);
 
+   if (session) {
+      session->isInactive = FALSE;
+   }
    localInput->session = session;
    localInput->payloadOffset = (char *)localInput->payload -
                                (char *)localInput->metaPacket;
