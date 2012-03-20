@@ -1,3 +1,21 @@
+open-vm-tools (2:8.8.0+2012.03.13-651368-1) unstable; urgency=low
+
+  [ Michael Dorrington ]
+  * Changed Build-Depends to libprocps0-dev to fix libproc-dev removal
+    (Closes: #659595).
+
+  [ Daniel Baumann ]
+  * Merging upstream version 8.8.0+2012.03.13-651368:
+    - compatible with linux 3.2 and 3.3 (Closes: #656618).
+  * Updating to debhelper version 9.
+  * Updating to standards version 3.9.3.
+  * Updating copyright file machine-readable format version 1.0.
+  * Building with debhelper dkms support (Closes: #651779, #654249).
+  * Updating procps patch for newest procps library name.
+  * Building without multiarch paths for now.
+
+ -- Daniel Baumann <daniel.baumann@progress-linux.org>  Tue, 20 Mar 2012 07:52:18 +0100
+
 open-vm-tools (2:8.8.0+2011.12.20-562307-1) unstable; urgency=low
 
   * Merging upstream version 8.8.0+2011.12.20-562307.

@@ -1,17 +1,22 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: open-vm-tools
+Upstream-Contact: open-vm-tools-devel@lists.sourceforge.net
+Source: http://sourceforge.net/projects/open-vm-tools/files/
+
 Files: *
-Copyright: (C) VMware, Inc. <http://www.vmware.com/>
+Copyright: VMware, Inc. <http://www.vmware.com/>
 License: GPL-2.1
 
 Files: */Makefile*, modules/*
-Copyright: (C) VMware, Inc. <http://www.vmware.com/>
+Copyright: VMware, Inc. <http://www.vmware.com/>
 License: GPL-2
 
 Files: lib/include/bsd*, lib/string/bsd*
-Copyright: (C) 1990, 1993 The Regents of the University of California.
+Copyright: 1990, 1993 The Regents of the University of California.
 License: BSD-3
 
 Files: lib/misc/base64.c
-Copyright: (C) 1996, 1998 Internet Software Consortium
+Copyright: 1996, 1998 Internet Software Consortium
 License: MIT(*)
 
 Files:
@@ -19,11 +24,11 @@ Files:
   vmware-user/vmwarectrlproto.h
   vmware-user/vmwarectrl.h,libvmwarectrl.c
   vmware-user/libvmwarectrl.c
-Copyright: (C) 2006 VMware, Inc. <http://www.vmware.com/>
+Copyright: 2006 VMware, Inc. <http://www.vmware.com/>
 License: MIT(**)
 
 Files: debian/*
-Copyright: (C) 2007-2011 Daniel Baumann <daniel.baumann@progress-technologies.net>
+Copyright: 2007-2012 Daniel Baumann <daniel.baumann@progress-technologies.net>
 License: GPL-2+
 
 License: BSD-3

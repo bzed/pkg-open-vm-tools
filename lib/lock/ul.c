@@ -66,8 +66,7 @@ MXUserInternalSingleton(Atomic_Ptr *storage)  // IN:
       MXRecLock *newLock = Util_SafeMalloc(sizeof(MXRecLock));
 
       if (MXRecLockInit(newLock)) {
-         lock = (MXRecLock *) Atomic_ReadIfEqualWritePtr(storage, NULL,
-                                                         (void *) newLock);
+         lock = Atomic_ReadIfEqualWritePtr(storage, NULL, (void *) newLock);
 
          if (lock) {
             MXRecLockDestroy(newLock);
@@ -446,7 +445,8 @@ MXUserAllocPerThread(void)
 
    ASSERT(perThreadLock);
 
-   MXRecLockAcquire(perThreadLock);
+   MXRecLockAcquire(perThreadLock,
+                    NULL);          // non-stats
 
    if (perThreadFreeList == NULL) {
       perThread = Util_SafeMalloc(sizeof *perThread);
@@ -494,7 +494,8 @@ MXUserFreePerThread(MXUserPerThread *perThread)  // IN:
    perThreadLock = MXUserInternalSingleton(&perThreadLockMem);
    ASSERT(perThreadLock);
 
-   MXRecLockAcquire(perThreadLock);
+   MXRecLockAcquire(perThreadLock,
+                    NULL);          // non-stats
    perThread->next = perThreadFreeList;
    perThreadFreeList = perThread;
    MXRecLockRelease(perThreadLock);

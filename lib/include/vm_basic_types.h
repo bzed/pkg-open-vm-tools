@@ -570,11 +570,11 @@ typedef void * UserVA;
  * for any region other than buserror.
  */
 #define PHYSMEM_MAX_PPN   ((PPN)0xffffffff)
-#define MAX_PPN           ((PPN)0x1fffffff) /* Maximal observable PPN value. */
+#define MAX_PPN           ((PPN)0x3fffffff) /* Maximal observable PPN value. */
 #define INVALID_PPN       ((PPN)0xffffffff)
-#define APIC_DISABLED_PPN ((PPN)0xfffffffe)
+#define APIC_INVALID_PPN  ((PPN)0xfffffffe)
 
-#define INVALID_BPN       ((BPN)0x1fffffff)
+#define INVALID_BPN       ((BPN)0x3fffffff)
 
 #define RESERVED_MPN      ((MPN) 0)
 #define INVALID_MPN       ((MPN)-1)
@@ -697,6 +697,19 @@ typedef void * UserVA;
 
 #if defined(__GNUC__) && (defined(VMM) || defined (VMKERNEL))
 #define ABSOLUTELY_NOINLINE __attribute__((__noinline__))
+#endif
+
+/*
+ * Used when a function has no effects except the return value and the
+ * return value depends only on the parameters and/or global variables
+ * Such a function can be subject to common subexpression elimination
+ * and loop optimization just as an arithmetic operator would be. 
+ */
+
+#if defined(__GNUC__) && (defined(VMM) || defined (VMKERNEL))
+#define SIDE_EFFECT_FREE __attribute__((__pure__))
+#else
+#define SIDE_EFFECT_FREE
 #endif
 
 /*

@@ -36,6 +36,15 @@
  */
 
 /*
+ * workerLib default completion lock
+ *
+ * Used for workerLib callers who don't provide their own lock. Held
+ * around arbitrary completion callbacks so it probably makes sense to
+ * be of a low rank.
+ */
+#define RANK_workerLibCmplLock      RANK_libLockBase
+
+/*
  * hostDeviceInfo HAL lock
  *
  * Must be < vmhs locks since this is held around the RANK_vmhsHDILock
@@ -49,8 +58,6 @@
 #define RANK_vmhsHDILock            (RANK_libLockBase + 0x3002)
 #define RANK_vmhsThrMxLock          (RANK_libLockBase + 0x3005)
 #define RANK_vmhsVmxMxLock          (RANK_libLockBase + 0x3005)
-#define RANK_vmhsMvmtsMxLock        (RANK_libLockBase + 0x3005)
-#define RANK_vmhsHotfixesMxLock     (RANK_libLockBase + 0x3005)
 
 /*
  * hgfs locks
@@ -110,6 +117,15 @@
 #define RANK_vmdbW32HookLock         (RANK_libLockBase + 0x5560)
 #define RANK_vmdbWQPoolLock          (RANK_libLockBase + 0x5570)
 #define RANK_vmdbMemMapLock          (RANK_libLockBase + 0x5580)
+
+/*
+ * USB range:
+ * (RANK_libLockBase + 0x6500, RANK_libLockBase + 0x6600)
+ */
+
+#define RANK_usbArbCliClientLock     (RANK_libLockBase + 0x6505)
+#define RANK_usbArbCliGlobalLock     (RANK_libLockBase + 0x6506)
+
 
 /*
  * misc locks

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998-2011 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -119,6 +119,10 @@ CPUIDQuery;
    CPUIDLEVEL(FALSE, A,  0xA)                   \
    CPUIDLEVEL(TRUE,  D,  0xD)                   \
    CPUIDLEVEL(FALSE,400, 0x40000000)            \
+   CPUIDLEVEL(FALSE,401, 0x40000001)            \
+   CPUIDLEVEL(FALSE,402, 0x40000002)            \
+   CPUIDLEVEL(FALSE,403, 0x40000003)            \
+   CPUIDLEVEL(FALSE,404, 0x40000004)            \
    CPUIDLEVEL(FALSE,410, 0x40000010)            \
    CPUIDLEVEL(FALSE, 80, 0x80000000)            \
    CPUIDLEVEL(TRUE,  81, 0x80000001)            \
@@ -364,7 +368,8 @@ FIELD(  4,  0, EBX, INTEL,  12, 10, LEAF4_CACHE_PART,              NA,  FALSE) \
 FIELD(  4,  0, EBX, INTEL,  22, 10, LEAF4_CACHE_WAYS,              NA,  FALSE) \
 FIELD(  4,  0, ECX, INTEL,   0, 32, LEAF4_CACHE_SETS,              NA,  FALSE) \
 FLAG(   4,  0, EDX, INTEL,   0,  1, LEAF4_CACHE_WBINVD_NOT_GUARANTEED, NA,  FALSE) \
-FLAG(   4,  0, EDX, INTEL,   1,  1, LEAF4_CACHE_IS_INCLUSIVE,      NA,  FALSE)
+FLAG(   4,  0, EDX, INTEL,   1,  1, LEAF4_CACHE_IS_INCLUSIVE,      NA,  FALSE) \
+FLAG(   4,  0, EDX, INTEL,   2,  1, LEAF4_CACHE_COMPLEX_INDEXING,  NA,  FALSE)
 
 /*     LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_5                                               \
@@ -391,9 +396,11 @@ FLAG(   6,  0, ECX, INTEL,   3,  1, ENERGY_PERF_BIAS,              NA,  FALSE)
 #define CPUID_FIELD_DATA_LEVEL_7                                               \
 FLAG(   7,  0, EBX, INTEL,   0,  1, FSGSBASE,                      YES, FALSE) \
 FLAG(   7,  0, EBX, AMD,     3,  1, BMI1,                          YES, TRUE ) \
+FLAG(   7,  0, EBX, INTEL,   4,  1, HLE,                           YES, TRUE)  \
 FLAG(   7,  0, EBX, INTEL,   7,  1, SMEP,                          YES, FALSE) \
 FLAG(   7,  0, EBX, INTEL,   9,  1, ENFSTRG,                       YES, FALSE) \
-FLAG(   7,  0, EBX, INTEL,  10,  1, INVPCID,                       NO,  FALSE)
+FLAG(   7,  0, EBX, INTEL,  10,  1, INVPCID,                       NO,  FALSE) \
+FLAG(   7,  0, EBX, INTEL,  11,  1, RTM,                           NO,  TRUE)
 
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_A                                               \
@@ -789,7 +796,7 @@ enum {
  * other compilers.
  */
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 
 #define CPUID_MASK(eaxIn, reg, flag)                                    \
    ({                                                                   \
@@ -862,15 +869,17 @@ CPUIDCheck(uint32 eaxIn, uint32 eaxInCheck,
 
 #define CPUID_SET(eaxIn, reg, flag, dataPtr)                            \
    do {                                                                 \
-      ASSERT_ON_COMPILE((uint32)eaxIn == (uint32)CPUID_INTERNAL_EAXIN_##flag && \
-              CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);  \
+      ASSERT_ON_COMPILE(                                                \
+         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##flag &&      \
+         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);       \
       *(dataPtr) |= CPUID_INTERNAL_MASK_##flag;                         \
    } while (0)
 
 #define CPUID_CLEAR(eaxIn, reg, flag, dataPtr)                          \
    do {                                                                 \
-      ASSERT_ON_COMPILE((uint32)eaxIn == (uint32)CPUID_INTERNAL_EAXIN_##flag && \
-              CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);  \
+      ASSERT_ON_COMPILE(                                                \
+         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##flag &&      \
+         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);       \
       *(dataPtr) &= ~CPUID_INTERNAL_MASK_##flag;                        \
    } while (0)
 
@@ -878,12 +887,25 @@ CPUIDCheck(uint32 eaxIn, uint32 eaxInCheck,
    do {                                                                 \
       uint32 _v = val;                                                  \
       uint32 *_d = dataPtr;                                             \
-      ASSERT_ON_COMPILE((uint32)eaxIn == (uint32)CPUID_INTERNAL_EAXIN_##field && \
-              CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##field); \
+      ASSERT_ON_COMPILE(                                                \
+         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##field &&     \
+         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##field);      \
       *_d = (*_d & ~CPUID_INTERNAL_MASK_##field) |                      \
          (_v << CPUID_INTERNAL_SHIFT_##field);                          \
       ASSERT(_v == (*_d & CPUID_INTERNAL_MASK_##field) >>               \
              CPUID_INTERNAL_SHIFT_##field);                             \
+   } while (0)
+
+#define CPUID_SETTO_SAFE(eaxIn, reg, field, dataPtr, val)               \
+   do {                                                                 \
+      uint32 _v = val &                                                 \
+         (CPUID_INTERNAL_MASK_##field >> CPUID_INTERNAL_SHIFT_##field); \
+      uint32 *_d = dataPtr;                                             \
+      ASSERT_ON_COMPILE(                                                \
+         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##field &&     \
+         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##field);      \
+      *_d = (*_d & ~CPUID_INTERNAL_MASK_##field) |                      \
+         (_v << CPUID_INTERNAL_SHIFT_##field);                          \
    } while (0)
 
 
@@ -1269,6 +1291,8 @@ CPUID_MODEL_IS_BULLDOZER(uint32 eax)
 #define CPUID_LEAF4_CACHE_TYPE_DATA      1
 #define CPUID_LEAF4_CACHE_TYPE_INST      2
 #define CPUID_LEAF4_CACHE_TYPE_UNIF      3
+#define CPUID_LEAF4_CACHE_INDEXING_DIRECT  0
+#define CPUID_LEAF4_CACHE_INDEXING_COMPLEX 1
 
 #define CPUID_INTEL_ID4EAX_LEAF4_CACHE_SELF_INIT      0x00000100
 #define CPUID_INTEL_ID4EAX_LEAF4_CACHE_FULLY_ASSOC    0x00000200

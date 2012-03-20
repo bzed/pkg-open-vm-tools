@@ -45,6 +45,30 @@
 #define VPAGECHANNEL_PACKET_MESSAGE(packet) \
    (char *)((char *)(packet) + sizeof(VPageChannelPacket))
 
+/*
+ * Flags for channel creation.
+ *
+ * NOTIFY_ONLY means invoke the channel's receive callback directly when a
+ * notification is received.  If not specified, then when a notification is
+ * received, packets are read from the queuepair and the callback invoked for
+ * each one separately.  Not applicable on VMKernel.
+ *
+ * DELAYED_CB means that all callbacks run in a delayed context, and the
+ * caller is allowed to block.  If not specified, then callbacks run in
+ * interrupt context and the channel will not block.  This can only be
+ * specified on the guest side for now.
+ *
+ * SEND_WHILE_ATOMIC indicates that the client wishes to call Send() from
+ * an atomic context and that the channel should not block.  If the channel
+ * is not allowed to block, then the channel's pages are permanently mapped
+ * and pinned.  Note that this will limit the total size of the channel to
+ * VMCI_MAX_PINNED_QP_MEMORY.
+ */
+
+#define VPAGECHANNEL_FLAGS_NOTIFY_ONLY       0x1
+#define VPAGECHANNEL_FLAGS_RECV_DELAYED      0x2
+#define VPAGECHANNEL_FLAGS_SEND_WHILE_ATOMIC 0x4
+
 
 typedef
 #include "vmware_pack_begin.h"
@@ -134,9 +158,9 @@ int VPageChannel_CreateInVM(VPageChannel **channel,
                             VMCIId peerResourceId,
                             uint64 produceQSize,
                             uint64 consumeQSize,
+                            uint32 flags,
                             VPageChannelRecvCB recvCB,
                             void *clientRecvData,
-                            Bool notifyOnly,
                             VPageChannelAllocElemFn elemAlloc,
                             void *allocClientData,
                             VPageChannelFreeElemFn elemFree,
