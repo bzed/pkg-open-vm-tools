@@ -41,53 +41,50 @@
    GOT(GUEST_OS_LONGHORN_64)                                  \
    GOT(GUEST_OS_WINVISTA)                                     \
    GOT(GUEST_OS_WINVISTA_64)                                  \
-   GOT(GUEST_OS_UBUNTU)                                       \
+   GOT(GUEST_OS_WINSEVEN)          /* Windows 7 */            \
+   GOT(GUEST_OS_WINSEVEN_64)       /* Windows 7 */            \
+   GOT(GUEST_OS_WIN2008R2)         /* Server 2008 R2 */       \
+   GOT(GUEST_OS_WIN2008R2_64)      /* Server 2008 R2 */       \
+   GOT(GUEST_OS_WINEIGHT)          /* Windows 8 */            \
+   GOT(GUEST_OS_WINEIGHT_64)       /* Windows 8 x64 */        \
+   GOT(GUEST_OS_WINEIGHTSERVER_64) /* Windows 8 Server X64 */ \
+   GOT(GUEST_OS_HYPER_V)           /* Microsoft Hyper-V */    \
+   GOT(GUEST_OS_OS2)                                          \
+   GOT(GUEST_OS_ECOMSTATION)       /* OS/2 variant; 1.x */    \
+   GOT(GUEST_OS_ECOMSTATION2)      /* OS/2 variant; 2.x */    \
    GOT(GUEST_OS_OTHER24XLINUX)                                \
    GOT(GUEST_OS_OTHER24XLINUX_64)                             \
    GOT(GUEST_OS_OTHER26XLINUX)                                \
    GOT(GUEST_OS_OTHER26XLINUX_64)                             \
    GOT(GUEST_OS_OTHERLINUX)                                   \
    GOT(GUEST_OS_OTHERLINUX_64)                                \
-   GOT(GUEST_OS_OS2)                                          \
    GOT(GUEST_OS_OTHER)                                        \
    GOT(GUEST_OS_OTHER_64)                                     \
+   GOT(GUEST_OS_UBUNTU)                                       \
+   GOT(GUEST_OS_DEBIAN45)                                     \
+   GOT(GUEST_OS_DEBIAN45_64)                                  \
+   GOT(GUEST_OS_RHEL)                                         \
+   GOT(GUEST_OS_RHEL_64)                                      \
    GOT(GUEST_OS_FREEBSD)                                      \
    GOT(GUEST_OS_FREEBSD_64)                                   \
-   GOT(GUEST_OS_NETWARE4)                                     \
-   GOT(GUEST_OS_NETWARE5)                                     \
-   GOT(GUEST_OS_NETWARE6)                                     \
-   GOT(GUEST_OS_SOLARIS6)                                     \
-   GOT(GUEST_OS_SOLARIS7)                                     \
+   GOT(GUEST_OS_SOLARIS_6_AND_7)                              \
    GOT(GUEST_OS_SOLARIS8)                                     \
    GOT(GUEST_OS_SOLARIS9)                                     \
    GOT(GUEST_OS_SOLARIS10)                                    \
    GOT(GUEST_OS_SOLARIS10_64)                                 \
-   GOT(GUEST_OS_VMKERNEL)          /* ESX 4.x */              \
    GOT(GUEST_OS_DARWIN9)           /* Mac OS 10.5 */          \
    GOT(GUEST_OS_DARWIN9_64)                                   \
    GOT(GUEST_OS_DARWIN10)          /* Mac OS 10.6 */          \
    GOT(GUEST_OS_DARWIN10_64)                                  \
-   GOT(GUEST_OS_OPENSERVER5)                                  \
-   GOT(GUEST_OS_OPENSERVER6)                                  \
-   GOT(GUEST_OS_UNIXWARE7)                                    \
-   GOT(GUEST_OS_DEBIAN45)                                     \
-   GOT(GUEST_OS_DEBIAN45_64)                                  \
-   GOT(GUEST_OS_WINSEVEN)          /* Windows 7 */            \
-   GOT(GUEST_OS_WINSEVEN_64)       /* Windows 7 */            \
-   GOT(GUEST_OS_WIN2008R2)         /* Server 2008 R2 */       \
-   GOT(GUEST_OS_WIN2008R2_64)      /* Server 2008 R2 */       \
-   GOT(GUEST_OS_ECOMSTATION)       /* OS/2 variant; 1.x */    \
-   GOT(GUEST_OS_RHEL6)                                        \
-   GOT(GUEST_OS_RHEL6_64)                                     \
-   GOT(GUEST_OS_WINEIGHT)          /* Windows 8 */            \
-   GOT(GUEST_OS_WINEIGHT_64)       /* Windows 8 x64 */        \
-   GOT(GUEST_OS_WINEIGHTSERVER_64) /* Windows 8 Server X64 */ \
-   GOT(GUEST_OS_VMKERNEL5)         /* ESX 5.x and later */    \
    GOT(GUEST_OS_DARWIN11)          /* Mac OS 10.7 */          \
    GOT(GUEST_OS_DARWIN11_64)                                  \
-   GOT(GUEST_OS_ECOMSTATION2)      /* OS/2 variant; 2.x */    \
-   GOT(GUEST_OS_RHEL7)                                        \
-   GOT(GUEST_OS_RHEL7_64)                                     \
+   GOT(GUEST_OS_OPENSERVER_5_AND_6)                           \
+   GOT(GUEST_OS_UNIXWARE7)                                    \
+   GOT(GUEST_OS_NETWARE4)                                     \
+   GOT(GUEST_OS_NETWARE5)                                     \
+   GOT(GUEST_OS_NETWARE6)                                     \
+   GOT(GUEST_OS_VMKERNEL)          /* ESX 4.x */              \
+   GOT(GUEST_OS_VMKERNEL5)         /* ESX 5.x and later */    \
 
 
 #define GUEST_OS_LIST_GEN                                                   \
@@ -153,10 +150,10 @@
    GOSL(STR_OS_RED_HAT_EN "4-64",            GUEST_OS_OTHER26XLINUX_64)     \
    GOSL(STR_OS_RED_HAT_EN "5",               GUEST_OS_OTHER26XLINUX)        \
    GOSL(STR_OS_RED_HAT_EN "5-64",            GUEST_OS_OTHER26XLINUX_64)     \
-   GOSL(STR_OS_RED_HAT_EN "6",               GUEST_OS_RHEL6)                \
-   GOSL(STR_OS_RED_HAT_EN "6-64",            GUEST_OS_RHEL6_64)             \
-   GOSL(STR_OS_RED_HAT_EN "7",               GUEST_OS_RHEL7)                \
-   GOSL(STR_OS_RED_HAT_EN "7-64",            GUEST_OS_RHEL7_64)             \
+   GOSL(STR_OS_RED_HAT_EN "6",               GUEST_OS_RHEL)                 \
+   GOSL(STR_OS_RED_HAT_EN "6-64",            GUEST_OS_RHEL_64)              \
+   GOSL(STR_OS_RED_HAT_EN "7",               GUEST_OS_RHEL)                 \
+   GOSL(STR_OS_RED_HAT_EN "7-64",            GUEST_OS_RHEL_64)              \
    GOSL(STR_OS_CENTOS,                       GUEST_OS_OTHER26XLINUX)        \
    GOSL(STR_OS_CENTOS "-64",                 GUEST_OS_OTHER26XLINUX_64)     \
    GOSL(STR_OS_ORACLE,                       GUEST_OS_OTHER26XLINUX)        \
@@ -197,8 +194,8 @@
    GOSL(STR_OS_DEBIAN_5 "-64",               GUEST_OS_DEBIAN45_64)          \
    GOSL(STR_OS_DEBIAN_6,                     GUEST_OS_DEBIAN45)             \
    GOSL(STR_OS_DEBIAN_6 "-64",               GUEST_OS_DEBIAN45_64)          \
-   GOSL(STR_OS_SOLARIS "6",                  GUEST_OS_SOLARIS6)             \
-   GOSL(STR_OS_SOLARIS "7",                  GUEST_OS_SOLARIS7)             \
+   GOSL(STR_OS_SOLARIS "6",                  GUEST_OS_SOLARIS_6_AND_7)      \
+   GOSL(STR_OS_SOLARIS "7",                  GUEST_OS_SOLARIS_6_AND_7)      \
    GOSL(STR_OS_SOLARIS "8",                  GUEST_OS_SOLARIS8)             \
    GOSL(STR_OS_SOLARIS "9",                  GUEST_OS_SOLARIS9)             \
    GOSL(STR_OS_SOLARIS "10",                 GUEST_OS_SOLARIS10)            \
@@ -228,13 +225,14 @@
    GOSL("other-64",                          GUEST_OS_OTHER_64)             \
    GOSL("vmkernel",                          GUEST_OS_VMKERNEL)             \
    GOSL("vmkernel5",                         GUEST_OS_VMKERNEL5)            \
-   GOSL("openserver5",                       GUEST_OS_OPENSERVER5)          \
-   GOSL("openserver6",                       GUEST_OS_OPENSERVER6)          \
+   GOSL("openserver5",                       GUEST_OS_OPENSERVER_5_AND_6)   \
+   GOSL("openserver6",                       GUEST_OS_OPENSERVER_5_AND_6)   \
    GOSL("unixware7",                         GUEST_OS_UNIXWARE7)            \
    GOSL(STR_OS_ECOMSTATION,                  GUEST_OS_ECOMSTATION)          \
    GOSL(STR_OS_ECOMSTATION "2",              GUEST_OS_ECOMSTATION2)         \
    GOSL(STR_OS_WIN_EIGHT,                    GUEST_OS_WINEIGHT)             \
    GOSL(STR_OS_WIN_EIGHT_X64,                GUEST_OS_WINEIGHT_64)          \
-   GOSL(STR_OS_WIN_EIGHTSERVER_X64,          GUEST_OS_WINEIGHTSERVER_64)
+   GOSL(STR_OS_WIN_EIGHTSERVER_X64,          GUEST_OS_WINEIGHTSERVER_64)    \
+   GOSL(STR_OS_HYPER_V,                      GUEST_OS_HYPER_V)              \
 
 #endif

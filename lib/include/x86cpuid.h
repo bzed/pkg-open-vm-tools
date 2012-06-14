@@ -395,9 +395,11 @@ FLAG(   6,  0, ECX, INTEL,   3,  1, ENERGY_PERF_BIAS,              NA,  FALSE)
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_7                                               \
 FLAG(   7,  0, EBX, INTEL,   0,  1, FSGSBASE,                      YES, FALSE) \
-FLAG(   7,  0, EBX, AMD,     3,  1, BMI1,                          YES, TRUE ) \
+FLAG(   7,  0, EBX, COMMON,  3,  1, BMI1,                          YES, TRUE ) \
 FLAG(   7,  0, EBX, INTEL,   4,  1, HLE,                           YES, TRUE)  \
+FLAG(   7,  0, EBX, INTEL,   5,  1, AVX2,                          YES, TRUE)  \
 FLAG(   7,  0, EBX, INTEL,   7,  1, SMEP,                          YES, FALSE) \
+FLAG(   7,  0, EBX, INTEL,   8,  1, BMI2,                          YES, TRUE)  \
 FLAG(   7,  0, EBX, INTEL,   9,  1, ENFSTRG,                       YES, FALSE) \
 FLAG(   7,  0, EBX, INTEL,  10,  1, INVPCID,                       NO,  FALSE) \
 FLAG(   7,  0, EBX, INTEL,  11,  1, RTM,                           NO,  TRUE)
@@ -487,7 +489,7 @@ FLAG(  81,  0, ECX, AMD,     1,  1, CMPLEGACY,                     ANY, FALSE) \
 FLAG(  81,  0, ECX, AMD,     2,  1, SVM,                           YES, FALSE) \
 FLAG(  81,  0, ECX, AMD,     3,  1, EXTAPICSPC,                    YES, FALSE) \
 FLAG(  81,  0, ECX, AMD,     4,  1, CR8AVAIL,                      YES, FALSE) \
-FLAG(  81,  0, ECX, AMD,     5,  1, ABM,                           YES, TRUE)  \
+FLAG(  81,  0, ECX, COMMON,  5,  1, ABM,                           YES, TRUE)  \
 FLAG(  81,  0, ECX, AMD,     6,  1, SSE4A,                         YES, TRUE)  \
 FLAG(  81,  0, ECX, AMD,     7,  1, MISALIGNED_SSE,                YES, TRUE)  \
 FLAG(  81,  0, ECX, AMD,     8,  1, 3DNPREFETCH,                   YES, TRUE)  \
@@ -958,6 +960,7 @@ CPUIDCheck(uint32 eaxIn, uint32 eaxInCheck,
 #define CPUID_MODEL_NEHALEM_2C     0x2c  // Westmere-EP
 #define CPUID_MODEL_NEHALEM_2E     0x2e  // Nehalem-EX
 #define CPUID_MODEL_NEHALEM_2F     0x2f  // Westmere-EX
+#define CPUID_MODEL_SANDYBRIDGE_3A 0x3a  // Ivy Bridge
 
 #define CPUID_MODEL_PIII_07    7
 #define CPUID_MODEL_PIII_08    8
@@ -1122,8 +1125,11 @@ CPUID_UARCH_IS_SANDYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
 
    return CPUID_FAMILY_IS_P6(v) &&
           (effectiveModel == CPUID_MODEL_SANDYBRIDGE_2A ||
-           effectiveModel == CPUID_MODEL_SANDYBRIDGE_2D);
+           effectiveModel == CPUID_MODEL_SANDYBRIDGE_2D ||
+           effectiveModel == CPUID_MODEL_SANDYBRIDGE_3A);
 }
+
+
 
 
 static INLINE Bool
@@ -1159,6 +1165,17 @@ CPUID_MODEL_IS_SANDYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
    return CPUID_FAMILY_IS_P6(v) &&
           (effectiveModel == CPUID_MODEL_SANDYBRIDGE_2A ||
            effectiveModel == CPUID_MODEL_SANDYBRIDGE_2D);
+}
+
+
+static INLINE Bool
+CPUID_MODEL_IS_IVYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
+{
+   /* Assumes the CPU manufacturer is Intel. */
+   uint32 effectiveModel = CPUID_EFFECTIVE_MODEL(v);
+
+   return CPUID_FAMILY_IS_P6(v) && (
+       effectiveModel == CPUID_MODEL_SANDYBRIDGE_3A);
 }
 
 
