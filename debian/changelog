@@ -1,44 +1,13 @@
-open-vm-tools (2:8.8.0+2012.05.21-724730-1+nmu2) testing-proposed-updates; urgency=low
+open-vm-tools (2:8.8.0+2012.05.21-724730-2) unstable; urgency=low
 
-  * Non-maintainer upload.
-  * Adjust runtime dependencies for open-vm-tools init script.
-    Add $remote_fs to Required-{Start,Stop} as the init script calls
-    executables under /usr. To prevent  a loop between service networking
-    and umountnfs also remove $network from X-Start-Before and X-Stop-After.
-    (Closes: #695845)
-
- -- Salvatore Bonaccorso <carnil@debian.org>  Sat, 22 Dec 2012 23:55:25 +0100
-
-open-vm-tools (2:8.8.0+2012.05.21-724730-1+nmu1) testing-proposed-updates; urgency=low
-
-  [ Bernd Zeimetz ]
-  * Non-maintainer upload to ensure open-vm-tools will
-    be shipped with Wheezy.
-  * Ensure upgrades to not fail due to the broken init script
-    (Closes: #686200)
-    - Fix open-vm-tools init script to stop vmtoolsd properly.
-    - Handle upgrades from a version with broken init script.
-      Try to stop again, just in case. Ignore errors as we don't know
-      how successful the old buggy script was.
-  * Remove the duplicate vmware-suid-wrapper from open-vm-toolbox.
-    The better way would be to ship it in open-vm-toolbox instead of
-    open-vm-tools, but to avoid moving config files from one package
-    into another we will keep it this way for Wheezy. Partly addresses
-    #686202.
-  * Handle binNMU/nmu/backports/... version numbers.
-    The old way to parse the version string from debian/changelog fails
-    on binNMU/nmu/security/... version numbers. Fixing this.
-    (Closes: #686582)
-
-  [ Daniel Baumann ]
+  * Switching to xz compression.
+  * Loading modules through kmod instead of initscript.
+  * Adding sleep during restart in initscript.
+  * Removing old dpkg trigger for update-initramfs.
   * Updating GPL boilerplate in copyright file.
   * Calling dh_dkms with version argument (Closes: #677503).
 
-  [ Thijs Kinkhorst ]
-  * Updating dkms.conf to make modules build again, 
-    thanks to H.A.J. Koster (Closes: #679886).
-
- -- Bernd Zeimetz <bzed@debian.org>  Sun, 19 Aug 2012 22:20:10 +0200
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sat, 30 Jun 2012 04:55:23 +0200
 
 open-vm-tools (2:8.8.0+2012.05.21-724730-1) unstable; urgency=low
 

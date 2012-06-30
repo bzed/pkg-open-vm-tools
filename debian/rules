@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 
-
-VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^[^+]*:[^+]*+||' -e 's|-.*$$||')
+VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:.*+||' -e 's|-.*$$||')
 
 %:
 	dh ${@} --with autotools_dev,dkms
@@ -12,6 +11,7 @@ override_dh_auto_configure:
 override_dh_auto_install:
 	dh_auto_install -- DESTDIR=$(CURDIR)/debian/open-vm-tools
 
+	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper
 
 	if [ -e debian/open-vm-tools/etc/pam.d/vmtoolsd-x64 ]; \
 	then \
@@ -24,6 +24,7 @@ override_dh_auto_install:
 	install -D -m 0755 debian/local/vmxnet.hook debian/open-vm-tools/usr/share/initramfs-tools/hooks/vmxnet
 	install -D -m 0644 debian/local/xautostart.conf debian/open-vm-toolbox/etc/vmware-tools/xautostart.conf
 	install -D -m 0644 debian/local/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
+	install -D -m 0644 debian/local/open-vm-tools.kmod debian/open-vm-tools/lib/modules-load.d/open-vm-tools.conf
 
 	# open-vm-tools-dev
 	mkdir -p debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
@@ -49,7 +50,10 @@ override_dh_auto_install:
 	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmusr debian/open-vm-toolbox/usr/lib/open-vm-tools/plugins
 
 override_dh_builddeb:
-	dh_builddeb -- -Zgzip -z9
+	dh_builddeb -- -Zxz -z9
+
+override_dh_dkms:
+	dh_dkms -V $(VERSION)
 
 override_dh_fixperms:
 	dh_fixperms -Xsbin/mount.vmhgfs
@@ -59,7 +63,3 @@ override_dh_installinit:
 
 override_dh_strip:
 	dh_strip --dbg-package=open-vm-tools-dbg
-
-override_dh_dkms:
-	dh_dkms -V $(VERSION)
-
