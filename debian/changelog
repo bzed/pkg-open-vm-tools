@@ -1,3 +1,11 @@
+open-vm-tools (2:8.8.0+2012.05.21-724730-3) unstable; urgency=low
+
+  [ Thijs Kinkhorst ]
+  * Updating dkms.conf to make modules build again, thanks to H.A.J.
+    Koster (Closes: #679886).
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Mon, 16 Jul 2012 22:06:58 +0200
+
 open-vm-tools (2:8.8.0+2012.05.21-724730-2) unstable; urgency=low
 
   * Switching to xz compression.
