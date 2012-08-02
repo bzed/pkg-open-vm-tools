@@ -1,3 +1,17 @@
+open-vm-tools (2:8.8.0+2012.05.21-724730-4) unstable; urgency=low
+
+  * Reverting switch to xz compression to ease wheezy unblock.
+  * Reverting to load modules through kmod instead of initscript to ease
+    wheezy unblock.
+  * Reverting added sleep during restart in initscript to ease wheezy
+    unblock.
+  * Reverting removing old dpkg trigger for update-initramfs to ease
+    wheezy unblock.
+  * Reverting update of GPL boilerplate in copyright file to ease wheezy
+    unblock.
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Thu, 02 Aug 2012 21:32:52 +0200
+
 open-vm-tools (2:8.8.0+2012.05.21-724730-3) unstable; urgency=low
 
   [ Thijs Kinkhorst ]
