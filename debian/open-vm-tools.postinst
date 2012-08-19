@@ -4,6 +4,15 @@ set -e
 
 case "${1}" in
 	configure)
+                # if upgrading from a version with a broken init script, try to stop again.
+                if dpkg --compare-versions "${2}" lt "2:8.8.0+2012.05.21-724730-1+nmu1~"
+                then
+                    if [ -x "/etc/init.d/open-vm-tools" ]; then
+                        invoke-rc.d open-vm-tools stop || true
+                    fi
+
+                fi
+
 		if [ -x /usr/sbin/update-initramfs ]
 		then
 			update-initramfs -u

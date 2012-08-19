@@ -1,5 +1,8 @@
 #!/usr/bin/make -f
 
+
+VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^[^+]*:[^+]*+||' -e 's|-.*$$||')
+
 %:
 	dh ${@} --with autotools_dev,dkms
 
@@ -9,7 +12,6 @@ override_dh_auto_configure:
 override_dh_auto_install:
 	dh_auto_install -- DESTDIR=$(CURDIR)/debian/open-vm-tools
 
-	install -D -m 0755 vmware-user-suid-wrapper/vmware-user-suid-wrapper debian/open-vm-toolbox/usr/sbin/vmware-user-suid-wrapper
 
 	if [ -e debian/open-vm-tools/etc/pam.d/vmtoolsd-x64 ]; \
 	then \
@@ -57,3 +59,7 @@ override_dh_installinit:
 
 override_dh_strip:
 	dh_strip --dbg-package=open-vm-tools-dbg
+
+override_dh_dkms:
+	dh_dkms -V $(VERSION)
+
