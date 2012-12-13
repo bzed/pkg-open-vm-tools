@@ -39,6 +39,9 @@
 #  include <sys/mount.h>
 # else
 #  include <mntent.h>
+#  if defined __ANDROID__
+#   include <paths.h> /* for _PATH_MOUNTED */
+#  endif
 # endif
 #include <signal.h>
 #endif
@@ -96,7 +99,7 @@ static char *FilePosixNearestExistingAncestor(char const *path);
  * happens the prosix version should be updated to use the generic code.
  */
 
-#if defined(__USE_FILE_OFFSET64) || defined(sun) || defined(__ANDROID__)
+#if defined(__USE_FILE_OFFSET64) || defined(sun)
 # define CAN_USE_FTS 0
 #else
 # define CAN_USE_FTS 1
@@ -116,14 +119,6 @@ struct WalkDirContextImpl
 #define FS_NFS_ON_ESX "NFS"
 /* A string for VMFS on ESX file system type */
 #define FS_VMFS_ON_ESX "VMFS"
-
-#if defined __ANDROID__
-/*
- * Android doesn't support setmntent(), endmntent() or MOUNTED.
- */
-#define NO_SETMNTENT
-#define NO_ENDMNTENT
-#endif
 
 
 /*
@@ -729,23 +724,6 @@ File_GetTimes(ConstUnicode pathName,       // IN:
 
       timeBuf.tv_sec  = statBuf.st_ctime;
       timeBuf.tv_nsec = statBuf.__unused3;
-      *attrChangeTime = TimeUtil_UnixTimeToNtTime(timeBuf);
-   }
-#   elif defined(ANDROID_X86)
-   {
-      struct timespec timeBuf;
-
-      timeBuf.tv_sec  = statBuf.st_atime;
-      timeBuf.tv_nsec = statBuf.st_atime_nsec;
-      *accessTime     = TimeUtil_UnixTimeToNtTime(timeBuf);
-
-
-      timeBuf.tv_sec  = statBuf.st_mtime;
-      timeBuf.tv_nsec = statBuf.st_mtime_nsec;
-      *writeTime      = TimeUtil_UnixTimeToNtTime(timeBuf);
-
-      timeBuf.tv_sec  = statBuf.st_ctime;
-      timeBuf.tv_nsec = statBuf.st_ctime_nsec;
       *attrChangeTime = TimeUtil_UnixTimeToNtTime(timeBuf);
    }
 #   else
@@ -1516,11 +1494,6 @@ static char *
 FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
                           Bool *bind)           // OUT: Mounted with --[r]bind?
 {
-#if defined NO_SETMNTENT || defined NO_ENDMNTENT
-   NOT_IMPLEMENTED();
-   errno = ENOSYS;
-   return NULL;
-#else
    FILE *f;
    struct mntent mnt;
    char *buf;
@@ -1534,7 +1507,16 @@ FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
    size = 4 * FILE_MAXPATH;  // Should suffice for most locales
 
 retry:
+#if defined __ANDROID__
+   /*
+    * Android supports neither setmntent() nor MOUNTED.
+    * The code below is a workaround.
+    */
+   NOT_TESTED();
+   f = fopen(_PATH_MOUNTED, "r");
+#else
    f = setmntent(MOUNTED, "r");
+#endif
    if (f == NULL) {
       return NULL;
    }
@@ -1587,7 +1569,7 @@ retry:
 
       if (strcmp(mnt.mnt_dir, canPath) == 0) {
          /*
-          * The --bind and --rbind options behave differently. See
+          * The --bind and --rbind options behave differently. See 
           * FilePosixGetBlockDevice() for details.
           *
           * Sadly (I blame a bug in 'mount'), there is no way to tell them
@@ -1609,7 +1591,6 @@ retry:
    free(buf);
 
    return ret;
-#endif
 }
 #endif
 

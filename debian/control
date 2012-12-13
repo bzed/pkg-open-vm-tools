@@ -11,7 +11,7 @@ Standards-Version: 3.9.3
 Homepage: http://open-vm-tools.sourceforge.net/
 
 Package: open-vm-tools
-Architecture: linux-amd64 linux-i386 kfreebsd-amd64 kfreebsd-i386
+Architecture: amd64 i386 kfreebsd-amd64 kfreebsd-i386
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Recommends: open-vm-dkms, ethtool, zerofree
 Suggests: open-vm-toolbox
@@ -27,7 +27,7 @@ Description: tools and components for VMware guest systems (CLI tools)
  and are tied to a specific virtualization platform.
 
 Package: open-vm-toolbox
-Architecture: linux-amd64 linux-i386 kfreebsd-amd64 kfreebsd-i386
+Architecture: amd64 i386 kfreebsd-amd64 kfreebsd-i386
 Depends: ${misc:Depends}, ${shlibs:Depends}, open-vm-tools (= ${binary:Version})
 Recommends:
  open-vm-dkms, xauth, xserver-xorg-input-vmmouse, xserver-xorg-video-vmware
@@ -58,7 +58,7 @@ Description: tools and components for VMware guest systems (development)
 Package: open-vm-tools-dbg
 Section: debug
 Priority: extra
-Architecture: linux-amd64 linux-i386 kfreebsd-amd64 kfreebsd-i386
+Architecture: amd64 i386 kfreebsd-amd64 kfreebsd-i386
 Depends: ${misc:Depends}, open-vm-tools (= ${binary:Version}), open-vm-toolbox (= ${binary:Version})
 Description: tools and components for VMware guest systems (debug)
  The Open Virtual Machine Tools (open-vm-tools) are the open source

@@ -33,7 +33,6 @@
 
 
 #define PROCESS_CREATOR_USER_TOKEN       ((void *)1)
-#define VGAUTH_GENERIC_USER_TOKEN        ((void *)2)
 
 #ifdef _WIN32
 
@@ -59,8 +58,6 @@ VixError VixTools_Initialize(Bool thisProcessRunsAsRootArg,
                              void *clientData);
 
 void VixTools_Uninitialize(void);
-
-VixError VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg, void **userToken);
 
 void VixTools_SetConsoleUserPolicy(Bool allowConsoleUserOpsParam);
 
@@ -92,8 +89,6 @@ VixError VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,
                                     size_t *resultLen,
                                     Bool *deleteResultBufferResult);
 
-uint32 VixTools_GetAdditionalError(uint32 opCode,
-                                   VixError error);
 
 Bool VixToolsImpersonateUserImpl(char const *credentialTypeStr,
                                  int credentialType,
@@ -130,10 +125,6 @@ char *VixToolsGetEnvVarFromEnvBlock(const wchar_t *envBlock,
 char *VixToolsEscapeXMLString(const char *str);
 
 #ifdef _WIN32
-VixError VixToolsInitializeWin32();
-
-Bool VixToolsGetUserName(wchar_t **userName);
-
 VixError VixToolsGetEnvBlock(void *userToken,
                              wchar_t **envBlock);
 
@@ -147,7 +138,9 @@ VixError VixToolsGetUserTmpDir(void *userToken,
 
 Bool VixToolsUserIsMemberOfAdministratorGroup(VixCommandRequestHeader *requestMsg);
 
+void VixToolsInitSspiSessionList(const unsigned int maxSessions);
 void VixToolsDeinitSspiSessionList();
+void VixToolsInitTicketedSessionList(const unsigned int maxSessions);
 void VixToolsDeinitTicketedSessionList();
 
 
@@ -160,24 +153,6 @@ VixError VixToolsGetTokenHandleFromTicketID(const char *ticketID,
                                             HANDLE *hToken);
 
 VixError VixToolsReleaseCredentialsImpl(VixCommandRequestHeader *requestMsg);
-
-VixError VixToolsCreateRegKeyImpl(VixCommandRequestHeader *requestMsg);
-
-VixError VixToolsListRegKeysImpl(VixCommandRequestHeader *requestMsg,
-                                 size_t maxBufferSize,
-                                 void *eventQueue,
-                                 char **result);
-
-VixError VixToolsDeleteRegKeyImpl(VixCommandRequestHeader *requestMsg);
-
-VixError VixToolsSetRegValueImpl(VixCommandRequestHeader *requestMsg);
-
-VixError VixToolsListRegValuesImpl(VixCommandRequestHeader *requestMsg,
-                                   size_t maxBufferSize,
-                                   void *eventQueue,
-                                   char **result);
-
-VixError VixToolsDeleteRegValueImpl(VixCommandRequestHeader *requestMsg);
 
 #endif // _WIN32
 

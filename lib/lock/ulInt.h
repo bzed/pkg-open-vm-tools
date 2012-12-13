@@ -539,7 +539,7 @@ uint32 MXUserAllocSerialNumber(void);
 void MXUserAddToList(MXUserHeader *header);
 void MXUserRemoveFromList(MXUserHeader *header);
 
-uint32 MXUserStatsMode(void);
+Bool MXUserStatsEnabled(void);
 
 typedef struct MXUserHisto MXUserHisto;
 

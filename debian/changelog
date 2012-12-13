@@ -1,14 +1,40 @@
+open-vm-tools (2:9.2.2-893683-1) unstable; urgency=low
+
+  [ Daniel Baumann ]
+  * Switching to xz compression again for jessie.
+  * Loading modules through kmod instead of initscript again for jessie.
+  * Adding sleep during restart in initscript again for jessie.
+  * Removing old dpkg trigger for update-initramfs again for jessie.
+  * Updating of GPL boilerplate in copyright file again for jessie.
+  * Adding bugnumber to previous changelog entries regarding wheezy
+    unblocks.
+  * Merging upstream version 9.2.2-893683.
+  * Adding remote_fs dependency in initscript (Closes: #695845).
+
+  [ Bernd Zeimetz ]
+  * Handling binNMU/nmu/backports version numbers in rules.
+
+  [ Daniel Baumann ]
+  * Using suggested start-stop-daemon handling in initscript from Bernd
+    Zeimetz <bernd@bzed.de> (Closes: #686200).
+  * Adding changelog for 8.8.0+2012.05.21-724730-1+nmu1 (Closes: #687205).
+  * Correcting architecture fields in control.
+  * Keeping vmware-user-suid-wrapper completely in vmware-tools rather
+    than partially in vmware-toolbox (Closes: #686202).
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Thu, 13 Dec 2012 14:08:53 +0100
+
 open-vm-tools (2:8.8.0+2012.05.21-724730-4) unstable; urgency=low
 
-  * Reverting switch to xz compression to ease wheezy unblock.
+  * Reverting switch to xz compression to ease wheezy unblock (#683299).
   * Reverting to load modules through kmod instead of initscript to ease
-    wheezy unblock.
+    wheezy unblock (#683299).
   * Reverting added sleep during restart in initscript to ease wheezy
-    unblock.
+    unblock (#683299).
   * Reverting removing old dpkg trigger for update-initramfs to ease
-    wheezy unblock.
+    wheezy unblock (#683299).
   * Reverting update of GPL boilerplate in copyright file to ease wheezy
-    unblock.
+    unblock (#683299).
 
  -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Thu, 02 Aug 2012 21:32:52 +0200
 
@@ -30,6 +56,37 @@ open-vm-tools (2:8.8.0+2012.05.21-724730-2) unstable; urgency=low
   * Calling dh_dkms with version argument (Closes: #677503).
 
  -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sat, 30 Jun 2012 04:55:23 +0200
+
+open-vm-tools (2:8.8.0+2012.05.21-724730-1+nmu1) testing-proposed-updates; urgency=low
+
+  [ Bernd Zeimetz ]
+  * Non-maintainer upload to ensure open-vm-tools will
+    be shipped with Wheezy.
+  * Ensure upgrades to not fail due to the broken init script
+    (Closes: #686200)
+    - Fix open-vm-tools init script to stop vmtoolsd properly.
+    - Handle upgrades from a version with broken init script.
+      Try to stop again, just in case. Ignore errors as we don't know
+      how successful the old buggy script was.
+  * Remove the duplicate vmware-suid-wrapper from open-vm-toolbox.
+    The better way would be to ship it in open-vm-toolbox instead of
+    open-vm-tools, but to avoid moving config files from one package
+    into another we will keep it this way for Wheezy. Partly addresses
+    #686202.
+  * Handle binNMU/nmu/backports/... version numbers.
+    The old way to parse the version string from debian/changelog fails
+    on binNMU/nmu/security/... version numbers. Fixing this.
+    (Closes: #686582)
+
+  [ Daniel Baumann ]
+  * Updating GPL boilerplate in copyright file.
+  * Calling dh_dkms with version argument (Closes: #677503).
+
+  [ Thijs Kinkhorst ]
+  * Updating dkms.conf to make modules build again,
+    thanks to H.A.J. Koster (Closes: #679886).
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 19 Aug 2012 22:20:10 +0200
 
 open-vm-tools (2:8.8.0+2012.05.21-724730-1) unstable; urgency=low
 

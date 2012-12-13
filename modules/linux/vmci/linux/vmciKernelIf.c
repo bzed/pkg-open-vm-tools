@@ -69,11 +69,9 @@
 struct VMCIQueueKernelIf {
    struct page **page;
    struct page **headerPage;
-   void *va;
    VMCIMutex __mutex;
    VMCIMutex *mutex;
    Bool host;
-   Bool isDataMapped;
    size_t numPages;
 };
 
@@ -887,8 +885,7 @@ VMCIMutex_Release(VMCIMutex *mutex) // IN:
  */
 
 void *
-VMCI_AllocQueue(uint64 size,  // IN: size of queue (not including header)
-                uint32 flags) // IN: queuepair flags
+VMCI_AllocQueue(uint64 size) // IN: size of queue (not including header)
 {
    uint64 i;
    VMCIQueue *queue;
@@ -905,18 +902,8 @@ VMCI_AllocQueue(uint64 size,  // IN: size of queue (not including header)
     * unresponsive, because we allocate page-by-page, and we allow the
     * system to wait for pages rather than fail.
     */
-
    if (size > VMCI_MAX_GUEST_QP_MEMORY) {
       ASSERT(FALSE);
-      return NULL;
-   }
-
-   /*
-    * If pinning is requested then double-check the size of the queue.
-    * VMCIQPair_Alloc() will do this for the total queuepair size.
-    */
-
-   if ((flags & VMCI_QPFLAG_PINNED) && size > VMCI_MAX_PINNED_QP_MEMORY) {
       return NULL;
    }
 
@@ -932,33 +919,17 @@ VMCI_AllocQueue(uint64 size,  // IN: size of queue (not including header)
    queue->kernelIf->headerPage = NULL; // Unused in guest.
    queue->kernelIf->page = (struct page **)((uint8 *)queue->kernelIf +
                                             sizeof *(queue->kernelIf));
-   queue->kernelIf->va = NULL;
    queue->kernelIf->host = FALSE;
-   queue->kernelIf->isDataMapped = FALSE;
 
    for (i = 0; i < numDataPages; i++) {
       queue->kernelIf->page[i] = alloc_pages(GFP_KERNEL, 0);
       if (!queue->kernelIf->page[i]) {
-         VMCI_FreeQueue(queue, i * PAGE_SIZE);
+         while (i) {
+            __free_page(queue->kernelIf->page[--i]);
+         }
+         vfree(qHeader);
          return NULL;
       }
-   }
-
-   /*
-    * alloc_pages() returns pinned PAs, but we need a permanent mapping to VA
-    * if the caller has requested pinned queuepairs.  Map all of them into
-    * kernel VA now, for the lifetime of the queue.  The page VAs will be
-    * contiguous.
-    */
-
-   if (flags & VMCI_QPFLAG_PINNED) {
-      queue->kernelIf->va = vmap(queue->kernelIf->page, numDataPages, VM_MAP,
-                                 PAGE_KERNEL);
-      if (NULL == queue->kernelIf->va) {
-         VMCI_FreeQueue(queue, numDataPages * PAGE_SIZE);
-         return NULL;
-      }
-      queue->kernelIf->isDataMapped = TRUE;
    }
 
    return (void *)queue;
@@ -990,15 +961,6 @@ VMCI_FreeQueue(void *q,     // IN:
 
    if (queue) {
       uint64 i;
-
-      if (queue->kernelIf->isDataMapped) {
-         ASSERT(queue->kernelIf->va);
-         vunmap(queue->kernelIf->va);
-         queue->kernelIf->va = NULL;
-      }
-
-      ASSERT(NULL == queue->kernelIf->va);
-
       for (i = 0; i < CEILING(size, PAGE_SIZE); i++) {
          __free_page(queue->kernelIf->page[i]);
       }
@@ -1207,14 +1169,8 @@ __VMCIMemcpyToQueue(VMCIQueue *queue,   // OUT:
    while (bytesCopied < size) {
       uint64 pageIndex = (queueOffset + bytesCopied) / PAGE_SIZE;
       size_t pageOffset = (queueOffset + bytesCopied) & (PAGE_SIZE - 1);
-      void *va;
+      void *va = kmap(kernelIf->page[pageIndex]);
       size_t toCopy;
-
-      if (kernelIf->isDataMapped) {
-         va = (void *)((uint8 *)kernelIf->va + (pageIndex * PAGE_SIZE));
-      } else {
-         va = kmap(kernelIf->page[pageIndex]);
-      }
 
       ASSERT(va);
       if (size - bytesCopied > PAGE_SIZE - pageOffset) {
@@ -1231,9 +1187,7 @@ __VMCIMemcpyToQueue(VMCIQueue *queue,   // OUT:
          /* The iovec will track bytesCopied internally. */
          err = memcpy_fromiovec((uint8 *)va + pageOffset, iov, toCopy);
          if (err != 0) {
-            if (!kernelIf->isDataMapped) {
-               kunmap(kernelIf->page[pageIndex]);
-            }
+            kunmap(kernelIf->page[pageIndex]);
             return VMCI_ERROR_INVALID_ARGS;
          }
       } else {
@@ -1241,9 +1195,7 @@ __VMCIMemcpyToQueue(VMCIQueue *queue,   // OUT:
       }
 
       bytesCopied += toCopy;
-      if (!kernelIf->isDataMapped) {
-         kunmap(kernelIf->page[pageIndex]);
-      }
+      kunmap(kernelIf->page[pageIndex]);
    }
 
    return VMCI_SUCCESS;
@@ -1282,14 +1234,8 @@ __VMCIMemcpyFromQueue(void *dest,             // OUT:
    while (bytesCopied < size) {
       uint64 pageIndex = (queueOffset + bytesCopied) / PAGE_SIZE;
       size_t pageOffset = (queueOffset + bytesCopied) & (PAGE_SIZE - 1);
-      void *va;
+      void *va = kmap(kernelIf->page[pageIndex]);
       size_t toCopy;
-
-      if (kernelIf->isDataMapped) {
-         va = (void *)((uint8 *)kernelIf->va + (pageIndex * PAGE_SIZE));
-      } else {
-         va = kmap(kernelIf->page[pageIndex]);
-      }
 
       ASSERT(va);
       if (size - bytesCopied > PAGE_SIZE - pageOffset) {
@@ -1306,9 +1252,7 @@ __VMCIMemcpyFromQueue(void *dest,             // OUT:
          /* The iovec will track bytesCopied internally. */
          err = memcpy_toiovec(iov, (uint8 *)va + pageOffset, toCopy);
          if (err != 0) {
-            if (!kernelIf->isDataMapped) {
-               kunmap(kernelIf->page[pageIndex]);
-            }
+            kunmap(kernelIf->page[pageIndex]);
             return VMCI_ERROR_INVALID_ARGS;
          }
       } else {
@@ -1316,9 +1260,7 @@ __VMCIMemcpyFromQueue(void *dest,             // OUT:
       }
 
       bytesCopied += toCopy;
-      if (!kernelIf->isDataMapped) {
-         kunmap(kernelIf->page[pageIndex]);
-      }
+      kunmap(kernelIf->page[pageIndex]);
    }
 
    return VMCI_SUCCESS;
@@ -1350,7 +1292,7 @@ VMCIMemcpyToQueue(VMCIQueue *queue,   // OUT:
                   int bufType,        // IN: Unused
                   Bool canBlock)      // IN: Unused
 {
-   ASSERT(canBlock || !queue->kernelIf->host);
+   ASSERT(canBlock);
 
    return __VMCIMemcpyToQueue(queue, queueOffset,
                               (uint8 *)src + srcOffset, size, FALSE);
@@ -1382,7 +1324,7 @@ VMCIMemcpyFromQueue(void *dest,             // OUT:
                     int bufType,            // IN: Unused
                     Bool canBlock)          // IN: Unused
 {
-   ASSERT(canBlock || !queue->kernelIf->host);
+   ASSERT(canBlock);
 
    return __VMCIMemcpyFromQueue((uint8 *)dest + destOffset,
                                 queue, queueOffset, size, FALSE);
@@ -1415,7 +1357,7 @@ VMCIMemcpyToQueueLocal(VMCIQueue *queue,     // OUT
                        int bufType,          // IN: Unused
                        Bool canBlock)        // IN: Unused
 {
-   ASSERT(canBlock || !queue->kernelIf->host);
+   ASSERT(canBlock);
 
    return __VMCIMemcpyToQueue(queue, queueOffset,
                               (uint8 *)src + srcOffset, size, FALSE);;
@@ -1447,7 +1389,7 @@ VMCIMemcpyFromQueueLocal(void *dest,             // OUT:
                          int bufType,            // IN: Unused
                          Bool canBlock)          // IN: Unused
 {
-   ASSERT(canBlock || !queue->kernelIf->host);
+   ASSERT(canBlock);
 
    return __VMCIMemcpyFromQueue((uint8 *)dest + destOffset,
                                 queue, queueOffset, size, FALSE);
@@ -1479,7 +1421,7 @@ VMCIMemcpyToQueueV(VMCIQueue *queue,      // OUT:
                    int bufType,           // IN: Unused
                    Bool canBlock)         // IN: Unused
 {
-   ASSERT(canBlock || !queue->kernelIf->host);
+   ASSERT(canBlock);
 
    /*
     * We ignore srcOffset because src is really a struct iovec * and will
@@ -1514,7 +1456,7 @@ VMCIMemcpyFromQueueV(void *dest,              // OUT: iovec
                      int bufType,             // IN: Unused
                      Bool canBlock)           // IN: Unused
 {
-   ASSERT(canBlock || !queue->kernelIf->host);
+   ASSERT(canBlock);
 
    /*
     * We ignore destOffset because dest is really a struct iovec * and will
@@ -1598,8 +1540,6 @@ VMCIHost_AllocQueue(uint64 size) // IN:
       queue->kernelIf->page = &queue->kernelIf->headerPage[1];
       memset(queue->kernelIf->headerPage, 0,
              sizeof *queue->kernelIf->headerPage * queue->kernelIf->numPages);
-      queue->kernelIf->va = NULL;
-      queue->kernelIf->isDataMapped = FALSE;
    }
 
    return queue;
@@ -1732,9 +1672,9 @@ VMCI_AcquireQueueMutex(VMCIQueue *queue, // IN
 {
    ASSERT(queue);
    ASSERT(queue->kernelIf);
+   ASSERT(canBlock);
 
    if (queue->kernelIf->host) {
-      ASSERT(canBlock);
       ASSERT(queue->kernelIf->mutex);
       down(queue->kernelIf->mutex);
    }
@@ -1771,64 +1711,6 @@ VMCI_ReleaseQueueMutex(VMCIQueue *queue) // IN
       ASSERT(queue->kernelIf->mutex);
       up(queue->kernelIf->mutex);
    }
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VMCI_LockQueueHeader()
- *
- *       Acquire a spinlock guarding the queue header.  Note that the produceQ
- *       and the consumeQ share the lock mutex.  So, only one of the two need to
- *       be passed in to this routine.  Either will work just fine.
- *
- * Results:
- *       None.
- *
- * Side Effects:
- *       None.
- *
- *----------------------------------------------------------------------------
- */
-
-void
-VMCI_LockQueueHeader(VMCIQueue *queue) // IN
-{
-   ASSERT(queue);
-   ASSERT(queue->kernelIf);
-   ASSERT(!queue->kernelIf->host);
-
-   /*
-    * We don't support non-blocking on the host right now, so we won't get
-    * here for a host queue.  And there's no lock required on the guest.  So
-    * this is a NOP.
-    */
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VMCI_UnlockQueueHeader()
- *
- *       Release the spinlock guarding the queue header.
- *
- * Results:
- *       None.
- *
- * Side Effects:
- *       None.
- *
- *----------------------------------------------------------------------------
- */
-
-void
-VMCI_UnlockQueueHeader(VMCIQueue *queue) // IN
-{
-   ASSERT(queue);
-   ASSERT(queue->kernelIf);
-   ASSERT(!queue->kernelIf->host);
 }
 
 
@@ -1945,12 +1827,12 @@ VMCIHost_UnregisterUserMemory(VMCIQueue *produceQ,         // IN/OUT
 /*
  *-----------------------------------------------------------------------------
  *
- * VMCIHost_MapQueues --
+ * VMCIHost_MapQueueHeaders --
  *
  *       Once VMCIHost_RegisterUserMemory has been performed on a
  *       queue, the queue pair headers can be mapped into the
  *       kernel. Once mapped, they must be unmapped with
- *       VMCIHost_UnmapQueues prior to calling
+ *       VMCIHost_UnmapQueueHeaders prior to calling
  *       VMCIHost_UnregisterUserMemory.
  *
  * Results:
@@ -1963,9 +1845,8 @@ VMCIHost_UnregisterUserMemory(VMCIQueue *produceQ,         // IN/OUT
  */
 
 int
-VMCIHost_MapQueues(VMCIQueue *produceQ,  // IN/OUT
-                   VMCIQueue *consumeQ,  // IN/OUT
-                   uint32 flags)         // UNUSED
+VMCIHost_MapQueueHeaders(VMCIQueue *produceQ,  // IN/OUT
+                         VMCIQueue *consumeQ)  // IN/OUT
 {
    int result;
 
@@ -2006,7 +1887,7 @@ VMCIHost_MapQueues(VMCIQueue *produceQ,  // IN/OUT
 /*
  *-----------------------------------------------------------------------------
  *
- * VMCIHost_UnmapQueues --
+ * VMCIHost_UnmapQueueHeaders --
  *
  *       Unmaps previously mapped queue pair headers from the kernel.
  *
@@ -2020,9 +1901,9 @@ VMCIHost_MapQueues(VMCIQueue *produceQ,  // IN/OUT
  */
 
 int
-VMCIHost_UnmapQueues(VMCIGuestMemID gid,   // IN
-                     VMCIQueue *produceQ,  // IN/OUT
-                     VMCIQueue *consumeQ)  // IN/OUT
+VMCIHost_UnmapQueueHeaders(VMCIGuestMemID gid,   // IN
+                           VMCIQueue *produceQ,  // IN/OUT
+                           VMCIQueue *consumeQ)  // IN/OUT
 {
    if (produceQ->qHeader) {
       ASSERT(consumeQ->qHeader);

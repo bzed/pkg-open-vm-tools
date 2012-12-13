@@ -83,7 +83,7 @@
  * hard-coded value for every other product.
  */
 #if defined(VMX86_DESKTOP)
-   #define PRODUCT_VERSION    8,0,0,PRODUCT_BUILD_NUMBER_NUMERIC  /* WORKSTATION_VERSION_NUMBER below has to match this */
+   #define PRODUCT_VERSION    9,0,1,PRODUCT_BUILD_NUMBER_NUMERIC  /* WORKSTATION_VERSION_NUMBER below has to match this */
 #elif defined(VMX86_TOOLS)
    #define PRODUCT_VERSION    TOOLS_VERSION_EXT_CURRENT_CSV
 #elif defined(VMX86_VCB)
@@ -98,7 +98,7 @@
 #elif defined(VMX86_VIEW)
    #define PRODUCT_VERSION    0,0,0,PRODUCT_BUILD_NUMBER_NUMERIC
 #else
-   #define PRODUCT_VERSION    4,0,0,PRODUCT_BUILD_NUMBER_NUMERIC  /* PLAYER_VERSION_NUMBER below has to match this */
+   #define PRODUCT_VERSION    5,0,1,PRODUCT_BUILD_NUMBER_NUMERIC  /* PLAYER_VERSION_NUMBER below has to match this */
 #endif
 
 /*
@@ -185,27 +185,31 @@
 #define ESX_RELEASE_PATCH "0"  /* 0 = experimental */
 #define ESX_RELEASE ESX_RELEASE_UPDATE "." ESX_RELEASE_PATCH
 #define VMSERVER_VERSION "e.x.p"
-#define WORKSTATION_VERSION_NUMBER "8.0.0" /* this version number should always match real WS version number */
-#define WORKSTATION_VERSION "e.x.p"
+#define WORKSTATION_VERSION_NUMBER "9.0.1" /* this version number should always match real WS version number */
+#define WORKSTATION_VERSION "9.0.1"
 #define WORKSTATION_RELEASE_DESCRIPTION ""
-#define WORKSTATION_ENTERPRISE_VERSION "e.x.p"
+#define WORKSTATION_ENTERPRISE_VERSION "9.0.1"
+#define WSX_SERVER_VERSION_NUMBER "1.0.1"
+#define WSX_SERVER_VERSION "1.0.1"
 #define ACE_MANAGEMENT_SERVER_VERSION "e.x.p"
 #define MUI_VERSION "4.1.0"
 #define CONSOLE_VERSION "4.1.0"
 #define P2V_VERSION "e.x.p"
 #define P2V_FILE_VERSION 3,0,0,0
-#define PLAYER_VERSION_NUMBER "4.0.0" /* this version number should always match real Player version number */
-#define PLAYER_VERSION "e.x.p"
+#define PLAYER_VERSION_NUMBER "5.0.1" /* this version number should always match real Player version number */
+#define PLAYER_VERSION "5.0.1"
 #define V2V_VERSION "e.x.p"
 #define V2V_FILE_VERSION 1,0,0,0
+
 /*
  * When updating FUSION_VERSION from e.x.p to GA, you will also need to update
  * lastVersion{Major,Minor,Patch} in bora/scons/package/fusion/fusion.sc
  * which controls what versions are allowed to automatically update for free.
  */
-#define FUSION_VERSION "e.x.p"
+#define FUSION_VERSION "5.0.2"
+
 #define BOOMERANG_VERSION "e.x.p"
-#define HBR_SERVER_VERSION "e.x.p"
+#define HBR_SERVER_VERSION "1.1.0"
 
 // These must match VIE_FILEVERSION above
 #define SYSIMAGE_VERSION "5.1.0"
@@ -230,8 +234,8 @@
 #define SSO_VERSION "1.0.0"
 #define WBC_VERSION "5.1.0"
 #define SDK_VERSION "4.1.0"
-#define FOUNDRY_VERSION "1.12.0"
-#define FOUNDRY_FILE_VERSION 1,12,0,PRODUCT_BUILD_NUMBER_NUMERIC
+#define FOUNDRY_VERSION "1.12.1"
+#define FOUNDRY_FILE_VERSION 1,12,1,PRODUCT_BUILD_NUMBER_NUMERIC
 #define VMLS_VERSION "e.x.p"
 #define VLICENSE_VERSION "1.1.5"
 #define DDK_VERSION "e.x.p"
@@ -242,10 +246,9 @@
 #define VMSAFE_FILE_VERSION    1,2,0,PRODUCT_BUILD_NUMBER_NUMERIC
 #define NETDUMP_VERSION        "5.1.0"
 #define NETDUMP_FILE_VERSION    5,1,0,PRODUCT_BUILD_NUMBER_NUMERIC
-#define VDDK_VERSION          "6.0.0"
-#define VDDK_FILE_VERSION      6,0,0,PRODUCT_BUILD_NUMBER_NUMERIC
+#define VDDK_VERSION          "5.1.0"
+#define VDDK_FILE_VERSION      5,1,0,PRODUCT_BUILD_NUMBER_NUMERIC
 #define OVFTOOL_VERSION "e.x.p"
-#define OVFTOOL_FILE_VERSION 3,0,0,PRODUCT_BUILD_NUMBER_NUMERIC
 #define VDM_CLIENT_VERSION "e.x.p"
 #define VGAUTH_VERSION "e.x.p"
 #define VIEWY_VERSION "e.x.p"
@@ -266,7 +269,7 @@
 // See the VMRC_PLUGIN_VERSION section in /mk/defs-onetime.mk
 
 #define VMRC_PLUGIN_VERSION_MAJOR 5
-#define VMRC_PLUGIN_VERSION_MINOR 1
+#define VMRC_PLUGIN_VERSION_MINOR 0
 #define VMRC_PLUGIN_VERSION_Z     0
 
 /*
@@ -274,7 +277,7 @@
  * #define VMRC_PLUGIN_VERSION_NUMBER       \
  *         XSTR(VMRC_PLUGIN_VERSION_MAJOR) "." XSTR(VMRC_PLUGIN_VERSION_MINOR) "." XSTR(VMRC_PLUGIN_VERSION_Z)
  */
-#define VMRC_PLUGIN_VERSION_NUMBER "5.1.0"
+#define VMRC_PLUGIN_VERSION_NUMBER "5.0.0"
 
 /* this version number should always match real VMRC & plugin version number */
 #define VMRC_VERSION VMRC_PLUGIN_VERSION_NUMBER
@@ -375,6 +378,8 @@
  * a parameter that no longer match the content of the dormant license
  * file.
  */
+#define PRODUCT_MAC_DESKTOP_VERSION_STRING_FOR_LICENSE "5.0"
+
 #if defined(VMX86_TOOLS)
 /* This product doesn't use a license */
 #  define PRODUCT_VERSION_STRING_FOR_LICENSE ""
@@ -390,7 +395,7 @@
 #    define PRODUCT_LICENSE_VERSION "1.0"
 #  elif defined(VMX86_DESKTOP)
 #    if defined(__APPLE__)
-#      define PRODUCT_LICENSE_VERSION "5.0"
+#      define PRODUCT_LICENSE_VERSION PRODUCT_MAC_DESKTOP_VERSION_STRING_FOR_LICENSE
 #    else
 #      define PRODUCT_LICENSE_VERSION "9.0"
 #    endif
@@ -410,7 +415,7 @@
 #  define PRODUCT_VERSION_STRING_FOR_LICENSE PRODUCT_LICENSE_VERSION
 #endif
 
-#define PLAYER_LICENSE_VERSION "6.0"
+#define PRODUCT_PLAYER_VERSION_STRING_FOR_LICENSE "5.0"
 
 /*
  * This is for ACE Management Server
@@ -479,7 +484,6 @@
 #define PRODUCT_VERSION_WORKSTATION_7 PRODUCT_WORKSTATION_BRIEF_NAME " 7.x"
 #define PRODUCT_VERSION_WORKSTATION_80 PRODUCT_WORKSTATION_BRIEF_NAME " 8.0"
 #define PRODUCT_VERSION_WORKSTATION_90 PRODUCT_WORKSTATION_BRIEF_NAME " 9.0"
-#define PRODUCT_VERSION_WORKSTATION_2013 PRODUCT_WORKSTATION_BRIEF_NAME " Bendezium"
 #define PRODUCT_VERSION_WORKSTATION_ENTERPRISE_1 "ACE 1.x"
 #define PRODUCT_VERSION_WORKSTATION_ENTERPRISE_2 "ACE 2.0"
 #define PRODUCT_VERSION_WORKSTATION_ENTERPRISE_25 "ACE 2.5"

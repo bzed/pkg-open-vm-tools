@@ -127,7 +127,6 @@
    LOGLEVEL_VAR(keymap), \
    LOGLEVEL_VAR(mksMouse), \
    LOGLEVEL_VAR(mksHostCursor), \
-   LOGLEVEL_VAR(mksCursorPosition), \
    LOGLEVEL_VAR(mksHostOps), \
    LOGLEVEL_VAR(mksGLManager), \
    LOGLEVEL_VAR(mksGLFBO), \
@@ -261,7 +260,7 @@
    LOGLEVEL_VAR(blobPythonBE), \
    LOGLEVEL_VAR(grainTrack), \
    LOGLEVEL_VAR(shim3D), \
-   LOGLEVEL_VAR(crc32), \
+   LOGLEVEL_VAR(vva),  /* apps/rde/vva */ \
    /* end of list */
 
 LOGLEVEL_EXTENSION_DECLARE(LOGLEVEL_USER);

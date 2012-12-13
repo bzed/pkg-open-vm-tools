@@ -106,7 +106,6 @@
 #include "impersonate.h"
 #include "vixOpenSource.h"
 #include "vixToolsInt.h"
-#include "vmware/tools/plugin.h"
 
 #ifdef _WIN32
 #include "registryWin32.h"
@@ -118,38 +117,6 @@
 #include "mntinfo.h"
 #include <sys/vfs.h>
 #endif
-
-/*
- * Only support Linux and Windows right now.
- * No support for open-vm-tools.
- */
-#if (defined(_WIN32) || defined(linux)) && !defined(OPEN_VM_TOOLS)
-#define SUPPORT_VGAUTH 1
-#else
-#define SUPPORT_VGAUTH 0
-#endif
-
-
-#if SUPPORT_VGAUTH
-#include "VGAuthCommon.h"
-#include "VGAuthError.h"
-#include "VGAuthAuthentication.h"
-#include "VGAuthIdProvider.h"
-
-#define VMTOOLSD_APP_NAME "vmtoolsd"
-
-#define VIXTOOLS_CONFIG_USE_VGAUTH_NAME "useVGAuth"
-/*
- * XXX Leave this off by default until the VGAuth service is being
- * officially installed.
- */
-#define USE_VGAUTH_DEFAULT FALSE
-
-static gboolean gSupportVGAuth = USE_VGAUTH_DEFAULT;
-static gboolean QueryVGAuthConfig(GKeyFile *confDictRef);
-
-#endif
-
 
 #define SECONDS_BETWEEN_POLL_TEST_FINISHED     1
 
@@ -195,17 +162,6 @@ static gboolean QueryVGAuthConfig(GKeyFile *confDictRef);
 #define  VIX_TOOLS_CONFIG_API_ACQUIRE_CREDENTIALS_NAME   "AcquireCredentialsInGuest"
 #define  VIX_TOOLS_CONFIG_API_RELEASE_CREDENTIALS_NAME   "ReleaseCredentialsInGuest"
 
-#define VIX_TOOLS_CONFIG_API_ADD_AUTH_PRINCIPAL_NAME      "AddAuthPrincipal"
-#define VIX_TOOLS_CONFIG_API_REMOVE_AUTH_PRINCIPAL_NAME   "RemoveAuthPrincipal"
-#define VIX_TOOLS_CONFIG_API_LIST_AUTH_PRINCIPALS_NAME    "ListAuthPrincipals"
-#define VIX_TOOLS_CONFIG_API_LIST_MAPPED_PRINCIPALS_NAME  "ListMappedPrincipals"
-
-#define  VIX_TOOLS_CONFIG_API_CREATE_REGISTRY_KEY_NAME     "CreateRegistryKey"
-#define  VIX_TOOLS_CONFIG_API_LIST_REGISTRY_KEYS_NAME      "ListRegistryKeys"
-#define  VIX_TOOLS_CONFIG_API_DELETE_REGISTRY_KEY_NAME     "DeleteRegistryKey"
-#define  VIX_TOOLS_CONFIG_API_SET_REGISTRY_VALUE_NAME      "SetRegistryValue"
-#define  VIX_TOOLS_CONFIG_API_LIST_REGISTRY_VALUES_NAME    "ListRegistryValues"
-#define  VIX_TOOLS_CONFIG_API_DELETE_REGISTRY_VALUE_NAME   "DeleteRegistryValue"
 
 /*
  * State of a single asynch runProgram.
@@ -251,16 +207,15 @@ typedef struct VixToolsStartProgramState {
  * (VIX_TOOLS_EXITED_PROGRAM_REAP_TIME) in the VMODL.
  */
 typedef struct VixToolsExitedProgramState {
-   char *cmdName;
-   char *fullCommandLine;
-   char *user;
-   uint64 pid;
-   time_t startTime;
-   int exitCode;
-   time_t endTime;
-   Bool isRunning;
-   ProcMgr_AsyncProc *procState;
-   struct VixToolsExitedProgramState *next;
+   char                                *fullCommandLine;
+   char                                *user;
+   uint64                              pid;
+   time_t                              startTime;
+   int                                 exitCode;
+   time_t                              endTime;
+   Bool                                isRunning;
+   ProcMgr_AsyncProc                   *procState;
+   struct VixToolsExitedProgramState   *next;
 } VixToolsExitedProgramState;
 
 static VixToolsExitedProgramState *exitedProcessList = NULL;
@@ -288,7 +243,6 @@ static GHashTable *listProcessesResultsTable = NULL;
 typedef struct VixToolsCachedListProcessesResult {
    char *resultBuffer;
    size_t resultBufferLen;
-   int key;
 #ifdef _WIN32
    wchar_t *userName;
 #else
@@ -422,6 +376,9 @@ static VixError VixToolsStartProgramImpl(const char *requestName,
                                          void *eventQueue,
                                          int64 *pid);
 
+static VixError VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,
+                                        void **userToken);
+
 static char *VixToolsGetImpersonatedUsername(void *userToken);
 
 static const char *scriptFileBaseName = "vixScript";
@@ -455,7 +412,6 @@ static VixError VixToolsListProcesses(VixCommandRequestHeader *requestMsg,
                                       char **result);
 
 static VixError VixToolsPrintProcInfoEx(DynBuf *dstBuffer,
-                                        const char *cmd,
                                         const char *name,
                                         uint64 pid,
                                         const char *user,
@@ -514,24 +470,6 @@ static VixError VixToolsAcquireCredentials(VixCommandRequestHeader *requestMsg,
 
 static VixError VixToolsReleaseCredentials(VixCommandRequestHeader *requestMsg);
 
-static VixError VixToolsCreateRegKey(VixCommandRequestHeader *requestMsg);
-
-static VixError VixToolsListRegKeys(VixCommandRequestHeader *requestMsg,
-                                    size_t maxBufferSize,
-                                    void *eventQueue,
-                                    char **result);
-
-static VixError VixToolsDeleteRegKey(VixCommandRequestHeader *requestMsg);
-
-static VixError VixToolsSetRegValue(VixCommandRequestHeader *requestMsg);
-
-static VixError VixToolsListRegValues(VixCommandRequestHeader *requestMsg,
-                                      size_t maxBufferSize,
-                                      void *eventQueue,
-                                      char **result);
-
-static VixError VixToolsDeleteRegValue(VixCommandRequestHeader *requestMsg);
-
 #if defined(__linux__) || defined(_WIN32)
 static VixError VixToolsGetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg,
                                                  char **resultBuffer,
@@ -582,24 +520,6 @@ static VixError VixToolsRewriteError(uint32 opCode,
 
 static size_t VixToolsXMLStringEscapedLen(const char *str, Bool escapeStr);
 
-static Bool GuestAuthEnabled(void);
-
-VixError GuestAuthPasswordAuthenticateImpersonate(
-   char const *obfuscatedNamePassword,
-   void **userToken);
-
-VixError GuestAuthSAMLAuthenticateAndImpersonate(
-   char const *obfuscatedNamePassword,
-   void **userToken);
-
-void GuestAuthUnimpersonate();
-
-#if SUPPORT_VGAUTH
-
-VGAuthError TheVGAuthContext(VGAuthContext **ctx);
-
-#endif
-
 
 /*
  *-----------------------------------------------------------------------------
@@ -623,9 +543,6 @@ VixTools_Initialize(Bool thisProcessRunsAsRootParam,                            
                     void *clientData)                                               // IN
 {
    VixError err = VIX_OK;
-#if SUPPORT_VGAUTH
-   ToolsAppCtx *ctx = (ToolsAppCtx *) clientData;
-#endif
 
    /*
     * Run unit tests on DEVEL builds.
@@ -638,8 +555,16 @@ VixTools_Initialize(Bool thisProcessRunsAsRootParam,                            
 
 #ifndef _WIN32
    VixToolsBuildUserEnvironmentTable(originalEnvp);
-#endif
+#else
+   /*
+    * Ensure that we never allow more SSPI sessions than ticketed sessions
+    * because there must be a ticketed session available for each SSPI session.
+    */
+   ASSERT_ON_COMPILE(VIX_TOOLS_MAX_TICKETED_SESSIONS >= VIX_TOOLS_MAX_SSPI_SESSIONS);
 
+   VixToolsInitSspiSessionList(VIX_TOOLS_MAX_SSPI_SESSIONS);
+   VixToolsInitTicketedSessionList(VIX_TOOLS_MAX_TICKETED_SESSIONS);
+#endif
    /* Register a straight through connection with the Hgfs server. */
    HgfsServerManager_DataInit(&gVixHgfsBkdrConn,
                               VIX_BACKDOORCOMMAND_COMMAND,
@@ -648,27 +573,9 @@ VixTools_Initialize(Bool thisProcessRunsAsRootParam,                            
    HgfsServerManager_Register(&gVixHgfsBkdrConn);
 
    listProcessesResultsTable = g_hash_table_new_full(g_int_hash, g_int_equal,
-                                                     NULL,
+                                                     free,
                                                      VixToolsFreeCachedResult);
 
-#if SUPPORT_VGAUTH
-   /*
-    * We don't set up the VGAuth log handler, since the default
-    * does what we want, and trying to redirect VGAuth messages
-    * to Log() causes recursion and a crash.
-    */
-#endif
-
-#if SUPPORT_VGAUTH
-   gSupportVGAuth = QueryVGAuthConfig(ctx->config);
-#endif
-
-#ifdef _WIN32
-   err = VixToolsInitializeWin32();
-   if (VIX_FAILED(err)) {
-      return err;
-   }
-#endif
 
    return(err);
 } // VixTools_Initialize
@@ -1073,7 +980,6 @@ VixTools_StartProgram(VixCommandRequestHeader *requestMsg, // IN
    const char *workingDir = NULL;
    const char **envVars = NULL;
    const char *bp = NULL;
-   const char *cmdNameBegin = NULL;
    Bool impersonatingVMWareUser = FALSE;
    int64 pid = -1;
    int i;
@@ -1189,39 +1095,16 @@ VixTools_StartProgram(VixCommandRequestHeader *requestMsg, // IN
        * Linux.
        */
       if (NULL != arguments) {
-         exitState->fullCommandLine = Str_SafeAsprintf(NULL,
+         exitState->fullCommandLine = Str_Asprintf(NULL,
                                         "\"%s\" %s",
                                         programPath,
                                         arguments);
       } else {
-         exitState->fullCommandLine = Str_SafeAsprintf(NULL,
+         exitState->fullCommandLine = Str_Asprintf(NULL,
                                         "\"%s\"",
                                         programPath);
       }
-#if defined(_WIN32)
-      /*
-       * For windows, we let the VIX client parse the
-       * command line to get the real command name.
-       */
-      exitState->cmdName = NULL;
-#else
-      /*
-       * Find the last path separator, to get the cmd name.
-       * If no separator is found, then use the whole name.
-       */
-      cmdNameBegin = strrchr(programPath, '/');
-      if (NULL == cmdNameBegin) {
-         cmdNameBegin = programPath;
-      } else {
-         /*
-          * Skip over the last separator.
-          */
-         cmdNameBegin++;
-      }
-      exitState->cmdName = Str_SafeAsprintf(NULL,
-                                            "%s",
-                                            cmdNameBegin);
-#endif
+
       exitState->user = VixToolsGetImpersonatedUsername(&userToken);
       exitState->pid = (uint64) pid;
       exitState->startTime = time(NULL);
@@ -1349,12 +1232,12 @@ VixToolsRunProgramImpl(char *requestName,      // IN
     * Linux.
     */
    if (NULL != commandLineArgs) {
-      fullCommandLine = Str_SafeAsprintf(NULL,
+      fullCommandLine = Str_Asprintf(NULL,
                                      "\"%s\" %s",
                                      commandLine,
                                      commandLineArgs);
    } else {
-      fullCommandLine = Str_SafeAsprintf(NULL,
+      fullCommandLine = Str_Asprintf(NULL,
                                      "\"%s\"",
                                      commandLine);
    }
@@ -1594,12 +1477,12 @@ VixToolsStartProgramImpl(const char *requestName,            // IN
     * Linux.
     */
    if (NULL != arguments) {
-      fullCommandLine = Str_SafeAsprintf(NULL,
+      fullCommandLine = Str_Asprintf(NULL,
                                      "\"%s\" %s",
                                      programPath,
                                      arguments);
    } else {
-      fullCommandLine = Str_SafeAsprintf(NULL,
+      fullCommandLine = Str_Asprintf(NULL,
                                      "\"%s\"",
                                      programPath);
    }
@@ -1948,7 +1831,6 @@ done:
     * and endTime.
     */
    exitState = Util_SafeMalloc(sizeof(VixToolsExitedProgramState));
-   exitState->cmdName = NULL;
    exitState->fullCommandLine = NULL;
    exitState->user = NULL;
    exitState->pid = pid;
@@ -2093,7 +1975,6 @@ VixToolsFreeExitedProgramState(VixToolsExitedProgramState *exitState) // IN
       return;
    }
 
-   free(exitState->cmdName);
    free(exitState->fullCommandLine);
    free(exitState->user);
 
@@ -2165,101 +2046,6 @@ FoundryToolsDaemon_TranslateSystemErr(void)
    return Vix_TranslateSystemError(errno);
 #endif
 }
-
-
-#if SUPPORT_VGAUTH
-/*
- *-----------------------------------------------------------------------------
- *
- * FoundryToolsDaemon_TranslateSystemErr --
- *
- *    Looks at errno/GetLastError() and returns the foundry errcode
- *    that it best maps to.
- *
- * Return value:
- *    None
- *
- * Side effects:
- *    None
- *
- *-----------------------------------------------------------------------------
- */
-
-static VixError
-VixToolsTranslateVGAuthError(VGAuthError vgErr)
-{
-   VixError err;
-
-   switch (VGAUTH_ERROR_CODE(vgErr)) {
-   case VGAUTH_E_OK:
-      err = VIX_OK;
-      break;
-   case VGAUTH_E_INVALID_ARGUMENT:
-      err = VIX_E_INVALID_ARG;
-      break;
-   case VGAUTH_E_INVALID_CERTIFICATE:
-      err = VIX_E_INVALID_ARG; // XXX -- needs a Vix equiv
-      break;
-   case VGAUTH_E_PERMISSION_DENIED:
-      err = VIX_E_GUEST_USER_PERMISSIONS;
-      break;
-   case VGAUTH_E_OUT_OF_MEMORY:
-      err = VIX_E_OUT_OF_MEMORY;
-      break;
-   case VGAUTH_E_COMM:
-      err = VIX_E_FAIL;
-   case VGAUTH_E_NOTIMPLEMENTED:
-      err = VIX_E_NOT_SUPPORTED;
-      break;
-   case VGAUTH_E_NOT_CONNECTED:
-      err = VIX_E_FAIL;
-      break;
-   case VGAUTH_E_VERSION_MISMATCH:
-      err = VIX_E_FAIL;
-      break;
-   case VGAUTH_E_SECURITY_VIOLATION:
-      err = VIX_E_FAIL;
-      break;
-   case VGAUTH_E_CERT_ALREADY_EXISTS:
-      err = VIX_E_INVALID_ARG;
-      break;
-   case VGAUTH_E_AUTHENTICATION_DENIED:
-      err = VIX_E_GUEST_USER_PERMISSIONS;
-      break;
-   case VGAUTH_E_INVALID_TICKET:
-      err = VIX_E_INVALID_ARG;
-      break;
-   case VGAUTH_E_MULTIPLE_MAPPINGS:
-      err = VIX_E_GUEST_AUTH_MULIPLE_MAPPINGS;
-      break;
-   case VGAUTH_E_ALREADY_IMPERSONATING:
-      err = VIX_E_FAIL;
-      break;
-   case VGAUTH_E_NO_SUCH_USER:
-      err = VIX_E_INVALID_ARG;
-      break;
-   case VGAUTH_E_SERVICE_NOT_RUNNING:
-   case VGAUTH_E_SYSTEM_ERRNO:
-   case VGAUTH_E_SYSTEM_WINDOWS:
-   case VGAUTH_E_TOO_MANY_CONNECTIONS:
-      err = VIX_E_FAIL;
-      break;
-   case VGAUTH_E_UNSUPPORTED:
-      err = VIX_E_NOT_SUPPORTED;
-      break;
-   default:
-      err = VIX_E_FAIL;
-      Warning("%s: error code "VGAUTHERR_FMT64X" has no translation\n",
-              __FUNCTION__, vgErr);
-      break;
-   }
-   Debug("%s: translated VGAuth err "VGAUTHERR_FMT64X" to Vix err %"FMT64"d\n",
-         __FUNCTION__, vgErr, err);
-
-
-   return err;
-}
-#endif
 
 
 /*
@@ -2652,20 +2438,6 @@ VixToolsGetAPIDisabledFromConf(GKeyFile *confDictRef,            // IN
       }
    }
 
-#if !SUPPORT_VGAUTH
-   /*
-    * Make sure vgauth related stuff does not show as enabled.
-    */
-   if (NULL != varName) {
-      if ((strcmp(varName, VIX_TOOLS_CONFIG_API_ADD_AUTH_PRINCIPAL_NAME) == 0) ||
-          (strcmp(varName, VIX_TOOLS_CONFIG_API_REMOVE_AUTH_PRINCIPAL_NAME) == 0) ||
-          (strcmp(varName, VIX_TOOLS_CONFIG_API_LIST_AUTH_PRINCIPALS_NAME) == 0) ||
-          (strcmp(varName, VIX_TOOLS_CONFIG_API_LIST_MAPPED_PRINCIPALS_NAME) == 0)) {
-         disabled = TRUE;
-      }
-   }
-#endif
-
    return disabled;
 }
 
@@ -2869,83 +2641,6 @@ VixToolsSetAPIEnabledProperties(VixPropertyListImpl *propList,    // IN
       goto exit;
    }
 
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_ADD_AUTH_PRINICPAL_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_ADD_AUTH_PRINCIPAL_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_REMOVE_AUTH_PRINICPAL_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_REMOVE_AUTH_PRINCIPAL_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_LIST_AUTH_PRINICPALS_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_LIST_AUTH_PRINCIPALS_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_LIST_MAPPED_PRINICPALS_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_LIST_MAPPED_PRINCIPALS_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_CREATE_REGISTRY_KEY_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_CREATE_REGISTRY_KEY_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_LIST_REGISTRY_KEYS_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_LIST_REGISTRY_KEYS_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_DELETE_REGISTRY_KEY_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_DELETE_REGISTRY_KEY_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_SET_REGISTRY_VALUE_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_SET_REGISTRY_VALUE_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_LIST_REGISTRY_VALUES_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_LIST_REGISTRY_VALUES_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-
-   err = VixPropertyList_SetBool(propList,
-                                 VIX_PROPERTY_GUEST_DELETE_REGISTRY_VALUE_ENABLED,
-                                 VixToolsComputeEnabledProperty(confDictRef,
-                                    VIX_TOOLS_CONFIG_API_DELETE_REGISTRY_VALUE_NAME));
-   if (VIX_OK != err) {
-      goto exit;
-   }
-
 exit:
    Debug("finished %s, err %"FMT64"d\n", __FUNCTION__, err);
    return err;
@@ -3026,7 +2721,7 @@ VixToolsReadRegistry(VixCommandRequestHeader *requestMsg,  // IN
          goto abort;
       }
 
-      valueStr = Str_SafeAsprintf(NULL, "%d", valueInt);
+      valueStr = Str_Asprintf(NULL, "%d", valueInt);
       if (NULL == valueStr) {
          err = VIX_E_OUT_OF_MEMORY;
          goto abort;
@@ -3927,7 +3622,7 @@ VixToolsGetMultipleEnvVarsForUser(void *userToken,       // IN
          free(value);
          value = tmpVal;
 
-         resultLocal = Str_SafeAsprintf(NULL, "%s<ev>%s=%s</ev>",
+         resultLocal = Str_Asprintf(NULL, "%s<ev>%s=%s</ev>",
                                     tmp, escapedName, value);
          free(tmp);
          if (NULL == resultLocal) {
@@ -4056,7 +3751,7 @@ VixToolsGetAllEnvVarsForUser(void *userToken,     // IN
       }
       envVar = tmpVal;
 
-      resultLocal = Str_SafeAsprintf(NULL, "%s<ev>%s</ev>", tmp, envVar);
+      resultLocal = Str_Asprintf(NULL, "%s<ev>%s</ev>", tmp, envVar);
       free(tmp);
       free(envVar);
       if (NULL == resultLocal) {
@@ -4733,7 +4428,6 @@ VixToolsListProcesses(VixCommandRequestHeader *requestMsg, // IN
    ProcMgrProcInfo *procInfo;
    char *destPtr;
    char *endDestPtr;
-   char *cmdNamePtr = NULL;
    char *procBufPtr = NULL;
    size_t procBufSize;
    Bool impersonatingVMWareUser = FALSE;
@@ -4741,7 +4435,6 @@ VixToolsListProcesses(VixCommandRequestHeader *requestMsg, // IN
    Bool escapeStrs;
    char *escapedName = NULL;
    char *escapedUser = NULL;
-   char *escapedCmd = NULL;
    size_t procCount;
 
    ASSERT(maxBufferSize <= GUESTMSG_MAX_IN_SIZE);
@@ -4778,35 +4471,15 @@ VixToolsListProcesses(VixCommandRequestHeader *requestMsg, // IN
 
       procInfo = ProcMgrProcInfoArray_AddressOf(procList, i);
 
-      if (NULL != procInfo->procCmdName) {
-         if (escapeStrs) {
-            escapedCmd =
-            VixToolsEscapeXMLString(procInfo->procCmdName);
-            if (NULL == escapedCmd) {
-               err = VIX_E_OUT_OF_MEMORY;
-               goto abort;
-            }
-            cmdNamePtr = Str_SafeAsprintf(NULL,
-                                          "<cmd>%s</cmd>",
-                                          escapedCmd);
-         } else {
-            cmdNamePtr = Str_SafeAsprintf(NULL,
-                                          "<cmd>%s</cmd>",
-                                          procInfo->procCmdName);
-         }
-      } else {
-         cmdNamePtr = Util_SafeStrdup("");
-      }
-
       if (escapeStrs) {
          name = escapedName =
-            VixToolsEscapeXMLString(procInfo->procCmdLine);
+            VixToolsEscapeXMLString(procInfo->procCmd);
          if (NULL == escapedName) {
             err = VIX_E_OUT_OF_MEMORY;
             goto abort;
          }
       } else {
-         name = procInfo->procCmdLine;
+         name = procInfo->procCmd;
       }
 
       if (NULL != procInfo->procOwner) {
@@ -4824,22 +4497,19 @@ VixToolsListProcesses(VixCommandRequestHeader *requestMsg, // IN
          user = "";
       }
 
-      procBufPtr = Str_SafeAsprintf(&procBufSize,
-                                    "<proc>"
-                                    "%s"              // has <cmd>...</cmd> tags if there is cmd, else "";
-                                    "<name>%s</name>"
-                                    "<pid>%d</pid>"
+      procBufPtr = Str_Asprintf(&procBufSize,
+                             "<proc><name>%s</name><pid>%d</pid>"
 #if defined(_WIN32)
-                                    "<debugged>%d</debugged>"
+                             "<debugged>%d</debugged>"
 #endif
-                                    "<user>%s</user>"
-                                    "<start>%d</start>"
-                                    "</proc>",
-                                    cmdNamePtr, name, (int) procInfo->procId,
+                             "<user>%s</user><start>%d</start></proc>",
+                             name,
+                             (int) procInfo->procId,
 #if defined(_WIN32)
-                                    (int) procInfo->procDebugged,
+                             (int) procInfo->procDebugged,
 #endif
-                                    user, (int) procInfo->procStartTime);
+                             user,
+                             (int) procInfo->procStartTime);
       if (NULL == procBufPtr) {
          err = VIX_E_OUT_OF_MEMORY;
          goto abort;
@@ -4848,19 +4518,15 @@ VixToolsListProcesses(VixCommandRequestHeader *requestMsg, // IN
          destPtr += Str_Sprintf(destPtr, endDestPtr - destPtr,
                                 "%s", procBufPtr);
       } else { // out of space
+         free(procBufPtr);
          Log("%s: proc list results too large, truncating", __FUNCTION__);
          goto abort;
       }
-      free(cmdNamePtr);
-      cmdNamePtr = NULL;
       free(procBufPtr);
-      procBufPtr = NULL;
       free(escapedName);
       escapedName = NULL;
       free(escapedUser);
       escapedUser = NULL;
-      free(escapedCmd);
-      escapedCmd = NULL;
    }
 
 abort:
@@ -4869,11 +4535,8 @@ abort:
    }
    VixToolsLogoutUser(userToken);
    ProcMgr_FreeProcList(procList);
-   free(cmdNamePtr);
-   free(procBufPtr);
    free(escapedName);
    free(escapedUser);
-   free(escapedCmd);
 
    *result = resultBuffer;
 
@@ -4930,12 +4593,13 @@ VixToolsFreeCachedResult(gpointer ptr)          // IN
 static gboolean
 VixToolsListProcCacheCleanup(void *clientData) // IN
 {
-   int key = (int)(intptr_t)clientData;
+   int32 *key = (int32 *)clientData;
    gboolean ret;
 
-   ret = g_hash_table_remove(listProcessesResultsTable, &key);
+   ret = g_hash_table_remove(listProcessesResultsTable, key);
    Debug("%s: list proc cache timed out, purged key %d (found? %d)\n",
-         __FUNCTION__, key, ret);
+         __FUNCTION__, *key, ret);
+   free(key);
 
    return FALSE;
 }
@@ -4998,7 +4662,6 @@ VixToolsListProcessesExGenerateData(uint32 numPids,          // IN
          while (epList) {
             if (pids[i] == epList->pid) {
                err = VixToolsPrintProcInfoEx(&dynBuffer,
-                                             epList->cmdName,
                                              epList->fullCommandLine,
                                              epList->pid,
                                              epList->user,
@@ -5017,7 +4680,6 @@ VixToolsListProcessesExGenerateData(uint32 numPids,          // IN
       epList = exitedProcessList;
       while (epList) {
          err = VixToolsPrintProcInfoEx(&dynBuffer,
-                                       epList->cmdName,
                                        epList->fullCommandLine,
                                        epList->pid,
                                        epList->user,
@@ -5049,8 +4711,7 @@ VixToolsListProcessesExGenerateData(uint32 numPids,          // IN
             procInfo = ProcMgrProcInfoArray_AddressOf(procList, j);
             if (pids[i] == procInfo->procId) {
                err = VixToolsPrintProcInfoEx(&dynBuffer,
-                                             procInfo->procCmdName,
-                                             procInfo->procCmdLine,
+                                             procInfo->procCmd,
                                              procInfo->procId,
                                              (NULL == procInfo->procOwner)
                                              ? "" : procInfo->procOwner,
@@ -5070,8 +4731,7 @@ VixToolsListProcessesExGenerateData(uint32 numPids,          // IN
             continue;
          }
          err = VixToolsPrintProcInfoEx(&dynBuffer,
-                                       procInfo->procCmdName,
-                                       procInfo->procCmdLine,
+                                       procInfo->procCmd,
                                        procInfo->procId,
                                        (NULL == procInfo->procOwner)
                                        ? "" : procInfo->procOwner,
@@ -5099,6 +4759,49 @@ abort:
    ProcMgr_FreeProcList(procList);
    return err;
 }
+
+
+#ifdef _WIN32
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VixToolsGetUserName --
+ *
+ *    Returns as unique a name as possible.  For our case, that's just
+ *    a domain name, since the only way to get the truly unique values
+ *    requires the process to be running inside a domain, which we
+ *    can't expect.
+ *
+ * Return value:
+ *    FALSE on error
+ *
+ * Side effects:
+ *    Return value is allocated and must be freed.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+VixToolsGetUserName(wchar_t **userName)                     // OUT
+{
+   WCHAR userTmp[UNLEN + 1];
+   Bool bRet;
+   ULONG uLen = ARRAYSIZE(userTmp);
+
+   *userName = '\0';
+
+   bRet = GetUserNameExW(NameSamCompatible, userTmp, &uLen);
+   if (!bRet) {
+      Warning("%s: GetUserNameExW() failed %d\n", __FUNCTION__, GetLastError());
+      return bRet;
+   }
+   *userName = Util_SafeMalloc((uLen + 1) * sizeof(wchar_t));
+
+   wcscpy(*userName, userTmp);
+
+   return TRUE;
+}
+#endif
 
 
 /*
@@ -5137,7 +4840,9 @@ VixToolsListProcessesEx(VixCommandRequestHeader *requestMsg, // IN
    uint32 offset;
    int len;
    VixToolsCachedListProcessesResult *cachedResult = NULL;
+   uint32 *keyBuf;
    GSource *timer;
+   int32 *timerData;
 #ifdef _WIN32
    Bool bRet;
    wchar_t *userName = NULL;
@@ -5191,7 +4896,7 @@ VixToolsListProcessesEx(VixCommandRequestHeader *requestMsg, // IN
 
       // find the cached data
       cachedResult = g_hash_table_lookup(listProcessesResultsTable,
-                                         &key);
+                                        &key);
       if (NULL == cachedResult) {
          Debug("%s: failed to find cached data with key %d\n", __FUNCTION__, key);
          err = VIX_E_FAIL;
@@ -5263,11 +4968,12 @@ VixToolsListProcessesEx(VixCommandRequestHeader *requestMsg, // IN
          /*
           * Save it off in the hashtable.
           */
+         keyBuf = Util_SafeMalloc(sizeof(uint32));
          key = listProcessesResultsKey++;
-         cachedResult = Util_SafeMalloc(sizeof(*cachedResult));
+         *keyBuf = key;
+         cachedResult = Util_SafeMalloc(sizeof(VixToolsCachedListProcessesResult));
          cachedResult->resultBufferLen = fullResultSize;
          cachedResult->resultBuffer = fullResultBuffer;
-         cachedResult->key = key;
 #ifdef _WIN32
          bRet = VixToolsGetUserName(&cachedResult->userName);
          if (!bRet) {
@@ -5278,16 +4984,16 @@ VixToolsListProcessesEx(VixCommandRequestHeader *requestMsg, // IN
          cachedResult->euid = Id_GetEUid();
 #endif
 
-         g_hash_table_replace(listProcessesResultsTable, &cachedResult->key,
-                              cachedResult);
+         g_hash_table_insert(listProcessesResultsTable, keyBuf, cachedResult);
 
          /*
           * Set timer callback to clean this up in case the Vix side
           * never finishes
           */
+         timerData = Util_SafeMalloc(sizeof(int32));
+         *timerData = *keyBuf;
          timer = g_timeout_source_new(SECONDS_UNTIL_LISTPROC_CACHE_CLEANUP * 1000);
-         g_source_set_callback(timer, VixToolsListProcCacheCleanup,
-                               (void *)(intptr_t) key, NULL);
+         g_source_set_callback(timer, VixToolsListProcCacheCleanup, timerData, NULL);
          g_source_attach(timer, g_main_loop_get_context(eventQueue));
          g_source_unref(timer);
       }
@@ -5385,7 +5091,6 @@ abort:
 
 static VixError
 VixToolsPrintProcInfoEx(DynBuf *dstBuffer,             // IN/OUT
-                        const char *cmd,               // IN
                         const char *name,              // IN
                         uint64 pid,                    // IN
                         const char *user,              // IN
@@ -5394,24 +5099,11 @@ VixToolsPrintProcInfoEx(DynBuf *dstBuffer,             // IN/OUT
                         int exitTime)                  // IN
 {
    VixError err;
-   char *escapedName = NULL;
-   char *escapedCmd = NULL;
+   char *escapedName;
    char *escapedUser = NULL;
-   char *cmdNamePtr = NULL;
    size_t bytesPrinted;
    char *procInfoEntry;
    Bool success;
-
-   if (NULL != cmd) {
-      escapedCmd = VixToolsEscapeXMLString(cmd);
-      if (NULL == escapedCmd) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      cmdNamePtr = Str_SafeAsprintf(NULL, "<cmd>%s</cmd>", escapedCmd);
-   } else {
-      cmdNamePtr = Util_SafeStrdup("");
-   }
 
    escapedName = VixToolsEscapeXMLString(name);
    if (NULL == escapedName) {
@@ -5425,18 +5117,13 @@ VixToolsPrintProcInfoEx(DynBuf *dstBuffer,             // IN/OUT
       goto abort;
    }
 
-   procInfoEntry = Str_SafeAsprintf(&bytesPrinted,
-                                    "<proc>"
-                                    "%s"              // has <cmd>...</cmd> tags if there is cmd, else "";
-                                    "<name>%s</name>"
-                                    "<pid>%"FMT64"d</pid>"
-                                    "<user>%s</user>"
-                                    "<start>%d</start>"
-                                    "<eCode>%d</eCode>"
-                                    "<eTime>%d</eTime>"
-                                    "</proc>",
-                                    cmdNamePtr, escapedName, pid, escapedUser,
-                                    start, exitCode, exitTime);
+   procInfoEntry = Str_Asprintf(&bytesPrinted,
+                                "<proc><name>%s</name><pid>%"FMT64"d</pid>"
+                                "<user>%s</user><start>%d</start>"
+                                "<eCode>%d</eCode><eTime>%d</eTime>"
+                                "</proc>",
+                                escapedName, pid, escapedUser, start, exitCode,
+                                exitTime);
    if (NULL == procInfoEntry) {
       err = VIX_E_OUT_OF_MEMORY;
       goto abort;
@@ -5452,10 +5139,8 @@ VixToolsPrintProcInfoEx(DynBuf *dstBuffer,             // IN/OUT
    err = VIX_OK;
 
 abort:
-   free(cmdNamePtr);
    free(escapedName);
    free(escapedUser);
-   free(escapedCmd);
 
    return err;
 }
@@ -5670,12 +5355,12 @@ VixToolsCreateDirectory(VixCommandRequestHeader *requestMsg)  // IN
    }
 
    if (createParentDirectories) {
-      if (!(File_CreateDirectoryHierarchy(dirPathName, NULL))) {
+      if (!(File_CreateDirectoryHierarchyEx(dirPathName, 0700, NULL))) {
          err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
       }
    } else {
-      if (!(File_CreateDirectory(dirPathName))) {
+      if (!(File_CreateDirectoryEx(dirPathName, 0700))) {
          err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
       }
@@ -6980,12 +6665,12 @@ if (0 == *interpreterName) {
    }
    for (var = 0; var <= 0xFFFFFFFF; var++) {
       free(tempScriptFilePath);
-      tempScriptFilePath = Str_SafeAsprintf(NULL,
-                                            "%s"DIRSEPS"%s%d%s",
-                                            tempDirPath,
-                                            scriptFileBaseName,
-                                            var,
-                                            fileSuffix);
+      tempScriptFilePath = Str_Asprintf(NULL,
+                                        "%s"DIRSEPS"%s%d%s",
+                                        tempDirPath,
+                                        scriptFileBaseName,
+                                        var,
+                                        fileSuffix);
       if (NULL == tempScriptFilePath) {
          err = VIX_E_OUT_OF_MEMORY;
          goto abort;
@@ -7073,13 +6758,13 @@ if (0 == *interpreterName) {
    }
 
    if ((NULL != interpreterName) && (*interpreterName)) {
-      fullCommandLine = Str_SafeAsprintf(NULL, // resulting string length
+      fullCommandLine = Str_Asprintf(NULL, // resulting string length
                                      "\"%s\" %s \"%s\"",
                                      interpreterName,
                                      interpreterFlags,
                                      tempScriptFilePath);
    } else {
-      fullCommandLine = Str_SafeAsprintf(NULL,  // resulting string length
+      fullCommandLine = Str_Asprintf(NULL,  // resulting string length
                                      "\"%s\"",
                                      tempScriptFilePath);
    }
@@ -7266,18 +6951,6 @@ VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
       }
       break;
    }
-   case VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN:
-   {
-      VixCommandSAMLToken *samlStruct =
-         (VixCommandSAMLToken *) credentialField;
-      credentialField += sizeof(*samlStruct);
-
-      err = VixToolsImpersonateUserImplEx(NULL,
-                                          credentialType,
-                                          credentialField,
-                                          userToken);
-      break;
-   }
    case VIX_USER_CREDENTIAL_SSPI:
       /*
        * SSPI currently only supported in ticketed sessions
@@ -7462,42 +7135,11 @@ VixToolsImpersonateUserImplEx(char const *credentialTypeStr,         // IN
        */
       if ((VIX_USER_CREDENTIAL_NAME_PASSWORD != credentialType)
             && (VIX_USER_CREDENTIAL_NAME_PASSWORD_OBFUSCATED != credentialType)
-            && (VIX_USER_CREDENTIAL_TICKETED_SESSION != credentialType)
-#if SUPPORT_VGAUTH
-            && (VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN != credentialType)
-#endif
-            ) {
+            && (VIX_USER_CREDENTIAL_TICKETED_SESSION != credentialType)) {
          err = VIX_E_NOT_SUPPORTED;
          goto abort;
       }
 
-
-      /*
-       * Use the GuestAuth library to do name-password authentication
-       * and impersonation.
-       */
-
-      if (GuestAuthEnabled() &&
-          ((VIX_USER_CREDENTIAL_NAME_PASSWORD == credentialType) ||
-           (VIX_USER_CREDENTIAL_NAME_PASSWORD_OBFUSCATED == credentialType))) {
-         err =
-            GuestAuthPasswordAuthenticateImpersonate(obfuscatedNamePassword,
-                                                     userToken);
-
-         goto abort;
-      }
-
-      if (VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN == credentialType) {
-         if (GuestAuthEnabled()) {
-            err = GuestAuthSAMLAuthenticateAndImpersonate(obfuscatedNamePassword,
-                                                          userToken);
-         } else {
-            err = VIX_E_NOT_SUPPORTED;
-         }
-         goto abort;
-      }
-
-      /* Get the authToken and impersonate */
       if (VIX_USER_CREDENTIAL_TICKETED_SESSION == credentialType) {
 #ifdef _WIN32
          char *username;
@@ -7574,9 +7216,7 @@ abort:
 void
 VixToolsUnimpersonateUser(void *userToken)
 {
-   if (VGAUTH_GENERIC_USER_TOKEN == userToken) {
-      GuestAuthUnimpersonate();
-   } else if (PROCESS_CREATOR_USER_TOKEN != userToken) {
+   if (PROCESS_CREATOR_USER_TOKEN != userToken) {
 #if defined(_WIN32)
       Impersonate_Undo();
 #else
@@ -7603,8 +7243,7 @@ VixToolsUnimpersonateUser(void *userToken)
 void
 VixToolsLogoutUser(void *userToken)    // IN
 {
-   if (PROCESS_CREATOR_USER_TOKEN == userToken ||
-       VGAUTH_GENERIC_USER_TOKEN == userToken) {
+   if (PROCESS_CREATOR_USER_TOKEN == userToken) {
       return;
    }
 
@@ -8696,765 +8335,6 @@ abort:
 #endif
 
 
-#if SUPPORT_VGAUTH
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsAddAuthPrincipal --
- *
- *    Calls to VGAuth to add a new principal.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    VGAuth IdProvider store is updated.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsAddAuthPrincipal(VixCommandRequestHeader *requestMsg)    // IN
-{
-   VixError err = VIX_OK;
-   VGAuthError vgErr;
-   void *userToken = NULL;
-   VGAuthContext *ctx = NULL;
-   VixMsgAddAuthPrincipalRequest *req;
-   const char *userName;
-   const char *pemCert;
-   const char *principalName;
-   const char *principalComment;
-   VGAuthSubjectInfo si;
-   VMAutomationRequestParser parser;
-   Bool impersonatingVMWareUser = FALSE;
-
-   Debug(">%s\n", __FUNCTION__);
-
-   err = VMAutomationRequestParserInit(&parser, requestMsg, sizeof *req);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   req = (VixMsgAddAuthPrincipalRequest *) requestMsg;
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->userNameLen,
-                                                    &userName);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if (NULL == userName || 0 == *userName) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->pemCertLen,
-                                                    &pemCert);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if (NULL == pemCert || 0 == *pemCert) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   if ((req->principalType != VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED) &&
-       (req->principalType != VIX_GUEST_AUTH_PRINCIPAL_TYPE_ANY)) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->principalNameLen,
-                                                    &principalName);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if ((req->principalType == VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED) &&
-       (NULL == principalName || 0 == *principalName)) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->principalCommentLen,
-                                                    &principalComment);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   err = VixToolsImpersonateUser((VixCommandRequestHeader *) requestMsg,
-                                 &userToken);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-   impersonatingVMWareUser = TRUE;
-
-   vgErr = TheVGAuthContext(&ctx);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto abort;
-   }
-
-   si.subject.type = (req->principalType == VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED) ?
-      VGAUTH_SUBJECT_NAMED : VGAUTH_SUBJECT_ANY;
-   si.subject.val.name = (char *) principalName;
-   si.comment = (char *) principalComment;
-
-   vgErr = VGAuth_AddSubject(ctx, userName, req->addMapping, pemCert, &si,
-                             0, NULL);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-   }
-
-abort:
-   if (impersonatingVMWareUser) {
-      VixToolsUnimpersonateUser(userToken);
-   }
-   VixToolsLogoutUser(userToken);
-
-   Debug("<%s\n", __FUNCTION__);
-
-   return err;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsRemoveAuthPrincipal --
- *
- *    Calls to VGAuth to remove a principal.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    VGAuth IdProvider store is updated.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsRemoveAuthPrincipal(VixCommandRequestHeader *requestMsg)    // IN
-{
-   VixError err = VIX_OK;
-   VGAuthError vgErr;
-   void *userToken = NULL;
-   VGAuthContext *ctx = NULL;
-   VixMsgRemoveAuthPrincipalRequest *req;
-   const char *userName;
-   const char *pemCert;
-   const char *principalName;
-   VGAuthSubject subj;
-   VMAutomationRequestParser parser;
-   Bool impersonatingVMWareUser = FALSE;
-
-   Debug(">%s\n", __FUNCTION__);
-
-   err = VMAutomationRequestParserInit(&parser, requestMsg, sizeof *req);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   req = (VixMsgRemoveAuthPrincipalRequest *) requestMsg;
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->userNameLen,
-                                                    &userName);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if (NULL == userName || 0 == *userName) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->pemCertLen,
-                                                    &pemCert);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if (NULL == pemCert || 0 == *pemCert) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   if ((req->principalType != VIX_GUEST_AUTH_PRINCIPAL_TYPE_NONE) &&
-       (req->principalType != VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED) &&
-       (req->principalType != VIX_GUEST_AUTH_PRINCIPAL_TYPE_ANY)) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->principalNameLen,
-                                                    &principalName);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if ((req->principalType == VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED) &&
-       (NULL == principalName || 0 == *principalName)) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VixToolsImpersonateUser((VixCommandRequestHeader *) requestMsg,
-                                 &userToken);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-   impersonatingVMWareUser = TRUE;
-
-   vgErr = TheVGAuthContext(&ctx);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto abort;
-   }
-
-   if (VIX_GUEST_AUTH_PRINCIPAL_TYPE_NONE == req->principalType) {
-      vgErr = VGAuth_RemoveCert(ctx, userName, pemCert, 0, NULL);
-   } else {
-      subj.type = (req->principalType == VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED) ?
-         VGAUTH_SUBJECT_NAMED : VGAUTH_SUBJECT_ANY;
-      subj.val.name = (char *) principalName;
-
-      vgErr = VGAuth_RemoveSubject(ctx, userName, pemCert, &subj, 0, NULL);
-   }
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-   }
-
-abort:
-   if (impersonatingVMWareUser) {
-      VixToolsUnimpersonateUser(userToken);
-   }
-   VixToolsLogoutUser(userToken);
-
-   Debug("<%s\n", __FUNCTION__);
-
-   return err;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsListAuthPrincipals --
- *
- *    Calls to VGAuth to list principals.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    VGAuth IdProvider store is updated.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsListAuthPrincipals(VixCommandRequestHeader *requestMsg, // IN
-                           size_t maxBufferSize,                // IN
-                           char **result)                       // OUT
-{
-   VixError err = VIX_OK;
-   VGAuthError vgErr;
-   void *userToken = NULL;
-   VGAuthContext *ctx = NULL;
-   VixMsgListAuthPrincipalsRequest *req;
-   const char *userName;
-   VMAutomationRequestParser parser;
-   Bool impersonatingVMWareUser = FALSE;
-   int num = 0;
-   int i;
-   int j;
-   VGAuthIdProvider *idList = NULL;
-   static char resultBuffer[GUESTMSG_MAX_IN_SIZE];
-   char *destPtr;
-   char *endDestPtr;
-   char *tmpBuf = NULL;
-   char *tmpBuf2 = NULL;
-   char *recordBuf;
-   size_t recordSize;
-   char *escapedStr = NULL;
-   char *escapedStr2 = NULL;
-
-   Debug(">%s\n", __FUNCTION__);
-
-   ASSERT(maxBufferSize <= GUESTMSG_MAX_IN_SIZE);
-
-   *result = NULL;
-
-   destPtr = resultBuffer;
-   *destPtr = 0;
-
-   err = VMAutomationRequestParserInit(&parser, requestMsg, sizeof *req);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   req = (VixMsgListAuthPrincipalsRequest *) requestMsg;
-   err = VMAutomationRequestParserGetOptionalString(&parser, req->userNameLen,
-                                                    &userName);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if (NULL == userName || 0 == *userName) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VixToolsImpersonateUser((VixCommandRequestHeader *) requestMsg,
-                                 &userToken);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-   impersonatingVMWareUser = TRUE;
-
-   vgErr = TheVGAuthContext(&ctx);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto abort;
-   }
-
-   vgErr = VGAuth_QueryIdProviders(ctx, userName, 0, NULL, &num, &idList);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto abort;
-   }
-
-   endDestPtr = resultBuffer + maxBufferSize;
-   destPtr += Str_Sprintf(destPtr, endDestPtr - destPtr, "%s",
-                          VIX_XML_ESCAPED_TAG);
-   for (i = 0; i < num; i++) {
-      escapedStr = VixToolsEscapeXMLString(idList[i].pemCert);
-      if (escapedStr == NULL) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      tmpBuf2 = Str_Asprintf(NULL, "<record><pemCert>%s</pemCert>",
-                             escapedStr);
-      free(escapedStr);
-      escapedStr = NULL;
-      if (tmpBuf2 == NULL) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      for (j = 0; j < idList->numInfos; j++) {
-         if (idList[i].infos[j].comment) {
-            escapedStr = VixToolsEscapeXMLString(idList[i].infos[j].comment);
-            if (escapedStr == NULL) {
-               err = VIX_E_OUT_OF_MEMORY;
-               goto abort;
-            }
-         }
-         if (idList[i].infos[j].subject.type == VGAUTH_SUBJECT_NAMED) {
-            escapedStr2 = VixToolsEscapeXMLString(idList[i].infos[j].subject.val.name);
-            if (escapedStr2 == NULL) {
-               err = VIX_E_OUT_OF_MEMORY;
-               goto abort;
-            }
-         }
-         tmpBuf = Str_Asprintf(NULL,
-                               "%s"
-                               "<principal>"
-                               "<type>%d</type>"
-                               "<name>%s</name>"
-                               "<comment>%s</comment>"
-                               "</principal>",
-                               tmpBuf2,
-                               (idList[i].infos[j].subject.type == VGAUTH_SUBJECT_NAMED)
-                                  ? VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED :
-                                  VIX_GUEST_AUTH_PRINCIPAL_TYPE_ANY,
-                               escapedStr2 ? escapedStr2 : "",
-                               escapedStr ? escapedStr : "");
-         if (tmpBuf == NULL) {
-            err = VIX_E_OUT_OF_MEMORY;
-            goto abort;
-         }
-         free(tmpBuf2);
-         tmpBuf2 = tmpBuf;
-         free(escapedStr);
-         escapedStr = NULL;
-         free(escapedStr2);
-         escapedStr2 = NULL;
-      }
-      recordBuf = Str_Asprintf(&recordSize,
-                               "%s</record>",
-                               tmpBuf);
-      free(tmpBuf);
-      tmpBuf = tmpBuf2 = NULL;
-      if (recordBuf == NULL) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      if ((destPtr + recordSize) < endDestPtr) {
-         destPtr += Str_Sprintf(destPtr, endDestPtr - destPtr,
-                                "%s", recordBuf);
-      } else {
-         free(recordBuf);
-         recordBuf = NULL;
-         Log("%s: ListAuth list results too large, truncating", __FUNCTION__);
-         goto abort;
-      }
-   }
-
-   *result = resultBuffer;
-
-abort:
-   free(tmpBuf);
-   free(tmpBuf2);
-   free(escapedStr);
-   free(escapedStr2);
-   VGAuth_FreeIdProviderList(num, idList);
-   if (impersonatingVMWareUser) {
-      VixToolsUnimpersonateUser(userToken);
-   }
-   VixToolsLogoutUser(userToken);
-
-
-   Debug("<%s\n", __FUNCTION__);
-
-   return err;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsListMappedPrincipals --
- *
- *    Calls to VGAuth to list mapped principals.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    VGAuth IdProvider store is updated.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsListMappedPrincipals(VixCommandRequestHeader *requestMsg, // IN
-                             size_t maxBufferSize,                // IN
-                             char **result)                       // OUT
-{
-   VixError err = VIX_OK;
-   VGAuthError vgErr;
-   void *userToken = NULL;
-   VGAuthContext *ctx = NULL;
-   VixMsgListMappedPrincipalsRequest *req;
-   VMAutomationRequestParser parser;
-   Bool impersonatingVMWareUser = FALSE;
-   int num = 0;
-   int i;
-   int j;
-   VGAuthMappedIdentity *miList = NULL;
-   static char resultBuffer[GUESTMSG_MAX_IN_SIZE];
-   char *destPtr;
-   char *endDestPtr;
-   char *tmpBuf = NULL;
-   char *tmpBuf2 = NULL;
-   char *recordBuf;
-   char *escapedStr = NULL;
-   char *escapedStr2 = NULL;
-   size_t recordSize;
-
-   Debug(">%s\n", __FUNCTION__);
-
-   ASSERT(maxBufferSize <= GUESTMSG_MAX_IN_SIZE);
-
-   *result = NULL;
-   destPtr = resultBuffer;
-   *destPtr = 0;
-
-   err = VMAutomationRequestParserInit(&parser, requestMsg, sizeof *req);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   req = (VixMsgListMappedPrincipalsRequest *) requestMsg;
-   err = VixToolsImpersonateUser((VixCommandRequestHeader *) requestMsg,
-                                 &userToken);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-   impersonatingVMWareUser = TRUE;
-
-   vgErr = TheVGAuthContext(&ctx);
-   if (vgErr != VGAUTH_E_OK) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto abort;
-   }
-
-   vgErr = VGAuth_QueryMappedIdentities(ctx, 0, NULL, &num, &miList);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto abort;
-   }
-
-   endDestPtr = resultBuffer + maxBufferSize;
-   destPtr += Str_Sprintf(destPtr, endDestPtr - destPtr, "%s",
-                          VIX_XML_ESCAPED_TAG);
-   for (i = 0; i < num; i++) {
-      escapedStr = VixToolsEscapeXMLString(miList[i].pemCert);
-      if (escapedStr == NULL) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      escapedStr2 = VixToolsEscapeXMLString(miList[i].userName);
-      if (escapedStr2 == NULL) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      tmpBuf2 = Str_Asprintf(NULL, "<record><pemCert>%s</pemCert>"
-                             "<userName>%s</userName>",
-                             escapedStr,
-                             escapedStr2);
-      if (tmpBuf2 == NULL) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      for (j = 0; j < miList->numSubjects; j++) {
-         if (miList[i].subjects[j].type == VGAUTH_SUBJECT_NAMED) {
-            escapedStr = VixToolsEscapeXMLString(miList[i].subjects[j].val.name);
-            if (escapedStr == NULL) {
-               err = VIX_E_OUT_OF_MEMORY;
-               goto abort;
-            }
-         }
-         tmpBuf = Str_Asprintf(NULL,
-                               "%s"
-                               "<principal>"
-                               "<type>%d</type>"
-                               "<name>%s</name>"
-                               "</principal>",
-                               tmpBuf2,
-                               (miList[i].subjects[j].type == VGAUTH_SUBJECT_NAMED)
-                                  ? VIX_GUEST_AUTH_PRINCIPAL_TYPE_NAMED :
-                                  VIX_GUEST_AUTH_PRINCIPAL_TYPE_ANY,
-                                escapedStr ? escapedStr : "");
-         if (tmpBuf == NULL) {
-            err = VIX_E_OUT_OF_MEMORY;
-            goto abort;
-         }
-         free(tmpBuf2);
-         tmpBuf2 = tmpBuf;
-         free(escapedStr);
-         escapedStr = NULL;
-      }
-      recordBuf = Str_Asprintf(&recordSize,
-                               "%s</record>",
-                               tmpBuf);
-      free(tmpBuf);
-      if (recordBuf == NULL) {
-         err = VIX_E_OUT_OF_MEMORY;
-         goto abort;
-      }
-      tmpBuf = tmpBuf2 = NULL;
-      if ((destPtr + recordSize) < endDestPtr) {
-         destPtr += Str_Sprintf(destPtr, endDestPtr - destPtr,
-                                "%s", recordBuf);
-      } else {
-         free(recordBuf);
-         recordBuf = NULL;
-         Log("%s: ListMapped results too large, truncating", __FUNCTION__);
-         goto abort;
-      }
-   }
-
-   *result = resultBuffer;
-
-abort:
-   free(tmpBuf);
-   free(tmpBuf2);
-   free(escapedStr);
-   free(escapedStr2);
-   VGAuth_FreeMappedIdentityList(num, miList);
-   if (impersonatingVMWareUser) {
-      VixToolsUnimpersonateUser(userToken);
-   }
-   VixToolsLogoutUser(userToken);
-
-   Debug("<%s\n", __FUNCTION__);
-
-   return err;
-}
-#endif   // SUPPORT_VGAUTH
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsCreateRegKey --
- *
- *    Calls the function to create a new Windows Registry Key.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    May affect applications reading the key.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsCreateRegKey(VixCommandRequestHeader *requestMsg)    // IN
-{
-#ifdef _WIN32
-   return VixToolsCreateRegKeyImpl(requestMsg);
-#else
-   return VIX_E_OP_NOT_SUPPORTED_ON_GUEST;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsListRegKeys --
- *
- *    Calls the function to list all subkeys for a given Windows Registry Key.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    None
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsListRegKeys(VixCommandRequestHeader *requestMsg,    // IN
-                    size_t maxBufferSize,                   // IN
-                    void *eventQueue,                       // IN
-                    char **result)                          // OUT
-{
-#ifdef _WIN32
-   return VixToolsListRegKeysImpl(requestMsg, maxBufferSize, eventQueue, result);
-#else
-   return VIX_E_OP_NOT_SUPPORTED_ON_GUEST;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsDeleteRegKey --
- *
- *    Calls the function to delete a Windows Registry Key.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    May affect applications reading the key.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsDeleteRegKey(VixCommandRequestHeader *requestMsg)    // IN
-{
-#ifdef _WIN32
-   return VixToolsDeleteRegKeyImpl(requestMsg);
-#else
-   return VIX_E_OP_NOT_SUPPORTED_ON_GUEST;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsSetRegValue --
- *
- *    Calls the function to set/create a Windows Registry Value for a given Key.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    May affect applications reading the key.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsSetRegValue(VixCommandRequestHeader *requestMsg)    // IN
-{
-#ifdef _WIN32
-   return VixToolsSetRegValueImpl(requestMsg);
-#else
-   return VIX_E_OP_NOT_SUPPORTED_ON_GUEST;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsListRegValues --
- *
- *    Calls the function to list all values for a given Windows Registry Key.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    None
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsListRegValues(VixCommandRequestHeader *requestMsg,    // IN
-                      size_t maxBufferSize,                   // IN
-                      void *eventQueue,                       // IN
-                      char **result)                          // OUT
-{
-#ifdef _WIN32
-   return VixToolsListRegValuesImpl(requestMsg, maxBufferSize, eventQueue, result);
-#else
-   return VIX_E_OP_NOT_SUPPORTED_ON_GUEST;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsDeleteRegValue --
- *
- *    Calls the function to delete a Windows Registry Value for a given Key.
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    May affect applications reading the key.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsDeleteRegValue(VixCommandRequestHeader *requestMsg)    // IN
-{
-#ifdef _WIN32
-   return VixToolsDeleteRegValueImpl(requestMsg);
-#else
-   return VIX_E_OP_NOT_SUPPORTED_ON_GUEST;
-#endif
-}
-
-
 /*
  *-----------------------------------------------------------------------------
  *
@@ -9823,56 +8703,6 @@ VixToolsCheckIfVixCommandEnabled(int opcode,                          // IN
                                 VIX_TOOLS_CONFIG_API_RELEASE_CREDENTIALS_NAME);
          break;
 
-      case VIX_COMMAND_ADD_AUTH_PRINCIPAL:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_ADD_AUTH_PRINCIPAL_NAME);
-         break;
-
-      case VIX_COMMAND_REMOVE_AUTH_PRINCIPAL:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                               VIX_TOOLS_CONFIG_API_REMOVE_AUTH_PRINCIPAL_NAME);
-         break;
-
-      case VIX_COMMAND_LIST_AUTH_PROVIDER_PRINCIPALS:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_LIST_AUTH_PRINCIPALS_NAME);
-         break;
-
-      case VIX_COMMAND_LIST_AUTH_MAPPED_PRINCIPALS:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                              VIX_TOOLS_CONFIG_API_LIST_MAPPED_PRINCIPALS_NAME);
-         break;
-
-      case VIX_COMMAND_CREATE_REGISTRY_KEY:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_CREATE_REGISTRY_KEY_NAME);
-         break;
-
-      case VIX_COMMAND_LIST_REGISTRY_KEYS:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_LIST_REGISTRY_KEYS_NAME);
-         break;
-
-      case VIX_COMMAND_DELETE_REGISTRY_KEY:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_DELETE_REGISTRY_KEY_NAME);
-         break;
-
-      case VIX_COMMAND_SET_REGISTRY_VALUE:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_SET_REGISTRY_VALUE_NAME);
-         break;
-
-      case VIX_COMMAND_LIST_REGISTRY_VALUES:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_LIST_REGISTRY_VALUES_NAME);
-         break;
-
-      case VIX_COMMAND_DELETE_REGISTRY_VALUE:
-         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
-                                VIX_TOOLS_CONFIG_API_DELETE_REGISTRY_VALUE_NAME);
-         break;
-
       /*
        * None of these opcode have a matching config entry (yet),
        * so they can all share.
@@ -10219,63 +9049,6 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
           */
          break;
 
-#if SUPPORT_VGAUTH
-      case VIX_COMMAND_ADD_AUTH_PRINCIPAL:
-         err = VixToolsAddAuthPrincipal(requestMsg);
-         break;
-      case VIX_COMMAND_REMOVE_AUTH_PRINCIPAL:
-         err = VixToolsRemoveAuthPrincipal(requestMsg);
-         break;
-      case VIX_COMMAND_LIST_AUTH_PROVIDER_PRINCIPALS:
-          err = VixToolsListAuthPrincipals(requestMsg, maxResultBufferSize,
-                                           &resultValue);
-         // resultValue is static. Do not free it.
-         break;
-      case VIX_COMMAND_LIST_AUTH_MAPPED_PRINCIPALS:
-          err = VixToolsListMappedPrincipals(requestMsg, maxResultBufferSize,
-                                             &resultValue);
-         // resultValue is static. Do not free it.
-         break;
-#endif
-
-      ////////////////////////////////////
-      case VIX_COMMAND_CREATE_REGISTRY_KEY:
-         err = VixToolsCreateRegKey(requestMsg);
-         break;
-
-      ////////////////////////////////////
-      case VIX_COMMAND_LIST_REGISTRY_KEYS:
-         err = VixToolsListRegKeys(requestMsg,
-                                   maxResultBufferSize,
-                                   eventQueue,
-                                   &resultValue);
-         deleteResultValue = TRUE;
-         break;
-
-      ////////////////////////////////////
-      case VIX_COMMAND_DELETE_REGISTRY_KEY:
-         err = VixToolsDeleteRegKey(requestMsg);
-         break;
-
-      ////////////////////////////////////
-      case VIX_COMMAND_SET_REGISTRY_VALUE:
-         err = VixToolsSetRegValue(requestMsg);
-         break;
-
-      ////////////////////////////////////
-      case VIX_COMMAND_LIST_REGISTRY_VALUES:
-         err = VixToolsListRegValues(requestMsg,
-                                     maxResultBufferSize,
-                                     eventQueue,
-                                     &resultValue);
-         deleteResultValue = TRUE;
-         break;
-
-      ////////////////////////////////////
-      case VIX_COMMAND_DELETE_REGISTRY_VALUE:
-         err = VixToolsDeleteRegValue(requestMsg);
-         break;
-
       ////////////////////////////////////
       default:
          /*
@@ -10354,6 +9127,8 @@ VixToolsRewriteError(uint32 opCode,          // IN
 {
    VixError newError = origError;
 
+   ASSERT(VIX_ERROR_CODE(origError) == origError);
+
    switch (opCode) {
       /*
        * This should include all non-VI guest operations.
@@ -10386,7 +9161,6 @@ VixToolsRewriteError(uint32 opCode,          // IN
    case VIX_COMMAND_LIST_FILESYSTEMS:
    case VIX_COMMAND_WAIT_FOR_TOOLS:
    case VIX_COMMAND_CAPTURE_SCREEN:
-      ASSERT(VIX_ERROR_CODE(origError) == origError);
       switch (origError) {
       case VIX_E_INVALID_LOGIN_CREDENTIALS:
          newError = VIX_E_GUEST_USER_PERMISSIONS;
@@ -10396,48 +9170,6 @@ VixToolsRewriteError(uint32 opCode,          // IN
    }
 
    return newError;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixTools_GetAdditionalError --
- *
- *    Gets the vix extra/additional error if any.
- *
- *    Some errors returned by tools may have extra error in
- *    the higher order 32 bits. We need to pass that back.
- *
- * Results:
- *      uint32
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-uint32
-VixTools_GetAdditionalError(uint32 opCode,    // IN
-                            VixError error)   // IN
-{
-   uint32 err;
-
-   switch (opCode) {
-      case VIX_COMMAND_CREATE_REGISTRY_KEY:
-      case VIX_COMMAND_LIST_REGISTRY_KEYS:
-      case VIX_COMMAND_DELETE_REGISTRY_KEY:
-      case VIX_COMMAND_SET_REGISTRY_VALUE:
-      case VIX_COMMAND_LIST_REGISTRY_VALUES:
-      case VIX_COMMAND_DELETE_REGISTRY_VALUE:
-         err = VIX_ERROR_EXTRA_ERROR(error);
-         break;
-      default:
-        err = Err_Errno();
-   }
-
-   return err;
 }
 
 
@@ -10704,313 +9436,3 @@ VixToolsXMLStringEscapedLen(const char *str,    // IN
       return strlen(str);
    }
 }
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * GuestAuthEnabled --
- *
- *      Returns whether we use the guest auth library.
- *
- * Results:
- *      TRUE if we do. FALSE otherwise.
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-static Bool
-GuestAuthEnabled(void)
-{
-#if SUPPORT_VGAUTH
-   return gSupportVGAuth;
-#else
-   return FALSE;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * GuestAuthPasswordAuthenticateImpersonate
- *
- *      Do name-password authentication and impersonation using
- *      the GuestAuth library.
- *
- * Results:
- *      VIX_OK if successful.Other VixError code otherwise.
- *
- * Side effects:
- *      Current process impersonates.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-GuestAuthPasswordAuthenticateImpersonate(
-   char const *obfuscatedNamePassword, // IN
-   void **userToken)                   // OUT
-{
-#if SUPPORT_VGAUTH
-   VixError err;
-   char *username;
-   char *password;
-   VGAuthContext *ctx = NULL;
-   VGAuthError vgErr;
-   VGAuthUserHandle *newHandle = NULL;
-
-   err = VixMsg_DeObfuscateNamePassword(obfuscatedNamePassword,
-                                        &username,
-                                        &password);
-   if (err != VIX_OK) {
-      goto done;
-   }
-
-   err = VIX_E_INVALID_LOGIN_CREDENTIALS;
-
-   vgErr = TheVGAuthContext(&ctx);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto done;
-   }
-
-   vgErr = VGAuth_ValidateUsernamePassword(ctx, username, password,
-                                           0, NULL,
-                                           &newHandle);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto done;
-   }
-
-   vgErr = VGAuth_Impersonate(ctx, newHandle, 0, NULL);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto done;
-   }
-
-   *userToken = VGAUTH_GENERIC_USER_TOKEN;
-
-   err = VIX_OK;
-
-done:
-
-   if (newHandle) {
-      VGAuth_UserHandleFree(newHandle);
-   }
-
-   return err;
-#else
-   return VIX_E_NOT_SUPPORTED;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * GuestAuthSAMLAuthenticateAndImpersonate
- *
- *      Do SAML bearer token authentication and impersonation using
- *      the GuestAuth library.
- *
- * Results:
- *      VIX_OK if successful.  Other VixError code otherwise.
- *
- * Side effects:
- *      Current process impersonates.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-GuestAuthSAMLAuthenticateAndImpersonate(
-   char const *obfuscatedNamePassword, // IN
-   void **userToken)                   // OUT
-{
-#if SUPPORT_VGAUTH
-   VixError err;
-   char *token;
-   char *username;
-   VGAuthContext *ctx = NULL;
-   VGAuthError vgErr;
-   VGAuthUserHandle *newHandle = NULL;
-
-   Debug(">%s\n", __FUNCTION__);
-   err = VixMsg_DeObfuscateNamePassword(obfuscatedNamePassword,
-                                        &token,
-                                        &username);
-   if (err != VIX_OK) {
-      goto done;
-   }
-
-   err = VIX_E_INVALID_LOGIN_CREDENTIALS;
-
-   vgErr = TheVGAuthContext(&ctx);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto done;
-   }
-
-   vgErr = VGAuth_ValidateSamlBearerToken(ctx,
-                                          token,
-                                          username,
-                                          0,
-                                          NULL,
-                                          &newHandle);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto done;
-   }
-
-   vgErr = VGAuth_Impersonate(ctx, newHandle, 0, NULL);
-   if (VGAUTH_FAILED(vgErr)) {
-      err = VixToolsTranslateVGAuthError(vgErr);
-      goto done;
-   }
-
-   *userToken = VGAUTH_GENERIC_USER_TOKEN;
-
-   err = VIX_OK;
-
-done:
-
-   if (newHandle) {
-      VGAuth_UserHandleFree(newHandle);
-   }
-
-   Debug("<%s\n", __FUNCTION__);
-
-   return err;
-#else
-   return VIX_E_NOT_SUPPORTED;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * GuestAuthUnimpersonate
- *
- *      End the current impersonation using the VGAuth library.
- *
- * Results:
- *      None
- *
- * Side effects:
- *      Current process un-impersonates.
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-GuestAuthUnimpersonate(void)
-{
-#if SUPPORT_VGAUTH
-   VGAuthContext *ctx;
-   VGAuthError vgErr = TheVGAuthContext(&ctx);
-   ASSERT(vgErr == VGAUTH_E_OK);
-
-   vgErr = VGAuth_EndImpersonation(ctx);
-   ASSERT(vgErr == VGAUTH_E_OK);
-#else
-   ASSERT(0);
-#endif
-}
-
-
-#if SUPPORT_VGAUTH
-/*
- *-----------------------------------------------------------------------------
- *
- * QueryVGAuthConfig
- *
- *      Check the tools configuration to see if VGAuth should be used.
- *
- * Results:
- *      TRUE if vgauth should be used, FALSE if not.
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-static gboolean
-QueryVGAuthConfig(GKeyFile *confDictRef)                       // IN
-{
-   gboolean useVGAuth;
-   gboolean retVal = USE_VGAUTH_DEFAULT;
-   GError *gErr = NULL;
-
-   if (confDictRef != NULL) {
-      useVGAuth = g_key_file_get_boolean(confDictRef,
-                                         VIX_TOOLS_CONFIG_API_GROUPNAME,
-                                         VIXTOOLS_CONFIG_USE_VGAUTH_NAME,
-                                         &gErr);
-
-      /*
-       * g_key_file_get_boolean() will return FALSE and set an error
-       * if the value isn't in config, so use the default in that
-       * case.
-       */
-      if (!useVGAuth && (NULL != gErr)) {
-         g_error_free(gErr);
-         retVal = USE_VGAUTH_DEFAULT;
-      } else {
-         retVal = useVGAuth;
-      }
-   }
-
-   Debug("%s: vgauth usage is: %d\n", __FUNCTION__, retVal);
-
-   return retVal;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * TheVGAuthContext
- *
- *      Get the global VGAuthContext object.
- *      Lazily create the global VGAuthContext when needed.
- *      Creating the global context may also cause the VGAuth Service to
- *      be started.
- *
- * Results:
- *      VGAUTH_E_OK if successful, the global context object is returned in
- *      the OUT parameter ctx.
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-VGAuthError
-TheVGAuthContext(VGAuthContext **ctx) // OUT
-{
-   static VGAuthContext *vgaCtx = NULL;
-   VGAuthError vgaCode = VGAUTH_E_OK;
-
-   /*
-    * XXX This needs to handle errors better -- if the service gets
-    * reset, the context will point to junk and anything using it will
-    * fail.
-    *
-    * Maybe add a no-op API here to poke it?  Or make the underlying
-    * VGAuth code smarter.
-    */
-   if (vgaCtx == NULL) {
-      vgaCode = VGAuth_Init(VMTOOLSD_APP_NAME, 0, NULL, &vgaCtx);
-   }
-
-   *ctx = vgaCtx;
-   return vgaCode;
-}
-#endif

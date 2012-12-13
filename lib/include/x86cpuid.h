@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998-2012 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2011 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -164,7 +164,9 @@ enum {
 
 
 /* Named feature leaves */
+#define CPUID_PROCESSOR_TOPOLOGY   4
 #define CPUID_MWAIT_FEATURES       5
+#define CPUID_XSAVE_FEATURES       0xd
 #define CPUID_SVM_FEATURES         0x8000000a
 
 
@@ -368,8 +370,7 @@ FIELD(  4,  0, EBX, INTEL,  12, 10, LEAF4_CACHE_PART,              NA,  FALSE) \
 FIELD(  4,  0, EBX, INTEL,  22, 10, LEAF4_CACHE_WAYS,              NA,  FALSE) \
 FIELD(  4,  0, ECX, INTEL,   0, 32, LEAF4_CACHE_SETS,              NA,  FALSE) \
 FLAG(   4,  0, EDX, INTEL,   0,  1, LEAF4_CACHE_WBINVD_NOT_GUARANTEED, NA,  FALSE) \
-FLAG(   4,  0, EDX, INTEL,   1,  1, LEAF4_CACHE_IS_INCLUSIVE,      NA,  FALSE) \
-FLAG(   4,  0, EDX, INTEL,   2,  1, LEAF4_CACHE_COMPLEX_INDEXING,  NA,  FALSE)
+FLAG(   4,  0, EDX, INTEL,   1,  1, LEAF4_CACHE_IS_INCLUSIVE,      NA,  FALSE)
 
 /*     LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_5                                               \
@@ -395,14 +396,10 @@ FLAG(   6,  0, ECX, INTEL,   3,  1, ENERGY_PERF_BIAS,              NA,  FALSE)
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_7                                               \
 FLAG(   7,  0, EBX, INTEL,   0,  1, FSGSBASE,                      YES, FALSE) \
-FLAG(   7,  0, EBX, COMMON,  3,  1, BMI1,                          YES, TRUE ) \
-FLAG(   7,  0, EBX, INTEL,   4,  1, HLE,                           YES, TRUE)  \
-FLAG(   7,  0, EBX, INTEL,   5,  1, AVX2,                          YES, TRUE)  \
+FLAG(   7,  0, EBX, AMD,     3,  1, BMI1,                          YES, TRUE ) \
 FLAG(   7,  0, EBX, INTEL,   7,  1, SMEP,                          YES, FALSE) \
-FLAG(   7,  0, EBX, INTEL,   8,  1, BMI2,                          YES, TRUE)  \
 FLAG(   7,  0, EBX, INTEL,   9,  1, ENFSTRG,                       YES, FALSE) \
-FLAG(   7,  0, EBX, INTEL,  10,  1, INVPCID,                       NO,  FALSE) \
-FLAG(   7,  0, EBX, INTEL,  11,  1, RTM,                           NO,  TRUE)
+FLAG(   7,  0, EBX, INTEL,  10,  1, INVPCID,                       NO,  FALSE)
 
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_A                                               \
@@ -489,7 +486,7 @@ FLAG(  81,  0, ECX, AMD,     1,  1, CMPLEGACY,                     ANY, FALSE) \
 FLAG(  81,  0, ECX, AMD,     2,  1, SVM,                           YES, FALSE) \
 FLAG(  81,  0, ECX, AMD,     3,  1, EXTAPICSPC,                    YES, FALSE) \
 FLAG(  81,  0, ECX, AMD,     4,  1, CR8AVAIL,                      YES, FALSE) \
-FLAG(  81,  0, ECX, COMMON,  5,  1, ABM,                           YES, TRUE)  \
+FLAG(  81,  0, ECX, AMD,     5,  1, ABM,                           YES, TRUE)  \
 FLAG(  81,  0, ECX, AMD,     6,  1, SSE4A,                         YES, TRUE)  \
 FLAG(  81,  0, ECX, AMD,     7,  1, MISALIGNED_SSE,                YES, TRUE)  \
 FLAG(  81,  0, ECX, AMD,     8,  1, 3DNPREFETCH,                   YES, TRUE)  \
@@ -871,17 +868,15 @@ CPUIDCheck(uint32 eaxIn, uint32 eaxInCheck,
 
 #define CPUID_SET(eaxIn, reg, flag, dataPtr)                            \
    do {                                                                 \
-      ASSERT_ON_COMPILE(                                                \
-         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##flag &&      \
-         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);       \
+      ASSERT_ON_COMPILE((uint32)eaxIn == (uint32)CPUID_INTERNAL_EAXIN_##flag && \
+              CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);  \
       *(dataPtr) |= CPUID_INTERNAL_MASK_##flag;                         \
    } while (0)
 
 #define CPUID_CLEAR(eaxIn, reg, flag, dataPtr)                          \
    do {                                                                 \
-      ASSERT_ON_COMPILE(                                                \
-         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##flag &&      \
-         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);       \
+      ASSERT_ON_COMPILE((uint32)eaxIn == (uint32)CPUID_INTERNAL_EAXIN_##flag && \
+              CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##flag);  \
       *(dataPtr) &= ~CPUID_INTERNAL_MASK_##flag;                        \
    } while (0)
 
@@ -889,25 +884,12 @@ CPUIDCheck(uint32 eaxIn, uint32 eaxInCheck,
    do {                                                                 \
       uint32 _v = val;                                                  \
       uint32 *_d = dataPtr;                                             \
-      ASSERT_ON_COMPILE(                                                \
-         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##field &&     \
-         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##field);      \
+      ASSERT_ON_COMPILE((uint32)eaxIn == (uint32)CPUID_INTERNAL_EAXIN_##field && \
+              CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##field); \
       *_d = (*_d & ~CPUID_INTERNAL_MASK_##field) |                      \
          (_v << CPUID_INTERNAL_SHIFT_##field);                          \
       ASSERT(_v == (*_d & CPUID_INTERNAL_MASK_##field) >>               \
              CPUID_INTERNAL_SHIFT_##field);                             \
-   } while (0)
-
-#define CPUID_SETTO_SAFE(eaxIn, reg, field, dataPtr, val)               \
-   do {                                                                 \
-      uint32 _v = val &                                                 \
-         (CPUID_INTERNAL_MASK_##field >> CPUID_INTERNAL_SHIFT_##field); \
-      uint32 *_d = dataPtr;                                             \
-      ASSERT_ON_COMPILE(                                                \
-         (uint32)eaxIn   == (uint32)CPUID_INTERNAL_EAXIN_##field &&     \
-         CPUID_REG_##reg == (CpuidReg)CPUID_INTERNAL_REG_##field);      \
-      *_d = (*_d & ~CPUID_INTERNAL_MASK_##field) |                      \
-         (_v << CPUID_INTERNAL_SHIFT_##field);                          \
    } while (0)
 
 
@@ -960,7 +942,6 @@ CPUIDCheck(uint32 eaxIn, uint32 eaxInCheck,
 #define CPUID_MODEL_NEHALEM_2C     0x2c  // Westmere-EP
 #define CPUID_MODEL_NEHALEM_2E     0x2e  // Nehalem-EX
 #define CPUID_MODEL_NEHALEM_2F     0x2f  // Westmere-EX
-#define CPUID_MODEL_SANDYBRIDGE_3A 0x3a  // Ivy Bridge
 
 #define CPUID_MODEL_PIII_07    7
 #define CPUID_MODEL_PIII_08    8
@@ -1125,11 +1106,8 @@ CPUID_UARCH_IS_SANDYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
 
    return CPUID_FAMILY_IS_P6(v) &&
           (effectiveModel == CPUID_MODEL_SANDYBRIDGE_2A ||
-           effectiveModel == CPUID_MODEL_SANDYBRIDGE_2D ||
-           effectiveModel == CPUID_MODEL_SANDYBRIDGE_3A);
+           effectiveModel == CPUID_MODEL_SANDYBRIDGE_2D);
 }
-
-
 
 
 static INLINE Bool
@@ -1165,17 +1143,6 @@ CPUID_MODEL_IS_SANDYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
    return CPUID_FAMILY_IS_P6(v) &&
           (effectiveModel == CPUID_MODEL_SANDYBRIDGE_2A ||
            effectiveModel == CPUID_MODEL_SANDYBRIDGE_2D);
-}
-
-
-static INLINE Bool
-CPUID_MODEL_IS_IVYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
-{
-   /* Assumes the CPU manufacturer is Intel. */
-   uint32 effectiveModel = CPUID_EFFECTIVE_MODEL(v);
-
-   return CPUID_FAMILY_IS_P6(v) && (
-       effectiveModel == CPUID_MODEL_SANDYBRIDGE_3A);
 }
 
 
@@ -1308,8 +1275,6 @@ CPUID_MODEL_IS_BULLDOZER(uint32 eax)
 #define CPUID_LEAF4_CACHE_TYPE_DATA      1
 #define CPUID_LEAF4_CACHE_TYPE_INST      2
 #define CPUID_LEAF4_CACHE_TYPE_UNIF      3
-#define CPUID_LEAF4_CACHE_INDEXING_DIRECT  0
-#define CPUID_LEAF4_CACHE_INDEXING_COMPLEX 1
 
 #define CPUID_INTEL_ID4EAX_LEAF4_CACHE_SELF_INIT      0x00000100
 #define CPUID_INTEL_ID4EAX_LEAF4_CACHE_FULLY_ASSOC    0x00000200

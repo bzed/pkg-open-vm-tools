@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006-2012 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2011 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -26,6 +26,7 @@
 #define _VMCI_COMMONINT_H_
 
 #define INCLUDE_ALLOW_MODULE
+#define INCLUDE_ALLOW_VMMON
 #define INCLUDE_ALLOW_VMCORE
 #define INCLUDE_ALLOW_VMKERNEL
 #include "includeCheck.h"
@@ -36,6 +37,7 @@
 #include "vmci_infrastructure.h"
 #include "vmci_handle_array.h"
 #include "vmci_kernel_if.h"
+
 
 /*
  *  The DatagramQueueEntry is a queue header for the in-kernel VMCI
@@ -53,20 +55,6 @@ typedef struct DatagramQueueEntry {
 } DatagramQueueEntry;
 
 
-/*
- * The VMCIFilterState captures the state of all VMCI filters in one
- * direction. The ranges array contains all filter list in a single
- * memory chunk, and the filter list pointers in the VMCIProtoFilters
- * point into the ranges array.
- */
-
-typedef struct VMCIFilterState {
-   VMCIProtoFilters filters;
-   VMCIIdRange *ranges;
-   size_t rangesSize;
-} VMCIFilterState;
-
-
 struct VMCIContext {
    VMCIListItem       listItem;         /* For global VMCI list. */
    VMCIId             cid;
@@ -78,11 +66,7 @@ struct VMCIContext {
                                          * Version of the code that created
                                          * this context; e.g., VMX.
                                          */
-   VMCILock           lock;             /*
-                                         * Locks datagramQueue, inFilters,
-                                         * doorbellArray, pendingDoorbellArray
-                                         * and notifierArray.
-                                         */
+   VMCILock           lock;             /* Locks callQueue and handleArrays. */
    VMCIHandleArray    *queuePairArray;  /*
                                          * QueuePairs attached to.  The array of
                                          * handles for queue pairs is accessed
@@ -91,7 +75,7 @@ struct VMCIContext {
                                          * is also accessed from the context
                                          * clean up path, which does not
                                          * require a lock.  VMCILock is not
-                                         * used to protect the QP array.
+                                         * used to protect the QP array field.
                                          */
    VMCIHandleArray    *doorbellArray;   /* Doorbells created by context. */
    VMCIHandleArray    *pendingDoorbellArray; /* Doorbells pending for context. */
@@ -108,7 +92,6 @@ struct VMCIContext {
                                          * registration/release during FSR.
                                          */
    VMCIGuestMemID     curGuestMemID;    /* ID of current registered guest mem */
-   VMCIFilterState    *inFilters;       /* Ingoing filters for VMCI traffic. */
 #endif
 #ifndef VMX86_SERVER
    Bool               *notify;          /* Notify flag pointer - hosted only. */

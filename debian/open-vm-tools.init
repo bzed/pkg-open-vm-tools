@@ -2,8 +2,8 @@
 
 ### BEGIN INIT INFO
 # Provides:		open-vm-tools
-# Required-Start:	$local_fs
-# Required-Stop:	$local_fs
+# Required-Start:	$local_fs $remote_fs
+# Required-Stop:	$local_fs $remote_fs
 # X-Start-Before:	$network
 # X-Stop-After:		$network
 # Default-Start:	2 3 4 5
@@ -27,13 +27,9 @@ case "${1}" in
 		# Check if we're running inside VMWare
 		exit_if_not_in_vm
 
-		log_daemon_msg "Loading open-vm-tools modules"
-		log_progress_msg "vmhgfs"; modprobe vmhgfs
-		log_progress_msg "vmsync"; modprobe vmsync
-		log_end_msg 0
-
 		log_daemon_msg "Starting open-vm daemon" "vmtoolsd"
-		/usr/bin/vmtoolsd --background /var/run/vmtoolsd.pid
+		start-stop-daemon --start --quiet --pidfile /var/run/vmtoolsd.pid --exec /usr/bin/vmtoolsd --test > /dev/null || exit 1
+		start-stop-daemon --start --quiet --pidfile /var/run/vmtoolsd.pid --exec /usr/bin/vmtoolsd -- --background /var/run/vmtoolsd.pid || exit 2
 		log_end_msg 0
 		;;
 
@@ -42,22 +38,18 @@ case "${1}" in
 		exit_if_not_in_vm
 
 		log_daemon_msg "Stopping open-vm guest daemon" "vmtoolsd"
-
-		if [ -f /var/run/vmtoolsd.pid ]
-		then
-			kill $(cat /var/run/vmtoolsd.pid)
-		fi
-
-		log_end_msg 0
-
-		log_daemon_msg "Removing open-vm-tools modules"
-		log_progress_msg "vmhgfs"; modprobe -r vmhgfs
-		log_progress_msg "vmsync"; modprobe -r vmsync
+		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile /var/run/vmtoolsd.pid --exec vmtoolsd
+		RETURN="${?}"
+		[ "${RETURN}" = 2 ] && exit 2
+		# Many daemons don't delete their pidfiles when they exit.
+		rm -f /var/run/vmtoolsd.pid
 		log_end_msg 0
 		;;
 
 	force-reload|restart)
-		${0} stop; ${0} start
+		${0} stop
+		sleep 1
+		${0} start
 		;;
 
 	*)
