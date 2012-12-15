@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:.*+||' -e 's|-.*$$||')
+VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:||' -e 's|-.*$$||')
 
 %:
 	dh ${@} --with autotools_dev,dkms
