@@ -1,3 +1,10 @@
+open-vm-tools (2:9.2.2-893683-3) unstable; urgency=low
+
+  * Correcting daemon name in stop section of the initscript (Closes:
+    #696056).
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sun, 16 Dec 2012 13:55:05 +0100
+
 open-vm-tools (2:9.2.2-893683-2) unstable; urgency=low
 
   * Removing init order to network (Closes: #695845).

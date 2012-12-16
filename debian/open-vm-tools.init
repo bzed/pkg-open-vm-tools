@@ -35,7 +35,7 @@ case "${1}" in
 
 	stop)
 		log_daemon_msg "Stopping open-vm guest daemon" "vmtoolsd"
-		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile /var/run/vmtoolsd.pid --exec vmtoolsd
+		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile /var/run/vmtoolsd.pid --exec /usr/bin/vmtoolsd
 		RETURN="${?}"
 		[ "${RETURN}" = 2 ] && exit 2
 		# Many daemons don't delete their pidfiles when they exit.
