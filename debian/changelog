@@ -1,3 +1,14 @@
+open-vm-tools (2:8.8.0+2012.05.21-724730-1+nmu2) testing-proposed-updates; urgency=low
+
+  * Non-maintainer upload.
+  * Adjust runtime dependencies for open-vm-tools init script.
+    Add $remote_fs to Required-{Start,Stop} as the init script calls
+    executables under /usr. To prevent  a loop between service networking
+    and umountnfs also remove $network from X-Start-Before and X-Stop-After.
+    (Closes: #695845)
+
+ -- Salvatore Bonaccorso <carnil@debian.org>  Sat, 22 Dec 2012 23:55:25 +0100
+
 open-vm-tools (2:8.8.0+2012.05.21-724730-1+nmu1) testing-proposed-updates; urgency=low
 
   [ Bernd Zeimetz ]
