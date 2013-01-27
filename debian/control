@@ -5,9 +5,9 @@ Maintainer: Daniel Baumann <daniel.baumann@progress-technologies.net>
 Build-Depends:
  debhelper (>= 9), autotools-dev, dkms, doxygen, libcunit1-dev,
  libdumbnet-dev, libfuse-dev, libgtk2.0-dev, libgtkmm-2.4-dev,
- libicu-dev, libnotify-dev, libpam0g-dev, libprocps0-dev (>= 1:3.3.1),
- libx11-dev, libxinerama-dev, libxss-dev, libxtst-dev
-Standards-Version: 3.9.3
+ libicu-dev, libnotify-dev, libpam0g-dev, libprocps0-dev, libx11-dev,
+ libxinerama-dev, libxss-dev, libxtst-dev
+Standards-Version: 3.9.4
 Homepage: http://open-vm-tools.sourceforge.net/
 
 Package: open-vm-tools

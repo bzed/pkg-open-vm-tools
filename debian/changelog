@@ -1,3 +1,15 @@
+open-vm-tools (2:9.2.2-893683-5) unstable; urgency=low
+
+  * Updating to standards version 3.9.4.
+  * Shortening build-depends on procps again.
+  * Updating year in copyright file.
+  * Prefixing patches with 4 digits for consistency.
+  * Tightening diff headers in patches.
+  * Adding dpkg-source local-options to abort on upstream changes.
+  * Dropping dpkg-source compression levels.
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sun, 27 Jan 2013 11:28:37 +0100
+
 open-vm-tools (2:9.2.2-893683-4) unstable; urgency=low
 
   * Removing init order to network also on start (Closes: #695845).

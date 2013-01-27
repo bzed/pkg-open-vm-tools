@@ -2,8 +2,8 @@ Author: Cyril Brulebois <cyril.brulebois@enst-bretagne.fr>
 Description: Replacing uname call with KVERS, overwriting seemed not to work.
 
 diff -Naurp open-vm-tools.orig/modules/linux/vmblock/Makefile open-vm-tools/modules/linux/vmblock/Makefile
---- open-vm-tools.orig/modules/linux/vmblock/Makefile	2011-08-28 14:17:10.216965523 +0200
-+++ open-vm-tools/modules/linux/vmblock/Makefile	2011-08-28 14:48:23.558254911 +0200
+--- open-vm-tools.orig/modules/linux/vmblock/Makefile
++++ open-vm-tools/modules/linux/vmblock/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -14,8 +14,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmblock/Makefile open-vm-tools/modu
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
 diff -Naurp open-vm-tools.orig/modules/linux/vmci/Makefile open-vm-tools/modules/linux/vmci/Makefile
---- open-vm-tools.orig/modules/linux/vmci/Makefile	2011-08-28 14:17:10.216965523 +0200
-+++ open-vm-tools/modules/linux/vmci/Makefile	2011-08-28 14:48:24.586260009 +0200
+--- open-vm-tools.orig/modules/linux/vmci/Makefile
++++ open-vm-tools/modules/linux/vmci/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -26,8 +26,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmci/Makefile open-vm-tools/modules
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
 diff -Naurp open-vm-tools.orig/modules/linux/vmhgfs/Makefile open-vm-tools/modules/linux/vmhgfs/Makefile
---- open-vm-tools.orig/modules/linux/vmhgfs/Makefile	2011-08-28 14:17:10.228965579 +0200
-+++ open-vm-tools/modules/linux/vmhgfs/Makefile	2011-08-28 14:48:25.554264810 +0200
+--- open-vm-tools.orig/modules/linux/vmhgfs/Makefile
++++ open-vm-tools/modules/linux/vmhgfs/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -38,8 +38,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmhgfs/Makefile open-vm-tools/modul
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
 diff -Naurp open-vm-tools.orig/modules/linux/vmsync/Makefile open-vm-tools/modules/linux/vmsync/Makefile
---- open-vm-tools.orig/modules/linux/vmsync/Makefile	2011-08-28 14:17:10.240965642 +0200
-+++ open-vm-tools/modules/linux/vmsync/Makefile	2011-08-28 14:48:27.638275144 +0200
+--- open-vm-tools.orig/modules/linux/vmsync/Makefile
++++ open-vm-tools/modules/linux/vmsync/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -50,8 +50,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmsync/Makefile open-vm-tools/modul
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
 diff -Naurp open-vm-tools.orig/modules/linux/vmxnet/Makefile open-vm-tools/modules/linux/vmxnet/Makefile
---- open-vm-tools.orig/modules/linux/vmxnet/Makefile	2011-08-28 14:17:10.240965642 +0200
-+++ open-vm-tools/modules/linux/vmxnet/Makefile	2011-08-28 14:48:28.602279930 +0200
+--- open-vm-tools.orig/modules/linux/vmxnet/Makefile
++++ open-vm-tools/modules/linux/vmxnet/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -62,8 +62,8 @@ diff -Naurp open-vm-tools.orig/modules/linux/vmxnet/Makefile open-vm-tools/modul
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
 diff -Naurp open-vm-tools.orig/modules/linux/vsock/Makefile open-vm-tools/modules/linux/vsock/Makefile
---- open-vm-tools.orig/modules/linux/vsock/Makefile	2011-08-28 14:17:10.244965654 +0200
-+++ open-vm-tools/modules/linux/vsock/Makefile	2011-08-28 14:48:31.254293082 +0200
+--- open-vm-tools.orig/modules/linux/vsock/Makefile
++++ open-vm-tools/modules/linux/vsock/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  

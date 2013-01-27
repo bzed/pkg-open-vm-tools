@@ -48,7 +48,7 @@ override_dh_auto_install:
 	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmusr debian/open-vm-toolbox/usr/lib/open-vm-tools/plugins
 
 override_dh_builddeb:
-	dh_builddeb -- -Zxz -z9
+	dh_builddeb -- -Zxz
 
 override_dh_dkms:
 	dh_dkms -V $(VERSION)
