@@ -1,4 +1,4 @@
-Author: Daniel Baumann <daniel.baumann@progress-technologies.net>
+Author: Daniel Baumann <mail@daniel-baumann.ch>
 Description: Set procps name.
 
 diff -Naurp open-vm-tools.orig/configure open-vm-tools/configure
