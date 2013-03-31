@@ -45,7 +45,6 @@ case "${1}" in
 
 	force-reload|restart)
 		${0} stop
-		sleep 1
 		${0} start
 		;;
 

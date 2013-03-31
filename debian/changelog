@@ -1,3 +1,10 @@
+open-vm-tools (2:9.2.2-893683-7) experimental; urgency=low
+
+  * Removing purely cosmetical 'sleep 1' leftover in initscript (Closes:
+    #686200).
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Sun, 31 Mar 2013 20:57:51 +0200
+
 open-vm-tools (2:9.2.2-893683-6) unstable; urgency=low
 
   * Removing all references to my old email address.
