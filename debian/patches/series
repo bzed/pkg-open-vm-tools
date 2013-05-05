@@ -1,4 +1,3 @@
 0001-kvers.patch
-0002-procps.patch
-0003-dkms.patch
-0004-vsock-cve.patch
+0002-dkms.patch
+0003-vsock-cve.patch

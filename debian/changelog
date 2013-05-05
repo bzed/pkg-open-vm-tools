@@ -1,3 +1,11 @@
+open-vm-tools (2:9.2.3-1031360-1) experimental; urgency=low
+
+  * Merging upstream version 9.2.3-1031360.
+  * Removing procps.patch, not needed anymore.
+  * Renumbering patches.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Sun, 05 May 2013 09:58:58 +0200
+
 open-vm-tools (2:9.2.2-893683-8) experimental; urgency=low
 
   * Adding patch from Mathias Krause <minipli@googlemail.com> to fix

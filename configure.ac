@@ -39,10 +39,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="9.2.2"
+TOOLS_VERSION="9.2.3"
 AC_INIT(
    [open-vm-tools],
-   [9.2.2],
+   [9.2.3],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -290,44 +290,45 @@ if test "$have_libintl" = "no"; then
 fi
 
 #
-# Check for glib 2.6.0 or greater.
+# Check for glib 2.6.14 or greater.
 #
 AC_VMW_CHECK_LIB([glib-2.0],
                  [GLIB2],
                  [glib-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [glib.h],
                  [g_key_file_new],
                  [],
-                 [AC_MSG_ERROR([glib >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([glib2 >= 2.14.0 is required.])])
+
 AC_VMW_CHECK_LIB([gmodule-2.0],
                  [GMODULE],
                  [gmodule-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [],
                  [],
                  [],
-                 [AC_MSG_ERROR([gmodule >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([gmodule >= 2.14.0 is required.])])
 AC_VMW_CHECK_LIB([gobject-2.0],
                  [GOBJECT],
                  [gobject-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [glib-object.h],
                  [],
                  [],
-                 [AC_MSG_ERROR([gobject >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([gobject >= 2.14.0 is required.])])
 AC_VMW_CHECK_LIB([gthread-2.0],
                  [GTHREAD],
                  [gthread-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [],
                  [],
                  [],
-                 [AC_MSG_ERROR([glib >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([glib >= 2.14.0 is required.])])
 AC_CHECK_PROG([have_genmarshal],
               [glib-genmarshal],
               [yes],
@@ -335,21 +336,6 @@ AC_CHECK_PROG([have_genmarshal],
 
 if test "$have_genmarshal" != "yes"; then
    AC_MSG_ERROR([glib-genmarshal is required; make sure it's available in your path.])
-fi
-
-#
-# Parts of our Linux code require more recent version of glib
-#
-if test "$os" = "linux"; then
-   AC_VMW_CHECK_LIB([glib-2.0],
-                    [GLIB2],
-                    [glib-2.0],
-                    [],
-                    [2.14.0],
-                    [glib.h],
-                    [g_regex_new],
-                    [have_glib_2_14=yes],
-                    [AC_MSG_WARN([glib is not recent enough, some features will be disabled.])])
 fi
 
 #
@@ -596,35 +582,55 @@ else
 fi
 
 if test "$with_procps" = "yes"; then
-   if test -z "$CUSTOM_PROCPS_NAME"; then
-      CUSTOM_PROCPS_NAME=proc
-   fi
 
-   # XXX: no pkg-config and no procps-config means we need to
-   # hard-code a sensible default.
-   if test -z "$CUSTOM_PROCPS_LIBS"; then
-      CUSTOM_PROCPS_LIBS="-L/lib"
-   fi
-
-   # Some distros provide libproc-${version}.so only, others provide the
-   # libproc.so symlink. Try both to see what sticks (but only try the 3.2.7
-   # and 3.2.8 versions - adding every possible version here would be a mess).
-   #
-   # Users can help by providing CUSTOM_PROCPS_NAME / CUSTOM_PROCPS_LIBS if
-   # necessary.
    have_procps=no
 
-   AC_VMW_CHECK_LIB([$CUSTOM_PROCPS_NAME],
-                    [PROCPS],
-                    [],
-                    [],
-                    [],
-                    [],
-                    [getstat],
-                    [
-                     have_procps=yes;
-                    ],
-                    [])
+   if test -z "$CUSTOM_PROCPS_NAME" && test -z "$CUSTOM_PROCPS_LIBS"; then
+      # See if we have procps-ng (that finally supports pkg-config).
+      AC_VMW_CHECK_LIB([procps-ng],
+                       [PROCPS],
+                       [libprocps],
+                       [],
+                       [],
+                       [],
+                       [],
+                       [
+                        have_procps=yes;
+                       ],
+                       [])
+   fi
+
+   if test "$have_procps" = "no"; then
+      # Let's see if there is an older procps version, one that does not
+      # support pkg-config.
+      if test -z "$CUSTOM_PROCPS_NAME"; then
+         CUSTOM_PROCPS_NAME=proc
+      fi
+
+      # XXX: no pkg-config and no procps-config means we need to
+      # hard-code a sensible default.
+      if test -z "$CUSTOM_PROCPS_LIBS"; then
+         CUSTOM_PROCPS_LIBS="-L/lib"
+      fi
+
+      # Some distros provide libproc-${version}.so only, others provide the
+      # libproc.so symlink. Try both to see what sticks (but only try the 3.2.7
+      # and 3.2.8 versions - adding every possible version here would be a mess).
+      #
+      # Users can help by providing CUSTOM_PROCPS_NAME / CUSTOM_PROCPS_LIBS if
+      # necessary.
+      AC_VMW_CHECK_LIB([$CUSTOM_PROCPS_NAME],
+                       [PROCPS],
+                       [],
+                       [],
+                       [],
+                       [],
+                       [getstat],
+                       [
+                        have_procps=yes;
+                       ],
+                       [])
+   fi
 
    if test "$have_procps" = "no"; then
       AC_VMW_CHECK_LIB([proc-3.2.8],
@@ -834,9 +840,12 @@ AC_C_VOLATILE
 CFLAGS="$CFLAGS -Wall"
 CFLAGS="$CFLAGS -Werror"
 
-# -Wno-unknown-pragmas is due to gcc not understanding '#pragma ident' in Xlib.h on OpenSolaris.
+# -Wno-unknown-pragmas is due to gcc not understanding '#pragma ident'
+# in Xlib.h on OpenSolaris.
+# Glib2 keep changing mutex APIs so we also need to disable 'deprecated'
+# warnings for now (-Wno-deprecated-declarations).
 for TEST_CFLAG in -Wno-pointer-sign -Wno-unused-value -fno-strict-aliasing \
-    -Wno-unknown-pragmas -Wno-uninitialized; do
+    -Wno-unknown-pragmas -Wno-uninitialized -Wno-deprecated-declarations; do
     AC_MSG_CHECKING([for GCC flag $TEST_CFLAG])
     ORIGINAL_CFLAGS="$CFLAGS"
     CFLAGS="$CFLAGS $TEST_CFLAG"
@@ -927,10 +936,6 @@ TARGET_OS="$os"
 MODULES_DIR=""
 buildHgfsmounter=no
 
-if test "$have_glib_2_14" = "yes"; then
-   CPPFLAGS="$CPPFLAGS -DHAVE_GLIB_REGEX"
-fi
-
 if test "$os" = "linux"; then
    MODULES_DIR="$LINUXDIR/kernel/"
 
@@ -942,10 +947,14 @@ if test "$os" = "linux"; then
 
    LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -lrt"
 
-   MODULES="$MODULES vmci vsock"
-   MODULES="$MODULES vmxnet vmblock vmhgfs"
+   MODULES="$MODULES vmxnet vmhgfs"
+   # See if we need vmci and vsock modules. Starting with 3.9 they made
+   # their way into mainline kernel.
+   if test "$osVersion" -lt 309000; then
+      MODULES="$MODULES vmci vsock"
+   fi
    if test "$osVersion" -lt 300000; then
-      MODULES="$MODULES vmsync"
+      MODULES="$MODULES vmblock vmsync"
    fi
    buildHgfsmounter=yes
 fi
@@ -1035,7 +1044,7 @@ AM_CONDITIONAL(HAVE_FUSE, test "$have_fuse" = "yes")
 AM_CONDITIONAL(HAVE_GNU_LD, test "$with_gnu_ld" = "yes")
 AM_CONDITIONAL(HAVE_GTKMM, test "$have_x" = "yes" -a "$with_gtkmm" = "yes")
 AM_CONDITIONAL(HAVE_PAM, test "$with_pam" = "yes")
-AM_CONDITIONAL(USE_SLASH_PROC, test "os" = "linux" -a "$have_glib_2_14" = "yes")
+AM_CONDITIONAL(USE_SLASH_PROC, test "os" = "linux")
 AM_CONDITIONAL(USE_PRINTF_WRAPPERS, test "$bsdPrintfWrappers" = "yes")
 
 if test "$have_xsm" != "yes"; then
