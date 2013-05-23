@@ -1,3 +1,13 @@
+open-vm-tools (2:9.2.3-1031360-2) experimental; urgency=low
+
+  * Renaming debian-specific open-vm-toolbox package to open-vm-tools-
+    desktop for consistency with upstream.
+  * Revamping package descriptions.
+  * Renaming open-vm-dkms to open-vm-tools-dkms for consistent package
+    namespace.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Thu, 23 May 2013 19:13:26 +0200
+
 open-vm-tools (2:9.2.3-1031360-1) experimental; urgency=low
 
   * Merging upstream version 9.2.3-1031360.
