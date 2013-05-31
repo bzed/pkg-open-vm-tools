@@ -1,3 +1,12 @@
+open-vm-tools (2:9.2.3-1031360-3) experimental; urgency=low
+
+  * Adding initial systemd service file from fedora.
+  * Skipping vmsync kernel module for the time being until it has been
+    fixed for the debian specific change introduced in linux 3.8.11-1 that
+    broke it (Closes: #707208).
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Fri, 31 May 2013 12:01:52 +0200
+
 open-vm-tools (2:9.2.3-1031360-2) experimental; urgency=low
 
   * Renaming debian-specific open-vm-toolbox package to open-vm-tools-
