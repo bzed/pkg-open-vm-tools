@@ -11,7 +11,7 @@ Standards-Version: 3.9.4
 Homepage: http://open-vm-tools.sourceforge.net/
 
 Package: open-vm-tools
-Architecture: amd64 i386 kfreebsd-amd64 kfreebsd-i386
+Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Recommends: open-vm-tools-dkms, ethtool, zerofree
 Suggests: open-vm-tools-desktop
@@ -24,7 +24,7 @@ Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
  This package contains only the core user-space programs and libraries.
 
 Package: open-vm-tools-desktop
-Architecture: amd64 i386 kfreebsd-amd64 kfreebsd-i386
+Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends}, open-vm-tools (= ${binary:Version})
 Recommends:
  open-vm-tools-dkms, xauth, xserver-xorg-input-vmmouse,
@@ -56,7 +56,7 @@ Description: Open VMware Tools for virtual machines hosted on VMware (developmen
 Package: open-vm-tools-dbg
 Section: debug
 Priority: extra
-Architecture: amd64 i386 kfreebsd-amd64 kfreebsd-i386
+Architecture: amd64 i386
 Depends: ${misc:Depends}, open-vm-tools (= ${binary:Version}), open-vm-tools-desktop (= ${binary:Version})
 Description: Open VMware Tools for virtual machines hosted on VMware (debug)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source

@@ -1,3 +1,11 @@
+open-vm-tools (2:9.2.3-1031360-4) experimental; urgency=low
+
+  * Dropping kfreebsd from architecture list, it has never built and
+    nobody seems willing to make it work (neither upstream, porters, nor
+    users).
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Thu, 06 Jun 2013 13:10:41 +0200
+
 open-vm-tools (2:9.2.3-1031360-3) experimental; urgency=low
 
   * Adding initial systemd service file from fedora.
