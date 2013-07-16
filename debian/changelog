@@ -1,3 +1,12 @@
+open-vm-tools (2:9.2.3-1031360-6) unstable; urgency=low
+
+  * Correcting syntax of file entries in copyright.
+  * Adding section override for open-vm-tools-dkms.
+  * Enforcing build with gcc 4.7 for the time being.
+  * Orphaning package.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Tue, 16 Jul 2013 10:18:50 +0200
+
 open-vm-tools (2:9.2.3-1031360-5) experimental; urgency=low
 
   * Dropping obsolete sysvinit initscript start/stop numbers.
