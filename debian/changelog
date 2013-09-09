@@ -1,3 +1,11 @@
+open-vm-tools (2:9.2.3-1031360-7) unstable; urgency=low
+
+  * QA upload
+  * Fix compilation with Linux 3.10. Thanks to Zack Weinberg for the patch! 
+    (Closes: #717154)
+
+ -- Moritz Mühlenhoff <muehlenhoff@univention.de>  Mon, 09 Sep 2013 05:19:44 +0200
+
 open-vm-tools (2:9.2.3-1031360-6) unstable; urgency=low
 
   * Correcting syntax of file entries in copyright.

@@ -1,0 +1,139 @@
+Description: Make vmblock and vmhgfs modules compile with kernel 3.10.
+ The vmblock and vmhgfs modules run afoul of significant VFS changes in
+ kernel 3.0.  The following patch makes them compile again.
+ .
+ Compatibility with older kernels is NOT preserved.
+Author: Zack Weinberg <zackw@panix.com>
+Bug-Debian: 717154
+Last-Update: 2013-08-19
+
+--- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmblock/linux/control.c
++++ open-vm-tools-9.2.3-1031360/modules/linux/vmblock/linux/control.c
+@@ -208,9 +208,10 @@ SetupProcDevice(void)
+    VMBlockSetProcEntryOwner(controlProcMountpoint);
+ 
+    /* Create /proc/fs/vmblock/dev */
+-   controlProcEntry = create_proc_entry(VMBLOCK_CONTROL_DEVNAME,
+-                                        VMBLOCK_CONTROL_MODE,
+-                                        controlProcDirEntry);
++   controlProcEntry = proc_create(VMBLOCK_CONTROL_DEVNAME,
++                                  VMBLOCK_CONTROL_MODE,
++                                  controlProcDirEntry,
++                                  &ControlFileOps);
+    if (!controlProcEntry) {
+       Warning("SetupProcDevice: could not create " VMBLOCK_DEVICE "\n");
+       remove_proc_entry(VMBLOCK_CONTROL_MOUNTPOINT, controlProcDirEntry);
+@@ -218,7 +219,6 @@ SetupProcDevice(void)
+       return -EINVAL;
+    }
+ 
+-   controlProcEntry->proc_fops = &ControlFileOps;
+    return 0;
+ }
+ 
+@@ -278,23 +278,34 @@ ExecuteBlockOp(const char __user *buf,
+                int (*blockOp)(const char *filename,   // IN: block operation
+                               const os_blocker_id_t blocker))
+ {
+-   char *name;
++   struct filename *nm;
++   char *adjname;
+    int i;
+    int retval;
+ 
+-   name = getname(buf);
+-   if (IS_ERR(name)) {
+-      return PTR_ERR(name);
++   nm = getname(buf);
++   if (IS_ERR(nm)) {
++      return PTR_ERR(nm);
+    }
+ 
+-   for (i = strlen(name) - 1; i >= 0 && name[i] == '/'; i--) {
+-      name[i] = '\0';
++   i = strlen(nm->name) - 1;
++   if (i < 0) {
++      putname(nm);
++      return -EINVAL;
+    }
+ 
+-   retval = i < 0 ? -EINVAL : blockOp(name, blocker);
+-
+-   putname(name);
++   if (nm->name[i] != '/') {
++      retval = blockOp(nm->name, blocker);
++   } else {
++      adjname = kstrdup(nm->name, GFP_KERNEL);
++      while (adjname[i] == '/')
++         i--;
++      adjname[i+1] = '\0';
++      retval = blockOp(adjname, blocker);
++      kfree(adjname);
++   }
+ 
++   putname(nm);
+    return retval;
+ }
+ 
+--- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmblock/linux/dentry.c
++++ open-vm-tools-9.2.3-1031360/modules/linux/vmblock/linux/dentry.c
+@@ -32,7 +32,7 @@
+ #include "block.h"
+ 
+ 
+-static int DentryOpRevalidate(struct dentry *dentry, struct nameidata *nd);
++static int DentryOpRevalidate(struct dentry *dentry, unsigned int flags);
+ 
+ struct dentry_operations LinkDentryOps = {
+    .d_revalidate = DentryOpRevalidate,
+@@ -60,7 +60,7 @@ struct dentry_operations LinkDentryOps =
+ 
+ static int
+ DentryOpRevalidate(struct dentry *dentry,  // IN: dentry revalidating
+-                   struct nameidata *nd)   // IN: lookup flags & intent
++                   unsigned int flags)   // IN: lookup flags & intent
+ {
+    VMBlockInodeInfo *iinfo;
+    struct nameidata actualNd;
+@@ -101,7 +101,7 @@ DentryOpRevalidate(struct dentry *dentry
+    if (actualDentry &&
+        actualDentry->d_op &&
+        actualDentry->d_op->d_revalidate) {
+-      return actualDentry->d_op->d_revalidate(actualDentry, nd);
++      return actualDentry->d_op->d_revalidate(actualDentry, flags);
+    }
+ 
+    if (compat_path_lookup(iinfo->name, 0, &actualNd)) {
+--- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmblock/linux/inode.c
++++ open-vm-tools-9.2.3-1031360/modules/linux/vmblock/linux/inode.c
+@@ -36,7 +36,8 @@
+ 
+ /* Inode operations */
+ static struct dentry *InodeOpLookup(struct inode *dir,
+-                                    struct dentry *dentry, struct nameidata *nd);
++                                    struct dentry *dentry,
++                                    unsigned int flags);
+ static int InodeOpReadlink(struct dentry *dentry, char __user *buffer, int buflen);
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 13)
+ static void *InodeOpFollowlink(struct dentry *dentry, struct nameidata *nd);
+@@ -75,7 +76,7 @@ static struct inode_operations LinkInode
+ static struct dentry *
+ InodeOpLookup(struct inode *dir,      // IN: parent directory's inode
+               struct dentry *dentry,  // IN: dentry to lookup
+-              struct nameidata *nd)   // IN: lookup intent and information
++              unsigned int flags)     // IN: lookup intent and information
+ {
+    char *filename;
+    struct inode *inode;
+--- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmhgfs/file.c
++++ open-vm-tools-9.2.3-1031360/modules/linux/vmhgfs/file.c
+@@ -32,6 +32,9 @@
+ #include "compat_fs.h"
+ #include "compat_kernel.h"
+ #include "compat_slab.h"
++#if defined VMW_USE_AIO
++#include <linux/aio.h>
++#endif
+ 
+ #include "cpName.h"
+ #include "hgfsProto.h"

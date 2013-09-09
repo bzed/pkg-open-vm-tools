@@ -1,3 +1,4 @@
 0001-kvers.patch
 0002-dkms.patch
 0003-vsock-cve.patch
+0004-vmblock-vmhgfs-compat-3_10.patch
