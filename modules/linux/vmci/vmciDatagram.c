@@ -16,7 +16,7 @@
  *
  *********************************************************/
 
-/*
+/* 
  * vmciDatagram.c --
  *
  *      Simple Datagram API for the guest driver.
@@ -49,7 +49,6 @@
 #include "vmciUtil.h"
 #include "vmciDatagram.h"
 #include "vmciCommonInt.h"
-#include "vmciKernelAPI.h"
 
 typedef struct DatagramHashEntry {
    struct DatagramHashEntry  *next;
@@ -57,7 +56,6 @@ typedef struct DatagramHashEntry {
 
    VMCIHandle                handle;
    uint32                    flags;
-   Bool                      runDelayed;
    VMCIDatagramRecvCB        recvCB;
    void                      *clientData;
    VMCIEvent                 destroyEvent;
@@ -65,11 +63,8 @@ typedef struct DatagramHashEntry {
 
 #define HASH_TABLE_SIZE 64
 
-#define VMCI_HASHRESOURCE(handle, size)                              \
-   VMCI_HashId(VMCI_HANDLE_TO_RESOURCE_ID(handle), (size))
-
-/*
- * Hash table containing all the datagram handles for this VM. It is
+/* 
+ * Hash table containing all the datagram handles for this VM. It is 
  * synchronized using a single lock but we should consider making it more
  * fine grained, e.g. a per bucket lock or per set of buckets' lock.
  */
@@ -77,21 +72,15 @@ typedef struct DatagramHashEntry {
 typedef struct DatagramHashTable {
    VMCILock lock;
    DatagramHashEntry *entries[HASH_TABLE_SIZE];
-} DatagramHashTable;
-
-typedef struct VMCIDelayedDatagramInfo {
-   DatagramHashEntry *entry;
-   VMCIDatagram msg;
-} VMCIDelayedDatagramInfo;
+} DatagramHashTable; 
 
 
 static int DatagramReleaseCB(void *clientData);
 static int DatagramHashAddEntry(DatagramHashEntry *entry, VMCIId contextID);
 static int DatagramHashRemoveEntry(VMCIHandle handle);
 static DatagramHashEntry *DatagramHashGetEntry(VMCIHandle handle);
-static DatagramHashEntry *DatagramHashGetEntryAnyCid(VMCIHandle handle);
 static void DatagramHashReleaseEntry(DatagramHashEntry *entry);
-static Bool DatagramHandleUniqueLockedAnyCid(VMCIHandle handle);
+static Bool DatagramHandleUniqueLocked(VMCIHandle handle);
 static int DatagramProcessNotify(void *clientData, VMCIDatagram *msg);
 
 DatagramHashTable hashTable;
@@ -101,12 +90,12 @@ DatagramHashTable hashTable;
  *
  *  DatagramReleaseCB --
  *
- *     Callback to release the datagram entry reference. It is called by the
+ *     Callback to release the datagram entry reference. It is called by the 
  *     VMCI_WaitOnEvent function before it blocks.
- *
+ * 
  *  Result:
  *     None.
- *
+ *     
  *------------------------------------------------------------------------------
  */
 
@@ -132,7 +121,7 @@ DatagramReleaseCB(void *clientData)
  *
  *  Result:
  *     VMCI_SUCCESS if added, error if not.
- *
+ *     
  *-------------------------------------------------------------------------
  */
 
@@ -144,11 +133,11 @@ DatagramHashAddEntry(DatagramHashEntry *entry, // IN:
    VMCILockFlags flags;
    static VMCIId datagramRID = VMCI_RESERVED_RESOURCE_ID_MAX + 1;
 
-   ASSERT(entry);
+   ASSERT(entry && contextID != VMCI_INVALID_ID);
 
    VMCI_GrabLock_BH(&hashTable.lock, &flags);
    if (!VMCI_HANDLE_INVALID(entry->handle) &&
-       !DatagramHandleUniqueLockedAnyCid(entry->handle)) {
+       !DatagramHandleUniqueLocked(entry->handle)) {
       VMCI_ReleaseLock_BH(&hashTable.lock, flags);
       return VMCI_ERROR_DUPLICATE_ENTRY;
    } else if (VMCI_HANDLE_INVALID(entry->handle)) {
@@ -163,7 +152,7 @@ DatagramHashAddEntry(DatagramHashEntry *entry, // IN:
       ASSERT(oldRID > VMCI_RESERVED_RESOURCE_ID_MAX);
       do {
          handle = VMCI_MAKE_HANDLE(contextID, datagramRID);
-         foundRID = DatagramHandleUniqueLockedAnyCid(handle);
+         foundRID = DatagramHandleUniqueLocked(handle);
          datagramRID++;
          if (UNLIKELY(!datagramRID)) {
             /*
@@ -184,9 +173,9 @@ DatagramHashAddEntry(DatagramHashEntry *entry, // IN:
          return VMCI_ERROR_NO_HANDLE;
       }
    }
-
+   
    ASSERT(!VMCI_HANDLE_INVALID(entry->handle));
-   idx = VMCI_HASHRESOURCE(entry->handle, HASH_TABLE_SIZE);
+   idx = VMCI_Hash(entry->handle, HASH_TABLE_SIZE);
 
    /* New entry is added to top/front of hash bucket. */
    entry->refCount++;
@@ -205,17 +194,17 @@ DatagramHashAddEntry(DatagramHashEntry *entry, // IN:
  *
  *  Result:
  *     VMCI_SUCCESS if removed, VMCI_ERROR_NO_HANDLE if not found.
- *
+ *     
  *-------------------------------------------------------------------------
  */
 
 static int
 DatagramHashRemoveEntry(VMCIHandle handle)
-{
+{ 
    int result = VMCI_ERROR_NOT_FOUND;
    VMCILockFlags flags;
    DatagramHashEntry *prev, *cur;
-   int idx = VMCI_HASHRESOURCE(handle, HASH_TABLE_SIZE);
+   int idx = VMCI_Hash(handle, HASH_TABLE_SIZE);
 
    prev = NULL;
    VMCI_GrabLock_BH(&hashTable.lock, &flags);
@@ -233,11 +222,11 @@ DatagramHashRemoveEntry(VMCIHandle handle)
 	 }
 
 	 cur->refCount--;
-
-	 /*
-	  * We know that DestroyHnd still has a reference so refCount must be
+	 
+	 /* 
+	  * We know that DestroyHnd still has a reference so refCount must be 
 	  * at least 1.
-	  */
+	  */	  
 	 ASSERT(cur->refCount > 0);
 	 result = VMCI_SUCCESS;
 	 break;
@@ -256,73 +245,28 @@ DatagramHashRemoveEntry(VMCIHandle handle)
  *
  *  DatagramHashGetEntry --
  *
- *     Gets the given datagram hashtable entry based on handle lookup.
- *
  *  Result:
- *     Datagram hash entry if found. NULL otherwise.
- *
+ *     None.
+ *     
  *-------------------------------------------------------------------------
  */
 
 static DatagramHashEntry *
-DatagramHashGetEntry(VMCIHandle handle) // IN
+DatagramHashGetEntry(VMCIHandle handle)
 {
    VMCILockFlags flags;
    DatagramHashEntry *cur;
-   int idx = VMCI_HASHRESOURCE(handle, HASH_TABLE_SIZE);
-
+   int idx = VMCI_Hash(handle, HASH_TABLE_SIZE);
+   
    VMCI_GrabLock_BH(&hashTable.lock, &flags);
-
    for (cur = hashTable.entries[idx]; cur != NULL; cur = cur->next) {
       if (VMCI_HANDLE_EQUAL(cur->handle, handle)) {
 	 cur->refCount++;
 	 break;
       }
    }
-
    VMCI_ReleaseLock_BH(&hashTable.lock, flags);
-
-   return cur;
-}
-
-
-/*
- *-------------------------------------------------------------------------
- *
- *  DatagramHashGetEntryAnyCid --
- *
- *     Gets the given datagram hashtable entry based on handle lookup.
- *     Will match "any" or specific cid.
- *
- *  Result:
- *     Datagram hash entry if found. NULL otherwise.
- *
- *-------------------------------------------------------------------------
- */
-
-static DatagramHashEntry *
-DatagramHashGetEntryAnyCid(VMCIHandle handle) // IN
-{
-   VMCILockFlags flags;
-   DatagramHashEntry *cur;
-   int idx = VMCI_HASHRESOURCE(handle, HASH_TABLE_SIZE);
-
-   VMCI_GrabLock_BH(&hashTable.lock, &flags);
-
-   for (cur = hashTable.entries[idx]; cur != NULL; cur = cur->next) {
-      if (VMCI_HANDLE_TO_RESOURCE_ID(cur->handle) ==
-          VMCI_HANDLE_TO_RESOURCE_ID(handle)) {
-         if (VMCI_HANDLE_TO_CONTEXT_ID(cur->handle) == VMCI_INVALID_ID ||
-             VMCI_HANDLE_TO_CONTEXT_ID(cur->handle) ==
-             VMCI_HANDLE_TO_CONTEXT_ID(handle)) {
-            cur->refCount++;
-            break;
-         }
-      }
-   }
-
-   VMCI_ReleaseLock_BH(&hashTable.lock, flags);
-
+   
    return cur;
 }
 
@@ -332,17 +276,14 @@ DatagramHashGetEntryAnyCid(VMCIHandle handle) // IN
  *
  *  DatagramHashReleaseEntry --
  *
- *     Drops a reference to the current hash entry. If this is the last
- *     reference then the entry is freed.
- *
  *  Result:
  *     None.
- *
+ *     
  *-------------------------------------------------------------------------
  */
 
 static void
-DatagramHashReleaseEntry(DatagramHashEntry *entry) // IN
+DatagramHashReleaseEntry(DatagramHashEntry *entry)
 {
    VMCILockFlags flags;
 
@@ -350,7 +291,7 @@ DatagramHashReleaseEntry(DatagramHashEntry *entry) // IN
    entry->refCount--;
 
    /* Check if this is last reference and signal the destroy event if so. */
-   if (entry->refCount == 0) {
+   if (entry->refCount == 0) { 
       VMCI_SignalEvent(&entry->destroyEvent);
    }
    VMCI_ReleaseLock_BH(&hashTable.lock, flags);
@@ -360,29 +301,27 @@ DatagramHashReleaseEntry(DatagramHashEntry *entry) // IN
 /*
  *------------------------------------------------------------------------------
  *
- *  DatagramHandleUniqueLockedAnyCid --
+ *  DatagramHandleUniqueLocked --
  *
- *     Checks whether the resource id (with any context id) is already in the
- *     hash table.
- *     Assumes that the caller has the hash table lock.
+ *     Checks whether the given handle is already in the hash
+ *     table. Assumes that the caller to have the hash table lock.
  *
  *  Result:
- *     TRUE if the handle is unique. FALSE otherwise.
- *
+ *     None.
+ *     
  *------------------------------------------------------------------------------
  */
 
 static Bool
-DatagramHandleUniqueLockedAnyCid(VMCIHandle handle) // IN
+DatagramHandleUniqueLocked(VMCIHandle handle)
 {
    Bool unique = TRUE;
    DatagramHashEntry *entry;
-   int idx = VMCI_HASHRESOURCE(handle, HASH_TABLE_SIZE);
+   int idx = VMCI_Hash(handle, HASH_TABLE_SIZE);
 
    entry = hashTable.entries[idx];
    while (entry) {
-      if (VMCI_HANDLE_TO_RESOURCE_ID(entry->handle) ==
-          VMCI_HANDLE_TO_RESOURCE_ID(handle)) {
+      if (VMCI_HANDLE_EQUAL(entry->handle, handle)) {
 	 unique = FALSE;
 	 break;
       }
@@ -419,27 +358,21 @@ VMCIDatagramCreateHndInt(VMCIId resourceID,          // IN:
    int result;
    DatagramHashEntry *entry;
    VMCIHandle handle;
-   VMCIId contextID;
+   VMCIId contextID = VMCI_GetContextID();
 
    if (!recvCB || !outHandle) {
       return VMCI_ERROR_INVALID_ARGS;
    }
 
-   if ((flags & VMCI_FLAG_ANYCID_DG_HND) != 0) {
-      contextID = VMCI_INVALID_ID;
-   } else {
-      contextID = VMCI_GetContextID();
-      /* Validate contextID. */
-      if (contextID == VMCI_INVALID_ID) {
-         return VMCI_ERROR_NO_RESOURCES;
-      }
+   /* Validate contextID. */
+   if (contextID == VMCI_INVALID_ID) {
+      return VMCI_ERROR_NO_RESOURCES;
    }
-
 
    if ((flags & VMCI_FLAG_WELLKNOWN_DG_HND) != 0) {
       VMCIDatagramWellKnownMapMsg wkMsg;
       if (resourceID == VMCI_INVALID_ID) {
-         return VMCI_ERROR_INVALID_ARGS;
+	 return VMCI_ERROR_INVALID_ARGS;
       }
       wkMsg.hdr.dst.context = VMCI_HYPERVISOR_CONTEXT_ID;
       wkMsg.hdr.dst.resource = VMCI_DATAGRAM_REQUEST_MAP;
@@ -448,9 +381,9 @@ VMCIDatagramCreateHndInt(VMCIId resourceID,          // IN:
       wkMsg.wellKnownID = resourceID;
       result = VMCI_SendDatagram((VMCIDatagram *)&wkMsg);
       if (result < VMCI_SUCCESS) {
-         VMCI_LOG(("Failed to reserve wellknown id %d, error %d.\n",
-                   resourceID, result));
-         return result;
+	 VMCI_LOG(("Failed to reserve wellknown id %d, error %d.\n",
+		   resourceID, result));
+	 return result;
       }
 
       handle = VMCI_MAKE_HANDLE(VMCI_WELL_KNOWN_CONTEXT_ID, resourceID);
@@ -466,16 +399,6 @@ VMCIDatagramCreateHndInt(VMCIId resourceID,          // IN:
    entry = VMCI_AllocKernelMem(sizeof *entry, VMCI_MEMORY_NONPAGED);
    if (entry == NULL) {
       return VMCI_ERROR_NO_MEM;
-   }
-
-   if (!VMCI_CanScheduleDelayedWork()) {
-      if (flags & VMCI_FLAG_DG_DELAYED_CB) {
-         VMCI_FreeKernelMem(entry, sizeof *entry);
-         return VMCI_ERROR_INVALID_ARGS;
-      }
-      entry->runDelayed = FALSE;
-   } else {
-      entry->runDelayed = (flags & VMCI_FLAG_DG_DELAYED_CB) ? TRUE : FALSE;
    }
 
    entry->handle = handle;
@@ -699,11 +622,10 @@ EXPORT_SYMBOL(VMCIDatagram_Send);
 #endif
 
 int
-VMCIDatagram_Send(VMCIDatagram *msg) // IN
+VMCIDatagram_Send(VMCIDatagram *msg) // IN		
 {
    uint32 retval;
    DatagramHashEntry *entry;
-   VMCIId contextId;
 
    if (msg == NULL) {
       VMCI_LOG(("Invalid datagram.\n"));
@@ -718,18 +640,11 @@ VMCIDatagram_Send(VMCIDatagram *msg) // IN
    /* Check srcHandle exists otherwise fail. */
    entry = DatagramHashGetEntry(msg->src);
    if (entry == NULL) {
-      VMCI_LOG(("Couldn't find handle 0x%x:0x%x.\n",
+      VMCI_LOG(("Couldn't find handle 0x%x:0x%x.\n", 
 		msg->src.context, msg->src.resource));
       return VMCI_ERROR_INVALID_ARGS;
    }
-
-   contextId = VMCI_HANDLE_TO_CONTEXT_ID(msg->src);
-
-   if (contextId == VMCI_INVALID_ID) {
-      msg->src = VMCI_MAKE_HANDLE(VMCI_GetContextID(),
-                                  VMCI_HANDLE_TO_RESOURCE_ID(msg->src));
-   }
-
+   
    retval = VMCI_SendDatagram(msg);
    DatagramHashReleaseEntry(entry);
 
@@ -740,41 +655,9 @@ VMCIDatagram_Send(VMCIDatagram *msg) // IN
 /*
  *-----------------------------------------------------------------------------
  *
- * VMCIDatagramDelayedDispatchCB --
- *
- *      Calls the specified callback in a delayed context.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-static void
-VMCIDatagramDelayedDispatchCB(void *data) // IN
-{
-   VMCIDelayedDatagramInfo *dgInfo = (VMCIDelayedDatagramInfo *)data;
-
-   ASSERT(data);
-
-   dgInfo->entry->recvCB(dgInfo->entry->clientData, &dgInfo->msg);
-
-   DatagramHashReleaseEntry(dgInfo->entry);
-   VMCI_FreeKernelMem(dgInfo, sizeof *dgInfo + (size_t)dgInfo->msg.payloadSize);
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
  * VMCIDatagram_Dispatch --
  *
- *      Forwards the datagram to the corresponding entry's callback.  This will
- *      defer the datagram if requested by the client, so that the callback
- *      is invoked in a delayed context.
+ *      Forwards the datagram corresponding entry's callback.
  *
  * Results:
  *      VMCI_SUCCESS on success, error code if not.
@@ -787,53 +670,29 @@ VMCIDatagramDelayedDispatchCB(void *data) // IN
 
 int
 VMCIDatagram_Dispatch(VMCIId contextID,  // IN: unused
-                      VMCIDatagram *msg) // IN
+		      VMCIDatagram *msg) // IN
 {
-   int32 err = VMCI_SUCCESS;
    DatagramHashEntry *entry;
-
+   
    ASSERT(msg);
 
-   entry = DatagramHashGetEntryAnyCid(msg->dst);
+   entry = DatagramHashGetEntry(msg->dst);
    if (entry == NULL) {
-      VMCI_LOG(("destination handle 0x%x:0x%x doesn't exist.\n",
+      VMCI_LOG(("destination handle 0x%x:0x%x doesn't exists.\n",
 		msg->dst.context, msg->dst.resource));
       return VMCI_ERROR_NO_HANDLE;
    }
-
-   if (!entry->recvCB) {
-      VMCI_LOG(("no handle callback for handle 0x%x:0x%x payload of "
-                "size %"FMT64"d.\n",
-                msg->dst.context, msg->dst.resource, msg->payloadSize));
-      goto out;
-   }
-
-   if (entry->runDelayed) {
-      VMCIDelayedDatagramInfo *dgInfo;
-
-      dgInfo = VMCI_AllocKernelMem(sizeof *dgInfo + (size_t)msg->payloadSize,
-                                   VMCI_MEMORY_ATOMIC | VMCI_MEMORY_NONPAGED);
-      if (NULL == dgInfo) {
-         err = VMCI_ERROR_NO_MEM;
-         goto out;
-      }
-
-      dgInfo->entry = entry;
-      memcpy(&dgInfo->msg, msg, VMCI_DG_SIZE(msg));
-
-      err = VMCI_ScheduleDelayedWork(VMCIDatagramDelayedDispatchCB, dgInfo);
-      if (VMCI_SUCCESS == err) {
-         return err;
-      }
-
-      VMCI_FreeKernelMem(dgInfo, sizeof *dgInfo + (size_t)msg->payloadSize);
-   } else {
+   
+   if (entry->recvCB) {
       entry->recvCB(entry->clientData, msg);
+   } else {
+      VMCI_LOG(("no handle callback for handle 0x%x:0x%x payload of "
+		"size %"FMT64"d.\n", 
+		msg->dst.context, msg->dst.resource, msg->payloadSize));
    }
-
-out:
    DatagramHashReleaseEntry(entry);
-   return err;
+
+   return VMCI_SUCCESS;
 }
 
 
@@ -853,11 +712,11 @@ out:
  *-----------------------------------------------------------------------------
  */
 
-void
+void 
 VMCIDatagram_Init(void)
 {
    int i;
-
+   
    VMCI_InitLock(&hashTable.lock,
                  "VMCIDatagramHashtable",
                  VMCI_LOCK_RANK_MIDDLE_BH);
@@ -872,7 +731,7 @@ VMCIDatagram_Init(void)
  *
  * VMCIDatagram_CheckHostCapabilities --
  *
- *      Verify that the host supports the resources we need.
+ *      Verify that the host supports the resources we need. 
  *      None are required for datagrams since they are implicitly supported.
  *
  * Results:
@@ -917,7 +776,7 @@ DatagramProcessNotify(void *clientData,   // IN:
    VMCIDatagram *dgm;
    DatagramQueueEntry *dqEntry;
    VMCILockFlags flags;
-
+   
    ASSERT(dgmProc != NULL && msg != NULL);
    dgmSize = VMCI_DG_SIZE(msg);
    ASSERT(dgmSize <= VMCI_MAX_DG_SIZE);
@@ -932,7 +791,7 @@ DatagramProcessNotify(void *clientData,   // IN:
    memcpy(dgm, msg, dgmSize);
 
    /* Allocate datagram queue entry and add it to the target fd's queue. */
-   dqEntry = VMCI_AllocKernelMem(sizeof *dqEntry,
+   dqEntry = VMCI_AllocKernelMem(sizeof *dqEntry, 
 				 VMCI_MEMORY_NONPAGED | VMCI_MEMORY_ATOMIC);
    if (dqEntry == NULL) {
       VMCI_FreeKernelMem(dgm, dgmSize);
@@ -954,8 +813,8 @@ DatagramProcessNotify(void *clientData,   // IN:
    dgmProc->pendingDatagrams++;
    dgmProc->datagramQueueSize += dgmSize;
 #ifdef SOLARIS
-   /*
-    * Release the lock here for Solaris. Otherwise, a deadlock
+   /* 
+    * Release the lock here for Solaris. Otherwise, a deadlock 
     * may occur since pollwakeup(9F) (invoked from VMCIHost_SignalCall)
     * and poll_common (invoked from poll(2)) try to grab a common lock.
     * The man pages of pollwakeup(9F) and chpoll(9E) talk about this.
@@ -993,9 +852,9 @@ DatagramProcessNotify(void *clientData,   // IN:
  */
 
 int
-VMCIDatagramProcess_Create(VMCIDatagramProcess **outDgmProc,          // OUT:
-                           VMCIDatagramCreateProcessInfo *createInfo, // IN:
-                           uintptr_t eventHnd)                        // IN:
+VMCIDatagramProcess_Create(VMCIDatagramProcess **outDgmProc,    // OUT:
+                           VMCIDatagramCreateInfo *createInfo,  // IN:
+                           uintptr_t eventHnd)                  // IN:
 {
    VMCIDatagramProcess *dgmProc;
 
@@ -1014,14 +873,14 @@ VMCIDatagramProcess_Create(VMCIDatagramProcess **outDgmProc,          // OUT:
    dgmProc->datagramQueue = NULL;
 
    /*
-    * We pass the result and corresponding handle to user level via the
+    * We pass the result and corresponding handle to user level via the 
     * createInfo.
     */
    createInfo->result = VMCIDatagram_CreateHnd(createInfo->resourceID,
-                                               createInfo->flags,
-                                               DatagramProcessNotify,
-                                               (void *)dgmProc,
-                                               &dgmProc->handle);
+					       createInfo->flags,
+					       DatagramProcessNotify,
+					       (void *)dgmProc,
+					       &dgmProc->handle);
    if (createInfo->result < VMCI_SUCCESS) {
       VMCI_FreeKernelMem(dgmProc, sizeof *dgmProc);
       return createInfo->result;
@@ -1062,8 +921,8 @@ VMCIDatagramProcess_Destroy(VMCIDatagramProcess *dgmProc) // IN:
 
    if (!VMCI_HANDLE_EQUAL(dgmProc->handle, VMCI_INVALID_HANDLE)) {
 
-      /*
-       * We block in destroy so we know that there can be no more
+      /* 
+       * We block in destroy so we know that there can be no more 
        * callbacks to DatagramProcessNotifyCB when we return from
        * this call.
        */
@@ -1106,7 +965,7 @@ VMCIDatagramProcess_Destroy(VMCIDatagramProcess *dgmProc) // IN:
 int
 VMCIDatagramProcess_ReadCall(VMCIDatagramProcess *dgmProc, // IN:
                              size_t maxSize,               // IN: max size of dg
-                             VMCIDatagram **dg)            // OUT:
+                             VMCIDatagram **dg)            // OUT: 
 {
    DatagramQueueEntry *dqEntry;
    ListItem *listItem;
@@ -1154,7 +1013,7 @@ VMCIDatagramProcess_ReadCall(VMCIDatagramProcess *dgmProc, // IN:
       VMCI_LOG(("VMCI: Caller's buffer is too small.\n"));
       return VMCI_ERROR_NO_MEM;
    }
-
+   
    LIST_DEL(listItem, &dgmProc->datagramQueue);
    dgmProc->pendingDatagrams--;
    dgmProc->datagramQueueSize -= VMCI_DG_SIZE(dqEntry->dg);

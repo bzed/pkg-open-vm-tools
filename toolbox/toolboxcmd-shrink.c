@@ -32,49 +32,52 @@
 
 #include "toolboxCmdInt.h"
 #include "rpcout.h"
-#include "vmware/guestrpc/tclodefs.h"
-#include "vmware/tools/i18n.h"
 
 #ifndef _WIN32
 static void ShrinkWiperDestroy(int signal);
 #endif
 
+static Bool ShrinkGetMountPoints(WiperPartition_List *);
+static WiperPartition * ShrinkGetPartition(char *mountPoint);
 static Wiper_State *wiper = NULL;
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * ShrinkGetMountPoints  --
+ * Shrink_List  --
  *
- *      Gets a list of wiper partitions.
+ *      Prints mount points to stdout.
  *
  * Results:
- *      The WiperPartion_List.
+ *      EXIT_SUCCESS.
  *
  * Side effects:
- *      Prints to stderr on errors.
+ *      None.
  *
  *-----------------------------------------------------------------------------
  */
 
-static Bool
-ShrinkGetMountPoints(WiperPartition_List *pl) // OUT: Known mount points
+int
+Shrink_List(void)
 {
-   if (!GuestApp_IsDiskShrinkCapable()) {
-      ToolsCmd_PrintErr("%s",
-                        SU_(disk.shrink.unavailable, SHRINK_FEATURE_ERR));
-   } else if (!GuestApp_IsDiskShrinkEnabled()) {
-      ToolsCmd_PrintErr("%s",
-                        SU_(disk.shrink.disabled, SHRINK_DISABLED_ERR));
-   } else if (!WiperPartition_Open(pl)) {
-      ToolsCmd_PrintErr("%s",
-                        SU_(disk.shrink.partition.error,
-                            "Unable to collect partition data.\n"));
-   } else {
-      return TRUE;
+   WiperPartition_List plist;
+   DblLnkLst_Links *curr;
+
+   if (!ShrinkGetMountPoints(&plist)) {
+      return EX_TEMPFAIL;
    }
-   return FALSE;
+
+   DblLnkLst_ForEach(curr, &plist.link) {
+      WiperPartition *p = DblLnkLst_Container(curr, WiperPartition, link);
+      if (p->type != PARTITION_UNSUPPORTED) {
+         printf("%s\n", p->mountPoint);
+      }
+   }
+
+   WiperPartition_Close(&plist);
+
+   return EXIT_SUCCESS;
 }
 
 
@@ -127,46 +130,39 @@ ShrinkGetPartition(char *mountPoint)
 /*
  *-----------------------------------------------------------------------------
  *
- * ShrinkList  --
+ * ShrinkGetMountPoints  --
  *
- *      Prints mount points to stdout.
+ *      Gets a list of wiper partitions.
  *
  * Results:
- *      EXIT_SUCCESS.
+ *      The WiperPartion_List.
  *
  * Side effects:
- *      None.
+ *      Prints to stderr on errors.
  *
  *-----------------------------------------------------------------------------
  */
 
-static int
-ShrinkList(void)
+static Bool
+ShrinkGetMountPoints(WiperPartition_List *pl) // OUT: Known mount points
 {
-   WiperPartition_List plist;
-   DblLnkLst_Links *curr;
-
-   if (!ShrinkGetMountPoints(&plist)) {
-      return EX_TEMPFAIL;
+   if (!GuestApp_IsDiskShrinkCapable()) {
+      fprintf(stderr, SHRINK_FEATURE_ERR);
+   } else if (!GuestApp_IsDiskShrinkEnabled()) {
+      fprintf(stderr, SHRINK_DISABLED_ERR);
+   } else if (!WiperPartition_Open(pl)) {
+      fprintf(stderr, "Unable to collect partition data.\n");
+   } else {
+      return TRUE;
    }
-
-   DblLnkLst_ForEach(curr, &plist.link) {
-      WiperPartition *p = DblLnkLst_Container(curr, WiperPartition, link);
-      if (p->type != PARTITION_UNSUPPORTED) {
-         printf("%s\n", p->mountPoint);
-      }
-   }
-
-   WiperPartition_Close(&plist);
-
-   return EXIT_SUCCESS;
+   return FALSE;
 }
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * ShrinkDoShrink  --
+ * Shrink_DoShrink  --
  *
  *      Wipe a single partition, returning only when the wiper
  *      operation is done or canceled.
@@ -183,9 +179,9 @@ ShrinkList(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
-ShrinkDoShrink(char *mountPoint, // IN: mount point
-               gboolean quiet)   // IN: verbosity flag
+int
+Shrink_DoShrink(char *mountPoint, // IN: mount point
+                int quiet_flag)   // IN: verbosity flag
 {
    int i;
    int progress = 0;
@@ -199,16 +195,12 @@ ShrinkDoShrink(char *mountPoint, // IN: mount point
 
    part = ShrinkGetPartition(mountPoint);
    if (part == NULL) {
-      ToolsCmd_PrintErr(SU_(disk.shrink.partition.notfound,
-                            "Unable to find partition %s\n"),
-                        mountPoint);
+      fprintf(stderr, "Unable to find partition %s\n", mountPoint);
       return EX_OSFILE;
    }
 
    if (part->type == PARTITION_UNSUPPORTED) {
-      ToolsCmd_PrintErr(SU_(disk.shrink.partition.unsupported,
-                            "Partition %s is not shrinkable\n"),
-                        part->mountPoint);
+      fprintf(stderr, "Partition %s is not shrinkable\n", part->mountPoint);
       rc = EX_UNAVAILABLE;
       goto out;
    }
@@ -219,8 +211,7 @@ ShrinkDoShrink(char *mountPoint, // IN: mount point
     * the case where the user takes a snapshot with the toolbox open.
     */
    if (!GuestApp_IsDiskShrinkEnabled()) {
-      ToolsCmd_PrintErr("%s",
-                        SU_(disk.shrink.conflict, SHRINK_CONFLICT_ERR));
+      fprintf(stderr, SHRINK_CONFLICT_ERR);
       rc = EX_TEMPFAIL;
       goto out;
    }
@@ -231,17 +222,15 @@ ShrinkDoShrink(char *mountPoint, // IN: mount point
       err = Wiper_Next(&wiper, &progress);
       if (strlen(err) > 0) {
          if (strcmp(err, "error.create") == 0) {
-            ToolsCmd_PrintErr("%s",
-                              SU_(disk.wiper.file.error,
-                                  "Error, Unable to create wiper file.\n"));
+            fprintf(stderr, "Error, Unable to create wiper file\n");
          } else {
-            ToolsCmd_PrintErr(SU_(disk.wiper.error, "Error: %s"), err);
+            fprintf(stderr, "Error, %s", err);
          }
 
          rc = EX_TEMPFAIL;
       }
 
-      if (!quiet) {
+      if (!quiet_flag) {
          printf("\rProgress: %d [", progress);
          for (i = 0; i <= progress / 10; i++) {
             putchar('=');
@@ -255,21 +244,18 @@ ShrinkDoShrink(char *mountPoint, // IN: mount point
       char *result;
       size_t resultLen;
 
-      ToolsCmd_PrintErr("\n");
-
-      if (ToolsCmd_SendRPC(DISK_SHRINK_CMD, sizeof DISK_SHRINK_CMD - 1,
-                           &result, &resultLen)) {
-         ToolsCmd_Print("%s",
-                        SU_(disk.shrink.complete, "Disk shrinking complete.\n"));
+      if (RpcOut_sendOne(&result, &resultLen, "disk.shrink")) {
+         if (!quiet_flag) {
+            printf("\nDisk shrinking complete\n");
+         }
          rc = EXIT_SUCCESS;
          goto out;
       }
 
-      ToolsCmd_PrintErr(SU_(disk.shrink.error, "Error while shrinking: %s\n"), result);
+      fprintf(stderr, "%s\n", result);
    }
 
-   ToolsCmd_PrintErr("%s",
-                     SU_(disk.shrink.incomplete, "Shrinking not completed.\n"));
+   fprintf(stderr, "Shrinking not completed\n");
    rc = EX_TEMPFAIL;
 
 out:
@@ -305,76 +291,7 @@ ShrinkWiperDestroy(int signal)	// IN: Signal caught
       Wiper_Cancel(&wiper);
       wiper = NULL;
    }
-   ToolsCmd_Print("%s", SU_(disk.shrink.canceled, "Disk shrink canceled.\n"));
+   printf("Disk shrink canceled\n");
    exit(EXIT_SUCCESS);
 }
 #endif
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * Disk_Command --
- *
- *      Handle and parse disk commands.
- *
- * Results:
- *      Returns EXIT_SUCCESS on success.
- *      Returns the appropriate exit code on errors.
- *
- * Side effects:
- *      Might shrink disk
- *
- *-----------------------------------------------------------------------------
- */
-
-int
-Disk_Command(char **argv,      // IN: command line arguments
-             int argc,         // IN: The length of the command line arguments
-             gboolean quiet)   // IN
-{
-   if (toolbox_strcmp(argv[optind], "list") == 0) {
-      return ShrinkList();
-   } else if (toolbox_strcmp(argv[optind], "shrink") == 0) {
-      if (++optind >= argc) {
-         ToolsCmd_MissingEntityError(argv[0], SU_(arg.mountpoint, "mount point"));
-      } else {
-         return ShrinkDoShrink(argv[optind], quiet);
-      }
-   } else {
-      ToolsCmd_UnknownEntityError(argv[0],
-                                  SU_(arg.subcommand, "subcommand"),
-                                  argv[optind]);
-   }
-   return EX_USAGE;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * Disk_Help --
- *
- *      Prints the help for the disk command.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-Disk_Help(const char *progName, // IN: The name of the program obtained from argv[0]
-          const char *cmd)      // IN
-{
-   g_print(SU_(help.disk, "%s: perform disk shrink operations\n"
-                          "Usage: %s %s <subcommand> [args]\n\n"
-                          "Subcommands:\n"
-                          "   list: list available mountpoints\n"
-                          "   shrink <mount-point>: shrinks a file system at the given mountpoint\n"),
-           cmd, progName, cmd);
-}
-

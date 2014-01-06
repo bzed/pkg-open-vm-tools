@@ -15,11 +15,9 @@
 ### Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ################################################################################
 
-plugindir = @TEST_PLUGIN_INSTALLDIR@
-plugin_LTLIBRARIES = libtestDebug.la
+noinst_LTLIBRARIES = libtestDebug.la
 
 libtestDebug_la_CPPFLAGS =
-libtestDebug_la_CPPFLAGS += @CUNIT_CPPFLAGS@
 libtestDebug_la_CPPFLAGS += @GOBJECT_CPPFLAGS@
 libtestDebug_la_CPPFLAGS += @PLUGIN_CPPFLAGS@
 
@@ -27,32 +25,10 @@ libtestDebug_la_LDFLAGS =
 libtestDebug_la_LDFLAGS += @PLUGIN_LDFLAGS@
 
 libtestDebug_la_LIBADD =
-libtestDebug_la_LIBADD += @CUNIT_LIBS@
 libtestDebug_la_LIBADD += @GOBJECT_LIBS@
 libtestDebug_la_LIBADD += @VMTOOLS_LIBS@
 libtestDebug_la_LIBADD += ../vmrpcdbg/libvmrpcdbg.la
 
 libtestDebug_la_SOURCES =
 libtestDebug_la_SOURCES += testDebug.c
-libtestDebug_la_SOURCES += testData_xdr.c
-
-BUILT_SOURCES =
-BUILT_SOURCES += testData_xdr.c
-BUILT_SOURCES += testData.h
-
-# XXX: see explanation in lib/guestRpc/Makefile.am
-CFLAGS += -Wno-unused
-
-CLEANFILES =
-CLEANFILES += testData_xdr.c
-CLEANFILES += testData.h
-
-testData.h: $(top_srcdir)/tests/testPlugin/testData.x
-	cp -f $(top_srcdir)/tests/testPlugin/testData.x $(builddir)
-	$(RPCGEN) $(RPCGENFLAGS) -h -o $@ $(builddir)/testData.x
-	$(SED) 's,rpc/rpc\.h,vmxrpc.h,' $@ > $@.tmp
-	mv $@.tmp $@
-
-testData_xdr.c: testData.h
-	$(RPCGEN) $(RPCGENFLAGS) -c -o $@ $(builddir)/testData.x
 

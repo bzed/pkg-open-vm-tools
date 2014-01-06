@@ -16,18 +16,20 @@
  *
  *********************************************************/
 
-/*
+/* 
  * os.c --
  *
- *      Wrappers for FreeBSD system functions required by "vmmemctl".
+ * 	Wrappers for FreeBSD system functions required by "vmmemctl".
+ *	This allows customers to build their own vmmemctl driver for
+ *	custom FreeBSD kernels without the need for source code.
  */
 
 /*
  * Compile-Time Options
  */
 
-#define	OS_DISABLE_UNLOAD   0
-#define	OS_DEBUG            1
+#define	OS_DISABLE_UNLOAD	(0)
+#define	OS_DEBUG		(1)
 
 /*
  * Includes
@@ -54,7 +56,10 @@
 #include <machine/stdarg.h>
 
 #include "os.h"
-#include "vmballoon.h"
+
+/*
+ * Constants
+ */
 
 /*
  * Types
@@ -66,7 +71,19 @@ typedef struct {
 
    /* termination flag */
    volatile int stop;
+
+   /* registered state */
+   os_timer_handler handler;
+   void *data;
+   int period;
 } os_timer;
+
+typedef struct {
+   /* registered state */
+   os_status_handler handler;
+   const char *name_verbose;
+   const char *name;
+} os_status;
 
 typedef struct {
    unsigned long size;       /* bitmap size in bytes */
@@ -75,12 +92,13 @@ typedef struct {
 } os_pmap;
 
 typedef struct {
+   os_status   status;
    os_timer    timer;
    os_pmap     pmap;
    vm_object_t vmobject;     /* vm backing object */
 } os_state;
 
-MALLOC_DEFINE(M_VMMEMCTL, BALLOON_NAME, "vmmemctl metadata");
+MALLOC_DEFINE(M_VMMEMCTL, "vmmemctl", "vmmemctl metadata"); 
 
 /*
  * Globals
@@ -91,99 +109,26 @@ static os_state global_state;
 static void vmmemctl_init_sysctl(void);
 static void vmmemctl_deinit_sysctl(void);
 
-
 /*
- *-----------------------------------------------------------------------------
- *
- * OS_Malloc --
- *
- *      Allocates kernel memory.
- *
- * Results:
- *      On success: Pointer to allocated memory
- *      On failure: NULL
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
+ * Simple Wrappers
  */
 
-void *
-OS_Malloc(size_t size) // IN
+void *os_kmalloc_nosleep(unsigned int size)
 {
-   return malloc(size, M_VMMEMCTL, M_NOWAIT);
+   return(malloc(size, M_VMMEMCTL, M_NOWAIT));
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * OS_Free --
- *
- *      Free allocated kernel memory.
- *
- * Results:
- *      None
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-OS_Free(void *ptr,   // IN
-        size_t size) // IN
+void os_kfree(void *obj, unsigned int size)
 {
-   free(ptr, M_VMMEMCTL);
+   free(obj, M_VMMEMCTL);
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * OS_MemZero --
- *
- *      Fill a memory location with 0s.
- *
- * Results:
- *      None
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-OS_MemZero(void *ptr,   // OUT
-           size_t size) // IN
+void os_bzero(void *b, unsigned int len)
 {
-   bzero(ptr, size);
+   bzero(b, len);
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * OS_MemCopy --
- *
- *      Copy a memory portion into another location.
- *
- * Results:
- *      None
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-OS_MemCopy(void *dest,      // OUT
-           const void *src, // IN
-           size_t size)     // IN
+void os_memcpy(void *dest, const void *src, unsigned int size)
 {
    memcpy(dest, src, size);
 }
@@ -203,61 +148,43 @@ static __inline__ unsigned long os_ffz(unsigned long word)
    return word;
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * OS_ReservedPageGetLimit --
- *
- *      Predict the maximum achievable balloon size.
- *
- * Results:
- *      Total memory pages.
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-unsigned long
-OS_ReservedPageGetLimit(void)
+int os_sprintf(char *str, const char *format, ...)
 {
-   return cnt.v_page_count;
+   va_list args;
+   va_start(args, format);
+   return(vsprintf(str, format, args));
 }
 
-
 /*
- *-----------------------------------------------------------------------------
- *
- * OS_ReservedPageGetPPN --
- *
- *      Convert a page handle (of a physical page previously reserved with
- *      OS_ReservedPageAlloc()) to a ppn.
- *
- * Results:
- *      The ppn.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
+ * System-Dependent Operations
  */
 
-unsigned long
-OS_ReservedPageGetPPN(PageHandle handle) // IN: A valid page handle
+char *os_identity(void)
 {
-   return (((vm_page_t)handle)->phys_addr) >> PAGE_SHIFT;
+   return("bsd");
 }
 
+/*
+ * Predict the maximum achievable balloon size.
+ *
+ * Currently we just return the total memory pages.
+ */
+unsigned int os_predict_max_balloon_pages(void)
+{
+   return(cnt.v_page_count);
+}
 
-static void
-os_pmap_alloc(os_pmap *p) // IN
+unsigned long os_addr_to_ppn(unsigned long addr)
+{
+   return (((vm_page_t)addr)->phys_addr) >> PAGE_SHIFT;
+}
+
+static void os_pmap_alloc(os_pmap *p)
 {
    /* number of pages (div. 8) */
    p->size = (cnt.v_page_count + 7) / 8;
 
-   /*
+   /* 
     * expand to nearest word boundary 
     * XXX: bitmap can be greater than total number of pages in system 
     */
@@ -267,21 +194,17 @@ os_pmap_alloc(os_pmap *p) // IN
    p->bitmap = (unsigned long *)kmem_alloc(kernel_map, p->size);
 }
 
-
-static void
-os_pmap_free(os_pmap *p) // IN
+static void os_pmap_free(os_pmap *p)
 {
    kmem_free(kernel_map, (vm_offset_t)p->bitmap, p->size);
    p->size = 0;
    p->bitmap = NULL;
 }
 
-
-static void
-os_pmap_init(os_pmap *p) // IN
+static void os_pmap_init(os_pmap *p)
 {
    /* alloc bitmap for pages in system */
-   os_pmap_alloc(p);
+   os_pmap_alloc(p); 
    if (!p->bitmap) {
       p->size = 0;
       p->bitmap = NULL;
@@ -293,9 +216,7 @@ os_pmap_init(os_pmap *p) // IN
    p->hint = 0;
 }
 
-
-static vm_pindex_t
-os_pmap_getindex(os_pmap *p) // IN
+static vm_pindex_t os_pmap_getindex(os_pmap *p)
 {
    int i;
    unsigned long bitidx, wordidx;
@@ -327,19 +248,14 @@ os_pmap_getindex(os_pmap *p) // IN
    return (vm_pindex_t)-1;
 }
 
-
-static void
-os_pmap_putindex(os_pmap *p,         // IN
-                 vm_pindex_t pindex) // IN
+static void os_pmap_putindex(os_pmap *p, vm_pindex_t pindex)
 {
    /* unset bit */
-   p->bitmap[pindex / (8*sizeof(unsigned long))] &=
+   p->bitmap[pindex / (8*sizeof(unsigned long))] &= 
                              ~(1<<(pindex % (8*sizeof(unsigned long))));
 }
 
-
-static void
-os_kmem_free(vm_page_t page) // IN
+static void os_kmem_free(vm_page_t page)
 {
    os_state *state = &global_state;
    os_pmap *pmap = &state->pmap;
@@ -352,9 +268,7 @@ os_kmem_free(vm_page_t page) // IN
    vm_page_free(page);
 }
 
-
-static vm_page_t
-os_kmem_alloc(int alloc_normal_failed) // IN
+static vm_page_t os_kmem_alloc(int alloc_normal_failed)
 {
    vm_page_t page;
    vm_pindex_t pindex;
@@ -387,235 +301,151 @@ os_kmem_alloc(int alloc_normal_failed) // IN
    return page;
 }
 
-
-static void
-os_balloonobject_delete(void)
+static void os_balloonobject_delete(void)
 {
    vm_object_deallocate(global_state.vmobject);
 }
 
-
-static void
-os_balloonobject_create(void)
+static void os_balloonobject_create(void)
 {
-   global_state.vmobject = vm_object_allocate(OBJT_DEFAULT,
+   global_state.vmobject = vm_object_allocate(OBJT_DEFAULT, 
                   OFF_TO_IDX(VM_MAX_KERNEL_ADDRESS - VM_MIN_KERNEL_ADDRESS));
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * OS_ReservedPageAlloc --
- *
- *      Reserve a physical page for the exclusive use of this driver.
- *
- * Results:
- *      On success: A valid page handle that can be passed to OS_ReservedPageGetPPN()
- *                  or OS_ReservedPageFree().
- *      On failure: PAGE_HANDLE_INVALID
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-PageHandle
-OS_ReservedPageAlloc(int canSleep) // IN
+unsigned long os_alloc_reserved_page(int can_sleep)
 {
-   vm_page_t page;
+   return (unsigned long)os_kmem_alloc(can_sleep);
+}
 
-   page = os_kmem_alloc(canSleep);
-   if (page == NULL) {
-      return PAGE_HANDLE_INVALID;
+void os_free_reserved_page(unsigned long page)
+{
+   os_kmem_free((vm_page_t)page);
+}
+
+static void os_timer_internal(void *data)
+{
+   os_timer *t = (os_timer *) data;
+
+   if (!t->stop) {
+      /* invoke registered handler, rearm timer */
+      (void) (*(t->handler))(t->data);
+      t->callout_handle = timeout(os_timer_internal, t, t->period);
    }
-
-   return (PageHandle)page;
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * OS_ReservedPageFree --
- *
- *      Unreserve a physical page previously reserved with OS_ReservedPageAlloc().
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-OS_ReservedPageFree(PageHandle handle) // IN: A valid page handle
+void os_timer_init(os_timer_handler handler, void *data, int period)
 {
-   os_kmem_free((vm_page_t)handle);
+   os_timer *t = &global_state.timer;
+
+   callout_handle_init(&t->callout_handle);
+   t->handler = handler;
+   t->data = data;
+   t->period = period;
+   t->stop = 0;
 }
 
+void os_timer_start(void)
+{
+   os_timer *t = &global_state.timer;
 
-/*
- *-----------------------------------------------------------------------------
- *
- * OS_Yield --
- *
- *      Yield the CPU, if needed.
- *
- * Results:
- *      None
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
+   /* clear termination flag */
+   t->stop = 0;
 
-void
-OS_Yield(void)
+   /* scheduler timer handler */
+   t->callout_handle = timeout(os_timer_internal, t, t->period);
+}
+
+void os_timer_stop(void)
+{
+   os_timer *t = &global_state.timer;
+
+   /* set termination flag */
+   t->stop = 1;
+
+   /* deschedule timer handler */
+   untimeout(os_timer_internal, t, t->callout_handle);
+}
+
+unsigned int os_timer_hz(void)
+{
+   return hz;
+}
+
+void os_yield(void)
 {
    /* Do nothing. */
 }
 
-
-/*
- * vmmemctl_poll -
- *
- *      Calls Balloon_QueryAndExecute() to perform ballooning tasks and
- *      then reschedules itself to be executed in BALLOON_POLL_PERIOD
- *      seconds.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- */
-
-static void
-vmmemctl_poll(void *data) // IN
-{
-   os_timer *t = data;
-
-   if (!t->stop) {
-      /* invoke registered handler, rearm timer */
-      Balloon_QueryAndExecute();
-      t->callout_handle = timeout(vmmemctl_poll, t, BALLOON_POLL_PERIOD * hz);
-   }
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * vmmemctl_init --
- *
- *      Called at driver startup, initializes the balloon state and structures.
- *
- * Results:
- *      On success: 0
- *      On failure: standard error code
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-static int
-vmmemctl_init(void)
+void os_init(const char *name,
+             const char *name_verbose,
+             os_status_handler handler)
 {
    os_state *state = &global_state;
-   os_timer *t = &state->timer;
    os_pmap *pmap = &state->pmap;
+   static int initialized = 0;
 
-   if (!Balloon_Init(BALLOON_GUEST_BSD)) {
-      return EIO;
+   /* initialize only once */
+   if (initialized++) {
+      return;
    }
+
+   /* zero global state */
+   bzero(state, sizeof(global_state));
 
    /* initialize timer state */
    callout_handle_init(&state->timer.callout_handle);
 
+   /* initialize status state */
+   state->status.handler = handler;
+   state->status.name = name;
+   state->status.name_verbose = name_verbose;
+
    os_pmap_init(pmap);
    os_balloonobject_create();
-
-   /* Set up and start polling */
-   callout_handle_init(&t->callout_handle);
-   t->stop = FALSE;
-   t->callout_handle = timeout(vmmemctl_poll, t, BALLOON_POLL_PERIOD * hz);
 
    vmmemctl_init_sysctl();
 
    /* log device load */
-   printf(BALLOON_NAME_VERBOSE " initialized\n");
-   return 0;
+   printf("%s initialized\n", state->status.name_verbose);
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * vmmemctl_cleanup --
- *
- *      Called when the driver is terminating, cleanup initialized structures.
- *
- * Results:
- *      None
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-static void
-vmmemctl_cleanup(void)
+void os_cleanup(void)
 {
    os_state *state = &global_state;
-   os_timer *t = &state->timer;
    os_pmap *pmap = &state->pmap;
+   os_status *status = &state->status;
 
    vmmemctl_deinit_sysctl();
-
-   Balloon_Cleanup();
-
-   /* Stop polling */
-   t->stop = TRUE;
-   untimeout(vmmemctl_poll, t, t->callout_handle);
 
    os_balloonobject_delete();
    os_pmap_free(pmap);
 
    /* log device unload */
-   printf(BALLOON_NAME_VERBOSE " unloaded\n");
+   printf("%s unloaded\n", status->name_verbose);
 }
-
 
 /*
  * Module Load/Unload Operations
  */
 
-static int
-vmmemctl_load(module_t mod, // IN: Unused
-              int cmd,      // IN
-              void *arg)    // IN: Unused
+extern int  init_module(void);
+extern void cleanup_module(void);
+
+static int vmmemctl_load(module_t mod, int cmd, void *arg)
 {
    int err = 0;
 
    switch (cmd) {
    case MOD_LOAD:
-      err = vmmemctl_init();
+      (void) init_module();
       break;
 
     case MOD_UNLOAD:
        if (OS_DISABLE_UNLOAD) {
-          /* prevent module unload */
+          /* prevent moudle unload */
           err = EBUSY;
        } else {
-          vmmemctl_cleanup();
+          cleanup_module();
        }
        break;
 
@@ -624,11 +454,14 @@ vmmemctl_load(module_t mod, // IN: Unused
       break;
    }
 
-   return err;
+   return(err);
 }
 
+/* All these interfaces got added in 4.x, so we support 5.0 and above with them */
+#if __FreeBSD_version >= 500000
 
-static struct sysctl_oid *oid;
+static struct sysctl_oid *oid = NULL;
+
 
 /*
  *-----------------------------------------------------------------------------
@@ -649,54 +482,12 @@ static struct sysctl_oid *oid;
 static int
 vmmemctl_sysctl(SYSCTL_HANDLER_ARGS)
 {
-   char buf[PAGE_SIZE];
-   size_t len = 0;
-   const BalloonStats *stats = Balloon_GetStats();
+   char stats[PAGE_SIZE];
+   size_t len;
 
-   /* format size info */
-   len += snprintf(buf + len, sizeof(buf) - len,
-                   "target:             %8d pages\n"
-                   "current:            %8d pages\n",
-                   stats->nPagesTarget,
-                   stats->nPages);
+   len = 1 + global_state.status.handler(stats);
 
-   /* format rate info */
-   len += snprintf(buf + len, sizeof(buf) - len,
-                   "rateNoSleepAlloc:   %8d pages/sec\n"
-                   "rateSleepAlloc:     %8d pages/sec\n"
-                   "rateFree:           %8d pages/sec\n",
-                   stats->rateNoSleepAlloc,
-                   stats->rateAlloc,
-                   stats->rateFree);
-
-   len += snprintf(buf + len, sizeof(buf) - len,
-                   "\n"
-                   "timer:              %8u\n"
-                   "start:              %8u (%4u failed)\n"
-                   "guestType:          %8u (%4u failed)\n"
-                   "lock:               %8u (%4u failed)\n"
-                   "unlock:             %8u (%4u failed)\n"
-                   "target:             %8u (%4u failed)\n"
-                   "primNoSleepAlloc:   %8u (%4u failed)\n"
-                   "primCanSleepAlloc:  %8u (%4u failed)\n"
-                   "primFree:           %8u\n"
-                   "errAlloc:           %8u\n"
-                   "errFree:            %8u\n",
-                   stats->timer,
-                   stats->start, stats->startFail,
-                   stats->guestType, stats->guestTypeFail,
-                   stats->lock,  stats->lockFail,
-                   stats->unlock, stats->unlockFail,
-                   stats->target, stats->targetFail,
-                   stats->primAlloc[BALLOON_PAGE_ALLOC_NOSLEEP],
-                   stats->primAllocFail[BALLOON_PAGE_ALLOC_NOSLEEP],
-                   stats->primAlloc[BALLOON_PAGE_ALLOC_CANSLEEP],
-                   stats->primAllocFail[BALLOON_PAGE_ALLOC_CANSLEEP],
-                   stats->primFree,
-                   stats->primErrorPageAlloc,
-                   stats->primErrorPageFree);
-
-   return SYSCTL_OUT(req, buf, len + 1);
+   return SYSCTL_OUT(req, stats, len);
 }
 
 
@@ -720,9 +511,9 @@ static void
 vmmemctl_init_sysctl(void)
 {
    oid =  sysctl_add_oid(NULL, SYSCTL_STATIC_CHILDREN(_vm), OID_AUTO,
-                         BALLOON_NAME, CTLTYPE_STRING | CTLFLAG_RD,
+                         global_state.status.name, CTLTYPE_STRING | CTLFLAG_RD,
                          0, 0, vmmemctl_sysctl, "A",
-                         BALLOON_NAME_VERBOSE);
+                         global_state.status.name_verbose);
 }
 
 
@@ -750,5 +541,34 @@ vmmemctl_deinit_sysctl(void)
    }
 }
 
+#else
+
+static void
+vmmemctl_init_sysctl(void)
+{
+   printf("Not providing sysctl for FreeBSD below 5.0\n");
+}
+
+static void
+vmmemctl_deinit_sysctl(void)
+{
+   printf("Not uninstalling sysctl for FreeBSD below 5.0\n");
+}
+
+#endif
+
+/*
+ * FreeBSD 3.2 does not have DEV_MODULE
+ */
+#ifndef DEV_MODULE
+#define DEV_MODULE(name, evh, arg)                                      \
+static moduledata_t name##_mod = {                                      \
+    #name,                                                              \
+    evh,                                                                \
+    arg                                                                 \
+};                                                                      \
+DECLARE_MODULE(name, name##_mod, SI_SUB_DRIVERS, SI_ORDER_MIDDLE)
+#endif
+	    
 DEV_MODULE(vmmemctl, vmmemctl_load, NULL);
 

@@ -163,11 +163,6 @@ EXTERN char *Util_GetSafeTmpDir(Bool useConf);
 EXTERN int Util_MakeSafeTemp(ConstUnicode tag,
                              Unicode *presult);
 
-typedef struct UtilSingleUseResource UtilSingleUseResource;
-UtilSingleUseResource *Util_SingleUseAcquire(const char *name);
-void Util_SingleUseRelease(UtilSingleUseResource *res);
-
-
 #if defined(__linux__) || defined(__FreeBSD__) || defined(sun)
 EXTERN Bool Util_GetProcessName(pid_t pid, char *bufOut, size_t bufOutSize);
 #endif
@@ -191,6 +186,10 @@ void Util_BacktraceToBuffer(uintptr_t *basePtr,
 
 int Util_CompareDotted(const char *s1, const char *s2);
 
+#if defined(__linux__)
+void Util_PrintLoadedObjects(void *addr_inside_exec);
+#endif
+
 #if defined(VMX86_STATS)
 Bool Util_QueryCStResidency(uint32 *numCpus, uint32 *numCStates,
                             uint64 **transitns, uint64 **residency,
@@ -201,7 +200,6 @@ Bool Util_QueryCStResidency(uint32 *numCpus, uint32 *numCStates,
  * In util_shared.h
  */
 EXTERN Bool Util_Throttle(uint32 count);
-EXTERN uint32 Util_FastRand(uint32 seed);
 
 /*
  *----------------------------------------------------------------------
@@ -275,7 +273,6 @@ EXTERN Bool Util_MakeSureDirExistsAndAccessible(char const *path,
 #else
 #   define DIRSEPS	      "/"
 #   define DIRSEPC	      '/'
-#   define VALID_DIRSEPS      DIRSEPS
 #endif
 
 
@@ -315,19 +312,20 @@ EXTERN Bool Util_MakeSureDirExistsAndAccessible(char const *path,
  */
 
 EXTERN void *Util_SafeInternalMalloc(int bugNumber, size_t size,
-                                     const char *file, int lineno);
+                                     char const *file, int lineno);
 
 EXTERN void *Util_SafeInternalRealloc(int bugNumber, void *ptr, size_t size,
-                                      const char *file, int lineno);
+                                      char const *file, int lineno);
 
 EXTERN void *Util_SafeInternalCalloc(int bugNumber, size_t nmemb,
-                                     size_t size, const char *file, int lineno);
+                                     size_t size, char const *file,
+                                     int lineno);
 
 EXTERN char *Util_SafeInternalStrdup(int bugNumber, const char *s,
-                                     const char *file, int lineno);
+                                     char const *file, int lineno);
 
 EXTERN char *Util_SafeInternalStrndup(int bugNumber, const char *s, size_t n,
-                                      const char *file, int lineno);
+                                      char const *file, int lineno);
 
 #define Util_SafeMalloc(_size) \
    Util_SafeInternalMalloc(-1, (_size), __FILE__, __LINE__)
@@ -551,4 +549,5 @@ Util_FreeStringList(char **list,      // IN/OUT: the list to free
 {
    Util_FreeList((void **) list, length);
 }
+
 #endif /* UTIL_H */

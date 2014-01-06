@@ -32,14 +32,15 @@
 #  include "compat_pci.h"
 #endif // __linux__
 
-#include "vmci_kernel_if.h"
-#include "vmci_defs.h"
 #include "vmciInt.h"
+#include "vmci_defs.h"
+#include "vmci_kernel_if.h"
 #include "vmciProcess.h"
 #include "vmciDatagram.h"
 #include "vmci_infrastructure.h"
 #include "circList.h"
 #include "vmciUtil.h"
+#include "vmciGuestKernelAPI.h"
 #include "vmciCommonInt.h"
 
 static ListItem *processList = NULL;
@@ -204,7 +205,7 @@ VMCIProcess_Destroy(VMCIProcess *process)
 VMCIProcess *
 VMCIProcess_Get(VMCIId processID)  // IN
 {
-   VMCIProcess *process = NULL;
+   VMCIProcess *process = NULL;  
    ListItem *next;
    VMCILockFlags flags;
 

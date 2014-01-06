@@ -35,60 +35,6 @@ typedef struct HgfsServerStateLogger {
    void                       *loggerData;   // logger callback private data
 } HgfsServerStateLogger;
 
-typedef
-struct HgfsVmxIov {
-   void *va;           /* Virtual addr */
-   uint64 pa;          /* Physical address passed by the guest */
-   uint32 len;         /* length of data; should be <= PAGE_SIZE for VMCI; arbitrary for backdoor */
-   char *token;        /* Token for physMem_ APIs */
-} HgfsVmxIov;
-
-typedef
-struct HgfsVaIov {
-   void *va;
-   uint32 len;
-}HgfsVaIov;
-
-typedef enum {
-   BUF_READABLE,  /* Establish readable mappings */
-   BUF_WRITEABLE, /* Establish writeable mappings */
-} MappingType;
-
-typedef
-struct HgfsPacket {
-   uint64 id;
-
-   /* Does the transport support Async operations ? */
-   Bool supportsAsync;
-
-   /* Does transport need to send Async reply ? */
-   Bool processedAsync;
-
-   /* Is the packet guest initiated ? */
-   Bool guestInitiated;
-
-   /* For metapacket we always establish writeable mappings */
-   void *metaPacket;
-   size_t metaPacketSize;
-   Bool metaPacketIsAllocated;
-
-   void *dataPacket;
-   size_t dataPacketSize;
-   uint32 dataPacketIovIndex;
-   Bool dataPacketIsAllocated;
-   /* What type of mapping was established - readable/ writeable ? */
-   MappingType dataMappingType;
-
-   void *replyPacket;
-   size_t replyPacketSize;
-   Bool replyPacketIsAllocated;
-
-   uint32 iovCount;
-   HgfsVmxIov iov[1];
-
-} HgfsPacket;
-
-
 /*
  * Function used for sending replies to the client for a session.
  * Passed by the caller at session connect time.
@@ -111,6 +57,17 @@ typedef uint32 HgfsSendFlags;
 #define HGFS_SEND_CAN_DELAY         (1 << 0)
 #define HGFS_SEND_NO_COMPLETE       (1 << 1)
 
+/*
+ * Receive flags.
+ *
+ * Contains a bitwise OR of a combination of the following flags:
+ * HGFS_RECEIVE_CAN_DELAY - directs the server to handle the message
+ * asynchronously.
+ */
+
+typedef uint32 HgfsReceiveFlags;
+
+#define HGFS_RECEIVE_CAN_DELAY      (1 << 0)
 
 typedef Bool
 HgfsSessionSendFunc(void *opaqueSession,  // IN
@@ -118,21 +75,13 @@ HgfsSessionSendFunc(void *opaqueSession,  // IN
                     size_t bufferLen,     // IN
                     HgfsSendFlags flags); // IN
 
-typedef struct HgfsServerChannelCallbacks {
-    void* (*getReadVa)(uint64 pa, uint32 size, char **token);
-    void* (*getWriteVa)(uint64 pa, uint32 size, char **token);
-    void (*putVa)(char **token);
-    Bool (*send)(void *opaqueSession, HgfsPacket *packet, char *buffer,
-                 size_t bufferLen, HgfsSendFlags flags);
-}HgfsServerChannelCallbacks;
-
 typedef struct HgfsServerSessionCallbacks {
-   Bool (*connect)(void *, HgfsServerChannelCallbacks *, void **);
+   Bool (*connect)(void *, HgfsSessionSendFunc *, void **);
    void (*disconnect)(void *);
    void (*close)(void *);
-   void (*receive)(HgfsPacket *packet, void *);
+   void (*receive)(char const *,size_t, void *, HgfsReceiveFlags);
    void (*invalidateObjects)(void *, DblLnkLst_Links *);
-   void (*sendComplete)(HgfsPacket *, void *);
+   void (*sendComplete)(void *, char *);
 } HgfsServerSessionCallbacks;
 
 Bool HgfsServer_InitState(HgfsServerSessionCallbacks **, HgfsServerStateLogger *);
@@ -144,7 +93,8 @@ void HgfsServer_SetHandleCounter(uint32 newHandleCounter);
 #ifdef VMX86_TOOLS
 void HgfsServer_ProcessPacket(char const *packetIn,
                               char *packetOut,
-                              size_t *packetSize);
+                              size_t *packetSize,
+                              HgfsReceiveFlags flags);
 #endif
 
 /*

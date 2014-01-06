@@ -34,7 +34,6 @@
 #include <io.h>
 #include "wminic.h"
 #include "win32u.h"
-#include <sys/stat.h>
 #else
 #include <unistd.h>
 #endif
@@ -48,6 +47,7 @@
 #include "vmware.h"
 #include "procMgr.h"
 #include "vm_version.h"
+#include "vm_app.h"
 #include "message.h"
 
 #if defined(VMTOOLS_USE_GLIB)
@@ -70,7 +70,7 @@
 #include "conf.h"
 #include "vixCommands.h"
 #include "base64.h"
-#include "guestInfoLib.h"
+#include "guestInfo.h"
 #include "hostinfo.h"
 #include "hgfsServer.h"
 #include "hgfs.h"
@@ -97,11 +97,6 @@
 #include "win32u.h"
 #endif /* _WIN32 */
 #include "hgfsHelper.h"
-
-#ifdef linux
-#include "mntinfo.h"
-#include <sys/vfs.h>
-#endif
 
 #define SECONDS_BETWEEN_POLL_TEST_FINISHED     1
 
@@ -172,40 +167,12 @@ static void VixToolsPrintFileInfo(char *filePathName,
                                   char **destPtr,
                                   char *endDestPtr);
 
-static void VixToolsPrintFileExtendedInfo(const char *filePathName,
-                                          const char *fileName,
-                                          char **destPtr,
-                                          char *endDestPtr);
-
 static const char *fileInfoFormatString = "<FileInfo>"
                                           "<Name>%s</Name>"
                                           "<FileFlags>%d</FileFlags>"
                                           "<FileSize>%"FMT64"d</FileSize>"
                                           "<ModTime>%"FMT64"d</ModTime>"
                                           "</FileInfo>";
-
-#ifdef _WIN32
-static const char *fileExtendedInfoWindowsFormatString = "<fxi>"
-                                          "<Name>%s</Name>"
-                                          "<ft>%d</ft>"
-                                          "<fs>%"FMT64"u</fs>"
-                                          "<mt>%"FMT64"u</mt>"
-                                          "<ct>%"FMT64"u</ct>"
-                                          "<at>%"FMT64"u</at>"
-                                          "</fxi>";
-#elif defined(linux)
-static const char *fileExtendedInfoLinuxFormatString = "<fxi>"
-                                          "<Name>%s</Name>"
-                                          "<ft>%d</ft>"
-                                          "<fs>%"FMT64"u</fs>"
-                                          "<mt>%"FMT64"u</mt>"
-                                          "<ct>%"FMT64"u</ct>"
-                                          "<at>%"FMT64"u</at>"
-                                          "<uid>%d</uid>"
-                                          "<gid>%d</gid>"
-                                          "<perm>%d</perm>"
-                                          "</fxi>";
-#endif
 
 static VixError VixToolsGetTempFile(const char *tag,
                                     void *userToken,
@@ -236,10 +203,6 @@ static VixError VixToolsListDirectory(VixCommandRequestHeader *requestMsg,
                                       size_t maxBufferSize,
                                       char **result);
 
-static VixError VixToolsListFiles(VixCommandRequestHeader *requestMsg,
-                                  size_t maxBufferSize,
-                                  char **result);
-
 static VixError VixToolsKillProcess(VixCommandRequestHeader *requestMsg);
 
 static VixError VixToolsCreateDirectory(VixCommandRequestHeader *requestMsg);
@@ -256,10 +219,6 @@ static VixError VixToolsCheckUserAccount(VixCommandRequestHeader *requestMsg);
 static VixError VixToolsProcessHgfsPacket(VixCommandHgfsSendPacket *requestMsg,
                                           char **result,
                                           size_t *resultValueResult);
-
-static VixError VixToolsListFileSystems(VixCommandRequestHeader *requestMsg,
-                                        char **result);
-
 
 #if defined(__linux__) || defined(_WIN32)
 static VixError VixToolsGetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg,
@@ -1066,6 +1025,8 @@ VixTools_GetToolsPropertiesImpl(GuestApp_Dict **confDictRef,      // IN
 
 #ifdef _WIN32
    osFamily = GUEST_OS_FAMILY_WINDOWS;
+#elif defined(N_PLAT_NLM)
+   osFamily = GUEST_OS_FAMILY_NETWARE;
 #else
    osFamily = GUEST_OS_FAMILY_LINUX;
 #endif
@@ -1304,6 +1265,115 @@ exit:
    }
    return err;
 }
+
+
+#if 0
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VixToolsSetProperties --
+ *
+ *    Get information about test features.
+ *
+ * Return value:
+ *    VixError
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+VixError
+VixToolsSetProperties(VixCommandRequestHeader *requestMsg,    // IN
+                      GuestApp_Dict **confDictRef)            // IN
+{
+   VixError err = VIX_OK;
+#if !defined(__FreeBSD__) && !defined(sun)
+   size_t serialBufferLength;
+   char *serialBuffer = NULL;
+   VixPropertyListImpl propList;
+   char *propString = NULL;
+   VixMsgSetVMStateRequest *setPropertiesRequest;
+
+   VixPropertyList_Initialize(&propList);
+
+   setPropertiesRequest = (VixMsgSetVMStateRequest *) requestMsg;
+   serialBufferLength = setPropertiesRequest->bufferSize;
+   serialBuffer = ((char*)setPropertiesRequest + sizeof(*setPropertiesRequest));
+
+   /*
+    * Create a temporary property list and deserialize the buffer into.
+    */
+   err = VixPropertyList_Deserialize(&propList, 
+                                     serialBuffer, 
+                                     serialBufferLength);
+   if (VIX_OK != err) {
+      goto abort;
+   }
+
+   ////////////////////////////////////////////
+   free(propString);
+   propString = NULL;
+   err = VixPropertyList_GetString(&propList,
+                                   VIX_PROPERTY_GUEST_SUSPEND_SCRIPT,
+                                   0,
+                                   &propString);
+   if ( (VIX_OK == err) && (NULL != confDictRef) && (NULL != *confDictRef)) {
+      GuestApp_SetDictEntry(*confDictRef,
+                            CONFNAME_SUSPENDSCRIPT,
+                            propString);
+   }
+
+   ////////////////////////////////////////////
+   free(propString);
+   propString = NULL;
+   err = VixPropertyList_GetString(&propList,
+                                   VIX_PROPERTY_GUEST_RESUME_SCRIPT,
+                                   0,
+                                   &propString);
+   if ( (VIX_OK == err) && (NULL != confDictRef) && (NULL != *confDictRef))  {
+      GuestApp_SetDictEntry(*confDictRef,
+                            CONFNAME_RESUMESCRIPT,
+                            propString);
+   }
+
+   ////////////////////////////////
+   free(propString);
+   propString = NULL;
+   err = VixPropertyList_GetString(&propList,
+                                   VIX_PROPERTY_GUEST_POWER_ON_SCRIPT,
+                                   0,
+                                   &propString);
+   if ( (VIX_OK == err) && (NULL != confDictRef) && (NULL != *confDictRef))  {
+      GuestApp_SetDictEntry(*confDictRef,
+                            CONFNAME_POWERONSCRIPT,
+                            propString);
+   }
+
+   ////////////////////////////////
+   free(propString);
+   propString = NULL;
+   err = VixPropertyList_GetString(&propList,
+                                   VIX_PROPERTY_GUEST_POWER_OFF_SCRIPT,
+                                   0,
+                                   &propString);
+   if ( (VIX_OK == err) && (NULL != confDictRef) && (NULL != *confDictRef))  {
+      GuestApp_SetDictEntry(*confDictRef,
+                            CONFNAME_POWEROFFSCRIPT,
+                            propString);
+   }
+
+
+   err = VIX_OK;
+
+abort:
+   VixPropertyList_RemoveAllWithoutHandles(&propList);
+#endif // __FreeBSD__ || sun
+
+   return err;
+} // VixToolsSetProperties
+#endif
 
 
 /*
@@ -2461,238 +2531,6 @@ abort:
 /*
  *-----------------------------------------------------------------------------
  *
- * VixToolsListFiles --
- *
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    None
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsListFiles(VixCommandRequestHeader *requestMsg,    // IN
-                  size_t maxBufferSize,                   // IN
-                  char **result)                          // OUT
-{
-   VixError err = VIX_OK;
-   char *dirPathName = NULL;
-   char *fileList = NULL;
-   char **fileNameList = NULL;
-   size_t resultBufferSize = 0;
-   size_t lastGoodResultBufferSize = 0;
-   int numFiles = 0;
-   int lastGoodNumFiles = 0;
-   int fileNum;
-   char *currentFileName;
-   char *destPtr;
-   char *endDestPtr;
-   Bool impersonatingVMWareUser = FALSE;
-   size_t formatStringLength = 0;
-   void *userToken = NULL;
-   VixMsgListFilesRequest *listRequest = NULL;
-   Bool truncated = FALSE;
-   uint64 offset = 0;
-   Bool listingSingleFile = FALSE;
-   char *pattern = NULL;
-   int index = 0;
-   int maxResults = 0;
-   int count = 0;
-   int numResults;
-#if defined(VMTOOLS_USE_GLIB)
-   GRegex *regex = NULL;
-   GError *gerr = NULL;
-#endif
-
-   listRequest = (VixMsgListFilesRequest *) requestMsg;
-   offset = listRequest->offset;
-   index = listRequest->index;
-   maxResults = listRequest->maxResults;
-   dirPathName = ((char *) requestMsg) + sizeof(*listRequest);
-   if (listRequest->patternLength > 0) {
-      pattern = dirPathName + listRequest->guestPathNameLength + 1;
-      Debug("%s: pattern length is %d, value is '%s'\n",
-            __FUNCTION__, listRequest->patternLength, pattern);
-   }
-
-   if (0 == *dirPathName) {
-      err = VIX_E_INVALID_ARG;
-      goto abort;
-   }
-
-   err = VixToolsImpersonateUser(requestMsg, &userToken);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-   impersonatingVMWareUser = TRUE;
-
-   Debug("%s: listing files in '%s' with pattern '%s'\n",
-         __FUNCTION__, dirPathName, pattern);
-
-   if (pattern) {
-#if defined(VMTOOLS_USE_GLIB)
-      regex = g_regex_new(pattern, 0, 0, &gerr);
-      if (!regex) {
-         Debug("%s: bad regex pattern '%s'; failing with INVALID_ARG\n",
-               __FUNCTION__, pattern);
-         err = VIX_E_INVALID_ARG;
-         goto abort;
-      }
-#else
-      Debug("%s: pattern filter support desired but not built in\n",
-            __FUNCTION__);
-      err = VIX_E_NOT_SUPPORTED;
-      goto abort;
-#endif
-   }
-
-   if (File_IsDirectory(dirPathName)) {
-      numFiles = File_ListDirectory(dirPathName, &fileNameList);
-      if (numFiles < 0) {
-         err = FoundryToolsDaemon_TranslateSystemErr();
-         goto abort;
-      }
-   } else {
-      if (File_Exists(dirPathName)) {
-         listingSingleFile = TRUE;
-         numFiles = 1;
-         fileNameList = Util_SafeMalloc(sizeof(char *));
-         fileNameList[0] = Util_SafeStrdup(dirPathName);
-      } else {
-         err = VIX_E_OBJECT_NOT_FOUND;
-         goto abort;
-      }
-   }
-
-   /*
-    * Calculate the size of the result buffer and keep track of the
-    * max number of entries we can store.
-    */
-   resultBufferSize = 3; // truncation bool + space + '\0'
-   lastGoodResultBufferSize = resultBufferSize;
-   ASSERT_NOT_IMPLEMENTED(lastGoodResultBufferSize < maxBufferSize);
-#ifdef _WIN32
-   formatStringLength = strlen(fileExtendedInfoWindowsFormatString);
-#elif defined(linux)
-   formatStringLength = strlen(fileExtendedInfoLinuxFormatString);
-#endif
-
-   for (fileNum = offset + index;
-        fileNum < numFiles && count < maxResults;
-        fileNum++) {
-      currentFileName = fileNameList[fileNum];
-
-#if defined(VMTOOLS_USE_GLIB)
-      if (regex) {
-         if (!g_regex_match(regex, currentFileName, 0, NULL)) {
-            continue;
-         }
-      }
-#endif
-
-      resultBufferSize += formatStringLength;
-      resultBufferSize += 2; // DIRSEPC chars
-      resultBufferSize += 10 + 20 + (20 * 3); // properties + size + times
-#ifdef linux
-      resultBufferSize += 10 * 3;            // uid, gid, perms
-#endif
-      resultBufferSize += strlen(currentFileName);
-      count++;
-
-      if (resultBufferSize < maxBufferSize) {
-         /*
-          * lastGoodNumFiles is a count (1 based), while fileNum is
-          * an array index (zero based).  So lastGoodNumFiles is
-          * fileNum + 1.
-          */
-         lastGoodNumFiles = fileNum + 1;
-         lastGoodResultBufferSize = resultBufferSize;
-      } else {
-         truncated = TRUE;
-         break;
-      }
-   }
-   resultBufferSize = lastGoodResultBufferSize;
-   numResults = count;
-
-   /*
-    * Print the result buffer.
-    */
-   fileList = Util_SafeMalloc(resultBufferSize);
-   destPtr = fileList;
-   endDestPtr = fileList + resultBufferSize;
-
-   /*
-    * Indicate if we have a truncated buffer with "1 ", otherwise "0 ".
-    * This should only happen for non-legacy requests.
-    */
-   if ((destPtr + 2) < endDestPtr) {
-      *destPtr++ = truncated ? '1' : '0';
-      *destPtr++ = ' ';
-   } else {
-      ASSERT(0);
-      err = VIX_E_OUT_OF_MEMORY;
-      goto abort;
-   }
-
-   for (fileNum = offset + index, count = 0;
-        count < numResults;
-        fileNum++, count++) {
-      /* File_ListDirectory never returns "." or ".." */
-      char *pathName;
-
-      currentFileName = fileNameList[fileNum];
-
-#if defined(VMTOOLS_USE_GLIB)
-      if (regex) {
-         if (!g_regex_match(regex, currentFileName, 0, NULL)) {
-            continue;
-         }
-      }
-#endif
-
-      if (listingSingleFile) {
-         pathName = Util_SafeStrdup(currentFileName);
-      } else {
-         pathName = Str_SafeAsprintf(NULL, "%s%s%s", dirPathName, DIRSEPS,
-                                     currentFileName);
-      }
-
-      VixToolsPrintFileExtendedInfo(pathName, currentFileName,
-                                    &destPtr, endDestPtr);
-
-      free(pathName);
-   } // for (fileNum = 0; fileNum < lastGoodNumFiles; fileNum++)
-   *destPtr = '\0';
-
-abort:
-   if (impersonatingVMWareUser) {
-      VixToolsUnimpersonateUser(userToken);
-   }
-   VixToolsLogoutUser(userToken);
-
-   if (NULL == fileList) {
-      fileList = Util_SafeStrdup("");
-   }
-   *result = fileList;
-
-   if (NULL != fileNameList) {
-      for (fileNum = 0; fileNum < numFiles; fileNum++) {
-         free(fileNameList[fileNum]);
-      }
-      free(fileNameList);
-   }
-
-   return err;
-} // VixToolsListFiles
-
-
-/*
- *-----------------------------------------------------------------------------
- *
  * VixToolsGetFileInfo --
  *
  *
@@ -2813,109 +2651,6 @@ VixToolsPrintFileInfo(char *filePathName,     // IN
                            fileSize,
                            modTime);
 } // VixToolsPrintFileInfo
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsPrintFileExtendedInfo --
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    None
- *
- *-----------------------------------------------------------------------------
- */
-
-static void
-VixToolsPrintFileExtendedInfo(const char *filePathName,     // IN
-                              const char *fileName,         // IN
-                              char **destPtr,               // IN
-                              char *endDestPtr)             // OUT
-{
-#if defined(_WIN32) || defined(linux)
-   int64 fileSize = 0;
-   VmTimeType modTime = 0;
-   VmTimeType accessTime = 0;
-   VmTimeType createTime = 0;
-   int32 fileProperties = 0;
-#ifdef _WIN32
-   DWORD fileAttr = 0;
-   Bool hidden = FALSE;
-   Bool readOnly = FALSE;
-#elif defined(linux)
-   int permissions = 0;
-   int ownerId = 0;
-   int groupId = 0;
-#endif
-   struct stat statbuf;
-
-   if (File_IsDirectory(filePathName)) {
-      fileProperties |= VIX_FILE_ATTRIBUTES_DIRECTORY;
-   } else {
-      if (File_IsSymLink(filePathName)) {
-         fileProperties |= VIX_FILE_ATTRIBUTES_SYMLINK;
-      }
-      if (File_IsFile(filePathName)) {
-         fileSize = File_GetSize(filePathName);
-      }
-   }
-#ifdef _WIN32
-   fileAttr = Win32U_GetFileAttributes(filePathName);
-   if (fileAttr != INVALID_FILE_ATTRIBUTES) {
-      if (fileAttr & FILE_ATTRIBUTE_HIDDEN) {
-         fileProperties |= VIX_FILE_ATTRIBUTES_HIDDEN;
-      }
-      if (fileAttr & FILE_ATTRIBUTE_READONLY) {
-         fileProperties |= VIX_FILE_ATTRIBUTES_READONLY;
-      }
-   }
-#endif
-
-   if (Posix_Stat(filePathName, &statbuf) != -1) {
-#ifdef linux
-      ownerId = statbuf.st_uid;
-      groupId = statbuf.st_gid;
-      permissions = statbuf.st_mode;
-#endif
-      modTime = statbuf.st_mtime;
-      createTime = statbuf.st_ctime;
-      accessTime = statbuf.st_atime;
-   } else {
-      Debug("%s: Posix_Stat(%s) failed with %d\n",
-            __FUNCTION__, filePathName, errno);
-   }
-
-#ifdef _WIN32
-   *destPtr += Str_Sprintf(*destPtr,
-                           endDestPtr - *destPtr,
-                           fileExtendedInfoWindowsFormatString,
-                           fileName,
-                           fileProperties,
-                           fileSize,
-                           modTime,
-                           createTime,
-                           accessTime,
-                           hidden,
-                           readOnly);
-#elif defined(linux)
-   *destPtr += Str_Sprintf(*destPtr,
-                           endDestPtr - *destPtr,
-                           fileExtendedInfoLinuxFormatString,
-                           fileName,
-                           fileProperties,
-                           fileSize,
-                           modTime,
-                           createTime,
-                           accessTime,
-                           ownerId,
-                           groupId,
-                           permissions);
-#endif
-#endif   // defined(_WIN32) || defined(linux)
-} // VixToolsPrintFileExtendedInfo
 
 
 /*
@@ -3279,8 +3014,6 @@ VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
    VixCommandNamePassword *namePasswordStruct;
    int credentialType;
 
-   Debug(">%s\n", __FUNCTION__);
-
    credentialField = ((char *) requestMsg)
                            + requestMsg->commonHeader.headerLength 
                            + requestMsg->commonHeader.bodyLength;
@@ -3311,8 +3044,6 @@ VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
       }
 #endif
    }
-
-   Debug("<%s\n", __FUNCTION__);
 
    return(err);
 } // VixToolsImpersonateUser
@@ -3778,14 +3509,15 @@ VixToolsProcessHgfsPacket(VixCommandHgfsSendPacket *requestMsg,   // IN
    hgfsPacket = ((char *) requestMsg) + sizeof(*requestMsg);
    hgfsPacketSize = requestMsg->hgfsPacketSize;
 
-#if !defined(__FreeBSD__)
+#if !defined(N_PLAT_NLM) && !defined(__FreeBSD__)
    /*
     * Impersonation was okay, so let's give our packet to
     * the HGFS server and forward the reply packet back.
     */
    HgfsServer_ProcessPacket(hgfsPacket,        // packet in buf
                             hgfsReplyPacket,   // packet out buf
-                            &hgfsPacketSize);  // in/out size
+                            &hgfsPacketSize,   // in/out size
+                            0);                // in flags
 #endif
 
    if (NULL != resultValueResult) {
@@ -3803,166 +3535,6 @@ abort:
 
    return err;
 } // VixToolsProcessHgfsPacket
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixToolsListFileSystems --
- *
- *
- * Return value:
- *    VixError
- *
- * Side effects:
- *    None
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixToolsListFileSystems(VixCommandRequestHeader *requestMsg, // IN
-                        char **result)                       // OUT
-{
-   VixError err = VIX_OK;
-   static char resultBuffer[MAX_PROCESS_LIST_RESULT_LENGTH];
-   Bool impersonatingVMWareUser = FALSE;
-   void *userToken = NULL;
-   char *destPtr;
-   char *endDestPtr;
-#if defined(_WIN32) || defined(linux)
-   const char *listFileSystemsFormatString = "<filesystem>"
-                                             "<name>%s</name>"
-                                             "<size>%"FMT64"u</size>"
-                                             "<freeSpace>%"FMT64"u</freeSpace>"
-                                             "<type>%s</type>"
-                                             "</filesystem>";
-#endif
-#if defined(_WIN32)
-   Unicode *driveList = NULL;
-   int numDrives = -1;
-   uint64 freeBytesToUser = 0;
-   uint64 totalBytesToUser = 0;
-   uint64 freeBytes = 0;
-   Unicode fileSystemType;
-   int i;
-#endif
-#ifdef linux
-   MNTHANDLE fp;
-   DECLARE_MNTINFO(mnt);
-   const char *mountfile = NULL;
-#endif
-
-   Debug(">%s\n", __FUNCTION__);
-
-   destPtr = resultBuffer;
-   *destPtr = 0;
-   endDestPtr = resultBuffer + sizeof(resultBuffer);
-
-   err = VixToolsImpersonateUser(requestMsg, &userToken);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-   impersonatingVMWareUser = TRUE;
-
-#if defined(_WIN32)
-   numDrives = Win32U_GetLogicalDriveStrings(&driveList);
-   if (-1 == numDrives) {
-      Warning("unable to get drive listing: windows error code %d\n",
-              GetLastError());
-      err = FoundryToolsDaemon_TranslateSystemErr();
-      goto abort;
-   }
-
-   for (i = 0; i < numDrives; i++) {
-      if (!Win32U_GetDiskFreeSpaceEx(driveList[i],
-                                     (PULARGE_INTEGER) &freeBytesToUser,
-                                     (PULARGE_INTEGER) &totalBytesToUser,
-                                     (PULARGE_INTEGER) &freeBytes)) {
-         /*
-          * If we encounter an error, just return 0 values for the space info
-          */
-         freeBytesToUser = 0;
-         totalBytesToUser = 0;
-         freeBytes = 0;
-
-         Warning("unable to get drive size info: windows error code %d\n",
-                 GetLastError());
-      }
-
-      // If it fails, fileSystemType will be NULL
-      Win32U_GetVolumeInformation(driveList[i],
-                                  NULL,
-                                  NULL,
-                                  NULL,
-                                  NULL,
-                                  &fileSystemType);
-
-      destPtr += Str_Sprintf(destPtr, endDestPtr - destPtr,
-                             listFileSystemsFormatString,
-                             driveList[i],
-                             totalBytesToUser,
-                             freeBytesToUser,
-                             fileSystemType);
-
-      Unicode_Free(fileSystemType);
-   }
-
-#elif defined(linux)
-
-   mountfile = "/etc/mtab";
-
-   fp = Posix_Setmntent(mountfile, "r");
-   if (fp == NULL) {
-      Warning("failed to open mount file\n");
-      err = VIX_E_FILE_NOT_FOUND;
-      goto abort;
-   }
-
-   while (GETNEXT_MNTINFO(fp, mnt)) {
-      struct statfs statfsbuf;
-      uint64 size, freeSpace;
-
-      if (Posix_Statfs(MNTINFO_MNTPT(mnt), &statfsbuf)) {
-         Warning("%s unable to stat mount point %s\n",
-                 __FUNCTION__, MNTINFO_MNTPT(mnt));
-         continue;
-      }
-      size = (uint64) statfsbuf.f_blocks * (uint64) statfsbuf.f_bsize;
-      freeSpace = (uint64) statfsbuf.f_bfree * (uint64) statfsbuf.f_bsize;
-      destPtr += Str_Sprintf(destPtr, endDestPtr - destPtr,
-                             listFileSystemsFormatString,
-                             MNTINFO_NAME(mnt),
-                             size,
-                             freeSpace,
-                             MNTINFO_FSTYPE(mnt));
-
-   }
-   CLOSE_MNTFILE(fp);
-#else
-   err = VIX_E_NOT_SUPPORTED;
-#endif
-
-abort:
-#if defined(_WIN32)
-   for (i = 0; i < numDrives; i++) {
-      Unicode_Free(driveList[i]);
-   }
-
-   free(driveList);
-#endif
-
-   if (impersonatingVMWareUser) {
-      VixToolsUnimpersonateUser(userToken);
-   }
-   VixToolsLogoutUser(userToken);
-
-   *result = resultBuffer;
-
-   Debug("<%s\n", __FUNCTION__);
-
-   return(err);
-} // VixToolsListFileSystems
 
 
 /*
@@ -4497,7 +4069,6 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
       *deleteResultBufferResult = FALSE;
    }
 
-   Debug("%s: command %d\n", __FUNCTION__, requestMsg->opCode);
 
    switch (requestMsg->opCode) {
       ////////////////////////////////////
@@ -4507,6 +4078,7 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
          break;
 
       ////////////////////////////////////
+      case VIX_COMMAND_GET_PROPERTY:
       case VIX_COMMAND_GET_TOOLS_STATE:
          err = VixTools_GetToolsPropertiesImpl(confDictRef,
                                                &resultValue,
@@ -4543,13 +4115,6 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
          deleteResultValue = TRUE;
          break;
 
-      ////////////////////////////////////
-      case VIX_COMMAND_LIST_FILES:
-         err = VixToolsListFiles(requestMsg,
-                                     maxResultBufferSize,
-                                     &resultValue);
-         deleteResultValue = TRUE;
-         break;
       ////////////////////////////////////
       case VIX_COMMAND_DELETE_GUEST_FILE:
       case VIX_COMMAND_DELETE_GUEST_REGISTRY_KEY:
@@ -4670,11 +4235,17 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
          break;
 #endif
 
+#if 0
+      /*
+       * Do not register for commands that have not been tested and publicly released.
+       * When we do support these commands, we do not want to accidentally run
+       * pre-release untested versions.
+       */
       ////////////////////////////////////
-      case VIX_COMMAND_LIST_FILESYSTEMS:
-         err = VixToolsListFileSystems(requestMsg, &resultValue);
-         // resultValue is static. Do not free it.
+      case VIX_COMMAND_SET_HANDLE_STATE:
+         err = VixToolsSetProperties(requestMsg, confDictRef);
          break;
+#endif
 
       ////////////////////////////////////
       default:

@@ -90,9 +90,6 @@ static void vmxnet_release_private_data(Vmxnet_Private *lp,
 static int vmxnet_probe_device(struct pci_dev *pdev, const struct pci_device_id *id);
 static void vmxnet_remove_device(struct pci_dev *pdev);
 
-static Bool vmxnet_alloc_shared_mem(struct pci_dev *pdev, size_t size,
-				    void **vaOut, dma_addr_t *paOut);
-
 #ifdef CONFIG_PM
 
 /*
@@ -371,118 +368,6 @@ vmxnet_get_drvinfo(struct net_device *dev,
 /*
  *----------------------------------------------------------------------------
  *
- * vmxnet_get_tx_csum --
- *
- *    Ethtool op to check whether or not hw csum offload is enabled.
- *
- * Result:
- *    1 if csum offload is currently used and 0 otherwise.
- *
- * Side-effects:
- *    None
- *
- *----------------------------------------------------------------------------
- */
-
-static uint32
-vmxnet_get_tx_csum(struct net_device *netdev)
-{
-   return (netdev->features & NETIF_F_HW_CSUM) != 0;
-}
-
-/*
- *----------------------------------------------------------------------------
- *
- * vmxnet_get_rx_csum --
- *
- *    Ethtool op to check whether or not rx csum offload is enabled.
- *
- * Result:
- *    Always return 1 to indicate that rx csum is enabled.
- *
- * Side-effects:
- *    None
- *
- *----------------------------------------------------------------------------
- */
-
-static uint32
-vmxnet_get_rx_csum(struct net_device *netdev)
-{
-   return 1;
-}
-
-
-/*
- *----------------------------------------------------------------------------
- *
- * vmxnet_set_tx_csum --
- *
- *    Ethtool op to change if hw csum offloading should be used or not.
- *    If the device supports hardware checksum capability netdev features bit
- *    is set/reset. This bit is referred to while setting hw checksum required
- *    flag (VMXNET2_TX_HW_XSUM) in xmit ring entry.
- *
- * Result:
- *    0 on success. -EOPNOTSUPP if ethtool asks to set hw checksum and device
- *    does not support it.
- *
- * Side-effects:
- *    None
- *
- *----------------------------------------------------------------------------
- */
-
-static int
-vmxnet_set_tx_csum(struct net_device *netdev, uint32 val)
-{
-   if (val) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,0)
-      struct Vmxnet_Private *lp = netdev_priv(netdev);
-      if (lp->capabilities & (VMNET_CAP_IP4_CSUM | VMNET_CAP_HW_CSUM)) {
-         netdev->features |= NETIF_F_HW_CSUM;
-         return 0;
-      }
-#endif
-      return -EOPNOTSUPP;
-   } else {
-      netdev->features &= ~NETIF_F_HW_CSUM;
-   }
-   return 0;
-}
-
-/*
- *----------------------------------------------------------------------------
- *
- * vmxnet_set_rx_csum --
- *
- *    Ethtool op to change if hw csum offloading should be used or not for
- *    received packets. Hardware checksum on received packets cannot be turned
- *    off. Hence we fail the ethtool op which turns h/w csum off.
- *
- * Result:
- *    0 when rx csum is set. -EOPNOTSUPP when ethtool tries to reset rx csum.
- *
- * Side-effects:
- *    None
- *
- *----------------------------------------------------------------------------
- */
-
-static int
-vmxnet_set_rx_csum(struct net_device *netdev, uint32 val)
-{
-   if (val) {
-      return 0;
-   } else {
-      return -EOPNOTSUPP;
-   }
-}
-
-
-/*
- *----------------------------------------------------------------------------
- *
  *  vmxnet_set_tso --
  *
  *    Ethtool handler to set TSO. If the data is non-zero, TSO is
@@ -521,18 +406,11 @@ vmxnet_ethtool_ops = {
    .get_settings        = vmxnet_get_settings,
    .get_drvinfo         = vmxnet_get_drvinfo,
    .get_link            = ethtool_op_get_link,
-   .get_rx_csum         = vmxnet_get_rx_csum,
-   .set_rx_csum         = vmxnet_set_rx_csum,
-   .get_tx_csum         = vmxnet_get_tx_csum,
-   .set_tx_csum         = vmxnet_set_tx_csum,
    .get_sg              = ethtool_op_get_sg,
    .set_sg              = ethtool_op_set_sg,
 #ifdef VMXNET_DO_TSO
    .get_tso             = ethtool_op_get_tso,
    .set_tso             = vmxnet_set_tso,
-#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
-   .get_ufo             = ethtool_op_get_ufo,
-#   endif
 #endif
 };
 
@@ -716,6 +594,7 @@ vmxnet_ethtool_ioctl(struct net_device *dev, struct ifreq *ifr)
          return vmxnet_set_tso(dev, ifr->ifr_data);
 #endif
       default:
+         printk(KERN_DEBUG" ethtool operation %d not supported\n", cmd);
          return -EOPNOTSUPP;
    }
 }
@@ -748,6 +627,7 @@ vmxnet_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
          return vmxnet_ethtool_ioctl(dev, ifr);
 #endif
    }
+   printk(KERN_DEBUG" ioctl operation %d not supported\n", cmd);
    return -EOPNOTSUPP;
 }
 #endif /* SET_ETHTOOL_OPS */
@@ -1306,7 +1186,7 @@ vmxnet_probe_features(struct net_device *dev, // IN:
    printk(KERN_INFO "features:");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,0)
    if (lp->capabilities & VMNET_CAP_IP4_CSUM) {
-      dev->features |= NETIF_F_HW_CSUM;
+      dev->features |= NETIF_F_IP_CSUM;
       printk(" ipCsum");
    }
    if (lp->capabilities & VMNET_CAP_HW_CSUM) {
@@ -1367,7 +1247,7 @@ vmxnet_probe_features(struct net_device *dev, // IN:
    /* check if this is enhanced vmxnet device */
    if ((lp->features & VMXNET_FEATURE_TSO) && 
        (lp->features & VMXNET_FEATURE_JUMBO_FRAME)) {
-      enhanced = TRUE;
+	enhanced = TRUE;
    }
 
    /* determine rx/tx ring sizes */ 
@@ -1394,8 +1274,7 @@ vmxnet_probe_features(struct net_device *dev, // IN:
       numRxBuffers2 = 1;
    }
 
-   printk(KERN_INFO "numRxBuffers = %d, numRxBuffers2 = %d\n", 
-	  numRxBuffers, numRxBuffers2);
+   printk("numRxBuffers = %d, numRxBuffers2 = %d\n", numRxBuffers, numRxBuffers2);
    if (lp->tso || lp->jumboFrame) {
       maxNumTxBuffers = VMXNET2_MAX_NUM_TX_BUFFERS_TSO;
       defNumTxBuffers = VMXNET2_DEFAULT_NUM_TX_BUFFERS_TSO;
@@ -1417,10 +1296,13 @@ vmxnet_probe_features(struct net_device *dev, // IN:
               numRxBuffers, numRxBuffers2, (uint32)sizeof(Vmxnet2_RxRingEntry),
               numTxBuffers, (uint32)sizeof(Vmxnet2_TxRingEntry),
               (int)lp->ddSize);
-   if (!vmxnet_alloc_shared_mem(lp->pdev, lp->ddSize, (void **)&lp->dd, &lp->ddPA)) {
+   lp->dd = kmalloc(lp->ddSize, GFP_KERNEL | GFP_DMA);
+   if (!lp->dd) {
       printk(KERN_ERR "Unable to allocate memory for driver data\n");
       return FALSE;
    }
+   lp->ddPA = compat_pci_map_single(lp->pdev, lp->dd, lp->ddSize,
+                                    PCI_DMA_BIDIRECTIONAL);
    memset(lp->dd, 0, lp->ddSize);
    spin_lock_init(&lp->txLock);
    lp->numRxBuffers = numRxBuffers;
@@ -1461,11 +1343,12 @@ vmxnet_probe_features(struct net_device *dev, // IN:
 
    if (lp->partialHeaderCopyEnabled) {
       lp->txBufferSize = numTxBuffers * TX_PKT_HEADER_SIZE;
-
-      if (vmxnet_alloc_shared_mem(lp->pdev, lp->txBufferSize,
-				  (void **)&lp->txBufferStart, &lp->txBufferPA)) {
-	 lp->dd->txBufferPhysStart = (uint32)lp->txBufferPA;
-         lp->dd->txBufferPhysLength = (uint32)lp->txBufferSize;
+      lp->txBufferStart = kmalloc(lp->txBufferSize, GFP_KERNEL | GFP_DMA);
+      if (lp->txBufferStart) {
+         lp->txBufferPA = compat_pci_map_single(lp->pdev, lp->txBufferStart,
+                                                lp->txBufferSize, PCI_DMA_TODEVICE);
+         lp->dd->txBufferPhysStart = lp->txBufferPA;
+         lp->dd->txBufferPhysLength = lp->txBufferSize;
          lp->dd->txPktMaxSize = TX_PKT_HEADER_SIZE;
       } else {
          lp->partialHeaderCopyEnabled = FALSE;
@@ -1473,49 +1356,6 @@ vmxnet_probe_features(struct net_device *dev, // IN:
       }
    }
 #endif
-
-   return TRUE;
-}
-
-/*
- *-----------------------------------------------------------------------------
- *
- * vmxnet_alloc_shared_mem --
- *
- *      Attempts to allocate dma-able memory that uses a 32-bit PA.
- *
- * Results:
- *      TRUE on success, otherwise FALSE.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-#define FITS_IN_32_BITS(_x) ((_x) == ((_x) & 0xFFFFFFFF))
-
-static Bool 
-vmxnet_alloc_shared_mem(struct pci_dev *pdev, // IN:
-			size_t size,          // IN:
-			void **vaOut,         // OUT:
-			dma_addr_t *paOut)    // OUT:
-{
-   void *va = NULL;
-   dma_addr_t pa = 0;
-
-   /* DMA-mapping.txt says 32-bit DMA by default */
-   va = compat_pci_alloc_consistent(pdev, size, &pa);
-   if (!va) {
-      *vaOut = NULL;
-      *paOut = 0;
-      return FALSE;
-   }
-
-   VMXNET_ASSERT(FITS_IN_32_BITS(pa) &&
-		 FITS_IN_32_BITS((uint64)pa + (size - 1)));
-   *vaOut = va;
-   *paOut = pa;
 
    return TRUE;
 }
@@ -1590,14 +1430,17 @@ vmxnet_release_private_data(Vmxnet_Private *lp,   // IN:
 {
 #ifdef VMXNET_DO_ZERO_COPY
    if (lp->partialHeaderCopyEnabled && lp->txBufferStart) {
-      compat_pci_free_consistent(pdev, lp->txBufferSize, 
-				 lp->txBufferStart, lp->txBufferPA);
+      compat_pci_unmap_single(pdev, lp->txBufferPA, lp->txBufferSize,
+                              PCI_DMA_TODEVICE);
+      kfree(lp->txBufferStart);
       lp->txBufferStart = NULL;
    }
 #endif
 
    if (lp->dd) {
-      compat_pci_free_consistent(pdev, lp->ddSize, lp->dd, lp->ddPA);
+      compat_pci_unmap_single(lp->pdev, lp->ddPA, lp->ddSize,
+                              PCI_DMA_BIDIRECTIONAL);
+      kfree(lp->dd);
       lp->dd = NULL;
    }
 }
@@ -1926,7 +1769,7 @@ vmxnet_open(struct net_device *dev)
       return -ENOMEM;
    }
 
-   ddPA = VMXNET_GET_LO_ADDR(lp->ddPA);
+   ddPA = VMXNET_GET_LO_ADDR(lp->ddPA); // lp->dd was allocated out of ZONE_DMA32
    outl(ddPA, ioaddr + VMXNET_INIT_ADDR);
    outl(lp->dd->length, ioaddr + VMXNET_INIT_LENGTH);
 
@@ -2043,7 +1886,7 @@ vmxnet_map_pkt(struct sk_buff *skb,
 
    VMXNET_ASSERT(startSgIdx < VMXNET2_SG_DEFAULT_LENGTH);
 
-   lp->numTxPending++;
+   lp->numTxPending ++;
    tb = &lp->txBufInfo[dd->txDriverNext];
    xre = &lp->txRing[dd->txDriverNext];
 
@@ -2437,8 +2280,7 @@ vmxnet_tx(struct sk_buff *skb, struct net_device *dev)
    }
 
    /* at this point, xre must point to the 1st tx entry for the pkt */
-   if (skb->ip_summed == VM_TX_CHECKSUM_PARTIAL &&
-       ((dev->features & NETIF_F_HW_CSUM) != 0)) {
+   if (skb->ip_summed == VM_TX_CHECKSUM_PARTIAL) {
       xre->flags |= VMXNET2_TX_HW_XSUM | VMXNET2_TX_CAN_KEEP;
    } else {
       xre->flags |= VMXNET2_TX_CAN_KEEP;
@@ -2886,10 +2728,9 @@ vmxnet_close(struct net_device *dev)
       //Will go ahead and free these skb's anyways (possibly dangerous,
       //but seems to work in practice)
       if (lp->numTxPending > 0) {
-         printk(KERN_EMERG "vmxnet_close: %s failed to finish all pending tx (%d).\n"
+         printk(KERN_EMERG "vmxnet_close: Failed to finish all pending tx.\n"
 	        "Is the related vmxnet device disabled?\n"
-                "This virtual machine may be in an inconsistent state.\n", 
-		dev->name, lp->numTxPending);
+                "This virtual machine may be in an inconsistent state.\n");
          lp->numTxPending = 0;
       }
    }
@@ -2952,7 +2793,7 @@ vmxnet_load_multicast (struct net_device *dev)
    struct Vmxnet_Private *lp = netdev_priv(dev);
     volatile u16 *mcast_table = (u16 *)lp->dd->LADRF;
     struct dev_mc_list *dmi = dev->mc_list;
-    u8 *addrs;
+    char *addrs;
     int i, j, bit, byte;
     u32 crc, poly = CRC_POLYNOMIAL_LE;
 

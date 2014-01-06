@@ -75,12 +75,9 @@ AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
-COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
-CUNIT_CPPFLAGS = @CUNIT_CPPFLAGS@
-CUNIT_LIBS = @CUNIT_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -133,7 +130,12 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
+LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
+LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
+LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
+LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
+LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -158,8 +160,6 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
-PAM_CPPFLAGS = @PAM_CPPFLAGS@
-PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -175,7 +175,6 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
-TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -253,11 +252,13 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 DOXYGEN_INPUT = $(top_srcdir)/docs/api $(top_srcdir)/docs/api/services \
-	$(top_srcdir)/lib/include/vmware/tools \
-	$(top_srcdir)/libvmtools $(top_srcdir)/tests/vmrpcdbg
+	$(top_srcdir)/lib/include/rpcChannel.h \
+	$(top_srcdir)/lib/include/vmtoolsApp.h \
+	$(top_srcdir)/lib/include/vmtools.h \
+	$(top_srcdir)/lib/include/vmrpcdbg.h $(top_srcdir)/libvmtools \
+	$(top_srcdir)/tests/vmrpcdbg
 DOXYGEN_CPP_PREDEFINED = G_LOCK_DEFINE_STATIC(x) G_LOG_DOMAIN=
 DOXYGEN_CPP_EXPAND = 
-DOXYGEN_EXTRA_PATTERNS = *.c *.h *.txt
 all: all-am
 
 .SUFFIXES:
@@ -451,20 +452,14 @@ build/index.html:
 	mkdir -p build
 	sed \
 	   -e 's,##{BUILD_DIR}##,$(top_builddir),'                \
-	   -e 's,##{BUILD_OUTPUT}##,build,'                       \
-	   -e 's,##{CLIENT_ROOT}##,$(top_srcdir),'                \
 	   -e 's,##{CPP_EXPAND}##,$(DOXYGEN_CPP_EXPAND),'         \
 	   -e 's,##{CPP_PREDEFINED}##,$(DOXYGEN_CPP_PREDEFINED),' \
 	   -e 's,##{DOT}##,@DOT@,'                                \
-	   -e 's,##{FILE_PATTERNS}##,$(DOXYGEN_EXTRA_PATTERNS),'  \
 	   -e 's,##{HAVE_DOT}##,@HAVE_DOT@,'                      \
-	   -e 's,##{INCLUDE_PATHS}##,$(top_srcdir)/lib/include,'  \
-	   -e 's,##{INPUT_PATHS}##,$(DOXYGEN_INPUT),'             \
+	   -e 's,##{INPUT}##,$(DOXYGEN_INPUT),'                   \
 	   -e 's,##{MSCGEN_DIR}##,@MSCGEN_DIR@,'                  \
-	   -e 's,##{PERL}##,,'                                    \
-	   -e 's,##{PROJECT_NAME}##,@PACKAGE_STRING@,'            \
 	   -e 's,##{PROJECT_VERSION}##,@TOOLS_VERSION@,'          \
-	   -e 's,##{WARNING_LOG}##,warnings.log,'                 \
+	   -e 's,##{SOURCE_DIR}##,$(top_srcdir),'                 \
 	   $(top_srcdir)/docs/api/doxygen.conf > doxygen.parsed.conf
 	doxygen doxygen.parsed.conf > /dev/null
 

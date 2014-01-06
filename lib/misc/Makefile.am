@@ -21,11 +21,11 @@ libMisc_la_SOURCES =
 libMisc_la_SOURCES += atomic.c
 libMisc_la_SOURCES += base64.c
 libMisc_la_SOURCES += codesetOld.c
+libMisc_la_SOURCES += dbllnklst.c
 libMisc_la_SOURCES += dynarray.c
 libMisc_la_SOURCES += dynbuf.c
 libMisc_la_SOURCES += escape.c
 libMisc_la_SOURCES += hashTable.c
-libMisc_la_SOURCES += hostinfo.c
 libMisc_la_SOURCES += hostinfoPosix.c
 libMisc_la_SOURCES += hostname.c
 libMisc_la_SOURCES += hostType.c
@@ -41,9 +41,10 @@ libMisc_la_SOURCES += util_misc.c
 libMisc_la_SOURCES += utilMem.c
 libMisc_la_SOURCES += vmstdio.c
 libMisc_la_SOURCES += strutil.c
-libMisc_la_SOURCES += vthreadBase.c
 
 if HAVE_ICU
 libMisc_la_SOURCES += codeset.c
 endif
+
+AM_CFLAGS = @LIB_MISC_CPPFLAGS@
 

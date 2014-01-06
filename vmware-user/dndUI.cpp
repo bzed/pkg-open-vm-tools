@@ -28,6 +28,7 @@
 extern "C" {
 #include "vmwareuserInt.h"
 #include "vmblock.h"
+#include "vm_app.h"
 #include "file.h"
 #include "dnd.h"
 #include "dndMsg.h"
@@ -41,7 +42,6 @@ extern "C" {
 #include "unity.h"
 #include <gtk/gtk.h>
 #include <X11/extensions/XTest.h>       /* for XTest*() */
-#include "vmware/guestrpc/tclodefs.h"
 }
 
 #include "dndGuest.h"

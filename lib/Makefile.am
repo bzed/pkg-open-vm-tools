@@ -24,6 +24,7 @@ SUBDIRS += auth
 SUBDIRS += backdoor
 SUBDIRS += conf
 SUBDIRS += dict
+SUBDIRS += deployPkg
 SUBDIRS += dnd
 if HAVE_GTKMM
    SUBDIRS += dndGuest
@@ -50,7 +51,6 @@ if ENABLE_UNITY
    SUBDIRS += image
 endif
 SUBDIRS += impersonate
-SUBDIRS += lock
 SUBDIRS += message
 SUBDIRS += misc
 SUBDIRS += netUtil
@@ -69,12 +69,11 @@ SUBDIRS += rpcChannel
 SUBDIRS += rpcIn
 SUBDIRS += rpcOut
 SUBDIRS += rpcVmx
-if USE_SLASH_PROC
-   SUBDIRS += slashProc
-endif
 SUBDIRS += SLPv2Parser
+SUBDIRS += socketMgr
 SUBDIRS += string
 SUBDIRS += stubs
+SUBDIRS += sync
 SUBDIRS += syncDriver
 SUBDIRS += system
 SUBDIRS += unicode

@@ -83,8 +83,10 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_RUN_PROGRAM,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
-   VIX_DEFINE_UNUSED_COMMAND,
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_GET_PROPERTY,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SET_PROPERTY,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_KEYSTROKES,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_READ_REGISTRY,
@@ -139,8 +141,10 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SYNCDRIVER_THAW,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
-   VIX_DEFINE_UNUSED_COMMAND,
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_HOT_ADD_DISK,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_HOT_REMOVE_DISK,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SET_GUEST_PRINTER,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_WAIT_FOR_TOOLS,
@@ -163,13 +167,15 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_OPEN_VM,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_GET_DISK_PROPERTIES,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_OPEN_URL,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    /* GET_HANDLE_STATE is needed for the initial handshake */
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_GET_HANDLE_STATE,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SET_HANDLE_STATE,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_UNUSED_COMMAND,
    VIX_DEFINE_UNUSED_COMMAND,
    VIX_DEFINE_UNUSED_COMMAND,
@@ -229,13 +235,14 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_KILL_PROCESS,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_VM_FORK_COMMAND,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_LOGOUT_IN_GUEST,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_READ_VARIABLE,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_WRITE_VARIABLE,
-                           VIX_COMMAND_CATEGORY_MIXED),
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_UNUSED_COMMAND,
    VIX_DEFINE_UNUSED_COMMAND,
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_CONNECT_DEVICE,
@@ -316,11 +323,14 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_VM_UNPAUSE,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_GET_SNAPSHOT_LOG_INFO,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SET_REPLAY_SPEED,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
-   VIX_DEFINE_UNUSED_COMMAND,
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_ANSWER_USER_MESSAGE,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SET_CLIENT_LOCALE,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_GET_PERFORMANCE_DATA,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_REFRESH_RUNTIME_PROPERTIES,
@@ -331,8 +341,10 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_WAIT_FOR_USER_ACTION_IN_GUEST,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
-   VIX_DEFINE_UNUSED_COMMAND,
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_VMDB_END_TRANSACTION,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_VMDB_SET,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_CHANGE_VIRTUAL_HARDWARE,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_HOT_PLUG_CPU,
@@ -362,8 +374,10 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_REMOVE_REPLAY_STATE,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
+   
    VIX_DEFINE_UNUSED_COMMAND,
-   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_CANCEL_USER_PROGRESS_MESSAGE,
+                           VIX_COMMAND_CATEGORY_PRIVILEGED),
    /* GET_VMX_DEVICE_STATE is needed for the initial handshake. */   
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_GET_VMX_DEVICE_STATE,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
@@ -423,11 +437,6 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
 
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_CHANGE_DISPLAY_TOPOLOGY_MODES,
-                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
-
-   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_QUERY_CHILDREN,
-                           VIX_COMMAND_CATEGORY_PRIVILEGED),
-   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_LIST_FILES,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
 };
 
@@ -1477,257 +1486,3 @@ VixGetCommandInfoForOpCode(int opCode)  // IN
 
    return commandInfo;
 } // VixGetCommandInfoForOpCode
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixMsg_AllocGenericRequestMsg --
- *
- *      Allocate and initialize a generic request message.
- *
- *      Assumes the caller holds the lock to 'propertyList'.
- *
- * Results:
- *      Returns VixError.
- *      Upon retrun, *request will contain either the message with the
- *      headers properly initialized or NULL.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixMsg_AllocGenericRequestMsg(int opCode,                         // IN
-                              uint64 cookie,                      // IN
-                              int credentialType,                 // IN
-                              const char *userNamePassword,       // IN
-                              int options,                        // IN
-                              VixPropertyListImpl *propertyList,  // IN
-                              VixCommandGenericRequest **request) // OUT
-{
-   VixError err;
-   VixCommandGenericRequest *requestLocal = NULL;
-   size_t msgHeaderAndBodyLength;
-   char *serializedBufferBody = NULL;
-   size_t serializedBufferLength = 0;
-
-   if (NULL == request) {
-      ASSERT(0);
-      err = VIX_E_FAIL;
-      goto abort;
-   }
-
-   *request = NULL;
-
-   if (NULL != propertyList) {
-      err = VixPropertyList_Serialize(propertyList,
-                                      FALSE,
-                                      &serializedBufferLength,
-                                      &serializedBufferBody);
-      if (VIX_OK != err) {
-         goto abort;
-      }
-   }
-
-   msgHeaderAndBodyLength = sizeof(*requestLocal) + serializedBufferLength;
-   requestLocal = (VixCommandGenericRequest *)
-      VixMsg_AllocRequestMsg(msgHeaderAndBodyLength,
-                             opCode,
-                             cookie,
-                             credentialType,
-                             userNamePassword);
-   if (NULL == requestLocal) {
-      err = VIX_E_FAIL;
-      goto abort;
-   }
-
-   requestLocal->options = options;
-   requestLocal->propertyListSize = serializedBufferLength;
-
-   if (NULL != serializedBufferBody) {
-      char *dst = (char *)request + sizeof(*request);
-      memcpy(dst, serializedBufferBody, serializedBufferLength);
-   }
-
-   *request = requestLocal;
-   err = VIX_OK;
-
- abort:
-   free(serializedBufferBody);
-
-   return err;
-}  // VixMsg_AllocGenericRequestMsg
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixMsg_ParseGenericRequestMsg --
- *
- *      Extract the options and property list from the request
- *      message, while validating message.
- *
- * Results:
- *      VixError
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-VixError
-VixMsg_ParseGenericRequestMsg(const VixCommandGenericRequest *request,  // IN
-                              int *options,                             // OUT
-                              VixPropertyListImpl *propertyList)        // OUT
-{
-   VixError err;
-   uint64 headerAndBodyLength;
-
-   if ((NULL == request) || (NULL == options) || (NULL == propertyList)) {
-      ASSERT(0);
-      err = VIX_E_FAIL;
-      goto abort;
-   }
-
-   *options = 0;
-   VixPropertyList_Initialize(propertyList);
-
-   /*
-    * In most cases we will have already called VixMsg_ValidateResponseMsg()
-    * on this request before, but call it here so that this function will
-    * always be sufficient to validate the request.
-    */
-   err = VixMsg_ValidateRequestMsg(request,
-                                   request->header.commonHeader.totalMessageLength);
-   if (VIX_OK != err) {
-      goto abort;
-   }
-
-   if (request->header.commonHeader.totalMessageLength < sizeof *request) {
-      err = VIX_E_INVALID_MESSAGE_BODY;
-      goto abort;
-   }
-
-   headerAndBodyLength = (uint64) request->header.commonHeader.headerLength
-      + request->header.commonHeader.bodyLength;
-
-   if (headerAndBodyLength < ((uint64) sizeof *request
-                              + request->propertyListSize)) {
-      err = VIX_E_INVALID_MESSAGE_BODY;
-      goto abort;
-   }
-
-   if (request->propertyListSize > 0) {
-      const char *serializedBuffer = (const char *) request + sizeof(*request);
-
-      err = VixPropertyList_Deserialize(propertyList,
-                                        serializedBuffer,
-                                        request->propertyListSize);
-      if (VIX_OK != err) {
-         goto abort;
-      }
-   }
-
-   *options = request->options;
-   err = VIX_OK;
-
- abort:
-
-   return err;
-} // VixMsg_ParseGenericRequestMsg
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixMsg_MallocClientData --
- *
- *      Allocates the memory needed to copy from a client-provided buffer.
- *
- * Results:
- *      Pointer to allocated memory
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-void *
-VixMsg_MallocClientData(size_t size)  // IN
-{
-   return malloc(size);
-} // VixMsg_MallocClientData
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixMsg_ReallocClientData --
- *
- *      Reallocates the memory needed to copy from a client-provided buffer.
- *
- * Results:
- *      Pointer to allocated memory
- *
- * Side effects:
- *      Frees memory pointed to by ptr.
- *
- *-----------------------------------------------------------------------------
- */
-
-void *
-VixMsg_ReallocClientData(void *ptr,   // IN
-                         size_t size) // IN
-{
-   return realloc(ptr, size);
-} // VixMsg_ReallocClientData
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VixMsg_StrdupClientData --
- *
- *      Allocates memory and copies client-provided string.
- *
- * Results:
- *      Pointer to allocated string
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-char *
-VixMsg_StrdupClientData(const char *s,          // IN
-                        Bool *allocateFailed)   // OUT
-{
-   char* newString = NULL;
-
-   ASSERT(allocateFailed);
-   if (NULL == allocateFailed) {
-      goto abort;
-   }
-
-   *allocateFailed = FALSE;
-
-   if (NULL != s) {
-#if defined(_WIN32)
-         newString = _strdup(s);
-#else
-         newString = strdup(s);
-#endif
-      if (NULL == newString) {
-         *allocateFailed = TRUE;
-      }
-   }
-
-abort:
-   return newString;
-} // VixMsg_StrdupClientData

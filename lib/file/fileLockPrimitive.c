@@ -25,7 +25,6 @@
  * if the directory contains any files.
  */
 
-#define _GNU_SOURCE /* For O_NOFOLLOW */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -170,7 +169,7 @@ RemoveLockingFile(ConstUnicode lockDir,   // IN:
          err = 0;
       } else {
          Warning(LGPFX" %s of '%s' failed: %s\n", __FUNCTION__,
-                 UTF8(path), Err_Errno2String(err));
+                 UTF8(path), strerror(err));
       }
    }
 
@@ -302,7 +301,7 @@ FileLockMemberValues(ConstUnicode lockDir,      // IN:
 
       if (err != ENOENT) {
          Warning(LGPFX" %s open failure on '%s': %s\n", __FUNCTION__,
-                 UTF8(path), Err_Errno2String(err));
+                 UTF8(path), strerror(err));
       }
 
       goto bail;
@@ -313,7 +312,7 @@ FileLockMemberValues(ConstUnicode lockDir,      // IN:
 
    if (err != 0) {
       Warning(LGPFX" %s file size failure on '%s': %s\n", __FUNCTION__,
-              UTF8(path), Err_Errno2String(err));
+              UTF8(path), strerror(err));
 
       FileLockCloseFile(handle);
 
@@ -337,7 +336,7 @@ FileLockMemberValues(ConstUnicode lockDir,      // IN:
 
    if (err != 0) {
       Warning(LGPFX" %s read failure on '%s': %s\n",
-              __FUNCTION__, UTF8(path), Err_Errno2String(err));
+              __FUNCTION__, UTF8(path), strerror(err));
 
       goto bail;
    }
@@ -953,7 +952,7 @@ FileUnlockIntrinsic(ConstUnicode pathName,  // IN:
 
       if (err && vmx86_debug) {
          Log(LGPFX" %s failed for '%s': %s\n",
-             __FUNCTION__, (char *) lockToken, Err_Errno2String(err));
+             __FUNCTION__, (char *) lockToken, strerror(err));
       }
 
       /*
@@ -1103,6 +1102,62 @@ NumberScan(ConstUnicode lockDir,      // IN:
 /*
  *-----------------------------------------------------------------------------
  *
+ * SimpleRandomNumber --
+ *
+ *      Return a random number in the range of 0 and 2^16-1.
+ *
+ * Results:
+ *      Random number is returned.
+ *
+ * Side Effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static uint32
+SimpleRandomNumber(const char *machineID,    // IN:
+                   const char *executionID)  // IN:
+{
+   static Atomic_Ptr atomic; /* Implicitly initialized to NULL. --mbellon */
+   char *context;
+
+   context = Atomic_ReadPtr(&atomic);
+
+   if (context == NULL) {
+      void *p;
+      uint32 value = 0;
+
+      /*
+       * Use the machineID and executionID to hopefully start each machine
+       * and process/thread at a different place in the answer stream.
+       */
+
+      while (*machineID) {
+         value += *machineID++;
+      }
+
+      while (*executionID) {
+         value += *executionID++;
+      }
+
+      p = Random_QuickSeed(value);
+
+      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, p)) {
+         free(p);
+      }
+
+      context = Atomic_ReadPtr(&atomic);
+      ASSERT(context);
+   }
+
+   return (Random_Quick(context) >> 8) & 0xFFFF;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * MakeDirectory --
  *
  *      Create a directory.
@@ -1166,7 +1221,9 @@ MakeDirectory(ConstUnicode pathName)  // IN:
  */
 
 static int
-CreateEntryDirectory(ConstUnicode lockDir,     // IN:
+CreateEntryDirectory(const char *machineID,    // IN:
+                     const char *executionID,  // IN:
+                     ConstUnicode lockDir,     // IN:
                      Unicode *entryDirectory,  // OUT:
                      Unicode *entryFilePath,   // OUT:
                      Unicode *memberFilePath,  // OUT:
@@ -1225,20 +1282,20 @@ CreateEntryDirectory(ConstUnicode lockDir,     // IN:
 
             if ((err != 0) && (err != EEXIST)) {
                Warning(LGPFX" %s creation failure on '%s': %s\n",
-                       __FUNCTION__, UTF8(lockDir), Err_Errno2String(err));
+                       __FUNCTION__, UTF8(lockDir), strerror(err));
 
                break;
             }
          } else {
             Warning(LGPFX" %s stat failure on '%s': %s\n",
-                    __FUNCTION__, UTF8(lockDir), Err_Errno2String(err));
+                    __FUNCTION__, UTF8(lockDir), strerror(err));
 
             break;
          }
       }
 
       /* There is a small chance of collision/failure; grab stings now */
-      randomNumber = (FileSimpleRandom() >> 8) & 0xFFFF;
+      randomNumber = SimpleRandomNumber(machineID, executionID);
 
       *memberName = Unicode_Format("M%05u%s", randomNumber, FILELOCK_SUFFIX);
 
@@ -1275,7 +1332,7 @@ CreateEntryDirectory(ConstUnicode lockDir,     // IN:
 
             if (vmx86_debug) {
                Log(LGPFX" %s stat failure on '%s': %s\n",
-                   __FUNCTION__, UTF8(*memberFilePath), Err_Errno2String(err));
+                   __FUNCTION__, UTF8(*memberFilePath), strerror(err));
              }
          }
 
@@ -1284,8 +1341,7 @@ CreateEntryDirectory(ConstUnicode lockDir,     // IN:
           if ((err != EEXIST) &&  // Another process/thread created it...
               (err != ENOENT)) {  // lockDir is gone...
              Warning(LGPFX" %s creation failure on '%s': %s\n",
-                     __FUNCTION__, UTF8(*entryDirectory),
-                     Err_Errno2String(err));
+                     __FUNCTION__, UTF8(*entryDirectory), strerror(err));
 
              break;
           }
@@ -1373,7 +1429,7 @@ CreateMemberFile(FILELOCK_FILE_HANDLE entryHandle,  // IN:
 
    if (err != 0) {
       Warning(LGPFX" %s write of '%s' failed: %s\n", __FUNCTION__,
-              UTF8(entryFilePath), Err_Errno2String(err));
+              UTF8(entryFilePath), strerror(err));
 
       FileLockCloseFile(entryHandle);
 
@@ -1384,7 +1440,7 @@ CreateMemberFile(FILELOCK_FILE_HANDLE entryHandle,  // IN:
 
    if (err != 0) {
       Warning(LGPFX" %s close of '%s' failed: %s\n", __FUNCTION__,
-              UTF8(entryFilePath), Err_Errno2String(err));
+              UTF8(entryFilePath), strerror(err));
 
       return err;
    }
@@ -1401,16 +1457,16 @@ CreateMemberFile(FILELOCK_FILE_HANDLE entryHandle,  // IN:
    if (err != 0) {
       Warning(LGPFX" %s FileRename of '%s' to '%s' failed: %s\n",
               __FUNCTION__, UTF8(entryFilePath), UTF8(memberFilePath),
-              Err_Errno2String(err));
+              strerror(err));
 
       if (vmx86_debug) {
          Log(LGPFX" %s FileLockFileType() of '%s': %s\n",
              __FUNCTION__, UTF8(entryFilePath),
-            Err_Errno2String(FileAttributesRobust(entryFilePath, NULL)));
+            strerror(FileAttributesRobust(entryFilePath, NULL)));
 
          Log(LGPFX" %s FileLockFileType() of '%s': %s\n",
              __FUNCTION__, UTF8(memberFilePath),
-            Err_Errno2String(FileAttributesRobust(memberFilePath, NULL)));
+            strerror(FileAttributesRobust(memberFilePath, NULL)));
       }
 
       return err;
@@ -1455,7 +1511,6 @@ FileLockIntrinsic(ConstUnicode pathName,   // IN:
 {
    FILELOCK_FILE_HANDLE handle;
    LockValues myValues;
-   int createFlags;
 
    Unicode lockDir = NULL;
    Unicode entryFilePath = NULL;
@@ -1489,7 +1544,9 @@ FileLockIntrinsic(ConstUnicode pathName,   // IN:
     * entry and member path names.
     */
 
-   *err = CreateEntryDirectory(lockDir, &entryDirectory, &entryFilePath,
+   *err = CreateEntryDirectory(myValues.machineID, myValues.executionID,
+                               lockDir,
+                               &entryDirectory, &entryFilePath,
                                &memberFilePath, &myValues.memberName);
 
    switch (*err) {
@@ -1522,11 +1579,7 @@ FileLockIntrinsic(ConstUnicode pathName,   // IN:
           Unicode_LengthInCodeUnits(pathName) <= FILELOCK_OVERHEAD);
 
    /* Attempt to create the entry file */
-   createFlags = O_CREAT | O_WRONLY; 
-#ifndef _WIN32
-   createFlags |= O_NOFOLLOW;
-#endif
-   *err = FileLockOpenFile(entryFilePath, createFlags, &handle);
+   *err = FileLockOpenFile(entryFilePath, O_CREAT | O_WRONLY, &handle);
 
    if (*err != 0) {
       /* clean up */
@@ -1628,7 +1681,7 @@ FileLockIsLocked(ConstUnicode pathName,  // IN:
                  int *err)               // OUT:
 {
    uint32 i;
-   int errValue = 0;
+   int errValue;
    int numEntries;
    Unicode lockDir;
 
@@ -1640,13 +1693,7 @@ FileLockIsLocked(ConstUnicode pathName,  // IN:
    numEntries = FileListDirectoryRobust(lockDir, &fileList);
 
    if (numEntries == -1) {
-      /*
-       * If the lock directory doesn't exist, we should not count this
-       * as an error.  This is expected if the file isn't locked.
-       */
-      if (errno != ENOENT) {
-         errValue = errno;
-      }
+      errValue = errno;
 
       goto bail;
    }
@@ -1663,6 +1710,8 @@ FileLockIsLocked(ConstUnicode pathName,  // IN:
    }
 
    free(fileList);
+
+   errValue = 0;
 
 bail:
    Unicode_Free(lockDir);
@@ -1753,7 +1802,9 @@ FileLockHackVMX(ConstUnicode pathName)  // IN:
    LOG(1, ("%s on %s (%s, %s).\n", __FUNCTION__, UTF8(pathName),
        myValues.machineID, myValues.executionID));
 
-   err = CreateEntryDirectory(lockDir, &entryDirectory, &entryFilePath,
+   err = CreateEntryDirectory(myValues.machineID, myValues.executionID,
+                              lockDir,
+                              &entryDirectory, &entryFilePath,
                               &memberFilePath, &myValues.memberName);
 
    if (err != 0) {
@@ -1771,7 +1822,7 @@ FileLockHackVMX(ConstUnicode pathName)  // IN:
    } else {
       if (vmx86_debug) {
          Warning(LGPFX" %s clean-up failure for '%s': %s\n",
-                 __FUNCTION__, UTF8(pathName), Err_Errno2String(err));
+                 __FUNCTION__, UTF8(pathName), strerror(err));
       }
    }
 

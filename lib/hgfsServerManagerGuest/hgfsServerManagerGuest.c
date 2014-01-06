@@ -31,9 +31,9 @@
 #include "hgfsServer.h"
 #include "hgfsChannel.h"
 #include "hgfsServerManager.h"
+#include "vm_app.h"
 #include "vm_assert.h"
 #include "hgfs.h"
-#include "vmware/guestrpc/tclodefs.h"
 
 
 static Bool HgfsServerManagerRpcInDispatch(char const **result,
@@ -134,7 +134,7 @@ HgfsServerManagerRpcInDispatch(char const **result,        // OUT
 
    ASSERT(args[0] == ' ');
    packetSize = argsSize - 1;
-   HgfsServer_ProcessPacket((char const *)(args + 1), packet, &packetSize);
+   HgfsServer_ProcessPacket((char const *)(args + 1), packet, &packetSize, 0);
 
    *result = packet;
    *resultLen = packetSize;

@@ -38,6 +38,9 @@ extern "C" {
 #   include "vm_basic_types.h"
 #   include "removable_device.h"
 
+//#define ALLOW_TOOLS_IN_FOREIGN_VM 0
+extern Bool runningInForeignVM;
+
 typedef struct GuestApp_Dict GuestApp_Dict;
 
 uint32
@@ -127,6 +130,9 @@ GuestApp_IsDiskShrinkEnabled(void);
 Bool
 GuestApp_IsDiskShrinkCapable(void);
 
+Bool
+GuestApp_DiskShrink(void);
+
 void
 GuestApp_GetPos(int16 *x,  // OUT
                 int16 *y); // OUT
@@ -203,6 +209,8 @@ void GuestApp_SetSpawnEnviron(const char **spawnEnviron);
 Bool GuestApp_FindProgram(const char *program);
 #endif
 
+Bool
+GuestApp_ControlRecord(int32 command); //  IN
 #ifdef __cplusplus
 }
 #endif
