@@ -7,8 +7,8 @@ Author: Zack Weinberg <zackw@panix.com>
 Bug-Debian: 717154
 Last-Update: 2013-08-19
 
---- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmblock/linux/control.c
-+++ open-vm-tools-9.2.3-1031360/modules/linux/vmblock/linux/control.c
+--- a/modules/linux/vmblock/linux/control.c
++++ b/modules/linux/vmblock/linux/control.c
 @@ -208,9 +208,10 @@ SetupProcDevice(void)
     VMBlockSetProcEntryOwner(controlProcMountpoint);
  
@@ -75,8 +75,8 @@ Last-Update: 2013-08-19
     return retval;
  }
  
---- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmblock/linux/dentry.c
-+++ open-vm-tools-9.2.3-1031360/modules/linux/vmblock/linux/dentry.c
+--- a/modules/linux/vmblock/linux/dentry.c
++++ b/modules/linux/vmblock/linux/dentry.c
 @@ -32,7 +32,7 @@
  #include "block.h"
  
@@ -104,8 +104,8 @@ Last-Update: 2013-08-19
     }
  
     if (compat_path_lookup(iinfo->name, 0, &actualNd)) {
---- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmblock/linux/inode.c
-+++ open-vm-tools-9.2.3-1031360/modules/linux/vmblock/linux/inode.c
+--- a/modules/linux/vmblock/linux/inode.c
++++ b/modules/linux/vmblock/linux/inode.c
 @@ -36,7 +36,8 @@
  
  /* Inode operations */
@@ -125,8 +125,8 @@ Last-Update: 2013-08-19
  {
     char *filename;
     struct inode *inode;
---- open-vm-tools-9.2.3-1031360.orig/modules/linux/vmhgfs/file.c
-+++ open-vm-tools-9.2.3-1031360/modules/linux/vmhgfs/file.c
+--- a/modules/linux/vmhgfs/file.c
++++ b/modules/linux/vmhgfs/file.c
 @@ -32,6 +32,9 @@
  #include "compat_fs.h"
  #include "compat_kernel.h"
@@ -135,5 +135,5 @@ Last-Update: 2013-08-19
 +#include <linux/aio.h>
 +#endif
  
- #include "cpName.h"
- #include "hgfsProto.h"
+ /* Must be after compat_fs.h */
+ #if defined VMW_USE_AIO

@@ -4,10 +4,9 @@ Description: VSOCK: Fix missing msg_namelen update in vsock_stream_recvmsg()
  makes net/socket.c leak the local, uninitialized sockaddr_storage
  variable to userland -- 128 bytes of kernel stack memory.
 
-diff -Naurp open-vm-tools.orig/modules/linux/vsock/linux/af_vsock.c open-vm-tools/modules/linux/vsock/linux/af_vsock.c
---- open-vm-tools.orig/modules/linux/vsock/linux/af_vsock.c
-+++ open-vm-tools/modules/linux/vsock/linux/af_vsock.c
-@@ -4799,6 +4799,8 @@ VSockVmciStreamRecvmsg(struct kiocb *kio
+--- a/modules/linux/vsock/linux/af_vsock.c
++++ b/modules/linux/vsock/linux/af_vsock.c
+@@ -5455,6 +5455,8 @@ VSockVmciStreamRecvmsg(struct kiocb *kio
     vsk = vsock_sk(sk);
     err = 0;
  
