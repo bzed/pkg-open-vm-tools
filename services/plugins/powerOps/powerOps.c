@@ -26,13 +26,13 @@
 
 #include "vm_assert.h"
 #include "vm_basic_defs.h"
-#include "vmtoolsApp.h"
 
 #include "conf.h"
 #include "procMgr.h"
 #include "system.h"
-#include "vmtools.h"
 #include "vmware/guestrpc/powerops.h"
+#include "vmware/tools/plugin.h"
+#include "vmware/tools/utils.h"
 
 #if defined(G_PLATFORM_WIN32)
 #  define INVALID_PID NULL
@@ -390,7 +390,7 @@ PowerOpsRunScript(PowerOpState *state,
  * @return TRUE on success.
  */
 
-static Bool
+static gboolean
 PowerOpsStateChange(RpcInData *data)
 {
    size_t i;
@@ -481,7 +481,7 @@ PowerOpsStateChange(RpcInData *data)
          }
 
          g_free(script);
-         return RPCIN_SETRETVALS(data, result, ret);
+         return RPCIN_SETRETVALS(data, (char *) result, ret);
       }
    }
 

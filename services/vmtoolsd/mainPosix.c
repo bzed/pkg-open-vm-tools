@@ -34,7 +34,7 @@
 #include "system.h"
 #include "unicode.h"
 #include "util.h"
-#include "vmtools.h"
+#include "vmware/tools/utils.h"
 
 #if !defined(__APPLE__)
 #include "embed_version.h"
@@ -59,7 +59,6 @@ static gboolean
 ToolsCoreSigHUPCb(const siginfo_t *info,
                   gpointer data)
 {
-   VMTools_ResetLogging(TRUE);
    ToolsCore_ReloadConfig(data, TRUE);
    return TRUE;
 }

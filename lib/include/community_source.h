@@ -43,7 +43,6 @@
 #define INCLUDE_ALLOW_VMMEXT
 #define INCLUDE_ALLOW_MODULE
 #define INCLUDE_ALLOW_VMMON
-#define INCLUDE_ALLOW_VMNIXMOD
 #define INCLUDE_ALLOW_VMKERNEL
 #define INCLUDE_ALLOW_VMKDRIVERS
 #define INCLUDE_ALLOW_VMK_MODULE
@@ -62,10 +61,19 @@
    #define EXCLUDE_COMMUNITY_SOURCE(x) x
 #endif
 
+#undef COMMUNITY_SOURCE_AMD_SECRET
+#if !defined(COMMUNITY_SOURCE) || defined(AMD_SOURCE)
+/*
+ * It's ok to include AMD_SECRET source code for non-Community Source,
+ * or for drops directed at AMD.
+ */
+   #define COMMUNITY_SOURCE_AMD_SECRET
+#endif
+
 #undef COMMUNITY_SOURCE_INTEL_SECRET
 #if !defined(COMMUNITY_SOURCE) || defined(INTEL_SOURCE)
 /*
- * It's ok to include INTEL_SECRET source code for non-commsrc,
+ * It's ok to include INTEL_SECRET source code for non-Community Source,
  * or for drops directed at Intel.
  */
    #define COMMUNITY_SOURCE_INTEL_SECRET

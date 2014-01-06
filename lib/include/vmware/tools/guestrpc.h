@@ -16,11 +16,11 @@
  *
  *********************************************************/
 
-#ifndef _RPCCHANNEL_H_
-#define _RPCCHANNEL_H_
+#ifndef _VMWARE_TOOLS_GUESTRPC_H_
+#define _VMWARE_TOOLS_GUESTRPC_H_
 
 /**
- * @file rpcChannel.h
+ * @file guestrpc.h
  *
  *    Defines the interface between applications and the underlying GuestRPC
  *    channel. The goal is to have an abstraction so applications can run over
@@ -36,16 +36,52 @@
  * @{
  */
 
-#if !defined(VMTOOLS_USE_GLIB)
-#  error "This library needs to be compiled with VMTOOLS_USE_GLIB."
-#endif
+#include <glib.h>
+#include "vmware/tools/utils.h"
 
-#include <rpc/rpc.h>
-#include "vm_basic_types.h"
-#include "vm_assert.h"
-#include "rpcin.h"
+G_BEGIN_DECLS
+
+/** Alias for RpcChannel_SetRetVals. */
+#define RPCIN_SETRETVALS RpcChannel_SetRetVals
 
 struct RpcChannel;
+
+/** Data structure passed to RPC callbacks. */
+typedef struct RpcInData {
+   /** RPC name. */
+   const char *name;
+   /**
+    * RPC arguments. Either the raw argument data, or de-serialized XDR data
+    * in case @a xdrIn was provided in the registration data.
+    */
+   const char *args;
+   /** Size of raw argument data, in bytes. */
+   size_t argsSize;
+   /**
+    * Data to be returned to the caller, or pointer to XDR structure if
+    * @a xdrOut was provided in the registration data.
+    */
+   char *result;
+   /** Length in bytes of raw data being returned (ignored for XDR structures). */
+   size_t resultLen;
+   /**
+    * Whether the RPC library should free the contents of the @a result
+    * field (using vm_free()).
+    */
+   gboolean freeResult;
+   /** Application context. */
+   void *appCtx;
+   /** Client data specified in the registration data. */
+   void *clientData;
+} RpcInData;
+
+
+/**
+ * Type for RpcIn callbacks. The callback function is responsible for
+ * allocating memory for the result string.
+ */
+typedef gboolean (*RpcIn_Callback)(RpcInData *data);
+
 
 /** Defines the registration data for a GuestRPC application. */
 typedef struct RpcChannelCallback {
@@ -72,14 +108,14 @@ typedef struct RpcChannelCallback {
 } RpcChannelCallback;
 
 
-typedef Bool (*RpcChannelStartFn)(struct RpcChannel *);
+typedef gboolean (*RpcChannelStartFn)(struct RpcChannel *);
 typedef void (*RpcChannelStopFn)(struct RpcChannel *);
 typedef void (*RpcChannelShutdownFn)(struct RpcChannel *);
-typedef Bool (*RpcChannelSendFn)(struct RpcChannel *,
-                                 char *data,
-                                 size_t dataLen,
-                                 char **result,
-                                 size_t *resultLen);
+typedef gboolean (*RpcChannelSendFn)(struct RpcChannel *,
+                                     char *data,
+                                     size_t dataLen,
+                                     char **result,
+                                     size_t *resultLen);
 
 
 /**
@@ -122,11 +158,12 @@ typedef struct RpcChannel {
  *
  * @return TRUE on success.
  */
-static INLINE Bool
+
+G_INLINE_FUNC gboolean
 RpcChannel_Start(RpcChannel *chan)
 {
-   ASSERT(chan != NULL);
-   ASSERT(chan->start != NULL);
+   g_return_val_if_fail(chan != NULL, FALSE);
+   g_return_val_if_fail(chan->start != NULL, FALSE);
 
    return chan->start(chan);
 }
@@ -138,14 +175,15 @@ RpcChannel_Start(RpcChannel *chan)
  * @param[in]  chan        The RPC channel instance.
  */
 
-static INLINE void
+G_INLINE_FUNC void
 RpcChannel_Stop(RpcChannel *chan)
 {
-   ASSERT(chan != NULL);
-   ASSERT(chan->stop != NULL);
+   g_return_if_fail(chan != NULL);
+   g_return_if_fail(chan->stop != NULL);
 
    chan->stop(chan);
 }
+
 
 /**
  * Wrapper for the send function of an RPC channel struct.
@@ -159,20 +197,20 @@ RpcChannel_Stop(RpcChannel *chan)
  * @return The status from the remote end (TRUE if call was successful).
  */
 
-static INLINE Bool
+G_INLINE_FUNC gboolean
 RpcChannel_Send(RpcChannel *chan,
                 char *data,
                 size_t dataLen,
                 char **result,
                 size_t *resultLen)
 {
-   ASSERT(chan != NULL);
-   ASSERT(chan->send != NULL);
+   g_return_val_if_fail(chan != NULL, FALSE);
+   g_return_val_if_fail(chan->send != NULL, FALSE);
 
    return chan->send(chan, data, dataLen, result, resultLen);
 }
 
-Bool
+gboolean
 RpcChannel_BuildXdrCommand(const char *cmd,
                            void *xdrProc,
                            void *xdrData,
@@ -182,7 +220,7 @@ RpcChannel_BuildXdrCommand(const char *cmd,
 gboolean
 RpcChannel_Destroy(RpcChannel *chan);
 
-Bool
+gboolean
 RpcChannel_Dispatch(RpcInData *data);
 
 void
@@ -197,6 +235,11 @@ void
 RpcChannel_RegisterCallback(RpcChannel *chan,
                             RpcChannelCallback *rpc);
 
+gboolean
+RpcChannel_SetRetVals(RpcInData *data,
+                      char *result,
+                      gboolean retVal);
+
 void
 RpcChannel_UnregisterCallback(RpcChannel *chan,
                               RpcChannelCallback *rpc);
@@ -204,6 +247,8 @@ RpcChannel_UnregisterCallback(RpcChannel *chan,
 
 RpcChannel *
 RpcChannel_NewBackdoorChannel(GMainContext *mainCtx);
+
+G_END_DECLS
 
 /** @} */
 

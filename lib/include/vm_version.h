@@ -24,7 +24,6 @@
 #define INCLUDE_ALLOW_VMMEXT
 #define INCLUDE_ALLOW_MODULE
 #define INCLUDE_ALLOW_VMMON
-#define INCLUDE_ALLOW_VMNIXMOD
 #define INCLUDE_ALLOW_VMKERNEL
 #define INCLUDE_ALLOW_VMKDRIVERS
 #define INCLUDE_ALLOW_VMCORE
@@ -205,7 +204,7 @@
 #define PLAYER_VERSION "e.x.p"
 #define V2V_VERSION "e.x.p"
 #define V2V_FILE_VERSION 1,0,0,0
-#define FUSION_VERSION "3.0.0"
+#define FUSION_VERSION "3.0.1"
 
 // These must match VIE_FILEVERSION above
 #define SYSIMAGE_VERSION "4.0.0"
@@ -221,7 +220,7 @@
 #define VMLS_VERSION "e.x.p"
 #define VLICENSE_VERSION "1.1.2"
 #define DDK_VERSION "e.x.p"
-#define VIM_API_VERSION "4.5"
+#define VIM_API_VERSION "4.1"
 #define VIPERL_VERSION "1.1.0"
 #define RCLI_VERSION "4.5.0"
 #define VDM_VERSION "e.x.p"

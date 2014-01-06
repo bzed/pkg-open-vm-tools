@@ -30,10 +30,16 @@
 #include <gmodule.h>
 #include "testData.h"
 #include "util.h"
-#include "vmtoolsApp.h"
-#include "vmtools.h"
 #include "guestrpc/ghiGetBinaryHandlers.h"
+#include "vmware/tools/plugin.h"
+#include "vmware/tools/utils.h"
 
+#define TEST_APP_PROVIDER  "TestProvider"
+#define TEST_APP_NAME      "TestProviderApp1"
+
+typedef struct TestApp {
+   const char *name;
+} TestApp;
 
 /**
  * Handles a "test.rpcin.msg1" RPC message. The incoming data should be an
@@ -47,7 +53,7 @@
  * @return TRUE on success.
  */
 
-static Bool
+static gboolean
 TestPluginRpc1(RpcInData *data)
 {
    ToolsAppCtx *ctx = data->appCtx;
@@ -88,7 +94,7 @@ TestPluginRpc1(RpcInData *data)
  * @return TRUE on success.
  */
 
-static Bool
+static gboolean
 TestPluginRpc2(RpcInData *data)
 {
    g_debug("%s: %s\n", __FUNCTION__, data->name);
@@ -105,7 +111,7 @@ TestPluginRpc2(RpcInData *data)
  * @return TRUE on success.
  */
 
-static Bool
+static gboolean
 TestPluginRpc3(RpcInData *data)
 {
    TestPluginData *ret;
@@ -196,6 +202,28 @@ TestPluginSessionChange(gpointer src,
 {
    g_debug("Got session state change signal, code = %u, id = %u\n", code, sessionId);
 }
+
+
+/**
+ * Handles the preshutdown callback; this is only called on Windows Vista & up,
+ * from the "vmsvc" instance. This is called only "upgrade at powercycle" flag is
+ * set in the UI. If the upgrader is launched, the service waits for upgrader
+ * to terminate before shutting down.
+ *
+ * @param[in]  src      The source object.
+ * @param[in]  ctx      ToolsAppCtx *: The application context.
+ * @param[in]  serviceStatusHandle     A handle of type SERVICE_STATUS_HANDLE
+ * @param[in]  data     Client data.
+ */
+
+static void
+TestPluginPreShutdownChange(gpointer src,
+                            ToolsAppCtx *ctx,
+                            gpointer serviceStatusHandle,
+                            gpointer data)
+{
+   g_debug("%s: Got preshutdown signal for app %s\n", __FUNCTION__, ctx->name);
+}
 #endif
 
 
@@ -245,6 +273,25 @@ TestPluginSetOption(gpointer src,
 
 
 /**
+ * Prints out the registration data for the test provider.
+ *
+ * @param[in] ctx     Unused.
+ * @param[in] prov    Unused.
+ * @param[in] reg     Registration data (should be a string).
+ */
+
+static void
+TestProviderRegisterApp(ToolsAppCtx *ctx,
+                        ToolsAppProvider *prov,
+                        gpointer reg)
+{
+   TestApp *app = reg;
+   g_debug("%s: registration data is '%s'\n", __FUNCTION__, app->name);
+   ASSERT(strcmp(TEST_APP_NAME, app->name) == 0);
+}
+
+
+/**
  * Plugin entry point. Returns the registration data. This is called once when
  * the plugin is loaded into the service process.
  *
@@ -271,6 +318,9 @@ ToolsOnLoad(ToolsAppCtx *ctx)
       { "test.rpcin.msg3",
             TestPluginRpc3, NULL, NULL, xdr_TestPluginData, 0 }
    };
+   ToolsAppProvider provs[] = {
+      { TEST_APP_PROVIDER, 42, sizeof (char *), NULL, TestProviderRegisterApp, NULL, NULL }
+   };
    ToolsPluginSignalCb sigs[] = {
       { TOOLS_CORE_SIG_RESET, TestPluginReset, &regData },
       { TOOLS_CORE_SIG_SHUTDOWN, TestPluginShutdown, &regData },
@@ -278,11 +328,17 @@ ToolsOnLoad(ToolsAppCtx *ctx)
       { TOOLS_CORE_SIG_SET_OPTION, TestPluginSetOption, &regData },
 #if defined(G_PLATFORM_WIN32)
       { TOOLS_CORE_SIG_SESSION_CHANGE, TestPluginSessionChange, &regData },
+      { TOOLS_CORE_SIG_PRESHUTDOWN, TestPluginPreShutdownChange, &regData },
 #endif
+   };
+   TestApp tapp[] = {
+      { TEST_APP_NAME }
    };
    ToolsAppReg regs[] = {
       { TOOLS_APP_GUESTRPC, VMTools_WrapArray(rpcs, sizeof *rpcs, ARRAYSIZE(rpcs)) },
-      { TOOLS_APP_SIGNALS, VMTools_WrapArray(sigs, sizeof *sigs, ARRAYSIZE(sigs)) }
+      { TOOLS_APP_PROVIDER, VMTools_WrapArray(provs, sizeof *provs, ARRAYSIZE(provs)) },
+      { TOOLS_APP_SIGNALS, VMTools_WrapArray(sigs, sizeof *sigs, ARRAYSIZE(sigs)) },
+      { 42, VMTools_WrapArray(tapp, sizeof *tapp, ARRAYSIZE(tapp)) },
    };
 
    g_signal_new("test-signal",

@@ -34,10 +34,15 @@
 
 #include "resolutionInt.h"
 
-#include "vmtools.h"
-#include "vmtoolsApp.h"
 #include "xdrutil.h"
 #include "vmware/guestrpc/tclodefs.h"
+#include "vmware/tools/plugin.h"
+#include "vmware/tools/utils.h"
+
+
+#include "embed_version.h"
+#include "vmtoolsd_version.h"
+VM_EMBED_VERSION(VMTOOLSD_VERSION_STRING);
 
 /*
  * The maximum number of capabilities we can set.
@@ -65,14 +70,8 @@ ResolutionInfoType resolutionInfo;
  * Local function prototypes
  */
 
-static Bool ResolutionResolutionSetCB(RpcInData *data);
-static Bool ResolutionDisplayTopologySetCB(RpcInData *data);
 static void ResolutionSetServerCapability(unsigned int value);
 
-#if defined(RESOLUTION_WIN32)
-static Bool ResolutionDisplayTopologyModesSetCB(RpcInData *data);
-static Bool ResolutionChangeHost3DAvailabilityHintCB(RpcInData *data);
-#endif
 
 /*
  * Global function definitions
@@ -134,13 +133,13 @@ ResolutionCleanup(void)
  * @return TRUE if we can reply, FALSE otherwise.
  */
 
-static Bool
+static gboolean
 ResolutionResolutionSetCB(RpcInData *data)
 {
    uint32 width = 0 ;
    uint32 height = 0;
    unsigned int index = 0;
-   Bool retval = FALSE;
+   gboolean retval = FALSE;
 
    ResolutionInfoType *resInfo = &resolutionInfo;
 
@@ -176,11 +175,11 @@ invalid_arguments:
  * @return TRUE if we can reply, FALSE otherwise.
  */
 
-static Bool
+static gboolean
 ResolutionChangeHost3DAvailabilityHintCB(RpcInData *data)
 {
    unsigned int set;
-   Bool success = FALSE;
+   gboolean success = FALSE;
    unsigned int index = 0;
 
    Debug("%s: enter\n", __FUNCTION__);
@@ -218,7 +217,7 @@ ResolutionChangeHost3DAvailabilityHintCB(RpcInData *data)
  * @return TRUE if we can reply, FALSE otherwise.
  */
 
-static Bool
+static gboolean
 ResolutionDisplayTopologyModesSetCB(RpcInData *data)
 {
    DisplayTopologyInfo *displays = NULL;
@@ -226,7 +225,7 @@ ResolutionDisplayTopologyModesSetCB(RpcInData *data)
    unsigned int i;
    unsigned int cmd;
    unsigned int screen;
-   Bool success = FALSE;
+   gboolean success = FALSE;
    const char *p;
 
    Debug("%s: enter\n", __FUNCTION__);
@@ -297,12 +296,12 @@ out:
  * @return TRUE if we can reply, FALSE otherwise.
  */
 
-static Bool
+static gboolean
 ResolutionDisplayTopologySetCB(RpcInData *data)
 {
    DisplayTopologyInfo *displays = NULL;
    unsigned int count, i;
-   Bool success = FALSE;
+   gboolean success = FALSE;
    const char *p;
 
    ResolutionInfoType *resInfo = &resolutionInfo;
@@ -457,7 +456,9 @@ ResolutionSetCapabilities(gpointer src,
        *      name of the RPC channel that the VMX should use when sending
        *      resolution set RPCs as an argument.
        */
-      ResolutionSetServerCapability(set ? 1 : 0);
+      if (ctx && ctx->rpc && ctx->isVMware) {
+         ResolutionSetServerCapability(set ? 1 : 0);
+      }
    }
 
    /*
@@ -529,7 +530,6 @@ ToolsOnLoad(ToolsAppCtx *ctx)
       { "DisplayTopology_Set",          &ResolutionDisplayTopologySetCB },
 #if defined(RESOLUTION_WIN32)
       { "DisplayTopologyModes_Set",     &ResolutionDisplayTopologyModesSetCB },
-      { "ChangeHost3DAvailabilityHint", &ResolutionChangeHost3DAvailabilityHintCB }
 #endif
    };
 
@@ -554,9 +554,18 @@ ToolsOnLoad(ToolsAppCtx *ctx)
    ResolutionInfoType *resInfo = &resolutionInfo;
 
    /*
+    * If we aren't running in a VM (e.g., running in bootcamp natively on
+    * a Mac), then just return NULL.
+    */
+   if (!ctx->isVMware) {
+      return NULL;
+   }
+
+   /*
     * Save the RPC channel name from the ToolsAppCtx so that we can use it later
     * in calls to ResolutionSetServerCapability().
     */
+
    if (strcmp(ctx->name, VMTOOLS_GUEST_SERVICE) == 0) {
       rpcChannelName = TOOLS_DAEMON_NAME;
    } else if (strcmp(ctx->name, VMTOOLS_USER_SERVICE) == 0) {

@@ -70,7 +70,8 @@ am__installdirs = "$(DESTDIR)$(plugindir)"
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(plugin_LTLIBRARIES)
 libtimeSync_la_DEPENDENCIES =
-am_libtimeSync_la_OBJECTS = libtimeSync_la-timeSync.lo
+am_libtimeSync_la_OBJECTS = libtimeSync_la-timeSync.lo \
+	libtimeSync_la-timeSyncPosix.lo
 libtimeSync_la_OBJECTS = $(am_libtimeSync_la_OBJECTS)
 libtimeSync_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
@@ -284,7 +285,7 @@ plugin_LTLIBRARIES = libtimeSync.la
 libtimeSync_la_CPPFLAGS = @PLUGIN_CPPFLAGS@
 libtimeSync_la_LDFLAGS = @PLUGIN_LDFLAGS@
 libtimeSync_la_LIBADD = @VMTOOLS_LIBS@
-libtimeSync_la_SOURCES = timeSync.c
+libtimeSync_la_SOURCES = timeSync.c timeSyncPosix.c
 all: all-am
 
 .SUFFIXES:
@@ -355,6 +356,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtimeSync_la-timeSync.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtimeSync_la-timeSyncPosix.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -383,6 +385,13 @@ libtimeSync_la-timeSync.lo: timeSync.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='timeSync.c' object='libtimeSync_la-timeSync.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libtimeSync_la-timeSync.lo `test -f 'timeSync.c' || echo '$(srcdir)/'`timeSync.c
+
+libtimeSync_la-timeSyncPosix.lo: timeSyncPosix.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libtimeSync_la-timeSyncPosix.lo -MD -MP -MF $(DEPDIR)/libtimeSync_la-timeSyncPosix.Tpo -c -o libtimeSync_la-timeSyncPosix.lo `test -f 'timeSyncPosix.c' || echo '$(srcdir)/'`timeSyncPosix.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libtimeSync_la-timeSyncPosix.Tpo $(DEPDIR)/libtimeSync_la-timeSyncPosix.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='timeSyncPosix.c' object='libtimeSync_la-timeSyncPosix.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libtimeSync_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libtimeSync_la-timeSyncPosix.lo `test -f 'timeSyncPosix.c' || echo '$(srcdir)/'`timeSyncPosix.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

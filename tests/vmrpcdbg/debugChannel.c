@@ -30,11 +30,11 @@
 #include <gmodule.h>
 
 #include "strutil.h"
-#include "vmrpcdbg.h"
-#include "vmtools.h"
 #include "util.h"
 #include "vmxrpc.h"
 #include "xdrutil.h"
+#include "vmware/tools/rpcdebug.h"
+#include "vmware/tools/utils.h"
 
 typedef struct DbgChannelData {
    gboolean          hasLibRef;
@@ -57,7 +57,7 @@ typedef struct DbgChannelData {
 static gboolean
 RpcDebugDispatch(gpointer _chan)
 {
-   Bool ret;
+   gboolean ret;
    RpcChannel *chan = _chan;
    DbgChannelData *cdata = chan->_private;
    RpcDebugPlugin *plugin = cdata->plugin;
@@ -86,7 +86,7 @@ RpcDebugDispatch(gpointer _chan)
 
    ret = RpcChannel_Dispatch(&data);
    if (rpcdata.validateFn != NULL) {
-      ret = (Bool) rpcdata.validateFn(&data, ret);
+      ret = rpcdata.validateFn(&data, ret);
    } else if (!ret) {
       g_debug("RpcChannel_Dispatch returned error for RPC.\n");
    }
@@ -119,7 +119,7 @@ RpcDebugDispatch(gpointer _chan)
  * @return TRUE.
  */
 
-static Bool
+static gboolean
 RpcDebugStart(RpcChannel *chan)
 {
    DbgChannelData *data = chan->_private;
@@ -170,7 +170,7 @@ RpcDebugStop(RpcChannel *chan)
  *         a validation function was not provided.
  */
 
-static Bool
+static gboolean
 RpcDebugSend(RpcChannel *chan,
              char *data,
              size_t dataLen,
@@ -182,7 +182,7 @@ RpcDebugSend(RpcChannel *chan,
    RpcDebugPlugin *plugin = ((DbgChannelData *)chan->_private)->plugin;
    RpcDebugRecvMapping *mapping = NULL;
    RpcDebugRecvFn recvFn = NULL;
-   Bool ret = TRUE;
+   gboolean ret = TRUE;
 
    g_assert(chan->appName != NULL);
 
@@ -219,7 +219,7 @@ RpcDebugSend(RpcChannel *chan,
          /* Find out where the XDR data starts. */
          start = strchr(copy, ' ');
          if (start == NULL) {
-            RPCDEBUG_SET_RESULT("Can't find command delimiter.", result, resultLen);
+            RpcDebug_SetResult("Can't find command delimiter.", result, resultLen);
             ret = FALSE;
             goto exit;
          }
@@ -230,7 +230,7 @@ RpcDebugSend(RpcChannel *chan,
                                   dataLen - (start - copy),
                                   mapping->xdrProc,
                                   xdrdata)) {
-            RPCDEBUG_SET_RESULT("XDR deserialization failed.", result, resultLen);
+            RpcDebug_SetResult("XDR deserialization failed.", result, resultLen);
             ret = FALSE;
             goto exit;
          }
@@ -242,7 +242,7 @@ RpcDebugSend(RpcChannel *chan,
    if (recvFn != NULL) {
       ret = recvFn((xdrdata != NULL) ? xdrdata : copy, dataLen, result, resultLen);
    } else {
-      RPCDEBUG_SET_RESULT("", result, resultLen);
+      RpcDebug_SetResult("", result, resultLen);
    }
 
 exit:

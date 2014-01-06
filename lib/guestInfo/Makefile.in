@@ -62,8 +62,9 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libGuestInfo_la_LIBADD =
-am_libGuestInfo_la_OBJECTS = libGuestInfo_la-guestInfo.lo \
-	libGuestInfo_la-guestInfoPosix.lo
+am_libGuestInfo_la_OBJECTS = libGuestInfo_la-compareNicInfo.lo \
+	libGuestInfo_la-guestInfo.lo libGuestInfo_la-guestInfoPosix.lo \
+	libGuestInfo_la-util.lo
 libGuestInfo_la_OBJECTS = $(am_libGuestInfo_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -270,7 +271,8 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libGuestInfo.la
-libGuestInfo_la_SOURCES = guestInfo.c guestInfoPosix.c
+libGuestInfo_la_SOURCES = compareNicInfo.c guestInfo.c \
+	guestInfoPosix.c util.c
 libGuestInfo_la_CPPFLAGS = @GLIB2_CPPFLAGS@
 AM_CFLAGS = $(DNET_CPPFLAGS)
 all: all-am
@@ -324,8 +326,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libGuestInfo_la-compareNicInfo.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libGuestInfo_la-guestInfo.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libGuestInfo_la-guestInfoPosix.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libGuestInfo_la-util.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -348,6 +352,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
+libGuestInfo_la-compareNicInfo.lo: compareNicInfo.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libGuestInfo_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libGuestInfo_la-compareNicInfo.lo -MD -MP -MF $(DEPDIR)/libGuestInfo_la-compareNicInfo.Tpo -c -o libGuestInfo_la-compareNicInfo.lo `test -f 'compareNicInfo.c' || echo '$(srcdir)/'`compareNicInfo.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libGuestInfo_la-compareNicInfo.Tpo $(DEPDIR)/libGuestInfo_la-compareNicInfo.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='compareNicInfo.c' object='libGuestInfo_la-compareNicInfo.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libGuestInfo_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libGuestInfo_la-compareNicInfo.lo `test -f 'compareNicInfo.c' || echo '$(srcdir)/'`compareNicInfo.c
+
 libGuestInfo_la-guestInfo.lo: guestInfo.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libGuestInfo_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libGuestInfo_la-guestInfo.lo -MD -MP -MF $(DEPDIR)/libGuestInfo_la-guestInfo.Tpo -c -o libGuestInfo_la-guestInfo.lo `test -f 'guestInfo.c' || echo '$(srcdir)/'`guestInfo.c
 @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libGuestInfo_la-guestInfo.Tpo $(DEPDIR)/libGuestInfo_la-guestInfo.Plo
@@ -361,6 +372,13 @@ libGuestInfo_la-guestInfoPosix.lo: guestInfoPosix.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='guestInfoPosix.c' object='libGuestInfo_la-guestInfoPosix.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libGuestInfo_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libGuestInfo_la-guestInfoPosix.lo `test -f 'guestInfoPosix.c' || echo '$(srcdir)/'`guestInfoPosix.c
+
+libGuestInfo_la-util.lo: util.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libGuestInfo_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libGuestInfo_la-util.lo -MD -MP -MF $(DEPDIR)/libGuestInfo_la-util.Tpo -c -o libGuestInfo_la-util.lo `test -f 'util.c' || echo '$(srcdir)/'`util.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libGuestInfo_la-util.Tpo $(DEPDIR)/libGuestInfo_la-util.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='util.c' object='libGuestInfo_la-util.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libGuestInfo_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libGuestInfo_la-util.lo `test -f 'util.c' || echo '$(srcdir)/'`util.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

@@ -28,7 +28,6 @@
 #define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMMEXT
 #define INCLUDE_ALLOW_MODULE
-#define INCLUDE_ALLOW_VMNIXMOD
 #define INCLUDE_ALLOW_VMK_MODULE
 #define INCLUDE_ALLOW_VMKERNEL
 #define INCLUDE_ALLOW_DISTRIBUTE
@@ -677,10 +676,10 @@ typedef struct {
 // more defined...
 #define SCSI_MS_PAGE_ALL      0x3f     // all available pages (ALL)
          pcf      :2;   // page control field
-#define SCSI_MS_PCF_CURRENT   0x00     // current values
-#define SCSI_MS_PCF_VOLATILE  0x01     // changeable values
-#define SCSI_MS_PCF_DEFAULT   0x02     // default values
-#define SCSI_MS_PCF_SAVED     0x03     // saved values
+#define SCSI_MS_PCF_CURRENT    0x00    // current values
+#define SCSI_MS_PCF_VOLATILE   0x01    // changeable values
+#define SCSI_MS_PCF_DEFAULT    0x02    // default values
+#define SCSI_MS_PCF_SAVED      0x03    // saved values
    uint8    subpage;
    uint8    length;        // data length
    uint8    control;       // control byte
@@ -738,7 +737,9 @@ struct {
 #include "vmware_pack_end.h"
 SCSIModeSense10Cmd;
 
-typedef struct {
+typedef 
+#include "vmware_pack_begin.h"
+struct {
    uint8    opcode;     // operation code
    uint8    sp    :1,   // save pages
                   :3,
@@ -747,7 +748,9 @@ typedef struct {
    uint8    reserved[2];
    uint8    length;     // data length
    uint8    control;    // control byte
-} SCSIModeSelectCmd;
+} 
+#include "vmware_pack_end.h"
+SCSIModeSelectCmd;
 
 typedef
 #include "vmware_pack_begin.h"
@@ -873,28 +876,45 @@ typedef struct {     // peripheral device page
    uint8    undefined[1];  // variable-length vendor-specific data
 } SCSIPeriphPage;
 
-typedef struct {
+typedef
+#include "vmware_pack_begin.h"
+// SPC-3, Section 7.4.6 Table 245
+struct {
    uint8    page  :6,      // page code: 0x0a
-                  :1,
+            spf   :1,
             ps    :1;
-   uint8    len;           // page length (0x06)
-   uint8    rlec  :1,
-            gltsd :1,
-                  :2,
-                  :4;
-   uint8    dque  :1,      // disable tagged queuing
-            qerr  :1,      //
-                  :2,
-            qalg  :4;      // queue algorithm
-   uint8    eaenp :1,      // error AEN permission
-            uaaenp:1,      // unit attention AEN permission
-            raenp :1,      // ready AEN permission
-                  :4,
-            eeca  :1;      //
-   uint8    reserved;
-   uint16   aenWaitTime;   // AEN waiting time after initialization
-   uint16   busyTimeout;   // busy timeout in 100ms (SCSI-3)
-} SCSIControlPage;
+   uint8    pageLength;  // page length (0x0a)
+   uint8    rlec     :1,
+            gltsd    :1,
+            d_sense  :1,
+            reserved1:1,
+            tmf_only :1,
+            tst      :3;
+   uint8    obsolete1:1,
+            qerr  :2,
+#define SCSI_QERR_TASKS_PROCESSED    0x0
+#define SCSI_QERR_TASKS_ABORTED      0x1
+#define SCSI_QERR_RESERVED           0x2
+#define SCSI_QERR_I_T_TASKS_ABORTED  0x3
+            reserved2:1,
+            queueAlgorithmModifier :4;      // queue algorithm
+   uint8    obsolete2:3,     
+            swp   :1,     
+            uaIntlckCtrl :2, 
+            rac   :1,
+            vs   :1;
+   uint8    autoloadMode:3,
+            reserved3   :3,
+            tas         :1,
+            ato         :1;
+   uint8    obsolete[2];
+   uint16   busyTimeoutPeriod;         // busy timeout in 100ms (SCSI-3)
+   uint16   extendedSelftestCompletionTime;
+} 
+#include "vmware_pack_end.h"
+SCSIControlPage;
+
+#define SCSI_CONTROL_PAGE_LENGTH 0xA
 
 typedef struct {
    uint8    page  :6,      // page code: 0x09
@@ -1250,10 +1270,11 @@ struct {
        sync_nv :1,
        immed   :1, // if set return without waiting for sync to complete
                :1;
-   uint32     lbn; // number of blocks to sync, 0 for full disk
+   uint32     lbn; // block number to begin sync
    uint8       :4,
       grp_num  :4;
-   uint8      lbc; // blk to begin sync, 0 for full disk
+   uint16     lbc; // number of blocks to sync, 0 for all blocks starting
+                   // from lbn to the last block on the medium
    uint8  control; // control byte
 }
 #include "vmware_pack_end.h"
@@ -1267,10 +1288,11 @@ struct {
        sync_nv :1,
        immed   :1, // if set return, wihout waiting for sync to complete
                :1;
-   uint64     lbn; // number of blocks to sync, 0 for full disk
+   uint64     lbn; // block number to begin sync
+   uint32     lbc; // number of blocks to sync, 0 for all blocks starting
+                   // from lbn to the last block on the medium
    uint8       :4,
       grp_num  :4;
-   uint32     lbc; // block number to begin sync, 0 for full disk
    uint8  control; // control byte
 }
 #include "vmware_pack_end.h"
@@ -1838,6 +1860,144 @@ struct {
 }
 #include "vmware_pack_end.h"
 SCSIPlayMSFCmd;
+
+
+/*
+ * Definitions for MMC Features and Profiles. See MMC-2, Section 5 for details.
+ * The response to a GET CONFIGURATION (0x46) command consists of a Feature
+ * Header with zero or more Feature Descriptors.
+ */
+
+/*
+ * Feature Header.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 length;
+   uint8  reserved[2];
+   uint16 currentProfile;
+}
+#include "vmware_pack_end.h"
+SCSIFeatureHeader;
+
+
+/*
+ * Feature Descriptor generic format.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+#define SCSI_FEAT_CODE_PROFILELIST     0x0
+#define SCSI_FEAT_CODE_CORE            0x1
+#define SCSI_FEAT_CODE_MORPHING        0x2
+#define SCSI_FEAT_CODE_REMOVABLEMEDIUM 0x3
+#define SCSI_FEAT_CODE_RANDOMREADABLE  0x10
+#define SCSI_FEAT_CODE_DVDREAD         0x1F
+   uint16 code;
+   uint8  featureCurrent:1,
+          persistent:1,
+          version:4,
+          reserved:2;
+   uint8  additionalLength;
+   /* Feature Dependent Data to follow. */
+}
+#include "vmware_pack_end.h"
+SCSIFeatureDescriptor;
+
+/*
+ * Profile Descriptor format.
+ *
+ * Zero or more of these follow the Profile List Feature Descriptor, which
+ * matches the generic Feature Descriptor format described above.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+#define SCSI_PROFILE_NUMBER_DVDROM 0x10
+   uint16 number;
+   uint8  profileCurrent:1,
+          reserved0:7;
+   uint8  reserved1;
+}
+#include "vmware_pack_end.h"
+SCSIProfileDescriptor;
+
+
+/*
+ * Many Feature Descriptors consist of nothing more than the generic Feature
+ * Descriptor format defined earlier; those that are larger are defined below.
+ */
+
+/*
+ * Core Feature Descriptor format.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   SCSIFeatureDescriptor feature;
+#define SCSI_CORE_PHY_ATAPI 0x2
+   uint32                phy;
+}
+#include "vmware_pack_end.h"
+SCSICoreFeatureDescriptor;
+
+
+/*
+ * Morphing Descriptor format.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   SCSIFeatureDescriptor feature;
+   uint8 async:1,
+         reserved0:7;
+   uint8 reserved1;
+   uint8 reserved2;
+   uint8 reserved3;
+}
+#include "vmware_pack_end.h"
+SCSIMorphingFeatureDescriptor;
+
+
+/*
+ * Removable Medium Descriptor format.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   SCSIFeatureDescriptor feature;
+   uint8                 lock:1,
+                         reserved0:1,
+                         preventJumper:1,
+                         eject:1,
+                         reserved1:1,
+#define SCSI_REMOVABLE_MEDIUM_TYPE_TRAY 0x1
+                         loadingMechanismType:3;
+   uint8                 reserved2;
+   uint8                 reserved3;
+   uint8                 reserved4;
+}
+#include "vmware_pack_end.h"
+SCSIRemovableMediumFeatureDescriptor;
+
+
+/*
+ * Random Readable Descriptor format.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   SCSIFeatureDescriptor feature;
+   uint32                logicalBlockSize;
+#define SCSI_RANDOM_READABLE_BLOCKING_DVD 0x10
+   uint16                blocking;
+   uint8                 pagePresent:1,
+                         reserved0:7;
+   uint8                 reserved1;
+}
+#include "vmware_pack_end.h"
+SCSIRandomReadableFeatureDescriptor;
 
 
 /*
