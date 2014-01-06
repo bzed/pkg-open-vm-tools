@@ -16,6 +16,12 @@
 ################################################################################
 
 SUBDIRS =
+if HAVE_X11
+   SUBDIRS += desktopEvents
+endif
+if HAVE_GTKMM
+   SUBDIRS += dndcp
+endif
 SUBDIRS += guestInfo
 SUBDIRS += hgfsServer
 SUBDIRS += powerOps
@@ -23,9 +29,21 @@ if HAVE_X11
    SUBDIRS += resolutionSet
 endif
 SUBDIRS += timeSync
-SUBDIRS += vix
-if HAVE_X11
-   SUBDIRS += vixUser
+if ENABLE_UNITY
+   SUBDIRS += unity
 endif
+SUBDIRS += vix
 SUBDIRS += vmbackup
+
+#
+# plugin_LTLIBRARIES causes both .la and .so files to be installed to the
+# plugin directories. Clean up the .la files and keep just the shared
+# libraries around. Sometimes, even though we're passing "-shared" to
+# libtool, .a files are also generated, so clean up those too.
+#
+install-exec-local:
+	rm -f $(DESTDIR)$(VMSVC_PLUGIN_INSTALLDIR)/*.a
+	rm -f $(DESTDIR)$(VMSVC_PLUGIN_INSTALLDIR)/*.la
+	rm -f $(DESTDIR)$(VMUSR_PLUGIN_INSTALLDIR)/*.a
+	rm -f $(DESTDIR)$(VMUSR_PLUGIN_INSTALLDIR)/*.la
 

@@ -106,11 +106,14 @@ Equipment Corporation.
  *				  and MAXSHORT with winnt.h
  *      04/03/2007 shelleygong  - use int instead of short for data
  *                                inside the region *
- * 02/12/2010 michael - Since coordinates are kept as ints, coordinate values
- *    shouldn't be clamped to the range of short. I removed R_{MIN,MAX}SHORT
- *    and changed clamping to be in the range R_MININT..R_MAXINT instead.
- *    Since some code does "n < R_MININT" and "n > R_MAXINT", R_MININT must be
- *    greater than INT_MIN and R_MAXINT must be less than INT_MAX.
+ *      02/12/2010 michael - Since coordinates are kept as ints, coordinate
+ *      values shouldn't be clamped to the range of short. I removed R_{MIN,MAX}SHORT
+ *      and changed clamping to be in the range R_MININT..R_MAXINT instead.
+ *      Since some code does "n < R_MININT" and "n > R_MAXINT", R_MININT must be
+ *      greater than INT_MIN and R_MAXINT must be less than INT_MAX.
+ *
+ *      03/08/2010 amarp        - xalloc conflicts with boost macros. Move it
+ *                                out of the header into the implementation
  */
 
 #include <stdlib.h>
@@ -123,6 +126,7 @@ void miSetExtents(RegionPtr pReg);
 int miFindMaxBand(RegionPtr prgn);
 
 #define good(reg) ASSERT(miValidRegion(reg))
+#define xalloc(n) malloc(n)
 
 /*
  * The functions in this file implement the Region abstraction used extensively
@@ -867,7 +871,7 @@ miAppendNonO (
     register BoxPtr	pNextRect;
     register int	newRects;
 
-    newRects = rEnd - r;
+    newRects = (int) (rEnd - r);
 
     ASSERT(y1 < y2);
     ASSERT(newRects != 0);
@@ -899,7 +903,7 @@ miAppendNonO (
 #define	AppendRegions(newReg, r, rEnd)					\
 {									\
     int newRects;							\
-    if ((newRects = rEnd - r)) {					\
+    if ((newRects = (int) (rEnd - r))) {				\
 	RECTALLOC(newReg, newRects);					\
 	memmove((char *)REGION_TOP(newReg),(char *)r, 			\
               newRects * sizeof(BoxRec));				\
@@ -1441,8 +1445,8 @@ miUnionO (
     ASSERT (y1 < y2);
     ASSERT(r1 != r1End && r2 != r2End);
 
-    miRegionInit(&subReg, NULL, r1End - r1);
-    miRegionInit(&tmpReg, NULL, r1End - r1);
+    miRegionInit(&subReg, NULL, (int) (r1End - r1));
+    miRegionInit(&tmpReg, NULL, (int) (r1End - r1));
 
     pNextRectTmp = REGION_BOXPTR((&tmpReg));
 
@@ -2064,7 +2068,7 @@ miRectsToRegionByBoundary(
     if (pBox != (BoxPtr) (pData + 1))
     {
 	pData->size = nrects;
-	pData->numRects = pBox - (BoxPtr) (pData + 1);
+	pData->numRects = (int) (pBox - (BoxPtr) (pData + 1));
     	pRgn->data = pData;
     	if (ctype != CT_YXBANDED)
     	{
@@ -2920,7 +2924,7 @@ miClipSpans(
 	    }
 	}
     }
-    return (pwidthNew - pwidthNewStart);
+    return (int) (pwidthNew - pwidthNewStart);
 }
 
 /* find the band in a region with the most rectangles */

@@ -75,8 +75,15 @@ static ssize_t HgfsWrite(struct file *file,
                          size_t count,
                          loff_t *offset);
 #endif
+
+static loff_t HgfsSeek(struct file *file,
+                       loff_t  offset,
+                       int origin);
+
 static int HgfsFsync(struct file *file,
+#if defined VMW_FSYNC_OLD
                      struct dentry *dentry,
+#endif
                      int datasync);
 static int HgfsMmap(struct file *file,
                     struct vm_area_struct *vma);
@@ -110,6 +117,7 @@ static ssize_t HgfsSpliceRead(struct file *file,
 struct file_operations HgfsFileFileOperations = {
    .owner      = THIS_MODULE,
    .open       = HgfsOpen,
+   .llseek     = HgfsSeek,
 #if defined VMW_USE_AIO
    .aio_read   = HgfsAioRead,
    .aio_write  = HgfsAioWrite,
@@ -315,7 +323,7 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
 
    /* Build full name to send to server. */
    if (HgfsBuildPath(name,
-                     HGFS_PACKET_MAX - (requestSize - 1),
+                     req->bufferSize - (requestSize - 1),
                      file->f_dentry) < 0) {
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsPackOpenRequest: build path "
               "failed\n"));
@@ -327,7 +335,7 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
 
    /* Convert to CP name. */
    result = CPName_ConvertTo(name,
-                             HGFS_PACKET_MAX - (requestSize - 1),
+                             req->bufferSize - (requestSize - 1),
                              name);
    if (result < 0) {
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsPackOpenRequest: CP conversion "
@@ -532,7 +540,6 @@ static int
 HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
          struct file *file)    // IN: File pointer for this open
 {
-   HgfsSuperInfo *si;
    HgfsReq *req;
    HgfsOp opUsed;
    HgfsStatus replyStatus;
@@ -547,7 +554,6 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
    ASSERT(file->f_dentry);
    ASSERT(file->f_dentry->d_inode);
 
-   si = HGFS_SB_TO_COMMON(inode->i_sb);
    iinfo = INODE_GET_II_P(inode);
 
    req = HgfsGetNewRequest();
@@ -581,6 +587,13 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
       switch (result) {
       case 0:
          iinfo->createdAndUnopened = FALSE;
+         LOG(10, (KERN_DEBUG "VMware hgfs: HgfsOpen: old hostFileId = "
+                  "%"FMT64"u\n", iinfo->hostFileId));
+         /*
+          * Invalidate the hostFileId as we need to retrieve it from
+          * the server.
+          */
+         iinfo->hostFileId = 0;
          result = HgfsUnpackOpenReply(req, opUsed, &replyFile, &replyLock);
          if (result != 0) {
             break;
@@ -895,6 +908,51 @@ HgfsWrite(struct file *file,      // IN: File to write to
 }
 #endif
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * HgfsSeek --
+ *
+ *    Called whenever a process moves the file pointer for a file in our
+ *    filesystem. Our function is just a thin wrapper around
+ *    generic_file_llseek() that tries to validate the dentry first.
+ *
+ * Results:
+ *    Returns the new position of the file pointer on success,
+ *    or a negative error on failure.
+ *
+ * Side effects:
+ *    None
+ *
+ *----------------------------------------------------------------------
+ */
+
+static loff_t
+HgfsSeek(struct file *file,  // IN:  File to seek
+         loff_t offset,      // IN:  Number of bytes to seek
+         int origin)         // IN:  Position to seek from
+
+{
+   loff_t result = -1;
+
+   ASSERT(file);
+   ASSERT(file->f_dentry);
+
+   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsSeek: seek to %Lu bytes from fh %u "
+           "from position %d\n", offset, FILE_GET_FI_P(file)->handle, origin));
+
+   result = (loff_t) HgfsRevalidate(file->f_dentry);
+   if (result) {
+      LOG(6, (KERN_DEBUG "VMware hgfs: HgfsSeek: invalid dentry\n"));
+      goto out;
+   }
+
+   result = generic_file_llseek(file, offset, origin);
+
+  out:
+   return result;
+}
+
 
 /*
  *----------------------------------------------------------------------
@@ -929,7 +987,9 @@ HgfsWrite(struct file *file,      // IN: File to write to
 
 static int
 HgfsFsync(struct file *file,		// IN: File we operate on
+#if defined VMW_FSYNC_OLD
           struct dentry *dentry,        // IN: Dentry for this file
+#endif
           int datasync)	                // IN: fdatasync or fsync
 {
    LOG(6, (KERN_DEBUG "VMware hgfs: HgfsFsync: was called\n"));
@@ -1002,7 +1062,6 @@ static int
 HgfsRelease(struct inode *inode,  // IN: Inode that this file points to
             struct file *file)    // IN: File that is getting released
 {
-   HgfsSuperInfo *si;
    HgfsReq *req;
    HgfsHandle handle;
    HgfsOp opUsed;
@@ -1024,7 +1083,6 @@ HgfsRelease(struct inode *inode,  // IN: Inode that this file points to
    compat_filemap_write_and_wait(inode->i_mapping);
 
    HgfsReleaseFileInfo(file);
-   si = HGFS_SB_TO_COMMON(file->f_dentry->d_sb);
 
    req = HgfsGetNewRequest();
    if (!req) {

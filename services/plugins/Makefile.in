@@ -50,8 +50,10 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@HAVE_X11_TRUE@am__append_1 = resolutionSet
-@HAVE_X11_TRUE@am__append_2 = vixUser
+@HAVE_X11_TRUE@am__append_1 = desktopEvents
+@HAVE_GTKMM_TRUE@am__append_2 = dndcp
+@HAVE_X11_TRUE@am__append_3 = resolutionSet
+@ENABLE_UNITY_TRUE@am__append_4 = unity
 subdir = services/plugins
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -80,8 +82,8 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 	distdir
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = guestInfo hgfsServer powerOps resolutionSet timeSync \
-	vix vixUser vmbackup
+DIST_SUBDIRS = desktopEvents dndcp guestInfo hgfsServer powerOps \
+	resolutionSet timeSync unity vix vmbackup
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
   dir0=`pwd`; \
@@ -118,9 +120,12 @@ AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CUNIT_CPPFLAGS = @CUNIT_CPPFLAGS@
+CUNIT_LIBS = @CUNIT_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -141,6 +146,8 @@ EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FUSE_CPPFLAGS = @FUSE_CPPFLAGS@
 FUSE_LIBS = @FUSE_LIBS@
+GIO_CPPFLAGS = @GIO_CPPFLAGS@
+GIO_LIBS = @GIO_LIBS@
 GLIB2_CPPFLAGS = @GLIB2_CPPFLAGS@
 GLIB2_LIBS = @GLIB2_LIBS@
 GMODULE_CPPFLAGS = @GMODULE_CPPFLAGS@
@@ -156,6 +163,7 @@ GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
 HAVE_DOT = @HAVE_DOT@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
+HGFS_LIBS = @HGFS_LIBS@
 ICU_CPPFLAGS = @ICU_CPPFLAGS@
 ICU_LIBS = @ICU_LIBS@
 INSTALL = @INSTALL@
@@ -163,6 +171,7 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+INSTVMSG = @INSTVMSG@
 KERNEL_RELEASE = @KERNEL_RELEASE@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
@@ -173,13 +182,9 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
-LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
-LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
-LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
-LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
-LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
+LINUXINCLUDE = @LINUXINCLUDE@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -203,6 +208,8 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -212,12 +219,14 @@ PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 RPCGEN = @RPCGEN@
 RPCGENFLAGS = @RPCGENFLAGS@
+RPCGEN_WRAPPER = @RPCGEN_WRAPPER@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -227,10 +236,10 @@ VMSVC_PLUGIN_INSTALLDIR = @VMSVC_PLUGIN_INSTALLDIR@
 VMTOOLS_CPPFLAGS = @VMTOOLS_CPPFLAGS@
 VMTOOLS_LIBS = @VMTOOLS_LIBS@
 VMUSR_PLUGIN_INSTALLDIR = @VMUSR_PLUGIN_INSTALLDIR@
-VMWARE_USER_CPPFLAGS = @VMWARE_USER_CPPFLAGS@
-VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
+XCOMPOSITE_LIBS = @XCOMPOSITE_LIBS@
 XDR_LIBS = @XDR_LIBS@
 XMKMF = @XMKMF@
+XSM_LIBS = @XSM_LIBS@
 X_CFLAGS = @X_CFLAGS@
 X_EXTRA_LIBS = @X_EXTRA_LIBS@
 X_LIBS = @X_LIBS@
@@ -294,8 +303,8 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = guestInfo hgfsServer powerOps $(am__append_1) timeSync vix \
-	$(am__append_2) vmbackup
+SUBDIRS = $(am__append_1) $(am__append_2) guestInfo hgfsServer \
+	powerOps $(am__append_3) timeSync $(am__append_4) vix vmbackup
 all: all-recursive
 
 .SUFFIXES:
@@ -585,7 +594,7 @@ install-dvi: install-dvi-recursive
 
 install-dvi-am:
 
-install-exec-am:
+install-exec-am: install-exec-local
 
 install-html: install-html-recursive
 
@@ -634,14 +643,26 @@ uninstall-am:
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am
+	install-exec-am install-exec-local install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
+	ps ps-am tags tags-recursive uninstall uninstall-am
 
+
+#
+# plugin_LTLIBRARIES causes both .la and .so files to be installed to the
+# plugin directories. Clean up the .la files and keep just the shared
+# libraries around. Sometimes, even though we're passing "-shared" to
+# libtool, .a files are also generated, so clean up those too.
+#
+install-exec-local:
+	rm -f $(DESTDIR)$(VMSVC_PLUGIN_INSTALLDIR)/*.a
+	rm -f $(DESTDIR)$(VMSVC_PLUGIN_INSTALLDIR)/*.la
+	rm -f $(DESTDIR)$(VMUSR_PLUGIN_INSTALLDIR)/*.a
+	rm -f $(DESTDIR)$(VMUSR_PLUGIN_INSTALLDIR)/*.la
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

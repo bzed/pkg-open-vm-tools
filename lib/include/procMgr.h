@@ -29,27 +29,18 @@
 #   define __PROCMGR_H__
 
 #include "vm_basic_types.h"
-#if !defined(N_PLAT_NLM)
 #include "auth.h"
+#if !defined(_WIN32)
+#  include <sys/types.h>
 #endif
-#if defined(N_PLAT_NLM)
-#include <nwconio.h>
-#elif !defined(_WIN32)
-#include <sys/types.h>
-#endif
-
-#if !defined(N_PLAT_NLM)
 #include <time.h>
-#endif
 
 /*
  * Keeps track of the platform-specific handle(s) to an asynchronous process.
  */
 typedef struct ProcMgr_AsyncProc ProcMgr_AsyncProc;
 
-#if defined(N_PLAT_NLM)
-   typedef LONG ProcMgr_Pid;
-#elif defined(_WIN32)
+#if defined(_WIN32)
    typedef DWORD ProcMgr_Pid;
 #else /* POSIX */
    typedef pid_t ProcMgr_Pid;
@@ -64,9 +55,7 @@ typedef struct ProcMgr_ProcList {
 #if defined(_WIN32)
    Bool        *procDebugged;
 #endif
-#if !defined(N_PLAT_NLM)
    time_t      *startTime;
-#endif
 } ProcMgr_ProcList;
 
 
@@ -116,6 +105,12 @@ typedef struct ProcMgr_ProcArgs {
     * environment.
     */
    char **envp;
+
+   /*
+    * If non-NULL, the directory to be changed to before the process is
+    * started.
+    */
+   char *workingDirectory;
 #endif
 } ProcMgr_ProcArgs;
 
@@ -140,16 +135,16 @@ Bool ProcMgr_ExecSync(char const *cmd,       // UTF-8
 ProcMgr_AsyncProc *ProcMgr_ExecAsync(char const *cmd,     // UTF-8
                                      ProcMgr_ProcArgs *userArgs);
 void ProcMgr_Kill(ProcMgr_AsyncProc *asyncProc);
-Bool ProcMgr_GetAsyncStatus(ProcMgr_AsyncProc *asyncProc, Bool *status);
 Selectable ProcMgr_GetAsyncProcSelectable(ProcMgr_AsyncProc *asyncProc);
 ProcMgr_Pid ProcMgr_GetPid(ProcMgr_AsyncProc *asyncProc);
 Bool ProcMgr_IsAsyncProcRunning(ProcMgr_AsyncProc *asyncProc);
 int ProcMgr_GetExitCode(ProcMgr_AsyncProc *asyncProc, int *result);
 void ProcMgr_Free(ProcMgr_AsyncProc *asyncProc);
-#if !defined(N_PLAT_NLM) && !defined(_WIN32)
+#if !defined(_WIN32)
 Bool ProcMgr_ImpersonateUserStart(const char *user,      // UTF-8
                                   AuthToken token);
 Bool ProcMgr_ImpersonateUserStop(void);
 #endif
+Bool ProcMgr_GetImpersonatedUserInfo(char **username, char **homeDir);
 
 #endif /* __PROCMGR_H__ */

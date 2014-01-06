@@ -24,9 +24,9 @@
  */
 
 #include "driver-config.h"
+#include <linux/list.h>
 #include <linux/socket.h>
 #include "compat_sock.h"
-#include "compat_list.h"
 
 #include "af_vsock.h"
 #include "util.h"
@@ -34,16 +34,7 @@
 struct list_head vsockBindTable[VSOCK_HASH_SIZE + 1];
 struct list_head vsockConnectedTable[VSOCK_HASH_SIZE];
 
-spinlock_t vsockTableLock = SPIN_LOCK_UNLOCKED;
-
-/*
- * snprintf() wasn't exported until 2.4.10: fall back on sprintf in those
- * cases.  It's okay since this is only for the debug function for logging
- * packets.
- */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 10)
-#define snprintf(str, size, fmt, args...) sprintf(str, fmt, ## args)
-#endif
+DEFINE_SPINLOCK(vsockTableLock);
 
 
 /*
@@ -83,6 +74,8 @@ VSockVmciLogPkt(char const *function,   // IN
       [VSOCK_PACKET_TYPE_SHUTDOWN]       = "SHUTDOWN",
       [VSOCK_PACKET_TYPE_WAITING_WRITE]  = "WAITING_WRITE",
       [VSOCK_PACKET_TYPE_WAITING_READ]   = "WAITING_READ",
+      [VSOCK_PACKET_TYPE_REQUEST2]       = "REQUEST2",
+      [VSOCK_PACKET_TYPE_NEGOTIATE2]     = "NEGOTIATE2",
    };
 
    written = snprintf(cur, left, "PKT: %u:%u -> %u:%u",
@@ -138,6 +131,14 @@ VSockVmciLogPkt(char const *function,   // IN
 
       break;
 
+   case VSOCK_PACKET_TYPE_REQUEST2:
+   case VSOCK_PACKET_TYPE_NEGOTIATE2:
+      written = snprintf(cur, left, ", %s, size = %"FMT64"u, "
+                         "proto = %u",
+                         typeStrings[pkt->type], pkt->u.size,
+                         pkt->proto);
+      break;
+
    default:
       written = snprintf(cur, left, ", unrecognized type");
    }
@@ -154,12 +155,12 @@ VSockVmciLogPkt(char const *function,   // IN
       goto error;
    }
 
-   Log("%s", buf);
+   LOG(8, ("%s", buf));
 
    return;
 
 error:
-   Log("could not log packet\n");
+   LOG(8, ("could not log packet\n"));
 }
 
 
@@ -357,12 +358,12 @@ __VSockVmciFindBoundSocket(struct sockaddr_vm *addr)  // IN
 
 
    list_for_each_entry(vsk, vsockBoundSockets(addr), boundTable) {
-      if (VSockAddr_EqualsAddr(addr, &vsk->localAddr)) {
+      if (VSockAddr_EqualsAddrAny(addr, &vsk->localAddr)) {
          sk = sk_vsock(vsk);
 
          /* We only store stream sockets in the bound table. */
-         ASSERT(sk->compat_sk_socket ?
-                   sk->compat_sk_socket->type == SOCK_STREAM :
+         ASSERT(sk->sk_socket ?
+                   sk->sk_socket->type == SOCK_STREAM :
                    1);
          goto found;
       }
@@ -616,13 +617,11 @@ void
 VSockVmciRemovePending(struct sock *listener,   // IN: listening socket
                        struct sock *pending)    // IN: pending connection
 {
-   VSockVmciSock *vlistener;
    VSockVmciSock *vpending;
 
    ASSERT(listener);
    ASSERT(pending);
 
-   vlistener = vsock_sk(listener);
    vpending = vsock_sk(pending);
 
    list_del_init(&vpending->pendingLinks);

@@ -68,25 +68,19 @@ SOFTWARE.
  *				  and MAXSHORT with winnt.h
  *      04/03/2007 shelleygong  - use int instead of short for data
  *                                inside the region
- * 02/12/2010 michael - Since coordinates are kept as ints, coordinate values
- *    shouldn't be clamped to the range of short. I removed R_{MIN,MAX}SHORT
- *    and changed clamping to be in the range R_MININT..R_MAXINT instead.
- *    Since some code does "n < R_MININT" and "n > R_MAXINT", R_MININT must be
- *    greater than INT_MIN and R_MAXINT must be less than INT_MAX.
+ *      02/12/2010 michael - Since coordinates are kept as ints, coordinate values
+ *      shouldn't be clamped to the range of short. I removed R_{MIN,MAX}SHORT
+ *      and changed clamping to be in the range R_MININT..R_MAXINT instead.
+ *      Since some code does "n < R_MININT" and "n > R_MAXINT", R_MININT must be
+ *      greater than INT_MIN and R_MAXINT must be less than INT_MAX.
+ *      03/08/2010 amarp        - Move xalloc macro outside the header because of
+ *                                boost conflict with macro
  */
 
 #ifndef __REGION_H__
 #define __REGION_H__
 
 #include "vmware.h"
-
-#ifdef _WIN32
-/*
- * lib/region has terrible short/long confusion problems.  For MSFT,
- * disable the warning.  See PR142264.
- */
-#pragma warning( disable: 4242 )
-#endif
 
 /* Return values from RectIn() */
 #define rgnOUT 0
@@ -101,7 +95,6 @@ SOFTWARE.
 
 #define CT_YXBANDED 18
 
-#define xalloc(n)        malloc(n)
 #define xrealloc(ptr, n) realloc((ptr), (n))
 #define xfree(ptr)       free(ptr)
 
@@ -189,6 +182,14 @@ extern RegDataRec miBrokenData;
 #define REGION_SZOF(n) (sizeof(RegDataRec) + ((n) * sizeof(BoxRec)))
 
 #define REGION_VALIDINDEX(reg, i) (i >= 0 && i < REGION_NUM_RECTS((reg)))
+
+#define BOX_X(ptr) (ptr->x1)
+#define BOX_Y(ptr) (ptr->y1)
+#define BOX_WIDTH(ptr) (ptr->x2 - ptr->x1)
+#define BOX_HEIGHT(ptr) (ptr->y2 - ptr->y1)
+#define BOX_XY(ptr) BOX_X(ptr), BOX_Y(ptr)
+#define BOX_WH(ptr) BOX_WIDTH(ptr), BOX_HEIGHT(ptr)
+#define BOX_XYWH(ptr) BOX_XY(ptr), BOX_WH(ptr)
 
 #define RECT_SETBOX(r, rx, ry, rw, rh) do { \
   (r)->x1 = (rx); \

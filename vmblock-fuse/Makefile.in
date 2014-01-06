@@ -67,12 +67,11 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_vmware_vmblock_fuse_OBJECTS = stubs.$(OBJEXT) block.$(OBJEXT) \
-	util.$(OBJEXT) fsops.$(OBJEXT) main.$(OBJEXT)
+am_vmware_vmblock_fuse_OBJECTS = util.$(OBJEXT) fsops.$(OBJEXT) \
+	main.$(OBJEXT) block.$(OBJEXT) stubs.$(OBJEXT)
 vmware_vmblock_fuse_OBJECTS = $(am_vmware_vmblock_fuse_OBJECTS)
 am__DEPENDENCIES_1 =
-vmware_vmblock_fuse_DEPENDENCIES = ../lib/misc/libMisc.la \
-	$(am__DEPENDENCIES_1)
+vmware_vmblock_fuse_DEPENDENCIES = $(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -101,9 +100,12 @@ AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CUNIT_CPPFLAGS = @CUNIT_CPPFLAGS@
+CUNIT_LIBS = @CUNIT_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -124,6 +126,8 @@ EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FUSE_CPPFLAGS = @FUSE_CPPFLAGS@
 FUSE_LIBS = @FUSE_LIBS@
+GIO_CPPFLAGS = @GIO_CPPFLAGS@
+GIO_LIBS = @GIO_LIBS@
 GLIB2_CPPFLAGS = @GLIB2_CPPFLAGS@
 GLIB2_LIBS = @GLIB2_LIBS@
 GMODULE_CPPFLAGS = @GMODULE_CPPFLAGS@
@@ -139,6 +143,7 @@ GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
 HAVE_DOT = @HAVE_DOT@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
+HGFS_LIBS = @HGFS_LIBS@
 ICU_CPPFLAGS = @ICU_CPPFLAGS@
 ICU_LIBS = @ICU_LIBS@
 INSTALL = @INSTALL@
@@ -146,6 +151,7 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+INSTVMSG = @INSTVMSG@
 KERNEL_RELEASE = @KERNEL_RELEASE@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
@@ -156,13 +162,9 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
-LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
-LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
-LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
-LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
-LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
+LINUXINCLUDE = @LINUXINCLUDE@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -186,6 +188,8 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -195,12 +199,14 @@ PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 RPCGEN = @RPCGEN@
 RPCGENFLAGS = @RPCGENFLAGS@
+RPCGEN_WRAPPER = @RPCGEN_WRAPPER@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -210,10 +216,10 @@ VMSVC_PLUGIN_INSTALLDIR = @VMSVC_PLUGIN_INSTALLDIR@
 VMTOOLS_CPPFLAGS = @VMTOOLS_CPPFLAGS@
 VMTOOLS_LIBS = @VMTOOLS_LIBS@
 VMUSR_PLUGIN_INSTALLDIR = @VMUSR_PLUGIN_INSTALLDIR@
-VMWARE_USER_CPPFLAGS = @VMWARE_USER_CPPFLAGS@
-VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
+XCOMPOSITE_LIBS = @XCOMPOSITE_LIBS@
 XDR_LIBS = @XDR_LIBS@
 XMKMF = @XMKMF@
+XSM_LIBS = @XSM_LIBS@
 X_CFLAGS = @X_CFLAGS@
 X_EXTRA_LIBS = @X_EXTRA_LIBS@
 X_LIBS = @X_LIBS@
@@ -278,14 +284,18 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 
-# _XOPEN_SOURCE needs to be defined to at least 500 when compiling
-# vmblock-fuse's os.h to get pthread_rwlock_t.
+# _XOPEN_SOURCE needs to be defined to at least 600 when compiling
+# vmblock-fuse; it's needed by os.h to get pthread_rwlock_t and by fsops.c to
+# get lstat.
 # -D_FILE_OFFSET_BITS=64 required for fuse.
-AM_CFLAGS = -Dvmblock_fuse -D_XOPEN_SOURCE=500 -DUSERLEVEL \
-	-D_FILE_OFFSET_BITS=64 @FUSE_CPPFLAGS@ @VMWARE_USER_CPPFLAGS@
-vmware_vmblock_fuse_LDADD = ../lib/misc/libMisc.la @FUSE_LIBS@ \
-	$(am__append_1)
-vmware_vmblock_fuse_SOURCES = stubs.c block.c util.c fsops.c main.c
+AM_CFLAGS = -Dvmblock_fuse -U_XOPEN_SOURCE -D_XOPEN_SOURCE=600 \
+	-DUSERLEVEL -D_FILE_OFFSET_BITS=64 @FUSE_CPPFLAGS@ \
+	@GLIB2_CPPFLAGS@ -I$(top_srcdir)/modules/shared/vmblock \
+	-I$(srcdir)
+vmware_vmblock_fuse_LDADD = @FUSE_LIBS@ @GLIB2_LIBS@ $(am__append_1)
+vmware_vmblock_fuse_SOURCES = util.c fsops.c main.c \
+	$(top_srcdir)/modules/shared/vmblock/block.c \
+	$(top_srcdir)/modules/shared/vmblock/stubs.c
 @HAVE_ICU_FALSE@vmware_vmblock_fuse_LINK = $(LINK)
 @HAVE_ICU_TRUE@vmware_vmblock_fuse_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 @HAVE_ICU_TRUE@                      $(LIBTOOLFLAGS) --mode=link $(CXX) $(AM_CXXFLAGS) \
@@ -404,6 +414,34 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+block.o: $(top_srcdir)/modules/shared/vmblock/block.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT block.o -MD -MP -MF $(DEPDIR)/block.Tpo -c -o block.o `test -f '$(top_srcdir)/modules/shared/vmblock/block.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/block.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/block.Tpo $(DEPDIR)/block.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/block.c' object='block.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o block.o `test -f '$(top_srcdir)/modules/shared/vmblock/block.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/block.c
+
+block.obj: $(top_srcdir)/modules/shared/vmblock/block.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT block.obj -MD -MP -MF $(DEPDIR)/block.Tpo -c -o block.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/block.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/block.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/block.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/block.Tpo $(DEPDIR)/block.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/block.c' object='block.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o block.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/block.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/block.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/block.c'; fi`
+
+stubs.o: $(top_srcdir)/modules/shared/vmblock/stubs.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stubs.o -MD -MP -MF $(DEPDIR)/stubs.Tpo -c -o stubs.o `test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/stubs.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/stubs.Tpo $(DEPDIR)/stubs.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/stubs.c' object='stubs.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stubs.o `test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/stubs.c
+
+stubs.obj: $(top_srcdir)/modules/shared/vmblock/stubs.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stubs.obj -MD -MP -MF $(DEPDIR)/stubs.Tpo -c -o stubs.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/stubs.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/stubs.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/stubs.Tpo $(DEPDIR)/stubs.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/stubs.c' object='stubs.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stubs.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/stubs.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/stubs.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
