@@ -87,9 +87,9 @@ DIST_SUBDIRS = guestRpc appUtil auth backdoor conf dict deployPkg dnd \
 	hgfsServerManagerGuest hgfsServerPolicyGuest image impersonate \
 	message misc netUtil panic panicDefault printer procMgr raster \
 	region resolution rpcChannel rpcIn rpcOut rpcVmx SLPv2Parser \
-	socketMgr string stubs sync syncDriver system toolsLogger \
-	unicode unity unityWindowTracker unityStub user vixTools \
-	vmBackupLib vmCheck vmSignal wiper
+	socketMgr string stubs sync syncDriver system unicode unity \
+	unityWindowTracker unityStub user vixTools vmBackupLib vmCheck \
+	vmSignal wiper
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -191,6 +191,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -272,9 +273,9 @@ SUBDIRS = guestRpc $(am__append_1) auth backdoor conf dict deployPkg \
 	$(am__append_5) impersonate message misc netUtil panic \
 	panicDefault printer procMgr $(am__append_6) $(am__append_7) \
 	rpcChannel rpcIn rpcOut rpcVmx SLPv2Parser socketMgr string \
-	stubs sync syncDriver system toolsLogger unicode \
-	$(am__append_8) $(am__append_9) user vixTools vmBackupLib \
-	vmCheck vmSignal wiper
+	stubs sync syncDriver system unicode $(am__append_8) \
+	$(am__append_9) user vixTools vmBackupLib vmCheck vmSignal \
+	wiper
 all: all-recursive
 
 .SUFFIXES:

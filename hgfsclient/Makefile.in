@@ -65,21 +65,10 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am_vmware_hgfsclient_OBJECTS = hgfsclient.$(OBJEXT) \
-	stub-user-util.$(OBJEXT)
+am_vmware_hgfsclient_OBJECTS = vmware_hgfsclient-hgfsclient.$(OBJEXT)
 vmware_hgfsclient_OBJECTS = $(am_vmware_hgfsclient_OBJECTS)
 am__DEPENDENCIES_1 =
-vmware_hgfsclient_DEPENDENCIES = ../lib/conf/libConf.la \
-	../lib/guestApp/libGuestApp.la ../lib/hgfs/libHgfs.la \
-	../lib/hgfsBd/libHgfsBd.la ../lib/rpcOut/libRpcOut.la \
-	../lib/string/libString.la \
-	../lib/toolsLogger/libToolsLogger.la \
-	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
-	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
-	../lib/err/libErr.la ../lib/file/libFile.la \
-	../lib/message/libMessage.la ../lib/rpcVmx/libRpcVmx.la \
-	../lib/unicode/libUnicode.la ../lib/sync/libSync.la \
-	../lib/misc/libMisc.la ../lib/stubs/libStubs.la \
+vmware_hgfsclient_DEPENDENCIES = ../lib/hgfsBd/libHgfsBd.la \
 	$(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -198,6 +187,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -272,22 +262,10 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-# In the absence of the linker options --start-group and --end-group (which can't
-# be put in LDADD), we need to bring the following libraries out of the alphebetical
-# order so their symbols are properly resolved.
-vmware_hgfsclient_LDADD = ../lib/conf/libConf.la \
-	../lib/guestApp/libGuestApp.la ../lib/hgfs/libHgfs.la \
-	../lib/hgfsBd/libHgfsBd.la ../lib/rpcOut/libRpcOut.la \
-	../lib/string/libString.la \
-	../lib/toolsLogger/libToolsLogger.la \
-	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
-	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
-	../lib/err/libErr.la ../lib/file/libFile.la \
-	../lib/message/libMessage.la ../lib/rpcVmx/libRpcVmx.la \
-	../lib/unicode/libUnicode.la ../lib/sync/libSync.la \
-	../lib/misc/libMisc.la ../lib/stubs/libStubs.la \
+vmware_hgfsclient_LDADD = ../lib/hgfsBd/libHgfsBd.la @VMTOOLS_LIBS@ \
 	$(am__append_1)
-vmware_hgfsclient_SOURCES = hgfsclient.c stub-user-util.c
+vmware_hgfsclient_CPPFLAGS = @VMTOOLS_CPPFLAGS@
+vmware_hgfsclient_SOURCES = hgfsclient.c
 @HAVE_ICU_FALSE@vmware_hgfsclient_LINK = $(LINK)
 @HAVE_ICU_TRUE@vmware_hgfsclient_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 @HAVE_ICU_TRUE@                            $(LIBTOOLFLAGS) --mode=link $(CXX) \
@@ -365,8 +343,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsclient.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stub-user-util.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vmware_hgfsclient-hgfsclient.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -388,6 +365,20 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+vmware_hgfsclient-hgfsclient.o: hgfsclient.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vmware_hgfsclient_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vmware_hgfsclient-hgfsclient.o -MD -MP -MF $(DEPDIR)/vmware_hgfsclient-hgfsclient.Tpo -c -o vmware_hgfsclient-hgfsclient.o `test -f 'hgfsclient.c' || echo '$(srcdir)/'`hgfsclient.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/vmware_hgfsclient-hgfsclient.Tpo $(DEPDIR)/vmware_hgfsclient-hgfsclient.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='hgfsclient.c' object='vmware_hgfsclient-hgfsclient.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vmware_hgfsclient_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vmware_hgfsclient-hgfsclient.o `test -f 'hgfsclient.c' || echo '$(srcdir)/'`hgfsclient.c
+
+vmware_hgfsclient-hgfsclient.obj: hgfsclient.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vmware_hgfsclient_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vmware_hgfsclient-hgfsclient.obj -MD -MP -MF $(DEPDIR)/vmware_hgfsclient-hgfsclient.Tpo -c -o vmware_hgfsclient-hgfsclient.obj `if test -f 'hgfsclient.c'; then $(CYGPATH_W) 'hgfsclient.c'; else $(CYGPATH_W) '$(srcdir)/hgfsclient.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/vmware_hgfsclient-hgfsclient.Tpo $(DEPDIR)/vmware_hgfsclient-hgfsclient.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='hgfsclient.c' object='vmware_hgfsclient-hgfsclient.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vmware_hgfsclient_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vmware_hgfsclient-hgfsclient.obj `if test -f 'hgfsclient.c'; then $(CYGPATH_W) 'hgfsclient.c'; else $(CYGPATH_W) '$(srcdir)/hgfsclient.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

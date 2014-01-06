@@ -51,7 +51,7 @@ host_triplet = @host@
 @HAVE_X11_TRUE@am__append_1 = resolutionSet
 @HAVE_X11_TRUE@am__append_2 = vixUser
 subdir = services/plugins
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in COPYING
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
@@ -177,6 +177,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
