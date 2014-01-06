@@ -6,9 +6,9 @@ Makefile is correct and then just type
 
 from this directory.  A copy of the module will be left in
 
-        driver-<kernel version>/vmblock-<kernel-version>
+        driver-<kernel version>/vmblock.o
 
-(e.g. driver-up-2.4.20/vmblock-up-2.4.20) for 2.4 series kernels and in
+(e.g. driver-up-2.4.20/vmblock.o) for 2.4 series kernels and in
 
         ../vmblock.o
 

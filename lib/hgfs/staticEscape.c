@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * staticEscape.c --
@@ -25,8 +25,15 @@
  *
  */
 
-#ifdef sun
-# include <string.h>
+#if defined(sun)
+#   include <string.h>
+#elif defined(__FreeBSD__)
+#   if defined(_KERNEL)
+#      include <sys/libkern.h>
+#      define memmove(dst0, src0, len)  bcopy(src0, dst0, len)
+#   else
+#      include <string.h>
+#   endif
 #endif
 
 #include "vm_assert.h"

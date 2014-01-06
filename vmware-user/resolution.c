@@ -1,6 +1,5 @@
-/* **************************************************************************
- * Copyright (C) 2005 VMware, Inc. All Rights Reserved 
- * **************************************************************************
+/*********************************************************
+ * Copyright (C) 2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * resolution.c --
@@ -28,6 +28,7 @@
 #include <string.h>
 
 #include "vm_assert.h"
+#include "vm_app.h"
 #include "debug.h"
 #include "fileIO.h"
 #include "str.h"
@@ -393,13 +394,26 @@ Bool
 Resolution_RegisterCapability(void)
 {
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_set 1")) {
-      Debug("ToolsDaemonTcloCapReg: Unable to register resolution set capability\n");
+      Debug("%s: Unable to register resolution set capability\n", 
+	    __FUNCTION__);
       return FALSE;
+   }
+   if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_server %s 1",
+		       TOOLS_DND_NAME)) {
+      Debug("%s: Unable to register resolution server capability\n",
+	    __FUNCTION__);
+
+      /* 
+       * Note that we do not return false so that we stay backwards 
+       * compatible with old vmx code (Workstation 6/ESX 3.5) that doesn't 
+       * handle resolution_server.
+       */
    }
 #ifndef NO_MULTIMON
    if (gCanUseVMwareCtrlTopologySet &&
        !RpcOut_sendOne(NULL, NULL, "tools.capability.display_topology_set 1")) {
-      Debug("ToolsDaemonTcloCapReg: Unable to register topology set capability\n");
+      Debug("%s: Unable to register topology set capability\n",
+	    __FUNCTION__);
       return FALSE;
    }
 #endif
@@ -472,13 +486,26 @@ Resolution_Unregister(void)
     */
 
    if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_set 0")) {
-      Debug("Unable to unregister ResolutionSet capability\n");
+      Debug("%s: Unable to unregister ResolutionSet capability\n", 
+	    __FUNCTION__);
       return FALSE;
+   }
+   if (!RpcOut_sendOne(NULL, NULL, "tools.capability.resolution_server %s 0",
+		       TOOLS_DND_NAME)) {
+      Debug("%s: Unable to unregister resolution server capability\n",
+	    __FUNCTION__);
+
+      /* 
+       * Don't return false here so that an older vmx (Workstation 6/ESX 3.5)
+       * that that supports resolution_set and not resolution_server will 
+       * still work.
+       */
    }
 #ifndef NO_MULTIMON
    if (gCanUseVMwareCtrlTopologySet &&
        !RpcOut_sendOne(NULL, NULL, "tools.capability.display_topology_set 0")) {
-      Debug("Unable to unregister TopologySet capability\n");
+      Debug("%s: Unable to unregister TopologySet capability\n", 
+	    __FUNCTION__);
       return FALSE;
    }
 #endif

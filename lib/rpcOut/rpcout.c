@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 2004 VMware, Inc. All Rights Reserved 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * rpcout.c --
@@ -29,7 +29,7 @@
  */
 
 
-#ifdef __KERNEL__
+#if defined(__KERNEL__) || defined(_KERNEL)
 #   include "kernelStubs.h"
 #else
 #   include <stdio.h>
@@ -171,7 +171,7 @@ RpcOut_send(RpcOut *out,         // IN
    ASSERT(out);
 
    ASSERT(out->channel);
-   if (Message_Send(out->channel, request, reqLen) == FALSE) {
+   if (Message_Send(out->channel, (const unsigned char *)request, reqLen) == FALSE) {
       *reply = "RpcOut: Unable to send the RPCI command";
       *repLen = strlen(*reply);
 
@@ -185,16 +185,16 @@ RpcOut_send(RpcOut *out,         // IN
       return FALSE;
    }
 
-   if (   myRepLen < 2
-       || (   (success = strncmp(myReply, "1 ", 2) == 0) == FALSE
-	   && strncmp(myReply, "0 ", 2))) {
+   if (myRepLen < 2
+       || (   (success = strncmp((const char *)myReply, "1 ", 2) == 0) == FALSE
+              && strncmp((const char *)myReply, "0 ", 2))) {
       *reply = "RpcOut: Invalid format for the result of the RPCI command";
       *repLen = strlen(*reply);
 
       return FALSE;
    }
 
-   *reply = myReply + 2;
+   *reply = ((const char *)myReply) + 2;
    *repLen = myRepLen - 2;
 
    return success;

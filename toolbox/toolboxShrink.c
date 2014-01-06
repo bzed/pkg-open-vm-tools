@@ -1,6 +1,5 @@
-/* **************************************************************************
- * Copyright (C) 2004 VMware, Inc. All Rights Reserved 
- * **************************************************************************
+/*********************************************************
+ * Copyright (C) 2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * toolboxOptions.c --
@@ -249,7 +249,7 @@ Shrink_OnShrinkClicked(GtkButton *btn,     // IN: unused
          if (ToolsMain_YesNoBox("Shrink Disk", 
                                 "Do you want to shrink the disk(s)?\n")) {
             if (RpcOut_sendOne(NULL, NULL, "disk.shrink")) {
-               ToolsMain_MsgBox("Information", "The shrink process has completed.");
+               ToolsMain_MsgBox("Information", "The shrink process is complete.");
             }
             gtk_clist_unselect_all(GTK_CLIST(shrinkList));
          }

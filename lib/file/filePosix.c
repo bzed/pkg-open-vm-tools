@@ -1,6 +1,5 @@
-/* ************************************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved. 
- * ************************************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,12 +13,13 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * filePosix.c --
  *
- *      Interface to host-specific file functions for Posix hosts.
+ *      Interface to Posix-specific file functions.
  */
 
 #include <sys/types.h> /* Needed before sys/vfs.h with glibc 2.0 --hpreg */
@@ -65,7 +65,10 @@
 #include "localconfig.h"
 
 #if !defined(__FreeBSD__) && !defined(sun)
-static char *FilePosixLookupFSDeviceName(const char *filename);
+#if !__APPLE__
+static char *FilePosixLookupMountPoint(char const *canPath, Bool *bind);
+#endif
+static char *FilePosixNearestExistingAncestor(char const *path);
 
 # ifdef VMX86_SERVER
 #define VMFS2CONST 456
@@ -89,17 +92,9 @@ static Bool FileIsGroupsMember(gid_t gid);
 
 
 #if __APPLE__
-
-struct FileVolumeItem {
-   char                  *name;
-   char                  *device; /* Typically "disk1s0". */
-   FSVolumeRefNum         ref;
-   struct FileVolumeItem *next;
-};
-
 struct FileMacOsUnmountState {
    Bool finished;
-   Bool unmounted;
+   FileMacosUnmountStatus unmountStatus;
    Bool eject;
 };
 
@@ -112,8 +107,8 @@ struct FileMacOsUnmountState {
  *      Callback called when a disk is unmounted.
  *
  * Results:
- *      Context is a FileMacOsUnmountState. We set 'unmounted' to
- *      TRUE if the unmount was successful. Logs errors on failure.
+ *      Context is a FileMacOsUnmountState. Sets 'unmountStatus'.
+ *      Logs errors on failure.
  *
  * Side effects:
  *      May terminate the current CFRunLoop.
@@ -131,10 +126,18 @@ FileMacosDADiskUnmountCb(DADiskRef disk,            // IN
    ASSERT(s);
 
    if (dissenter) {
-      Log(LGPFX" DA reported failure to unmount %s: %d.\n",
-          DADiskGetBSDName(disk), DADissenterGetStatus(dissenter));
+      DAReturn status = DADissenterGetStatus(dissenter);
+
+      if (status == kDAReturnNotMounted) {
+         s->unmountStatus = FILEMACOS_UNMOUNT_SUCCESS_ALREADY;
+      } else {
+         Log(LGPFX" DA reported failure to unmount %s: %08X.\n",
+             DADiskGetBSDName(disk), status);
+         s->unmountStatus = FILEMACOS_UNMOUNT_ERROR;
+      }
+   } else {
+      s->unmountStatus = FILEMACOS_UNMOUNT_SUCCESS;
    }
-   s->unmounted = dissenter == NULL;
 
    if (!s->eject) {
       /*
@@ -183,12 +186,12 @@ FileMacosDADiskEjectCb(DADiskRef disk,            // IN
 
 
 /*
- *----------------------------------------------------------------------
+ *-----------------------------------------------------------------------------
  *
- * File_UnmountDev --
+ * FileMacos_UnmountDev --
  *
- *      Given a BSD device name (disk1 for instance) or a full path
- *      (/dev/disk0s3), unmount the partitions mounted on it.
+ *      Given a BSD device (e.g. disk1 or /dev/disk0s3), unmount the partitions
+ *      mounted on it.
  *
  *      This function *must* either be called:
  *
@@ -200,8 +203,8 @@ FileMacosDADiskEjectCb(DADiskRef disk,            // IN
  *           guarantee no lib/machPoll callbacks are registered.
  *
  * Results:
- *      TRUE if the disk was unmounted. (Even if there were errors
- *      ejecting the disk)
+ *      Status of the disk unmount operation (errors ejecting the disk are
+ *      ignored).
  *
  * Side effects:
  *      Runs a CFRunLoop, therefore this may invoke callbacks
@@ -211,14 +214,13 @@ FileMacosDADiskEjectCb(DADiskRef disk,            // IN
  *      that have registered applicable callbacks.  May block for
  *      several seconds while the disk is unmounted.
  *
- *----------------------------------------------------------------------
+ *-----------------------------------------------------------------------------
  */
 
-Bool
-File_UnmountDev(const char *devName,       // IN
-                Bool  isFullPath,          // IN
-                Bool  wholeDev,            // IN
-                Bool  eject)               // IN
+FileMacosUnmountStatus
+FileMacos_UnmountDev(char const *bsdDev, // IN
+                     Bool  wholeDev,     // IN
+                     Bool  eject)        // IN
 {
    /*
     * We use our own timeout so we can recover should 'diskarbitrationd' die.
@@ -233,12 +235,10 @@ File_UnmountDev(const char *devName,       // IN
 
    const CFStringRef runLoopMode = kCFRunLoopDefaultMode;
    struct FileMacOsUnmountState state;
-   char dev[FILE_MAXPATH];
-   const char *name;
    DASessionRef session;
    DADiskRef disk;
 
-   state.unmounted = FALSE;
+   state.unmountStatus = FILEMACOS_UNMOUNT_ERROR;
    state.finished  = FALSE;
    state.eject = eject;
 
@@ -248,14 +248,7 @@ File_UnmountDev(const char *devName,       // IN
       return FALSE;
    }
 
-   if (isFullPath) {
-      ASSERT(strncmp(devName, _PATH_DEV, strlen(_PATH_DEV)) == 0);
-      name = devName;
-   } else {
-      Str_Snprintf(dev, sizeof dev, _PATH_DEV"%s", devName);
-      name = dev;
-   }
-   disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, name);
+   disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsdDev);
    if (!disk) {
       Log(LGPFX" Failed to create a DA disk.\n");
       CFRelease(session);
@@ -264,6 +257,15 @@ File_UnmountDev(const char *devName,       // IN
 
    DASessionScheduleWithRunLoop(session, CFRunLoopGetCurrent(), runLoopMode);
 
+   /*
+    * If the calling thread (not process) 's credentials are those of root or
+    * an admin user, then DADiskUnmount() just proceeds.
+    *
+    * Otherwise, DADiskUnmount() creates its own Authorization session
+    * (XXX there does not seem to be a way to pass it our
+    *      process' Authorization session),
+    * and tries to grant the system.volume.unmount right through it.
+    */
    DADiskUnmount(disk,
       wholeDev ? kDADiskUnmountOptionWhole : kDADiskUnmountOptionDefault,
       FileMacosDADiskUnmountCb, &state);
@@ -286,9 +288,8 @@ File_UnmountDev(const char *devName,       // IN
 
    CFRelease(disk);
    CFRelease(session);
-   return state.unmounted;
+   return state.unmountStatus;
 }
-
 #endif /* __APPLE__ */
 
 
@@ -386,15 +387,25 @@ File_UnlinkDelayed(const char *fileName)   // IN
 Bool
 File_IsRemote(const char *fileName) // IN: File name
 {
-#ifdef VMX86_SERVER
-   // statfs will always return VMFS_MAGIC on ESX so it cannot be used to
-   // find out about remoteness. On VMvisor it could return VMFS_NFS_MAGIC
-   // but it is very slow, so let's just be as bad as ESX. XXX PR 158284
-   return FALSE;
-#else
    struct statfs sfbuf;
 
-   if (statfs(fileName, &sfbuf) != 0) {
+#ifdef VMX86_SERVER
+   /*
+    * On ESX, statfs() will always return VMFS_MAGIC for files on VMFS so this
+    * function is only correct for files on COS, otherwise it always returns
+    * FALSE.
+    * On VMvisor, statfs() could return VMFS_NFS_MAGIC but it is very slow.
+    * Since there is no COS for VMvisor, just be on par with ESX and return
+    * FALSE directly.
+    * XXX See PR 158284. It is not clear what the side-effects are of this
+    * function being incorrect for VMFS files.
+    */
+   if (HostType_OSIsPureVMK()) {
+      return FALSE;
+   }
+#endif
+
+   if (statfs(fileName, &sfbuf) == -1) {
       Log("File_IsRemote: statfs(%s) failed: %s\n", 
           fileName, Msg_ErrString());
       return TRUE;
@@ -409,7 +420,6 @@ File_IsRemote(const char *fileName) // IN: File name
       return TRUE;
    }
    return FALSE;
-#endif
 #endif
 }
 #endif /* !FreeBSD && !sun */
@@ -628,6 +638,127 @@ File_IsFullPath(const char *fileName)   // IN
 /*
  *----------------------------------------------------------------------
  *
+ * File_GetTimes --
+ *
+ *      Get the date and time that a file was created, last accessed,
+ *      last modified and last attribute changed.
+ *
+ * Results:
+ *      TRUE if succeed or FALSE if error.
+ *
+ * Side effects:
+ *      If a particular time is not available, -1 will be returned for
+ *      that time.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+File_GetTimes(const char *fileName,       // IN
+              VmTimeType *createTime,     // OUT: Windows NT time format
+              VmTimeType *accessTime,     // OUT: Windows NT time format
+              VmTimeType *writeTime,      // OUT: Windows NT time format
+              VmTimeType *attrChangeTime) // OUT: Windows NT time format
+{
+   struct stat statBuf;
+   int error;
+
+   ASSERT(createTime && accessTime && writeTime && attrChangeTime);
+
+   *createTime     = -1;
+   *accessTime     = -1;
+   *writeTime      = -1;
+   *attrChangeTime = -1;
+
+   if (lstat(fileName, &statBuf) == -1) {
+      error = errno;
+      Log(LGPFX" error stating file \"%s\": %s\n", fileName, strerror(error));
+      return FALSE;
+   }
+
+   /*
+    * XXX We should probably use the MIN of all Unix times for the creation
+    *     time, so that at least times are never inconsistent in the
+    *     cross-platform format. Maybe atime is always that MIN. We should
+    *     check and change the code if it is not.
+    *
+    * XXX atime is almost always MAX.
+    */
+
+#ifdef __FreeBSD__
+   /*
+    * FreeBSD: All supported versions have timestamps with nanosecond resolution.
+    *          FreeBSD 5+ has also file creation time.
+    */
+#   if BSD_VERSION >= 50
+   *createTime     = TimeUtil_UnixTimeToNtTime(statBuf.st_birthtimespec);
+#   endif
+   *accessTime     = TimeUtil_UnixTimeToNtTime(statBuf.st_atimespec);
+   *writeTime      = TimeUtil_UnixTimeToNtTime(statBuf.st_mtimespec);
+   *attrChangeTime = TimeUtil_UnixTimeToNtTime(statBuf.st_ctimespec);
+#elif defined(linux)
+   /*
+    * Linux: Glibc 2.3+ has st_Xtim.  Glibc 2.1/2.2 has st_Xtime/__unusedX on
+    *        same place (see below).  We do not support Glibc 2.0 or older.
+    */
+#   if (__GLIBC__ == 2) && (__GLIBC_MINOR__ < 3)
+   {
+      /*
+       * stat structure is same between glibc 2.3 and older glibcs, just
+       * these __unused fields are always zero. If we'll use __unused*
+       * instead of zeroes, we get automatically nanosecond timestamps
+       * when running on host which provides them.
+       */
+      struct timespec timeBuf;
+
+      timeBuf.tv_sec  = statBuf.st_atime;
+      timeBuf.tv_nsec = statBuf.__unused1;
+      *accessTime     = TimeUtil_UnixTimeToNtTime(timeBuf);
+
+
+      timeBuf.tv_sec  = statBuf.st_mtime;
+      timeBuf.tv_nsec = statBuf.__unused2;
+      *writeTime      = TimeUtil_UnixTimeToNtTime(timeBuf);
+
+      timeBuf.tv_sec  = statBuf.st_ctime;
+      timeBuf.tv_nsec = statBuf.__unused3;
+      *attrChangeTime = TimeUtil_UnixTimeToNtTime(timeBuf);
+   }
+#   else
+   *accessTime     = TimeUtil_UnixTimeToNtTime(statBuf.st_atim);
+   *writeTime      = TimeUtil_UnixTimeToNtTime(statBuf.st_mtim);
+   *attrChangeTime = TimeUtil_UnixTimeToNtTime(statBuf.st_ctim);
+#   endif
+#elif defined(__APPLE__)
+   /* Mac: No file create timestamp. */
+   *accessTime     = TimeUtil_UnixTimeToNtTime(statBuf.st_atimespec);
+   *writeTime      = TimeUtil_UnixTimeToNtTime(statBuf.st_mtimespec);
+   *attrChangeTime = TimeUtil_UnixTimeToNtTime(statBuf.st_ctimespec);
+#else
+   {
+      /* Solaris: No nanosecond timestamps, no file create timestamp. */
+      struct timespec timeBuf;
+
+      timeBuf.tv_nsec = 0;
+
+      timeBuf.tv_sec  = statBuf.st_atime;
+      *accessTime     = TimeUtil_UnixTimeToNtTime(timeBuf);
+
+      timeBuf.tv_sec  = statBuf.st_mtime;
+      *writeTime      = TimeUtil_UnixTimeToNtTime(timeBuf);
+
+      timeBuf.tv_sec  = statBuf.st_ctime;
+      *attrChangeTime = TimeUtil_UnixTimeToNtTime(timeBuf);
+   }
+#endif
+
+   return TRUE;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
  * File_SetTimes --
  *
  *      Set the date and time that a file was created, last accessed, or
@@ -700,6 +831,57 @@ File_SetTimes(const char *fileName,       // IN
 
 #if !defined(__FreeBSD__) && !defined(sun)
 /*
+ *-----------------------------------------------------------------------------
+ *
+ * FilePosixGetParent --
+ *
+ *      The input buffer is a canonical file path. Change it in place to the
+ *      canonical file path of its parent directory.
+ *
+ *      Although this code is quite simple, we encapsulate it in a function
+ *      because it is easy to get it wrong.
+ *
+ * Results:
+ *      TRUE if the input buffer was (and remains) the root directory.
+ *      FALSE if the input buffer was not the root directory and was changed in
+ *            place to its parent directory.
+ *
+ *      Example: "/foo/bar" -> "/foo" FALSE
+ *               "/foo"     -> "/"    FALSE
+ *               "/"        -> "/"    TRUE
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+FilePosixGetParent(char const *canPath) // IN/OUT: Canonical file path
+{
+   char *ptr;
+
+   ASSERT(canPath[0] == DIRSEPC);
+   ptr = strrchr(canPath, DIRSEPC);
+   ASSERT(ptr);
+   if (ptr != canPath) {
+      // "/foo/bar" -> "/foo"
+   } else {
+      // "/foo" -> "/"
+      ptr++;
+
+      if (*ptr == '\0') {
+         // "/" -> "/"
+         return TRUE;
+      }
+   }
+   *ptr = '\0';
+
+   return FALSE;
+}
+
+
+/*
  *----------------------------------------------------------------------
  *
  * FileGetStats --
@@ -723,8 +905,6 @@ FileGetStats(const char *fullPath,      // IN
    char *dupPath = NULL;
 
    while (statfs(dupPath? dupPath : fullPath, pstatfsbuf) == -1) {
-      char *pos;
-      
       if (errno != ENOENT) {
          retval = FALSE;
          goto out;
@@ -735,16 +915,7 @@ FileGetStats(const char *fullPath,      // IN
          dupPath = Util_SafeStrdup(fullPath);
       }
 
-      /* The file does not exist */
-      pos = strrchr(dupPath, '/');
-      ASSERT(pos);
-      if (pos == dupPath) {
-         /* Use the root directory as a last resort */
-         *(pos + 1) = '\0';
-      } else {
-         /* Reduce the path by one item */
-         *pos = '\0';
-      }
+      FilePosixGetParent(dupPath);
    }
    
 out:
@@ -1060,7 +1231,6 @@ File_OnVMFS(const char *fileName)
     * FileGetStats() to check each of the parent directories.
     */
    if (statfs(fileName, &statfsbuf) == -1) {
-
       fullPath = File_FullPath(fileName);
       if (fullPath == NULL) {
 	 ret = FALSE;
@@ -1134,19 +1304,19 @@ end:
  * File_GetUniqueFileSystemID --
  *
  *      Returns a string which uniquely identifies the underlying filesystem
- *      for a given path
+ *      for a given path.
  *
- *      On linux we choose the underlying device's name as the unique ID
+ *      'path' can be relative (including empty) or absolute, and any number of
+ *      non-existing components at the end of 'path' are simply ignored.
  *
- *      NB: The file need not exist
- *
- *      XXX: I make no claim that this is 100% unique so if you need this
- *           functionality to be 100% perfect, I suggest you think about it
- *           more deeply than I did. -meccleston
+ *      XXX: On Posix systems, we choose the underlying device's name as the
+ *           unique ID. I make no claim that this is 100% unique so if you need
+ *           this functionality to be 100% perfect, I suggest you think about
+ *           it more deeply than I did. -meccleston
  *
  * Results:
- *      char* - allocated string containing name of device (must be free()'d)
- *                NULL on failure
+ *      On success: Allocated and NUL-terminated filesystem ID.
+ *      On failure: NULL.
  *
  * Side effects:
  *      None
@@ -1155,70 +1325,46 @@ end:
  */
 
 char * 
-File_GetUniqueFileSystemID(const char *fileName)        // IN
+File_GetUniqueFileSystemID(char const *path) // IN: File path
 {
-   char realFileName[FILE_MAXPATH];
-   char *end;
-   char *mntDev;
+#ifdef VMX86_SERVER
+   char canPath[FILE_MAXPATH];
 
-   /* Convert to canonical name */
-   realpath(fileName, realFileName);
+   realpath(path, canPath);
 
-   /* VCFS doesn't have real mount points, confusing FilePosixLookupFSDeviceName
-    * below, causing it to return "/vmfs", instead of the actual mount point.  
+   /*
+    * VCFS doesn't have real mount points, so the mount point lookup below
+    * returns "/vmfs", instead of the VCFS mount point.
     *
     * See bug 61646 for why we care.
     */
-#ifdef VMX86_SERVER
-   if (strncmp(realFileName, VCFS_MOUNT_POINT, strlen(VCFS_MOUNT_POINT)) == 0) {
+   if (strncmp(canPath, VCFS_MOUNT_POINT, strlen(VCFS_MOUNT_POINT)) == 0) {
       char vmfsVolumeName[FILE_MAXPATH];
-      if (sscanf(realFileName, VCFS_MOUNT_PATH "%[^/]%*s", vmfsVolumeName) == 1) {
+
+      if (sscanf(canPath, VCFS_MOUNT_PATH "%[^/]%*s", vmfsVolumeName) == 1) {
          return Str_Asprintf(NULL, "%s/%s", VCFS_MOUNT_POINT, vmfsVolumeName);
       }
    }
 #endif
 
-   /*
-    * March backwards from the end of the path.  When we encounter a '/'
-    * look it up to see if we find a mount point match.
-    */
-   end = &realFileName[strlen(realFileName)];
-   while (1) {
-      /*
-       * Truncate string until we find a '/'
-       */
-      while (*end != '/') {
-         if (end < realFileName) {
-            return NULL;
-         }
-         *end-- = 0;
-      }
-
-      mntDev = FilePosixLookupFSDeviceName(realFileName);
-      if (mntDev != NULL) {
-         /* Found it! */
-         return mntDev;
-      }
-
-      /*
-       * No match, chop off the trailing '/' and try again
-       */
-      *end-- = 0;
-   }
+   return FilePosixGetBlockDevice(path);
 }
 
 
+#if !__APPLE__
 /*
  *-----------------------------------------------------------------------------
  *
- * FilePosixLookupFSDeviceName --
+ * FilePosixLookupMountPoint --
  *
- *      Looks up passed in filename in list of mount points.  If there is
- *      a match, it returns the underlying device name of the mount point.
+ *      Looks up passed in canonical file path in list of mount points.
+ *      If there is a match, it returns the underlying device name of the
+ *      mount point along with a flag indicating whether the mount point is
+ *      mounted with the "--[r]bind" option.
  *
  * Results:
- *      char* - Name of FS device (needs to be free()'d) or NULL if no match
- *              is found.
+ *      On success: The allocated, NUL-terminated mounted "device".
+ *      On failure: NULL.
  *
  * Side effects:
  *      None
@@ -1227,30 +1373,21 @@ File_GetUniqueFileSystemID(const char *fileName)        // IN
  */
 
 static char *
-FilePosixLookupFSDeviceName(const char *filename)     // IN
+FilePosixLookupMountPoint(char const *canPath, // IN: Canonical file path
+                          Bool *bind)          // OUT: Mounted with --[r]bind?
 {
-#if __APPLE__ 
-   struct statfs buf;
-   int res;
-
-   res = statfs(filename, &buf);
-   if (res != 0) {
-      NOT_TESTED();
-      return NULL;
-   }
-   return Util_SafeStrdup(buf.f_mntfromname);
-#else
-   FILE* f;
+   FILE *f;
    struct mntent *mnt;
-   char realFileName[FILE_MAXPATH];
 
-   realpath(filename, realFileName);
+   ASSERT(canPath);
+   ASSERT(bind);
 
    f = setmntent(MOUNTED, "r");
    if (f == NULL) {
       return NULL;
    }
 
+   // XXX getmntent() is not thread-safe. Use getmntent_r() instead.
    while ((mnt = getmntent(f)) != NULL) {
       /*
        * NB: A call to realpath is not needed as getmntent() already
@@ -1258,16 +1395,229 @@ FilePosixLookupFSDeviceName(const char *filename)     // IN
        *     to call realpath() as often a mount point is down, and
        *     realpath calls stat which can block trying to stat
        *     a filesystem that the caller of the function is not at
-       *     all expecting
+       *     all expecting.
        */
-      if (strcmp(mnt->mnt_dir, realFileName) == 0) {
+      if (strcmp(mnt->mnt_dir, canPath) == 0) {
          endmntent(f);
+
+         /*
+          * The --bind and --rbind options behave differently. See 
+          * FilePosixGetBlockDevice() for details.
+          *
+          * Sadly (I blame a bug in 'mount'), there is no way to tell them
+          * apart in /etc/mtab: the option recorded there is, in both cases,
+          * always "bind".
+          */
+         *bind = strstr(mnt->mnt_opts, "bind") != NULL;
+
          return Util_SafeStrdup(mnt->mnt_fsname);
       }
    }
+
+   // 'canPath' is not a mount point.
    endmntent(f);
    return NULL;
+}
 #endif
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FilePosixGetBlockDevice --
+ *
+ *      Retrieve the block device that backs file path 'path'.
+ *
+ *      'path' can be relative (including empty) or absolute, and any number of
+ *      non-existing components at the end of 'path' are simply ignored.
+ *
+ * Results:
+ *      On success: The allocated, NUL-terminated block device absolute path.
+ *      On failure: NULL.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+char *
+FilePosixGetBlockDevice(char const *path) // IN: File path
+{
+   char *existPath;
+   Bool failed;
+#if __APPLE__
+   struct statfs buf;
+#else
+   char canPath[FILE_MAXPATH];
+   char canPath2[FILE_MAXPATH];
+   unsigned int retries = 0;
+#endif
+
+   existPath = FilePosixNearestExistingAncestor(path);
+   if (!existPath) {
+      return NULL;
+   }
+
+#if __APPLE__
+   failed = statfs(existPath, &buf) == -1;
+   free(existPath);
+   if (failed) {
+      return NULL;
+   }
+
+   return Util_SafeStrdup(buf.f_mntfromname);
+#else
+   failed = !realpath(existPath, canPath);
+   free(existPath);
+   if (failed) {
+      return NULL;
+   }
+
+retry:
+   Str_Strcpy(canPath2, canPath, sizeof canPath2);
+
+   // Find the nearest ancestor of 'canPath' that is a mount point.
+   for (;;) {
+      Bool bind;
+      char *ptr;
+
+      ptr = FilePosixLookupMountPoint(canPath, &bind);
+      if (ptr) {
+         if (bind) {
+            /*
+             * 'canPath' is a mount point mounted with --[r]bind. This is the
+             * mount equivalent of a hard link. Follow the rabbit...
+             *
+             * --bind and --rbind behave differently. Consider this mount
+             * table:
+             *
+             *    /dev/sda1              /             ext3
+             *    exit14:/vol/vol0/home  /exit14/home  nfs
+             *    /                      /bind         (mounted with --bind)
+             *    /                      /rbind        (mounted with --rbind)
+             *
+             * then what we _should_ return for these paths is:
+             *
+             *    /bind/exit14/home -> /dev/sda1
+             *    /rbind/exit14/home -> exit14:/vol/vol0/home
+             *
+             * XXX but currently because we cannot easily tell the difference,
+             *     we always assume --rbind and we return:
+             *
+             *    /bind/exit14/home -> exit14:/vol/vol0/home
+             *    /rbind/exit14/home -> exit14:/vol/vol0/home
+             */
+            Bool rbind = TRUE;
+
+            if (rbind) {
+               /*
+                * Compute 'canPath = ptr + (canPath2 - canPath)' using and
+                * preserving the structural properties of all canonical
+                * paths involved in the expression.
+                */
+
+               size_t canPathLen = strlen(canPath);
+               char const *diff = canPath2 + (canPathLen > 1 ? canPathLen : 0);
+
+               if (*diff != '\0') {
+                  Str_Sprintf(canPath, sizeof canPath, "%s%s",
+                     strlen(ptr) > 1 ? ptr : "",
+                     diff);
+               } else {
+                  Str_Strcpy(canPath, ptr, sizeof canPath);
+               }
+            } else {
+               Str_Strcpy(canPath, ptr, sizeof canPath);
+            }
+
+            free(ptr);
+
+            /*
+             * There could be a series of these chained together.  It is
+             * possible for the mounts to get into a loop, so limit the total
+             * number of retries to something reasonable like 10.
+             */
+            retries++;
+            if (retries > 10) {
+               Warning("%s: The --[r]bind mount count exceeds %u. Giving "
+                       "up.\n", __FUNCTION__, 10);
+               return NULL;
+            }
+
+            goto retry;
+         }
+
+         return ptr;
+      }
+
+      failed = FilePosixGetParent(canPath);
+      /*
+       * Prevent an infinite loop in case FilePosixLookupMountPoint() even
+       * fails on "/".
+       */
+      if (failed) {
+         return NULL;
+      }
+   }
+#endif
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FilePosixNearestExistingAncestor --
+ *
+ *      Find the nearest existing ancestor of 'path'.
+ *
+ *      'path' can be relative (including empty) or absolute, and 'path' can
+ *      have any number of non-existing components at its end.
+ *
+ * Results:
+ *      On success: The allocated, NUL-terminated, non-empty path of the
+ *                  nearest existing ancestor.
+ *      On failure: NULL.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static char *
+FilePosixNearestExistingAncestor(char const *path) // IN: File path
+{
+   size_t resultSize;
+   char *result;
+
+   resultSize = MAX(strlen(path), 1) + 1;
+   result = malloc(resultSize);
+   if (!result) {
+      return NULL;
+   }
+
+   Str_Strcpy(result, path, resultSize);
+   for (;;) {
+      char *ptr;
+
+      if (*result == '\0') {
+         Str_Strcpy(result, *path == DIRSEPC ? "/" : ".", resultSize);
+         break;
+      }
+
+      if (File_Exists(result)) {
+         break;
+      }
+
+      ptr = strrchr(result, DIRSEPC);
+      if (!ptr) {
+         ptr = result;
+      }
+      *ptr = '\0';
+   }
+
+   return result;
 }
 
 
@@ -1277,6 +1627,16 @@ FilePosixLookupFSDeviceName(const char *filename)     // IN
  * File_IsSameFile --
  *
  *      Determine whether both paths point to the same file.
+ *
+ *      Caveats - While local files are matched based on inode and device 
+ *      ID, some older versions of NFS return buggy device IDs, so the
+ *      determination cannot be done with 100% confidence across NFS.
+ *      Paths that traverse NFS mounts are matched based on device, inode
+ *      and all of the fields of the stat structure except for times.
+ *      This introduces a race condition in that if the target files are not
+ *      locked, they can change out from underneath this function yielding
+ *      false negative results.  Cloned files sytems mounted across an old
+ *      version of NFS may yield a false positive.  
  *
  * Results:
  *      TRUE if both paths point to the same file, FALSE otherwise.
@@ -1291,18 +1651,18 @@ Bool
 File_IsSameFile(const char *path1, // IN
                 const char *path2) // IN
 {
-   int err;
    struct stat st1;
    struct stat st2;
-   char *fs1;
-   char *fs2;
+   struct statfs stfs1;
+   struct statfs stfs2;
 
    ASSERT(path1);
    ASSERT(path2);
 
 #ifdef VMX86_SERVER
    {
-
+      char *fs1;
+      char *fs2;
       char realpath1[FILE_MAXPATH];
       char realpath2[FILE_MAXPATH];
 
@@ -1325,18 +1685,19 @@ File_IsSameFile(const char *path1, // IN
    }
 #endif
 
-
+   /*
+    * First take care of the easy checks.  If the paths are identical, or if
+    * the inode numbers don't match, we're done.
+    */
    if (strcmp(path1, path2) == 0) {
       return TRUE;
    }
 
-   err = stat(path1, &st1);
-   if (err == -1) {
+   if (stat(path1, &st1) == -1) {
       return FALSE;
    }
 
-   err = stat(path2, &st2);
-   if (err == -1) {
+   if (stat(path2, &st2) == -1) {
       return FALSE;
    }
 
@@ -1344,26 +1705,48 @@ File_IsSameFile(const char *path1, // IN
       return FALSE;
    }
 
-   fs1 = File_GetUniqueFileSystemID(path1);
-   if (fs1 == NULL) {
+   if (statfs(path1, &stfs1) != 0) {
       return FALSE;
    }
 
-   fs2 = File_GetUniqueFileSystemID(path2);
-   if (fs2 == NULL) {
-      free(fs1);
+   if (statfs(path2, &stfs2) != 0) {
       return FALSE;
    }
 
-   if (strcmp(fs1, fs2) == 0) {
-      free(fs1);
-      free(fs2);
+#if __APPLE__
+   if( (stfs1.f_flags & MNT_LOCAL) &&
+       (stfs2.f_flags & MNT_LOCAL) ) {
+      return st1.st_dev == st2.st_dev;
+   }
+#else
+   if ((stfs1.f_type != NFS_SUPER_MAGIC)
+       && (stfs2.f_type != NFS_SUPER_MAGIC)) {
+      return st1.st_dev == st2.st_dev;
+   }
+#endif
+
+   /*
+    * At least one of the paths traverses NFS and some older NFS implementations
+    * can set st_dev incorrectly.  Do some extra checks of the stat structure to
+    * increase our confidence.   Since the st_ino numbers had to match to get this
+    * far, the overwhelming odds are the two files are the same.  
+    *
+    * If another process was actively writing or otherwise modifying the file
+    * while we stat'd it, then the following test could fail and we could return
+    * a false negative.   On the other hand, if NFS lies about st_dev and the paths
+    * point to a cloned file system, then the we will return a false positive.
+    */
+   if (st1.st_dev == st2.st_dev 
+       && st1.st_mode == st2.st_mode
+       && st1.st_nlink == st2.st_nlink
+       && st1.st_uid == st2.st_uid
+       && st1.st_gid == st2.st_gid
+       && st1.st_rdev == st2.st_rdev
+       && st1.st_size == st2.st_size
+       && st1.st_blksize == st2.st_blksize
+       && st1.st_blocks == st2.st_blocks) {
       return TRUE;
    }
-
-   free(fs1);
-   free(fs2);
-
    return FALSE;
 }
 
@@ -1475,7 +1858,6 @@ FileIsVMFS(const char *fileName)  // IN: file name to test
    }
 #endif
    return FALSE;
-
 }
 
 
@@ -1555,13 +1937,13 @@ File_VMFSSupportsFileSize(const char *fileName, // IN
                           uint64      fileSize) // IN
 {
 #ifdef VMX86_SERVER
-   uint32 version;
-   uint32 blockSize;
+   uint32 version = -1;
+   uint32 blockSize = -1;
    uint64 maxFileSize = -1;
    Bool supported;
    char *pathName;
    char *parentPath;
-   char *fsType;
+   char *fsType = NULL;
 
    if (File_GetVMFSVersion(fileName, &version) < 0) {
       Log(LGPFX "%s: File_GetVMFSVersion Failed\n", __func__);

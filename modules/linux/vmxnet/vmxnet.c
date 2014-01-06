@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1999 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1999 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,14 +13,13 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /* 
  * vmxnet.c: A virtual network driver for VMware.
  */
-
 #include "driver-config.h"
-
 #include "compat_module.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 9)
@@ -32,6 +30,7 @@
 #include "compat_spinlock.h"
 #include "compat_pci.h"
 #include "compat_init.h"
+#include "compat_timer.h"
 #include <asm/dma.h>
 #include <asm/page.h>
 #include <asm/uaccess.h>
@@ -42,7 +41,7 @@
 #include <linux/etherdevice.h>
 #include "compat_ioport.h"
 #ifndef KERNEL_2_1
-#   include <linux/delay.h>
+#include <linux/delay.h>
 #endif
 #include "compat_interrupt.h"
 
@@ -54,6 +53,11 @@
 #include "vmxnetInt.h"
 #include "net.h"
 #include "vmxnet_version.h"
+
+#ifdef BPF_SUPPORT_ENABLED
+#include "bpf_meta.h"
+#include "compat_highmem.h"
+#endif
 
 static int vmxnet_debug = 1;
 
@@ -503,6 +507,58 @@ vmxnet_tx_timeout(struct net_device *dev)
 /*
  *-----------------------------------------------------------------------------
  *
+ * vmxnet_link_check --
+ *
+ *      Propagate device link status to netdev.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      Rearms timer for next check.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static void
+vmxnet_link_check(unsigned long data)   // IN: netdevice pointer
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,3,43)
+   struct net_device *dev = (struct net_device *)data;
+   struct Vmxnet_Private *lp;
+   uint32 status;
+   int ok;
+
+   lp = dev->priv;
+   status = inl(dev->base_addr + VMXNET_STATUS_ADDR);
+   ok = (status & VMXNET_STATUS_CONNECTED) != 0;
+   if (ok != netif_carrier_ok(dev)) {
+      if (ok) {
+         netif_carrier_on(dev);
+      } else {
+         netif_carrier_off(dev);
+      }
+   }
+
+   /*
+    * It would be great if vmxnet2 could generate interrupt when link
+    * state changes.  Maybe next time.  Let's just poll media every
+    * two seconds (2 seconds is same interval pcnet32 uses).
+    */
+   mod_timer(&lp->linkCheckTimer, jiffies + 2 * HZ);
+#else
+   /*
+    * Nothing to do on kernels before 2.3.43.  They do not have
+    * netif_carrier_*, and as we've lived without link state for
+    * years, let's live without it forever on these kernels.
+    */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2,3,43) */
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * vmxnet_probe_device --
  *
  *      Most of the initialization at module load time is done here.
@@ -732,6 +788,16 @@ vmxnet_probe_device(struct pci_dev             *pdev, // IN: vmxnet PCI device
 #endif
 #endif
 
+#ifdef BPF_SUPPORT_ENABLED
+    if(lp->capabilities & VMNET_CAP_BPF && 
+       lp->features & VMXNET_FEATURE_BPF) {
+       dev->features |= NETIF_F_BPF;
+       printk(" bpf");
+    }    
+#endif
+
+
+
    printk("\n");
 
    /* determine rx/tx ring sizes */
@@ -864,11 +930,20 @@ vmxnet_probe_device(struct pci_dev             *pdev, // IN: vmxnet PCI device
    dev->do_ioctl = vmxnet_ioctl;
 
    COMPAT_SET_MODULE_OWNER(dev);
+   COMPAT_SET_NETDEV_DEV(dev, &pdev->dev);
 
    if (register_netdev(dev)) {
       printk(KERN_ERR "Unable to register device\n");
       goto free_dev_dd;
    }
+   /*
+    * Use deferrable timer - we want 2s interval, but if it will
+    * be 2 seconds or 10 seconds, we do not care.
+    */
+   compat_init_timer_deferrable(&lp->linkCheckTimer);
+   lp->linkCheckTimer.data = (unsigned long)dev;
+   lp->linkCheckTimer.function = vmxnet_link_check;
+   vmxnet_link_check(lp->linkCheckTimer.data);
 
    /* Do this after register_netdev(), which sets device name */
    VMXNET_LOG("%s: %s at %#3lx assigned IRQ %d.\n",
@@ -915,6 +990,11 @@ vmxnet_remove_device(struct pci_dev* pdev)
    struct net_device *dev = pci_get_drvdata(pdev);
    struct Vmxnet_Private *lp = dev->priv;
 
+   /*
+    * Do this before device is gone so we never call netif_carrier_* after
+    * unregistering netdevice.
+    */
+   compat_del_timer_sync(&lp->linkCheckTimer);
    unregister_netdev(dev);
 
    /* Unmorph adapter if it was morphed. */
@@ -1826,6 +1906,10 @@ vmxnet_rx(struct net_device *dev)
    Vmxnet_Private *lp = (Vmxnet_Private *)dev->priv;
    Vmxnet2_DriverData *dd = lp->dd;
 
+#ifdef BPF_SUPPORT_ENABLED
+   struct BPF_MetaData *meta = NULL;
+#endif
+
    if (!lp->devOpen) {
       return 0;
    }
@@ -1897,6 +1981,52 @@ vmxnet_rx(struct net_device *dev)
          if (rre->flags & VMXNET2_RX_HW_XSUM_OK) {
             skb->ip_summed = CHECKSUM_UNNECESSARY;
          }
+#ifdef BPF_SUPPORT_ENABLED
+         
+         meta = (struct BPF_MetaData *)skb->cb;
+
+         if(rre->flags & VMXNET2_RX_BPF_TRAILER) {
+            char *vaddr;
+            int numFrags = skb_shinfo(skb)->nr_frags;
+            
+            if (numFrags > 0) {
+
+               /* If fragments are present, the trailer is present in the
+                * last fragement. Map it and remove the trailer 
+                */
+	       vaddr = kmap_atomic(skb_shinfo(skb)->frags[numFrags - 1].page,
+                                   KM_USER0);
+               if (vaddr) {
+
+                  memcpy(meta->bpfSnapLens, 
+                         vaddr + skb_shinfo(skb)->frags[numFrags-1].size, 
+                         sizeof meta->bpfSnapLens);
+                  kunmap_atomic((struct page *)vaddr, KM_USER0);
+
+               } else  {
+                  printk(KERN_ERR"Error mapping Last Fragment of Packet\n");
+                  /* Act as if there was no bpf trailer at all*/
+                  meta->controlByte = 0;
+                  goto error;
+               }
+            } else { 
+
+               /* The trailer is present in the linear data array */
+
+               vaddr = (char *)skb->data;
+
+               memcpy(meta->bpfSnapLens, vaddr + skb->len,
+                      sizeof meta->bpfSnapLens);
+            }
+
+            meta->controlByte |= VMXNET_BPF_PROCESSED;
+
+         } else {
+            meta->controlByte = 0;
+         }
+error:
+#endif
+
          skb->dev = dev;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,0)
          lp->stats.rx_bytes += skb->len;

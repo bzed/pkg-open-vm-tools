@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 #include <string.h>
 #include <stdlib.h>
@@ -2588,7 +2588,10 @@ HgfsServerGetAccess(char const *cpName,// IN:  Cross-platform filename to check
       goto error;
    }
 
-   *savedPathSepPos = '\0';
+   /* If the path starts with a DIRSEPC. */
+   if (savedPathSepPos != myBufOut) {
+      *savedPathSepPos = '\0';
+   }
 
    if (!CodeSet_Utf8ToCurrent(myBufOut,
                               strlen(myBufOut),
@@ -2608,10 +2611,37 @@ HgfsServerGetAccess(char const *cpName,// IN:  Cross-platform filename to check
       goto error;
    }
 
-   /* Trim unused memory */
+#if defined(__APPLE__)
+   {
+      size_t nameLen;
+      /* 
+       * For Mac hosts the unicode format is decomposed (form D)
+       * so there is a need to convert the incoming name from HGFS clients
+       * which is assumed to be in the normalized form C (precomposed).
+       */
+      if (!CodeSet_Utf8FormCToUtf8FormD(myBufOut, 
+                                        out - myBufOut, 
+                                        &tempPtr, 
+                                        &nameLen)) {
+         LOG(4, ("HgfsServerGetAccess: unicode conversion to form D failed.\n"));
+         nameStatus = HGFS_NAME_STATUS_FAILURE;
+         goto error;
+      }
+
+      free(myBufOut);
+      LOG(4, ("HgfsServerGetAccess: name is \"%s\"\n", myBufOut));
+
+      /* Save returned pointers for memory trim. */
+      myBufOut = tempPtr;
+      out = tempPtr + nameLen;
+   }
+#endif /* defined(__APPLE__) */
+
    {
       char *p;
       size_t len;
+
+      /* Trim unused memory */
 
       len = out - myBufOut;
 

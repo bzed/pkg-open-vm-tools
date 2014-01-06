@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2004 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /*
  * @VMKAPIMOD_LICENSE@
@@ -288,6 +288,17 @@
    DEFINE_VMK_ERR(VMK_NO_LICENSE,               "Not licensed to access VMFS volumes",        EACCES)\
    DEFINE_VMK_ERR(VMK_VSI_MODULE_NOT_FOUND,     "Vmkernel module necessary for this vsi call not loaded",    ENOENT)\
    DEFINE_VMK_ERR(VMK_LVM_RETRY_OPERATION,      "Transient LVM device condition, suggest retry", EAGAIN)\
+   DEFINE_VMK_ERR(VMK_SNAPSHOT_LV_INCOMPLETE,   "Snapshot LV incomplete",                        EAGAIN)\
+   DEFINE_VMK_ERR(VMK_MEDIUM_NOT_FOUND,         "Medium not found",                           EIO)\
+   DEFINE_VMK_ERR(VMK_MAX_PATHS_CLAIMED,        "Maximum allowed SCSI paths have already been claimed",  ENOMEM)\
+   DEFINE_VMK_ERR(VMK_NOT_MOUNTABLE,            "Filesystem is not mountable",                ENODEV)\
+   DEFINE_VMK_ERR(VMK_MEMSIZE_GT_MEMSIZELIMIT,  "Memory size exceeds memSizeLimit",           EINVAL)\
+   DEFINE_VMK_ERR(VMK_RECORD_WRITE_ERROR,       "An error occurred trying to write to the log",                EIO)\
+   DEFINE_VMK_ERR(VMK_REPLAY_READ_ERROR,        "An error occurred trying to read from the log",                EIO)\
+   DEFINE_VMK_ERR(VMK_REPLAY_TYPE_MISMATCH,     "There was a type mismatch while reading from the log",                EIO)\
+   DEFINE_VMK_ERR(VMK_REPLAY_DIVERGENCE,        "A divergence was detected during replay",                EIO)\
+   DEFINE_VMK_ERR(VMK_FT_NOT_RESPONDING,        "The remote side of an FT pair isn't responding",                ENOTCONN)\
+   DEFINE_VMK_ERR(VMK_NET_REPLAY_ERROR,         "An error occurred during replay of networking.",                EIO)\
 /* 
  * --- ADD NEW ERROR CODES ABOVE THIS COMMENT. --- VMK_GENERIC_LINUX_ERROR must be last.                   \
  */                                                                                                        \

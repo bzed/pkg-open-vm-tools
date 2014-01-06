@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2000 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2000 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /* 
  * os.c --
@@ -514,6 +514,16 @@ unsigned int CDECL
 os_timer_hz(void)
 {
    return HZ;
+}
+
+void CDECL
+os_yield(void)
+{
+#ifdef OS_KTHREAD
+   cond_resched();
+#else
+   /* Do nothing.  Timer callbacks should not sleep. */
+#endif
 }
 
 #ifdef	CONFIG_PROC_FS

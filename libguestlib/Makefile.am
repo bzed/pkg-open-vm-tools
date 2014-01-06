@@ -36,6 +36,5 @@ libguestlib_la_SOURCES += stubs.c
 
 libguestlib_la_LDFLAGS =
 # We require GCC, so we're fine passing compiler-specific flags.
-libguestlib_la_LDFLAGS += -Wl,-z -Wl,defs
 # Needed for OS's that don't link shared libraries against libc by default, e.g. FreeBSD
 libguestlib_la_LDFLAGS += -Wl,-lc

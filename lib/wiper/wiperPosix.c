@@ -1,6 +1,5 @@
-/* **************************************************************************
- * Copyright 2004 VMware, Inc.  All rights reserved. 
- * **************************************************************************
+/*********************************************************
+ * Copyright (C) 2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * wiperPosix.c --
@@ -469,7 +469,8 @@ SingleWiperPartition_Open(const char *mountPoint)      // IN
          }
 
          WiperPartitionFilter(p, mnt);
-         CLOSE_MNTFILE(fp);
+         (void) CLOSE_MNTFILE(fp);
+
          fp = NULL;
 
          return p;
@@ -481,7 +482,7 @@ SingleWiperPartition_Open(const char *mountPoint)      // IN
   error:
    SingleWiperPartition_Close(p);
    if (fp != NULL) {
-      CLOSE_MNTFILE(fp);
+      (void) CLOSE_MNTFILE(fp);
       fp = NULL;
    }
    return NULL;
@@ -601,7 +602,7 @@ WiperPartition_Open(void)
       pl->size++;
    }
 
-   CLOSE_MNTFILE(fp);
+   (void) CLOSE_MNTFILE(fp);
    fp = NULL;
 
    return pl;
@@ -610,7 +611,7 @@ error:
    WiperPartition_Close(pl);
    pl = NULL;
    if (fp != NULL) {
-      CLOSE_MNTFILE(fp);
+      (void) CLOSE_MNTFILE(fp);
       fp = NULL;
    }
    return NULL;

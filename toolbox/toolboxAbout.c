@@ -1,6 +1,5 @@
-/* **************************************************************************
- * Copyright (C) 2005 VMware, Inc. All Rights Reserved 
- * **************************************************************************
+/*********************************************************
+ * Copyright (C) 2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * toolboxAbout.c --
@@ -65,9 +65,7 @@ About_Create(GtkWidget* mainWnd)
    GtkWidget *scrollwin;
    GtkWidget *viewport;
    GtkWidget *ebox;
-   gchar buf1[sizeof (COPYRIGHT_STRING) + sizeof (RIGHT_RESERVED) + 2];
-   gchar *copyright = NULL;
-   GdkWChar spambuffer[2];
+   gchar buf1[sizeof (UTF8_COPYRIGHT_STRING) + sizeof (RIGHT_RESERVED) + 2];
    GdkPixmap* pix       = NULL;
    GdkBitmap* bit       = NULL;
    GdkColormap* colormap = NULL;    
@@ -136,6 +134,11 @@ About_Create(GtkWidget* mainWnd)
    gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
    gtk_misc_set_alignment(GTK_MISC(label), 0, 0);
 
+#ifdef _GTK2_
+   Str_Snprintf(buf1, sizeof buf1, "%s %s",
+                UTF8_COPYRIGHT_STRING,
+                RIGHT_RESERVED);
+#else
    /*
     * Redhat 8.0/Mandrake 9's locales seem to be unable to transcode
     * the copyright symbol.  So we just replace it with "(c)" if we
@@ -143,15 +146,22 @@ About_Create(GtkWidget* mainWnd)
     *
     * See bug# 25055.
     */
-   if(gdk_mbstowcs(spambuffer, "\251\0", 2) <= 0) {
-      gchar** split;
-      split = g_strsplit(COPYRIGHT_STRING, "\251", 2);
-      copyright = g_strconcat(split[0], "(c)", split[1], NULL);
-      g_strfreev(split);
-   }
+   {
+      GdkWChar spambuffer[2];
+      gchar *copyright = NULL;
 
-   Str_Snprintf(buf1, sizeof(buf1), "%s %s", copyright ? copyright : COPYRIGHT_STRING, 
-              RIGHT_RESERVED);
+      if(gdk_mbstowcs(spambuffer, "\251\0", 2) <= 0) {
+         gchar** split;
+         split = g_strsplit(COPYRIGHT_STRING, "\251", 2);
+         copyright = g_strconcat(split[0], "(c)", split[1], NULL);
+         g_strfreev(split);
+      }
+      Str_Snprintf(buf1, sizeof buf1, "%s %s", copyright ? copyright : COPYRIGHT_STRING,
+                   RIGHT_RESERVED);
+      g_free(copyright);
+   }
+#endif
+   
    label = gtk_label_new(buf1);
    gtk_widget_show(label);
    gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, FALSE, 0);

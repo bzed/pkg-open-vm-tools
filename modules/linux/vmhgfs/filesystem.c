@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 /*
  * filesystem.c --
@@ -87,9 +87,7 @@ atomic_t hgfsVersionCreateDir;
 
 /* Private functions. */
 static inline unsigned long HgfsComputeBlockBits(unsigned long blockSize);
-static void HgfsInodeCacheCtor(void *slabElem,
-                               compat_kmem_cache *cache,
-                               unsigned long flags);
+static compat_kmem_cache_ctor HgfsInodeCacheCtor;
 static HgfsSuperInfo *HgfsInitSuperInfo(HgfsMountInfo *mountInfo);
 static int HgfsReadSuper(struct super_block *sb,
                          void *rawData,
@@ -188,10 +186,16 @@ HgfsComputeBlockBits(unsigned long blockSize)
  *-----------------------------------------------------------------------------
  */
 
+#ifdef VMW_KMEMCR_CTOR_HAS_3_ARGS
 static void
 HgfsInodeCacheCtor(void *slabElem,           // IN: slab item to initialize
                    compat_kmem_cache *cache, // IN: cache slab is from
                    unsigned long flags)      // IN: flags associated with allocation
+#else
+static void
+HgfsInodeCacheCtor(compat_kmem_cache *cache, // IN: cache slab is from
+                   void *slabElem)           // IN: slab item to initialize
+#endif
 {
 #ifdef VMW_EMBED_INODE
    HgfsInodeInfo *iinfo = (HgfsInodeInfo *)slabElem;

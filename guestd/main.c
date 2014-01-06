@@ -1,7 +1,5 @@
-/*
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- *
- *
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -25,11 +24,6 @@
  *    Linux and FreeBSD implementation
  *
  */
-
-#ifndef VMX86_DEVEL
-
-#endif
-
 
 #include <stdio.h>
 #include <string.h>
@@ -49,10 +43,6 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#endif
-
-#ifdef sun
-# include <sys/mount.h>
 #endif
 
 
@@ -84,21 +74,32 @@
 #include "dnd.h"
 #endif
 
-/* Header for daemon implementation of Solaris. */
+/* Header to get prototype of daemon() implementation for Solaris. */
 #ifdef sun
-# include "miscSolaris.h"
+#   include "miscSolaris.h"
 #endif
 
-/* Headers needed by the hgfs pserver */
-#ifdef sun
-# include <sys/mount.h>
-# include <sys/stat.h>
-# include <fcntl.h>
+#if defined(sun)
+#   define VM_GUESTD_MOUNTS_HGFS 1
+#   define VM_GUESTD_RUNS_HGFS_PSERVER 1
 #endif
-#include "hgfsDevLinux.h"
-#include "hgfsBd.h"
-#include "hgfsProto.h"
-#include "hgfs.h"
+
+
+/* Headers needed by the hgfs pserver */
+#if defined(VM_GUESTD_MOUNTS_HGFS)
+#   if defined(sun)
+#      include <sys/param.h>
+#      include <sys/mount.h>
+#      include <sys/stat.h>
+#      include <fcntl.h>
+#   endif
+#endif
+#if defined(VM_GUESTD_RUNS_HGFS_PSERVER)
+#   include "hgfsDevLinux.h"
+#   include "hgfsBd.h"
+#   include "hgfsProto.h"
+#   include "hgfs.h"
+#endif
 #include "procMgr.h"
 #include "guestd_version.h"
 
@@ -112,18 +113,20 @@ VM_EMBED_VERSION(GUESTD_VERSION_STRING);
 #define EXEC_LOG                    "/var/log/vmware-tools-guestd"
 #define UPGRADER_FILENAME           "vmware-tools-upgrader"
 
-#ifdef sun
+#if defined(VM_GUESTD_MOUNTS_HGFS)
  /*
-  * The Hgfs device is in /dev on Solaris.  Solaris' umount program doesn't
+  * The Hgfs device is in /dev.  Solaris' umount program doesn't
   * unmount filesystem's with name's longer than 8 characters, so we shorten
   * it.  Solaris' mount(2) doesn't take NULL as the mount source, so we
   * specify anything to get past the Kernel's VFS mount function.  We also
   * need to specify MS_DATA so it looks for the optional data we pass in.
   */
-# define HGFS_DEVICE            "/dev/vmware-hgfs"
-# define HGFS_FS_NAME           "vmhgfs"
-# define HGFS_MOUNT_SRC         "/hgfs"
-# define HGFS_MOUNT_FLAGS       MS_DATA			/* from <sys/mount.h> */
+#   define HGFS_FS_NAME           "vmhgfs"
+#   define HGFS_MOUNT_SRC         "/hgfs"
+#   if defined(sun)
+#      define HGFS_DEVICE            "/dev/vmware-hgfs"
+#      define HGFS_MOUNT_FLAGS       MS_DATA			/* from <sys/mount.h> */
+#   endif
 #endif
 
 #if !defined(__FreeBSD__) && !defined(sun)
@@ -177,31 +180,150 @@ typedef struct blessedAppNode {
 static int gDaemonSignal;
 static int gCommandLineRpciSignal;
 
+#ifdef VM_GUESTD_MOUNTS_HGFS
+typedef struct HgfsMountState {
+   const char *mountPoint; /* Mount point for hgfs filesystem */
+   Bool mounted;           /* TRUE if mounted, FALSE if not */
+} HgfsMountState;
+#endif
 
+#ifdef VM_GUESTD_RUNS_HGFS_PSERVER
 /* Hgfs state needed per mounted filesystem */
 typedef struct PserverState {
-   const char *mountPoint; /* Mount point for hgfs filesystem */
+   HgfsMountState mountState;
    char *requestPacket;    /* Buffer for request packets */
    RpcOut *out;            /* Backdoor communications channel */
    int fd;                 /* Hgfs device fd (communication with kernel) */
-   Bool mounted;           /* TRUE if mounted, FALSE if not */
 } PserverState;
 
 static PserverState globalHgfsState = {
-   NULL,  /* mountPoint */
-   NULL,  /* requestPacket */
-   NULL,  /* out */
-   -1,    /* fd */
-   FALSE, /* mounted */
+   {NULL, FALSE},  /* mountState */
+   NULL,           /* requestPacket */
+   NULL,           /* out */
+   -1              /* fd */
 };
+#elif defined(VM_GUESTD_MOUNTS_HGFS)
+static HgfsMountState globalHgfsState = {
+   NULL, /* mountPoint */
+   FALSE /* mounted */
+};
+#endif
 
+#ifdef VM_GUESTD_MOUNTS_HGFS
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HgfsMountState_Cleanup --
+ *
+ *      Unmounts the hgfs filesystem
+ *
+ * Results:
+ *      TRUE on success.
+ *      FALSE if one or more steps failed.
+ *
+ * Side effects:
+ *      Unmounts the filesystem and cleans up the HgfsMountState structure.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+HgfsMountState_Cleanup(HgfsMountState *state) // IN: Hgfs mount state
+{
+   Bool success = TRUE;
+   int result;
+
+   ASSERT(state);
+
+   /* Try to unmount hgfs */
+   if (state->mounted) {
+      Debug("HgfsMountState_Cleanup: attempting to unmount %s\n",
+            state->mountPoint);
+#if defined(sun)
+      result = umount(state->mountPoint);
+#endif
+      if (result < 0) {
+         int error = errno;
+         Debug("HgfsMountState_Cleanup: error %d (%s) unmounting filesystem\n",
+               error,
+               strerror(error));
+         success = FALSE;
+      } else {
+         state->mounted = FALSE;
+         Debug("HgfsMountState_Cleanup: unmount succeeded\n");
+      }
+   }
+   if (state->mountPoint) {
+      free((void *)state->mountPoint);
+      state->mountPoint = NULL;
+   }
+
+   return success;
+}
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HgfsMountState_Init --
+ *
+ *      Mounts the hgfs filesystem
+ *
+ * Results:
+ *      TRUE on success.
+ *      FALSE if one or more steps failed.
+ *
+ * Side effects:
+ *      Allocates a copy of the mount point string, updates the HgfsMountState structure,
+ *      and mounts the filesystem.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+HgfsMountState_Init(HgfsMountState *state,   // IN: Hgfs mount state
+                    const char *pMountPoint, // IN: Shared folder mount target
+                    int fd)                  // IN: Pserver file descriptor, or -1
+{
+   int mntRes;
+
+   ASSERT(state);
+   ASSERT(pMountPoint);
+
+   state->mountPoint = strdup(pMountPoint);
+   state->mounted = FALSE;
+
+#if defined(sun)
+   {
+      HgfsMountInfo mntInfo;   /* Data to pass to kernel when mounting */
+
+      mntInfo.fd = fd;
+      mntInfo.version = HGFS_PROTOCOL_VERSION;
+      mntInfo.magicNumber = HGFS_SUPER_MAGIC;
+
+      Debug("HgfsMountState_Init: trying to mount %s...\n", state->mountPoint);
+      mntRes = mount(HGFS_MOUNT_SRC, state->mountPoint, HGFS_MOUNT_FLAGS,
+                     HGFS_FS_NAME, &mntInfo, sizeof mntInfo);
+   }
+#endif
+
+   if (mntRes == -1) {
+      int error = errno;
+      Debug("HgfsMountState_Init: mount failed: %s\n", strerror(error));
+      HgfsMountState_Cleanup(state);
+      return FALSE;
+   }
+   state->mounted = TRUE;
+   Debug("HgfsMountState_Init: mount succeeded\n");
+
+   return TRUE;
+}
+#endif
 
 /*
  * Hgfs pserver functions
  */
 
-
-#ifdef sun
+#ifdef VM_GUESTD_RUNS_HGFS_PSERVER
 /*
  *-----------------------------------------------------------------------------
  *
@@ -215,7 +337,7 @@ static PserverState globalHgfsState = {
  *    FALSE if one or more steps failed.
  *
  * Side effects:
- *    None
+ *    None.
  *
  *-----------------------------------------------------------------------------
  */
@@ -245,25 +367,8 @@ HgfsPserver_Cleanup(PserverState *state) // IN: State for this mount
     * XXX The unmount should be done in the driver (NOT here), in case
     * the pserver gets killed or is misbehaved.
     */
-   /* Try to unmount hgfs */
-   if (state->mounted) {
-      Debug("HgfsPserver_Cleanup: attempting to unmount %s\n",
-            state->mountPoint);
-      result = umount(state->mountPoint);
-      if (result < 0) {
-         int error = errno;
-         Debug("HgfsPserver_Cleanup: error %d (%s) unmounting filesystem\n",
-               error,
-               strerror(error));
-         success = FALSE;
-      } else {
-         state->mounted = FALSE;
-         Debug("HgfsPserver_Cleanup: unmount succeeded\n");
-      }
-   }
-   if (state->mountPoint) {
-      free((void *)state->mountPoint);
-      state->mountPoint = NULL;
+   if (!HgfsMountState_Cleanup(&state->mountState)) {
+      success = FALSE;
    }
 
    /* Try to close the hgfs device */
@@ -307,16 +412,12 @@ static Bool
 HgfsPserver_Init(PserverState *state,     // IN/OUT: State for this mount
                  const char *pMountPoint) // IN: Shared folder mount target
 {
-   HgfsMountInfo mntInfo;   /* Data to pass to kernel when mounting */
-
    ASSERT(state);
    ASSERT(pMountPoint);
 
    state->fd = -1;
    state->out = NULL;
    state->requestPacket = NULL;
-   state->mountPoint = pMountPoint;
-   state->mounted = FALSE;
 
    state->fd = open(HGFS_DEVICE, O_RDWR | O_NONBLOCK);
    if (state->fd < 0) {
@@ -340,20 +441,10 @@ HgfsPserver_Init(PserverState *state,     // IN/OUT: State for this mount
       return FALSE;
    }
 
-   mntInfo.fd = state->fd;
-   mntInfo.version = HGFS_PROTOCOL_VERSION;
-   mntInfo.magicNumber = HGFS_SUPER_MAGIC;
-
-   Debug("HgfsPserver_Init: trying to mount %s...\n", state->mountPoint);
-   if (mount(HGFS_MOUNT_SRC, state->mountPoint, HGFS_MOUNT_FLAGS,
-             HGFS_FS_NAME, &mntInfo, sizeof mntInfo) == -1) {
-      int error = errno;
-      Debug("HgfsPserver_Init: mount failed: %s\n", strerror(error));
+   if (HgfsMountState_Init(&state->mountState, pMountPoint, state->fd) == FALSE) {
       HgfsPserver_Cleanup(state);
       return FALSE;
    }
-   state->mounted = TRUE;
-   Debug("HgfsPserver_Init: mount succeeded\n");
 
    /*
     * Eventually we may want to frob /etc/mtab here to reflect the
@@ -461,8 +552,9 @@ HgfsPserverHandleRequest(PserverState *pState) // IN: Pserver state
 
    return TRUE;
 }
+#endif
 
-
+#if defined(VM_GUESTD_MOUNTS_HGFS)
 /*
  *-----------------------------------------------------------------------------
  *
@@ -522,7 +614,7 @@ GuestdGetValidMountPt(GuestApp_Dict *Dict) // IN: Configuration dictionary
    }
    return p;
 }
-#endif /* sun */
+#endif /* VM_GUESTD_MOUNTS_HGFS */
 
 
 #if !defined(__FreeBSD__) && !defined(sun)
@@ -1284,30 +1376,32 @@ GuestdCommandLineRpci(char const *cmd) // IN: RPCI command
    struct sigaction olds[ARRAYSIZE(cSignals)];
    char *result = NULL;
    Bool status = FALSE;
+   Bool signaled = FALSE;
 
    gCommandLineRpciSignal = 0;
 
    if (Signal_SetGroupHandler(cSignals, olds, ARRAYSIZE(cSignals),
                               GuestdCommandLineRpciSignal) == 0) {
-      goto out;
+      return FALSE;
    }
 
-   RpcOut_sendOne(&result, NULL, "%s", cmd);
+   status = RpcOut_sendOne(&result, NULL, "%s", cmd);
 
    if (gCommandLineRpciSignal) {
       fprintf(stderr, "Interrupted by signal %d.\n\n", gCommandLineRpciSignal);
-      goto out;
+      signaled = TRUE;
    }
 
-   if (Signal_ResetGroupHandler(cSignals, olds, ARRAYSIZE(cSignals)) == 0) {
-      goto out;
+   if ((Signal_ResetGroupHandler(cSignals, olds, ARRAYSIZE(cSignals)) == 0) ||
+       signaled) {
+      status = FALSE;
+   } else if (!status) {
+      fprintf(stderr, "%s\n", result ? result : "NULL");
+   } else {
+      printf("%s\n", result);
    }
 
-   printf("%s\n", result ? result : "NULL");
-   status = TRUE;
-  out:
    free(result);
-
    return status;
 }
 
@@ -1505,7 +1599,9 @@ GuestdSleep(uint64 numUsecs,                 // IN
 #endif
    struct timeval tv;
    int status;
+#if defined(VM_GUESTD_RUNS_HGFS_PSERVER)
    PserverState *pState = &globalHgfsState;
+#endif
 
    ASSERT(tdData);
 
@@ -1531,6 +1627,7 @@ GuestdSleep(uint64 numUsecs,                 // IN
       maxFd = asyncFd;
    }
 
+#if defined(VM_GUESTD_RUNS_HGFS_PSERVER)
    /* If hgfs is enabled, add its fd */
    if (pState->fd >= 0) {
       FD_SET(pState->fd, &readFds);
@@ -1538,6 +1635,7 @@ GuestdSleep(uint64 numUsecs,                 // IN
          maxFd = pState->fd;
       }
    }
+#endif
 
 #if !defined(__FreeBSD__) && !defined(sun)
    SocketMgr_GetSelectables(SOCKETMGR_IN,
@@ -1571,7 +1669,7 @@ GuestdSleep(uint64 numUsecs,                 // IN
    } else if (status > 0) {
       Debug("Select returned status > 0\n");
 
-#ifdef sun
+#ifdef VM_GUESTD_RUNS_HGFS_PSERVER
       if (pState->fd >= 0 && FD_ISSET(pState->fd, &readFds)) {
          /* There is an hgfs request waiting in the driver. */
          HgfsPserverHandleRequest(pState);
@@ -1647,7 +1745,7 @@ GuestdDaemon(GuestApp_Dict **pConfDict,       // IN/OUT
    ToolsDaemon_Data *data = NULL;
    VmBackupSyncProvider *syncProvider = NULL;
 
-#ifdef sun
+#if VM_GUESTD_MOUNTS_HGFS
    const char *mountPoint = GuestdGetValidMountPt(*pConfDict);
 
    if (!mountPoint) {
@@ -1662,14 +1760,19 @@ GuestdDaemon(GuestApp_Dict **pConfDict,       // IN/OUT
       free((void *)mountPoint);
       mountPoint = NULL;
    } else {
+#   ifdef VM_GUESTD_RUNS_HGFS_PSERVER
       /* Setup the hgfs pserver (guest can operate on host file name space) */
       if (HgfsPserver_Init(&globalHgfsState, mountPoint) == FALSE) {
 	 Warning("Unable to start hgfs.\n");
       }
-      /*
-       * globalHgfsState 'owns' the string in mountPoint and relies on
-       * HgfsPserver_Cleanup to free it.
-       */
+#   else
+      /* Just mount the hgfs filesystem */
+      if (HgfsMountState_Init(&globalHgfsState, mountPoint, -1) == FALSE) {
+         Warning("Unable to mount hgfs.\n");
+      }
+#   endif
+
+      free((void *)mountPoint);
    }
 #endif
 
@@ -1768,8 +1871,10 @@ GuestdDaemon(GuestApp_Dict **pConfDict,       // IN/OUT
    NOT_REACHED();
 
 out:
-#ifdef sun
+#if defined(VM_GUESTD_RUNS_HGFS_PSERVER)
    HgfsPserver_Cleanup(&globalHgfsState);
+#elif defined(VM_GUESTD_MOUNTS_HGFS)
+   HgfsMountState_Cleanup(&globalHgfsState);
 #endif
    if (data) {
       ToolsDaemon_Cleanup(data);

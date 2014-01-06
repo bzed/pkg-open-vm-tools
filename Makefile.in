@@ -51,8 +51,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-# hgfsmounter is only needed on Linux.
-@LINUX_TRUE@am__append_1 = hgfsmounter
+@HAVE_X11_TRUE@am__append_1 = $(X11_SUBDIRS)
+@BUILD_HGFSMOUNTER_TRUE@am__append_2 = hgfsmounter
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/configure AUTHORS COPYING \
@@ -80,7 +80,7 @@ RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = lib guestd vmware-user toolbox hgfsclient hgfsmounter \
-	checkvm libguestlib
+	checkvm libguestlib xferlogs
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -114,6 +114,9 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DNET_CFLAGS = @DNET_CFLAGS@
+DNET_CONFIG = @DNET_CONFIG@
+DNET_LIBS = @DNET_LIBS@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -148,6 +151,8 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MODULES = @MODULES@
+MODULES_OS = @MODULES_OS@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -220,9 +225,11 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = lib guestd vmware-user toolbox hgfsclient $(am__append_1) \
-	checkvm libguestlib
-MODULES = vmblock vmhgfs vmmemctl vmxnet
+
+# These subdirectories require X, and may be disabled using --without-x
+X11_SUBDIRS = vmware-user toolbox
+SUBDIRS = lib guestd $(am__append_1) hgfsclient $(am__append_2) \
+	checkvm libguestlib xferlogs
 all: all-recursive
 
 .SUFFIXES:
@@ -573,13 +580,13 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-recursive
 
-clean-am: clean-generic clean-libtool clean-local mostlyclean-am
+clean-am: clean-generic clean-libtool mostlyclean-am
 
 distclean: distclean-recursive
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 	-rm -f Makefile
 distclean-am: clean-am distclean-generic distclean-libtool \
-	distclean-local distclean-tags
+	distclean-tags
 
 dvi: dvi-recursive
 
@@ -634,37 +641,24 @@ uninstall-am:
 
 .PHONY: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) CTAGS GTAGS \
 	all all-am am--refresh check check-am clean clean-generic \
-	clean-libtool clean-local ctags ctags-recursive dist dist-all \
-	dist-bzip2 dist-gzip dist-shar dist-tarZ dist-zip distcheck \
-	distclean distclean-generic distclean-libtool distclean-local \
-	distclean-tags distcleancheck distdir distuninstallcheck dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-dvi install-dvi-am \
-	install-exec install-exec-am install-html install-html-am \
-	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs installdirs-am \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-recursive uninstall uninstall-am
+	clean-libtool ctags ctags-recursive dist dist-all dist-bzip2 \
+	dist-gzip dist-shar dist-tarZ dist-zip distcheck distclean \
+	distclean-generic distclean-libtool distclean-tags \
+	distcleancheck distdir distuninstallcheck dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs installdirs-am maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-recursive \
+	uninstall uninstall-am
 
 
-.PHONY: modules $(MODULES)
-modules: $(MODULES)
-
-$(MODULES):
-@LINUX_TRUE@	(cd modules/linux/$@ && \
-@LINUX_TRUE@	make)
-@LINUX_FALSE@	@echo 'Only Linux modules are currently available.'
-@LINUX_FALSE@	exit 1
-
-distclean-local:
-clean-local:
-@LINUX_TRUE@	(cd modules/linux && \
-@LINUX_TRUE@	for MOD in $(MODULES); do \
-@LINUX_TRUE@		(cd "$$MOD" && make clean); \
-@LINUX_TRUE@	done; \
-@LINUX_TRUE@	rm -f *.o)
+.PHONY: modules
+modules:
+	$(MAKE) -C modules
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

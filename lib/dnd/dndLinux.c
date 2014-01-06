@@ -1,6 +1,5 @@
-/* **************************************************************************
- * Copyright (C) 2005 VMware, Inc. All Rights Reserved 
- * **************************************************************************
+/*********************************************************
+ * Copyright (C) 2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * dndLinux.c --
@@ -362,7 +362,7 @@ DnD_InitializeBlocking(void)
    fp = OPEN_MNTFILE("r");
    if (fp == NULL) {
       LOG(1, ("DnD_InitializeBlocking: could not open mount file\n"));
-      CLOSE_MNTFILE(fp);
+      (void) CLOSE_MNTFILE(fp);
       goto out;
    }
 
@@ -378,7 +378,8 @@ DnD_InitializeBlocking(void)
       }
    }
 
-   CLOSE_MNTFILE(fp);
+   (void) CLOSE_MNTFILE(fp);
+
    if (!found) {
       LOG(4, ("DnD_InitializeBlocking: could not find vmblock mounted\n"));
       goto out;

@@ -1,6 +1,5 @@
-/* ************************************************************************ *
- * Copyright 2006 VMware, Inc.  All rights reserved.  *
- * ************************************************************************ *
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * All the legalese that we display in About boxes and similar places.
@@ -34,7 +34,7 @@
 #define COPYRIGHT_STRING   "Copyright \251 " COPYRIGHT_YEARS " " COMPANY_NAME
 #define UTF8_COPYRIGHT_STRING   "Copyright \302\251 " COPYRIGHT_YEARS " " COMPANY_NAME
 #define RIGHT_RESERVED     "All rights reserved."
-#define PATENTS_STRING     "Protected by one or more U.S. Patent Nos.\n6,397,242, 6,496,847, 6,704,925, 6,711,672, 6,725,289,\n6,735,601, 6,785,886, 6,789,156, 6,795,966, 6,880,022,\n6,944,699, 6,961,806, 6,961,941, 7,069,413, 7,082,598,\n7,089,377, 7,111,086, 7,111,145, 7,117,481, 7,149,843,\n7,155,558 and 7,222,221; patents pending."
+#define PATENTS_STRING     "Protected by one or more U.S. Patent Nos.\n6,397,242, 6,496,847, 6,704,925, 6,711,672, 6,725,289,\n6,735,601, 6,785,886, 6,789,156, 6,795,966, 6,880,022,\n6,944,699, 6,961,806, 6,961,941, 7,069,413, 7,082,598,\n7,089,377, 7,111,086, 7,111,145, 7,117,481, 7,149,843, 7,155,558,\n7,222,221, 7,260,815, 7,260,820 and 7,269,683; patents pending."
 #define TRADEMARK_STRING   "VMware, the VMware \"boxes\" logo and design, Virtual SMP and VMotion are\nregistered trademarks or trademarks of VMware, Inc. in the United States\nand/or other jurisdictions."
 #define GENERIC_TRADEMARK_STRING "All other marks and names mentioned herein may be trademarks of their\nrespective companies."
 

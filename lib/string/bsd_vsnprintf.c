@@ -44,7 +44,6 @@
  * If you care to compare, the original is checked into this directory
  * as bsd_vsnprintf_orig.c.
  */
-//#include <sys/cdefs.h>
 
 #if !defined(STR_NO_WIN32_LIBS) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
 
@@ -54,7 +53,6 @@
  * This code is large and complicated...
  */
 
-//#include "namespace.h"
 #include <sys/types.h>
 
 #include <ctype.h>
@@ -68,14 +66,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
-//#include <printf.h>
-
-#include <stdarg.h>
-//#include "un-namespace.h"
-
-//#include "libc_private.h"
-//#include "local.h"
-//#include "fvwrite.h"
 
 #include "vmware.h"
 #include "bsd_output_int.h"
@@ -127,7 +117,7 @@ __sfvwrite(StrBuf *sbuf, struct __suio *uio)
 	 char *p;
 	 ASSERT(sbuf->size > 0);
 	 n = ROUNDUP(n, sbuf->size);
-	 if ((p = realloc(sbuf->buf, n * sizeof (char))) == NULL) {
+	 if ((p = realloc(sbuf->buf, n)) == NULL) {
 	    sbuf->error = TRUE;
 	    return 1;
 	 }
@@ -152,7 +142,7 @@ __sfvwrite(StrBuf *sbuf, struct __suio *uio)
       }
 
       memcpy(sbuf->buf + sbuf->index, siov->iov_base,
-             numToWrite * sizeof (char));
+             numToWrite);
       sbuf->index += numToWrite;
    }
 
@@ -526,8 +516,8 @@ bsd_vsnprintf(char **outbuf, size_t bufSize, const char *fmt0, va_list ap)
     */
 #define   PRINT(ptr, len) {                             \
       iovp->iov_base = (ptr);                           \
-      iovp->iov_len = (len);                            \
-      uio.uio_resid += (len);                           \
+      iovp->iov_len = (len) * sizeof (char);            \
+      uio.uio_resid += (len) * sizeof (char);           \
       iovp++;                                           \
       if (++uio.uio_iovcnt >= NIOV) {                   \
          if (__sprint(&sbuf, &uio))                     \
@@ -832,6 +822,7 @@ bsd_vsnprintf(char **outbuf, size_t bufSize, const char *fmt0, va_list ap)
       case 't':
          flags |= PTRDIFFT;
          goto rflag;
+      case 'Z':
       case 'z':
          flags |= SIZET;
          goto rflag;
@@ -1472,6 +1463,7 @@ __find_arguments (const char *fmt0, va_list ap, union arg **argtable)
       case 't':
          flags |= PTRDIFFT;
          goto rflag;
+      case 'Z':
       case 'z':
          flags |= SIZET;
          goto rflag;
@@ -1789,8 +1781,6 @@ Str_MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
       iovp = iov;                                                       \
    }
 
-#define   INTMAX_SIZE   (INTMAXT|SIZET|PTRDIFFT|LLONGINT)
-
 #define FETCHARG(a, i) do { \
    int ii = (i) - 1; \
    if (ii >= numArgs) { \
@@ -2016,6 +2006,7 @@ Str_MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
       case 't':
          flags |= PTRDIFFT;
          goto rflag;
+      case 'Z':
       case 'z':
          flags |= SIZET;
          goto rflag;
@@ -2053,14 +2044,14 @@ Str_MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
       case 'd':
       case 'i':
 	 FETCHARG(a, nextarg++);
-	 if ((flags & INTMAX_SIZE) != 0) {
+	 if ((flags & (INTMAXT|LLONGINT)) != 0) {
 	    if (a->type == MSGFMT_ARG_INT64) {
 	       ujval = a->v.signed64;
 	    } else {
 	       sbuf.error = TRUE;
 	       goto error;
 	    }
-	 } else if ((flags & LONGINT) != 0) {
+	 } else if ((flags & (SIZET|PTRDIFFT|LONGINT)) != 0) {
 	    if (a->type == MSGFMT_ARG_INT64) {
 	       ujval = a->v.signed64;
 	    } else if (a->type == MSGFMT_ARG_INT32) {
@@ -2302,14 +2293,14 @@ Str_MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
 
       get_unsigned:
 	 FETCHARG(a, nextarg++);
-	 if ((flags & INTMAX_SIZE) != 0) {
+	 if ((flags & (INTMAXT|LLONGINT)) != 0) {
 	    if (a->type == MSGFMT_ARG_INT64) {
 	       ujval = a->v.unsigned64;
 	    } else {
 	       sbuf.error = TRUE;
 	       goto error;
 	    }
-	 } else if ((flags & LONGINT) != 0) {
+	 } else if ((flags & (SIZET|PTRDIFFT|LONGINT)) != 0) {
 	    if (a->type == MSGFMT_ARG_INT64) {
 	       ujval = a->v.unsigned64;
 	    } else if (a->type == MSGFMT_ARG_INT32) {

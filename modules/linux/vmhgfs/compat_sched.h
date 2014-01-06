@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 2002 VMware, Inc.  All Rights Reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2002 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 #ifndef __COMPAT_SCHED_H__
 #   define __COMPAT_SCHED_H__
@@ -40,6 +40,34 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 3)
 #   define cond_resched() (need_resched() ? schedule() : (void) 0)
+#endif
+
+/* Oh well.  We need yield...  Happy us! */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 20)
+#   ifdef __x86_64__
+#      define compat_yield() there_is_nothing_like_yield()
+#   else
+#      include <linux/unistd.h>
+#      include <linux/kernel.h>
+
+/*
+ * Used by _syscallX macros. Note that this is global variable, so
+ * do not rely on its contents too much. As exit() is only function
+ * we use, and we never check return value from exit(), we have
+ * no problem...
+ */
+extern int errno;
+
+/*
+ * compat_exit() provides an access to the exit() function. It must 
+ * be named compat_exit(), as exit() (with different signature) is 
+ * provided by x86-64, arm and other (but not by i386).
+ */
+#      define __NR_compat_yield __NR_sched_yield
+static inline _syscall0(int, compat_yield);
+#   endif
+#else
+#   define compat_yield() yield()
 #endif
 
 

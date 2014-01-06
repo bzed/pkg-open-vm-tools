@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * timeutil.c --
@@ -527,6 +527,30 @@ TimeUtil_NtTimeToUnixTime(struct timespec *unixTime,   // OUT: Time in Unix form
 
    return 0;
 }
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * TimeUtil_UnixTimeToNtTime --
+ *
+ *    Convert from Unix time to Windows NT time.
+ *
+ * Results:
+ *    The time in Windows NT format.
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+VmTimeType
+TimeUtil_UnixTimeToNtTime(struct timespec unixTime) // IN: Time in Unix format
+{
+   return (VmTimeType)unixTime.tv_sec * 10000000 +
+      unixTime.tv_nsec / 100 + UNIX_EPOCH;
+}
 #endif // _WIN32 && N_PLAT_NLM
 
 #ifdef _WIN32
@@ -556,28 +580,36 @@ TimeUtil_UTCTimeToSystemTime(const __time64_t utcTime,   // IN
    struct tm *atm;
 
    /*
-    * Although _localtime64 claims to support years up through 3000, we
-    * don't trust it.  Sanity check against (approximately) the year 2400.
+    * _localtime64 support years up through 3000.  At least it says
+    * so.  I'm getting garbage only after reaching year 4408.
     */
-   ASSERT(utcTime >= 0 && utcTime < (60LL * 60 * 24 * 365 * (2400 - 1970)));
+   if (utcTime < 0 || utcTime > (60LL * 60 * 24 * 365 * (3000 - 1970))) {
+      return FALSE;
+   }
    
    atm = _localtime64(&utcTime);
-
    if (atm == NULL) {
-      ASSERT(FALSE);
       return FALSE;
    }
 
    atmYear = atm->tm_year + 1900;
    atmMonth = atm->tm_mon + 1;
 
-   ASSERT(atmYear      < 0x10000 &&
-          atmMonth     < 0x10000 &&
-          atm->tm_wday < 0x10000 &&
-          atm->tm_mday < 0x10000 &&
-          atm->tm_hour < 0x10000 &&
-          atm->tm_min  < 0x10000 &&
-          atm->tm_sec  < 0x10000);
+   /*
+    * Windows's SYSTEMTIME documentation says that these are limits...
+    * Main reason for this test is to cut out negative values _localtime64
+    * likes to return for some inputs.
+    */
+   if (atmYear < 1601 || atmYear > 30827 ||
+       atmMonth < 1 || atmMonth > 12 ||
+       atm->tm_wday < 0 || atm->tm_wday > 6 ||
+       atm->tm_mday < 1 || atm->tm_mday > 31 ||
+       atm->tm_hour < 0 || atm->tm_hour > 23 ||
+       atm->tm_min < 0 || atm->tm_min > 59 ||
+       /* Allow leap second, just in case... */
+       atm->tm_sec < 0 || atm->tm_sec > 60) {
+      return FALSE;
+   }
 
    systemTime->wYear         = (WORD) atmYear;
    systemTime->wMonth        = (WORD) atmMonth;

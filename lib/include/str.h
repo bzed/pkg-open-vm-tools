@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * str.h --
@@ -41,13 +41,24 @@
 #include "vm_basic_types.h"
 
 
-// these platforms use bsd_vsnprintf()
-// XXX for now, this does not mean it has bsd_vsnwprintf()
+/*
+ * These platforms use bsd_vsnprintf().
+ * This does not mean it has bsd_vsnwprintf().
+ */
 #if defined _WIN32 && !defined STR_NO_WIN32_LIBS || \
-    defined __linux__ && !defined N_PLAT_NLM
-#define HAS_BSD_PRINTF
+    defined __linux__ && !defined N_PLAT_NLM || __APPLE__
+#define HAS_BSD_PRINTF 1
 #endif
 
+/*
+ * And these platforms/setups use bsd_vsnwprintf()
+ */
+#if (defined _WIN32 && !defined STR_NO_WIN32_LIBS) || \
+   (defined __GNUC__ && (__GNUC__ < 2                 \
+                         || (__GNUC__ == 2            \
+                             && __GNUC_MINOR__ < 96)))
+#define HAS_BSD_WPRINTF 1
+#endif
 
 /*
  * ASCII/UTF-8 versions

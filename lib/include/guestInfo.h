@@ -1,7 +1,5 @@
-/* **********************************************************
- * Copyright 2003 VMware, Inc.  All rights reserved.
- * 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2003 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * guestInfo.h --
@@ -31,6 +30,9 @@
 
 #include "vm_basic_types.h"
 
+#include "dbllnklst.h"
+
+#define GUEST_INFO_COMMAND_TWO "SetGuestInfo2"
 #define GUEST_INFO_COMMAND "SetGuestInfo"
 #define MAX_VALUE_LEN 100
 #define MAX_NICS     16
@@ -51,17 +53,75 @@ typedef enum {
    INFO_MAX
 } GuestInfoType;
 
-typedef struct _NicEntry {
+/*
+ * For backward compatibility's sake over wire (from Tools to VMX), new fields 
+ * in this struct must be added at the end.  THis is the part that goes over wire.
+ */
+typedef struct VmIpAddressEntryProtocol {
+   uint32 addressFamily;             /* uint8 should be enough.  However we */
+                                     /* need it to be multiple of 4 bytes */
+                                     /* in order to have the same size on */
+                                     /* different hardware architectures */
+   uint32 dhcpEnabled;   /* This is a boolean.  However we need it to be */
+                         /* multiple of 4 bytes, in order to be the same */
+                         /* on different hardware architecture */
+   char ipAddress[IP_ADDR_SIZE];
+   char subnetMask[IP_ADDR_SIZE];
+   uint32 totalIpEntrySizeOnWire;
+} VmIpAddressEntryProtocol;
+
+typedef struct VmIpAddressEntry {
+   DblLnkLst_Links links;
+   VmIpAddressEntryProtocol ipEntryProto;
+} VmIpAddressEntry;
+
+typedef struct NicEntryV1 {
    unsigned int numIPs;
-   char macAddress[MAC_ADDR_SIZE]; // In the format "12-23-34-45-56-67"
+   char macAddress[MAC_ADDR_SIZE];  // In the format "12-23-34-45-56-67"
    char ipAddress[MAX_IPS][IP_ADDR_SIZE];
-} NicEntry, *PNicEntry;
+} NicEntryV1;
 
-typedef struct _NicInfo {
+/*
+ * For backward compatibility's sake over wire (from Tools to VMX), new fields 
+ * in this struct must be added at the end.  THis is the part that goes over wire.
+ */
+typedef struct NicEntryProtocol {     
+   char macAddress[MAC_ADDR_SIZE];   /* In the format "12-23-34-45-56-67" */
+   char pad[1];                      /* MAC_ADDR_SIZE happens to be 19.  */
+                                     /* Pad it to be multiple of 4 bytes */
+   uint32 numIPs;
+   uint32 ipAddressSizeOnWire;      /* size of struct VmIpAddresses over wire*/
+   uint32 totalNicEntrySizeOnWire;
+} NicEntryProtocol;
+
+typedef struct NicEntry {
+   DblLnkLst_Links links;           
+   NicEntryProtocol nicEntryProto;
+   DblLnkLst_Links ipAddressList;
+/* DblLnkLst_Links gatewayList; */
+} NicEntry;
+
+typedef struct NicInfoV1 {
    unsigned int numNicEntries;
-   NicEntry nicList[MAX_NICS];
-} NicInfo, *PNicInfo;
+   NicEntryV1 nicList[MAX_NICS];
+} NicInfoV1;
 
+/*
+ * For backward compatibility's sake over wire (from Tools to VMX), new fields 
+ * in this struct must be added at the end.  This is the part that goes over wire.
+ */
+typedef struct NicInfoProtocol { 
+   uint32 version;
+   uint32 nicEntrySizeOnWire;      /* length of NicEntry over wire.  Lengths differ */
+                                   /* with different versions. */
+   uint32 numNicEntries;
+   uint32 totalInfoSizeOnWire;    
+} NicInfoProtocol;
+
+typedef struct NicInfo {
+   NicInfoProtocol    nicInfoProto;
+   DblLnkLst_Links    nicList;     /* Pointers in it must be initialized to NULL */
+} NicInfo;
 
 typedef
 #include "vmware_pack_begin.h"
@@ -78,4 +138,15 @@ typedef struct _DiskInfo {
    PPartitionEntry partitionList;
 } DiskInfo, *PDiskInfo;
 
+void GuestInfo_FreeDynamicMemoryInNic(NicEntry *nicEntry);
+void GuestInfo_FreeDynamicMemoryInNicInfo(NicInfo *nicInfo);
+
+NicEntry *NicInfo_AddNicEntry(NicInfo *nicInfo, const char macAddress[MAC_ADDR_SIZE]);
+VmIpAddressEntry *NicEntry_AddIpAddress(NicEntry *nicEntry, 
+                                        const char *ipAddr, 
+                                        const uint32 af_type); 
+
+NicEntry *NicInfo_FindMacAddress(NicInfo *nicInfo, const char *macAddress);
+
 #endif // _GUEST_INFO_H_
+

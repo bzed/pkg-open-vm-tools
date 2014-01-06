@@ -1,6 +1,5 @@
-/* ************************************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved. 
- * ************************************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * fileLockPosix.c --
@@ -320,11 +320,11 @@ GetLockFileValues(const char *lockFileName, // IN:
    char line[1000];
    Bool deleteLockFile;
 
+   int	status;
+
    ASSERT(lockFileName);
    ASSERT(pid);
    ASSERT(hostID);
-
-   int	status = 1;
 
    su = IsSuperUser();
    SuperUser(TRUE);
@@ -363,6 +363,7 @@ GetLockFileValues(const char *lockFileName, // IN:
       }
    }
 
+   status = 1;
    if (deleteLockFile) {
       status = 0;  // we're going to delete the file
       if (!RemoveStaleLockFile(lockFileName)) {
@@ -562,9 +563,9 @@ FileLock_LockDevice(const char *deviceName)   // IN:
    char       lockFileName[FILE_MAXPATH];
    char       lockFileLink[FILE_MAXPATH];
 
-   ASSERT(deviceName);
-
    int  status = -1;
+
+   ASSERT(deviceName);
 
    Str_Sprintf(lockFileName, sizeof lockFileName, "%s/LCK..%s",
                DEVICE_LOCK_DIR, deviceName);
@@ -904,7 +905,315 @@ FileLockValidOwner(const char *executionID, // IN:
 /*
  *----------------------------------------------------------------------
  *
+ *  FileLockOpenFile --
+ *
+ *	Open the specified file
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      May change the host file system.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileLockOpenFile(const char *path,             // IN:
+                 int flags,                    // IN:
+                 FILELOCK_FILE_HANDLE *handle) // OUT:
+{
+   *handle = PosixFileOpener(path, flags, 0644);
+
+   return *handle == -1 ? errno : 0;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ *  FileLockCloseFile --
+ *
+ *	Close the specified file
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      May change the host file system.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileLockCloseFile(FILELOCK_FILE_HANDLE handle) // IN:
+{
+   return close(handle) == -1 ? errno : 0;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileLockRenameFile --
+ *
+ *	Rename a file.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      May change the host file system.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileLockRenameFile(const char *from,  // IN:
+                   const char *to)    // IN:
+{
+   return rename(from, to) == -1 ? errno : 0;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileLockReadFile --
+ *
+ *	Read a file.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileLockReadFile(FILELOCK_FILE_HANDLE handle,  // IN:
+                 void *buf,                    // IN:
+                 uint32 requestedBytes,        // IN:
+                 uint32 *resultantBytes)       // OUT:
+{
+   int err;
+   ssize_t result;
+
+   result = read(handle, buf, requestedBytes);
+
+   if (result == -1) {
+      *resultantBytes = 0;
+      err = errno;
+   } else {
+      *resultantBytes = result;
+      err = 0;
+   }
+
+   return err;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileLockWriteFile --
+ *
+ *	Write a file.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      May change the host file system.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileLockWriteFile(FILELOCK_FILE_HANDLE handle,  // IN:
+                  void *buf,                    // IN:
+                  uint32 requestedBytes,        // IN:
+                  uint32 *resultantBytes)       // OUT:
+{
+   int err;
+   ssize_t result;
+
+   result = write(handle, buf, requestedBytes);
+
+   if (result == -1) {
+      *resultantBytes = 0;
+      err = errno;
+   } else {
+      *resultantBytes = result;
+      err = 0;
+   }
+
+   return err;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ *  FileLockDeleteFile --
+ *	Delete the specified file
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      May change the host file system.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileLockDeleteFile(const char *path)  // IN:
+{
+   return unlink(path) == -1 ? errno : 0;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileLockFileSize --
+ *
+ *	Return the size of an opened file.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileLockFileSize(FILELOCK_FILE_HANDLE handle,  // IN:
+                 uint32 *fileSize)             // OUT:
+{
+   int err;
+   struct stat statbuf;
+
+   if (fstat(handle, &statbuf) == -1) {
+      err = errno;
+   } else {
+      *fileSize = statbuf.st_size;
+      err = 0;
+   }
+
+   return err;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileLockFileType --
+ *
+ *	Return the type of a file.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileLockFileType(const char *path,  // IN:
+                 int *type)         // OUT:
+{
+   int err;
+   struct stat statbuf;
+
+   if (stat(path, &statbuf) == -1) {
+      err = errno;
+   } else {
+      if (type) {
+         *type = statbuf.st_mode & S_IFMT;
+      }
+      err = 0;
+   }
+
+   return err;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileLockCreateDirectory --
+ *
+ *	Create a directory.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      May change the host file system.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileLockCreateDirectory(const char *path) // IN:
+{
+   int err;
+   mode_t save;
+
+   save = umask(0);
+   err = mkdir(path, 0777) == -1 ? errno : 0;
+   umask(save);
+
+   return err;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileLockDeleteDirectory --
+ *
+ *	Delete a directory.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      May change the host file system.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileLockDeleteDirectory(const char *path) // IN:
+{
+   return rmdir(path) == -1 ? errno : 0;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
  * FileLock_Lock --
+ *
  *	Obtain a lock on a file; shared or exclusive access. Also specify
  *	how long to wait on lock acquisition - msecMaxWaitTime
  *

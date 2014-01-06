@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * msg.h  --
@@ -33,7 +33,7 @@
 #include <stdarg.h>
 #include "err.h"
 #include "vm_basic_types.h"
-#ifdef USE_MSGFMT
+#ifndef NO_MSGFMT
 #include "msgfmt.h"
 #endif
 
@@ -95,7 +95,7 @@ typedef enum HintOptions {
    HINT_OKCANCEL
 } HintOptions;
 
-#ifdef USE_MSGFMT
+#ifndef NO_MSGFMT
 typedef struct Msg_List Msg_List;
 struct Msg_List {
    Msg_List *next;
@@ -119,7 +119,7 @@ typedef struct MsgCallback {
    void  (*lazyProgress)(void *handle, int percent);
    void  (*lazyProgressEnd)(void *handle);
 
-#ifdef USE_MSGFMT
+#ifndef NO_MSGFMT
    void (*postList)(MsgSeverity severity, Msg_List *messages);
    int (*questionList)(const Msg_String *buttons, int defaultAnswer,
                        Msg_List *messages);
@@ -188,6 +188,7 @@ EXTERN void Msg_SetLocale(const char *locale, const char *binaryName);
 EXTERN char *Msg_GetMessageFilePath(const char *locale, const char *binaryName,
 				    const char *extension);
 EXTERN char *Msg_FormatFloat(double value, unsigned int precision);
+EXTERN char *Msg_FormatSizeInBytes(uint64 size);
 EXTERN Bool Msg_LoadMessageFile(const char *locale, const char *fileName);
 
 
@@ -197,7 +198,7 @@ EXTERN Bool Msg_LoadMessageFile(const char *locale, const char *fileName);
 
 EXTERN const char *Msg_GetMessages(void);
 EXTERN const char *Msg_GetMessagesAndReset(void);
-#ifdef USE_MSGFMT
+#ifndef NO_MSGFMT
 EXTERN Msg_List *Msg_GetMsgList(void);
 EXTERN Msg_List *Msg_GetMsgListAndReset(void);
 EXTERN void Msg_FreeMsgList(Msg_List *messages);

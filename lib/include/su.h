@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * su.h --
@@ -45,7 +45,8 @@ int Id_SetRESUid(uid_t ruid, uid_t euid, uid_t suid);
 #define SuperUser(yes) Id_SetSuperUser(yes)
 #define Id_GetEUid() geteuid()
 
-void *Id_AuthGet(size_t *size);
+void *Id_AuthGetLocal();
+void *Id_AuthGetExternal(size_t *size);
 Bool Id_AuthSet(void const *buf, size_t size);
 Bool Id_AuthCheck(char const *right);
 

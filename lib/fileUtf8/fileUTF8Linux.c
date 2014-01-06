@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * fileUTF8Posix.c --
@@ -545,6 +545,59 @@ FileUTF8_Exists(const char *utf8Name)   // IN
 #endif
 
    result = File_Exists(localName);
+
+#if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
+   free(localName);
+#endif
+
+   return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileUTF8_GetTimes --
+ *
+ *      Get the date and time that a file was created, last accessed,
+ *      last modified and last attribute changed.
+ *
+ * Results:
+ *      TRUE if succeed or FALSE if error.
+ *      
+ * Side effects:
+ *      If a particular time is not available, -1 will be returned for
+ *      that time.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+FileUTF8_GetTimes(const char *utf8Name,       // IN
+                  VmTimeType *createTime,     // OUT: Windows NT time format
+                  VmTimeType *accessTime,     // OUT: Windows NT time format
+                  VmTimeType *writeTime,      // OUT: Windows NT time format
+                  VmTimeType *attrChangeTime) // OUT: Windows NT time format
+{
+   Bool result = FALSE;
+   char *localName = NULL;
+
+#if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
+   if (!CodeSet_Utf8ToCurrent(utf8Name,
+                              strlen(utf8Name),
+                              &localName,
+                              NULL)) {
+      return FALSE;
+   }
+#else
+   localName = (char *)utf8Name;
+#endif
+
+   result = File_GetTimes(localName,
+                          createTime,
+                          accessTime,
+                          writeTime,
+                          attrChangeTime);
 
 #if CONVERT_STRINGS_FROM_UTF8_TO_LOCAL
    free(localName);

@@ -1,7 +1,6 @@
 
-/* **********************************************************
- * Copyright 2003 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2003 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +14,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * vixTranslateErrorOpenSource.c --
@@ -70,7 +70,7 @@ Vix_TranslateSystemError(int systemError) // IN
    case ERROR_PATH_NOT_FOUND:
    case ERROR_BAD_PATHNAME:
    case ERROR_DIRECTORY:
-   case ERROR_BUFFER_OVERFLOW:
+   case ERROR_BUFFER_OVERFLOW: 
       err = VIX_E_FILE_NOT_FOUND;
       break;
    case ERROR_TOO_MANY_OPEN_FILES:
@@ -96,6 +96,13 @@ Vix_TranslateSystemError(int systemError) // IN
       break;
    case ERROR_INVALID_PARAMETER:
       err = VIX_E_INVALID_ARG;
+      break;
+   case ERROR_NOT_SUPPORTED:
+      err = VIX_E_NOT_SUPPORTED;
+      break;
+   case ERROR_NO_DATA:
+   case ERROR_INVALID_DATA: 
+      err = VIX_E_NOT_FOUND;
       break;
    case ERROR_NOT_ENOUGH_MEMORY:
    default:

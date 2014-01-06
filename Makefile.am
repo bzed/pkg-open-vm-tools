@@ -18,44 +18,25 @@
 ### Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ################################################################################
 
-SUBDIRS = 
+# These subdirectories require X, and may be disabled using --without-x
+X11_SUBDIRS =
+X11_SUBDIRS += vmware-user
+X11_SUBDIRS += toolbox
+
+SUBDIRS =
 SUBDIRS += lib
 SUBDIRS += guestd
-SUBDIRS += vmware-user
-SUBDIRS += toolbox
+if HAVE_X11
+   SUBDIRS += $(X11_SUBDIRS)
+endif
 SUBDIRS += hgfsclient
-# hgfsmounter is only needed on Linux.
-if LINUX
+if BUILD_HGFSMOUNTER
    SUBDIRS += hgfsmounter
 endif
 SUBDIRS += checkvm
 SUBDIRS += libguestlib
+SUBDIRS += xferlogs
 
-MODULES =
-MODULES += vmblock
-MODULES += vmhgfs
-MODULES += vmmemctl
-MODULES += vmxnet
-
-.PHONY: modules $(MODULES)
-modules: $(MODULES)
-
-$(MODULES):
-if LINUX
-	(cd modules/linux/$@ && \
-	make)
-else
-	@echo 'Only Linux modules are currently available.'
-	exit 1
-endif
-
-## Automake will supplement its own "distclean" and "clean" targets with these.
-distclean-local:
-clean-local:
-if LINUX
-	(cd modules/linux && \
-	for MOD in $(MODULES); do \
-		(cd "$$MOD" && make clean); \
-	done; \
-	rm -f *.o)
-endif
+.PHONY: modules
+modules:
+	$(MAKE) -C modules

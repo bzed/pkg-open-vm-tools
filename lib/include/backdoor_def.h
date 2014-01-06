@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * backdoor_def.h --
@@ -107,7 +107,9 @@
 #define BDOOR_CMD_GETTIMEFULL           46
 #define BDOOR_CMD_STATELOGGER           47
 #define BDOOR_CMD_CHECKFORCEBIOSSETUP	48
-#define BDOOR_CMD_MAX                   49
+#define BDOOR_CMD_LAZYTIMEREMULATION    49
+#define BDOOR_CMD_BIOSBBS               50
+#define BDOOR_CMD_MAX                   51
 
 /* 
  * IMPORTANT NOTE: When modifying the behavior of an existing backdoor command,

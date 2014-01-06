@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2005 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2005 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * dnd.h --
@@ -30,6 +30,7 @@
 
 #ifdef _WIN32
 #   include <windows.h>
+#   include <shellapi.h>
 #endif
 
 #include "includeCheck.h"
@@ -88,6 +89,13 @@ EXTERN Bool DnD_FakeMouseEvent(DWORD flag);
 EXTERN Bool DnD_FakeMouseState(DWORD key, Bool isDown);
 EXTERN Bool DnD_FakeEscapeKey(void);
 EXTERN Bool DnD_DeleteLocalDirectory(const char *localDir);
+EXTERN Bool DnD_SetClipboard(UINT format, char *buffer, int len);
+EXTERN Bool DnD_GetFileList(HDROP hDrop,
+                            char **remoteFiles,
+                            int *remoteLength,
+                            char **localFiles,
+                            int *localLength,
+                            uint64 *totalSize);
 
 #else
 /*

@@ -1,7 +1,5 @@
-/*
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- *
- *
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -30,6 +29,7 @@
 #define __NETUTIL_H__
 
 #include "vm_basic_types.h"
+#include "guestInfo.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -37,6 +37,8 @@
 #endif
 
 char *NetUtil_GetPrimaryIP(void);
+
+NicEntry *NetUtil_GetPrimaryNicEntry(void);
 
 #ifdef _WIN32
 DWORD NetUtil_LoadIpHlpApiDll(void);

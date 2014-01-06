@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -393,6 +393,31 @@ HgfsAttrV2;
  * server's minimum packet size can be changed, but the client should continue
  * to send an extra byte, otherwise older servers with a slightly longer 
  * minimum packet size may consider the new client's packets to be too short.
+ *
+ * UTF-8 representation
+ * --------------------
+ * XXX: It is expected that file names in the HGFS protocol will be a valid UTF-8
+ * encoding.
+ * See RFC 3629 (http://tools.ietf.org/html/rfc3629)
+ *
+ * Unicode Format
+ * --------------
+ * HGFS protocol requests that contain file names as in the structure below,
+ * should contain unicode normal form C (precomposed see explanation below)
+ * characters therefore hosts such as Mac OS X which
+ * use HFS+ and unicode form D should convert names before
+ * processing or sending HGFS requests.
+ *
+ * Precomposed (normal form C) versus Decomposed (normal form D)
+ * -------------------------------------------------------------
+ * Certain Unicode characters can be encoded in more than one way. 
+ * For example, an Á (A acute) can be encoded either precomposed,
+ * as U+00C1 (LATIN CAPITAL LETTER A WITH ACUTE), or decomposed, 
+ * as U+0041 U+0301 (LATIN CAPITAL LETTER A followed by a COMBINING ACUTE ACCENT).
+ * Precomposed characters are more common in the Windows world, 
+ * whereas decomposed characters are more common on the Mac.
+ *
+ * See UAX 15 (http://unicode.org/reports/tr15/)
  */
 
 typedef

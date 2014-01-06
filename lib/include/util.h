@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * util.h --
@@ -75,7 +75,8 @@ typedef struct DictItem {
    } u;
 } DictItem;
 
-EXTERN char * Util_IORegGetStringProperty(io_object_t entry, CFStringRef property);
+EXTERN char *Util_CFStringToUTF8CString(CFStringRef s);
+EXTERN char *Util_IORegGetStringProperty(io_object_t entry, CFStringRef property);
 EXTERN Bool Util_IORegGetNumberProperty(io_object_t entry, CFStringRef property,
                                         CFNumberType type, void *val);
 EXTERN Bool Util_IORegGetBooleanProperty(io_object_t entry, CFStringRef property,
@@ -85,6 +86,8 @@ EXTERN io_iterator_t Util_IORegGetIter(const char *key, const char *val);
 EXTERN io_object_t Util_IORegGetDeviceObjectByName(const char *deviceName);
 EXTERN char * Util_GetBSDName(const char *deviceName);
 EXTERN char * Util_IORegGetDriveType(const char *deviceName);
+EXTERN char * Util_GetMacOSUserHomeDirectory();
+EXTERN char * Util_GetMacOSDefaultVMPath();
 #endif // __APPLE__
 
 

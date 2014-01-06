@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright (C) 2006 VMware, Inc.  All Rights Reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2006 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
- */
+ *
+ *********************************************************/
 
 #ifndef __COMPAT_FS_H__
 #   define __COMPAT_FS_H__
@@ -159,7 +159,7 @@
 #define compat_i_size_read(inode) ((inode)->i_size)
 #define compat_i_size_write(inode, size) ((inode)->i_size = size)
 #else
-#define compat_i_size_read(node) i_size_read(inode)
+#define compat_i_size_read(inode) i_size_read(inode)
 #define compat_i_size_write(inode, size) i_size_write(inode, size)
 #endif
 

@@ -33,6 +33,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+
 /*
  * bsd_output_int.h --
  *
@@ -66,10 +67,12 @@ typedef intptr_t ptrdiff_t;
 
 #define MAXEXPDIG 6
 
-/* For u_int and u_long */
-#ifdef sun
+/* For u_int and u_long, and other types we might want. */
+#ifndef _WIN32
 #include <unistd.h>
-#endif // sun
+#include <sys/types.h>
+#include <stddef.h>
+#endif
 
 union arg {
    int   intarg;

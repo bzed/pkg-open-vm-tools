@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2003 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2003 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * vixCommands.h --
@@ -57,6 +57,7 @@
 #define VIX_USER_CREDENTIAL_NAME_PASSWORD_OBFUSCATED  4
 #define VIX_USER_CREDENTIAL_CONSOLE_USER              5
 #define VIX_USER_CREDENTIAL_HOST_CONFIG_SECRET        6
+#define VIX_USER_CREDENTIAL_HOST_CONFIG_HASHED_SECRET 7
 
 #define VIX_SHARED_SECRET_CONFIG_USER_NAME          "__VMware_Vix_Shared_Secret_1__"
 
@@ -87,6 +88,14 @@ enum VixCommonCommandOptionValues {
    VIX_COMMAND_GUEST_RETURNS_ENCODED_STRING  = 0x20,
    VIX_COMMAND_GUEST_RETURNS_PROPERTY_LIST   = 0x40,
    VIX_COMMAND_GUEST_RETURNS_BINARY          = 0x80,
+};
+
+/*
+ * These are the flags set in the request Flags field.
+ */
+enum {
+   VIX_REQUESTMSG_ONLY_RELOAD_NETWORKS                = 0x01,
+   VIX_REQUESTMSG_RETURN_ON_INITIATING_TOOLS_UPGRADE  = 0x02
 };
 
 
@@ -250,7 +259,6 @@ struct VixCommandNamePassword {
 }
 #include "vmware_pack_end.h"
 VixCommandNamePassword;
-
 
 
 /*
@@ -830,6 +838,72 @@ struct VixMsgRecordReplayEvent {
 #include "vmware_pack_end.h"
 VixMsgRecordReplayEvent;
 
+typedef
+
+#include "vmware_pack_begin.h"
+struct VixMsgGetRecordReplayInfoResponse {
+   VixCommandResponseHeader header;
+   
+   uint32 curLogOffset;
+   uint32 logLength;
+   uint64 currentBranches;
+   uint64 totalBranches;
+}     
+#include "vmware_pack_end.h"
+VixMsgGetRecordReplayInfoResponse;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgVMSnapshotSetReplaySpeedRequest {
+   VixCommandRequestHeader    header;
+
+   int32                      options;
+   int32                      uSeconds;
+}
+#include "vmware_pack_end.h"
+VixMsgVMSnapshotSetReplaySpeedRequest;
+
+
+/*
+ * Event for Fault Tolerance state changes
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgFaultToleranceEvent {
+   VixMsgEventHeader          eventHeader;
+
+   int32                      state;
+} 
+#include "vmware_pack_end.h"
+VixMsgFaultToleranceEvent;
+
+
+/*
+ * Fault Tolerance Automation
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgFaultToleranceControlRequest {
+   VixCommandRequestHeader    requestHeader;
+
+   int32                      command;
+   char                       uuid[48];
+} 
+#include "vmware_pack_end.h"
+VixMsgFaultToleranceControlRequest;
+
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgFaultToleranceRegisterRequest {
+   VixCommandRequestHeader    requestHeader;
+
+   char                       uuid[48];
+   char                       vmxFilePath[1];
+}
+#include "vmware_pack_end.h"
+VixMsgFaultToleranceRegisterRequest;
+
 
 
 /*
@@ -1192,12 +1266,12 @@ VixMsgGetVProbesResponse;
  */
 typedef
 #include "vmware_pack_begin.h"
-struct VixMsgVProbeLoadFileRequest {
+struct VixMsgVProbeLoadRequest {
    VixCommandResponseHeader header;
-   char   fname[1];     /* variable length depending on fileName */
+   char   string[1];     /* variable length depending on strlen */
 } 
 #include "vmware_pack_end.h"
-VixMsgVProbeLoadFileRequest;
+VixMsgVProbeLoadRequest;
 
 /*
  * **********************************************************
@@ -1508,7 +1582,7 @@ enum {
 
    VIX_COMMAND_GET_VPROBES                      = 105,
    VIX_COMMAND_VPROBE_GET_GLOBALS               = 106,
-   VIX_COMMAND_VPROBE_LOADFILE                  = 107,
+   VIX_COMMAND_VPROBE_LOAD                      = 107,
    VIX_COMMAND_VPROBE_RESET                     = 108,
 
    VIX_COMMAND_LIST_USB_DEVICES                 = 109,
@@ -1531,6 +1605,16 @@ enum {
 
    VIX_COMMAND_GET_GUEST_NETWORKING_CONFIG      = 116,
    VIX_COMMAND_SET_GUEST_NETWORKING_CONFIG      = 117,
+
+   VIX_COMMAND_FAULT_TOLERANCE_REGISTER         = 118,
+   VIX_COMMAND_FAULT_TOLERANCE_UNREGISTER       = 119,
+   VIX_COMMAND_FAULT_TOLERANCE_CONTROL          = 120,
+   VIX_COMMAND_FAULT_TOLERANCE_QUERY_SECONDARY  = 121,
+
+   VIX_COMMAND_PAUSE_SNAPSHOT_LOG_PLAYBACK      = 122,
+   VIX_COMMAND_RESUME_SNAPSHOT_LOG_PLAYBACK     = 123,
+   VIX_COMMAND_GET_SNAPSHOT_LOG_INFO            = 124,
+   VIX_COMMAND_SET_REPLAY_SPEED_RELATIVE_USECS  = 125,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,

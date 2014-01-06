@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2004 VMware, Inc.  All rights reserved. - 
- * *********************************************************
+/*********************************************************
+ * Copyright (C) 2004 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 /*
  * foundryMsg.c --
@@ -192,7 +192,8 @@ VixMsg_AllocRequestMsg(size_t msgHeaderAndBodyLength,    // IN
    char *destPtr;
 
    if ((VIX_USER_CREDENTIAL_NAME_PASSWORD == credentialType) 
-      || (VIX_USER_CREDENTIAL_HOST_CONFIG_SECRET == credentialType)) {
+      || (VIX_USER_CREDENTIAL_HOST_CONFIG_SECRET == credentialType)
+      || (VIX_USER_CREDENTIAL_HOST_CONFIG_HASHED_SECRET == credentialType)) {
       /*
        * Both of these are optional.
        */
@@ -239,7 +240,8 @@ VixMsg_AllocRequestMsg(size_t msgHeaderAndBodyLength,    // IN
    commandRequest->userCredentialType = credentialType;
 
    if ((VIX_USER_CREDENTIAL_NAME_PASSWORD == credentialType)
-         || (VIX_USER_CREDENTIAL_HOST_CONFIG_SECRET == credentialType)) {
+         || (VIX_USER_CREDENTIAL_HOST_CONFIG_SECRET == credentialType)
+         || (VIX_USER_CREDENTIAL_HOST_CONFIG_HASHED_SECRET == credentialType)) {
       destPtr = (char *) commandRequest;
       destPtr += commandRequest->commonHeader.headerLength;
       destPtr += commandRequest->commonHeader.bodyLength;
@@ -285,11 +287,18 @@ VixMsg_ValidateMessage(void *vMsg,       // IN
     * struct are uint32. The headerLength must be large enough to
     * accomodate the base header: VixMsgHeader. The bodyLength and
     * the credentialLength can be 0. 
+    *
+    * We cannot compare message->totalMessageLength and msgLength.
+    * When we first read just the header, message->totalMessageLength 
+    * is > msgLength. When we have read the whole message, then
+    * message->totalMessageLength <= msgLength. So, it depends on
+    * when we call this function. Instead, we just make sure the message
+    * is internally consistent, and then rely on the higher level code to
+    * decide how much to read and when it has read the whole message.
     */
    message = vMsg;
    if ((VIX_COMMAND_MAGIC_WORD != message->magic)
-         || (message->headerLength < sizeof(VixMsgHeader)) 
-         || (message->totalMessageLength < msgLength)
+         || (message->headerLength < sizeof(VixMsgHeader))
          || (message->totalMessageLength
                < ((uint64)message->headerLength + message->bodyLength + message->credentialLength))
          || (message->totalMessageLength > VIX_COMMAND_MAX_SIZE)
@@ -393,7 +402,6 @@ VixMsg_ValidateResponseMsg(void *vMsg,       // IN
 
    return VIX_OK;
 } // VixMsg_ValidateResponseMsg
-
 
 
 /*
@@ -782,10 +790,4 @@ abort:
 
    return(resultStr);
 } // VixMsg_DecodeString
-
-
-
-
-
-
 

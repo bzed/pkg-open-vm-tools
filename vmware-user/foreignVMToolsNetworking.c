@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 2007 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 2007 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -266,7 +266,6 @@ ForeignTools_InitializeNetworking(void)
    char *destPtr;
    char *endDestPtr;
    NicInfo nicInfo;
-   int index;
 #ifdef _WIN32
    HMODULE hWs2_32 = NULL;
    WSADATA wsaData;
@@ -417,16 +416,19 @@ ForeignTools_InitializeNetworking(void)
     */
    success = GuestInfoGetNicInfo(&nicInfo);
    if (success) {
-      for (index = 0; index < nicInfo.numNicEntries; index++) {
-         NicEntry *currentNICEntry;
-
-         currentNICEntry = &(nicInfo.nicList[index]);
+      NicEntry *nicEntryPtr = NULL;
+      DblLnkLst_Links *nicEntryLink;
+    
+      DblLnkLst_ForEach(nicEntryLink, &nicInfo.nicList) {
+         nicEntryPtr = DblLnkLst_Container(nicEntryLink, NicEntry, links);
          destPtr += Str_Snprintf(destPtr,
                                  endDestPtr - destPtr,
                                  "%s=%s;",
                                  VIX_SLPV2_PROPERTY_MAC_ADDR,
-                                 currentNICEntry->macAddress);
-      } // for (index = 0; index < nicInfo.numNicEntries; index++)
+                                 nicEntryPtr->nicEntryProto.macAddress);
+      } 
+
+      GuestInfo_FreeDynamicMemoryInNicInfo(&nicInfo);
    }
 
    free(ipAddressStr);
@@ -437,7 +439,6 @@ abort:
    return(FALSE);
 #endif
 } // ForeignTools_InitializeNetworking
-
 
 
 /*

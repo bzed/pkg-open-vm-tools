@@ -62,7 +62,7 @@ ARFLAGS = cru
 libString_a_AR = $(AR) $(ARFLAGS)
 libString_a_LIBADD =
 am_libString_a_OBJECTS = bsd_output_shared.$(OBJEXT) \
-	bsd_vsnprintf.$(OBJEXT) str.$(OBJEXT)
+	bsd_vsnprintf.$(OBJEXT) bsd_vsnwprintf.$(OBJEXT) str.$(OBJEXT)
 libString_a_OBJECTS = $(am_libString_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -113,6 +113,9 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DNET_CFLAGS = @DNET_CFLAGS@
+DNET_CONFIG = @DNET_CONFIG@
+DNET_LIBS = @DNET_LIBS@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -147,6 +150,8 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MODULES = @MODULES@
+MODULES_OS = @MODULES_OS@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -220,7 +225,8 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LIBRARIES = libString.a
-libString_a_SOURCES = bsd_output_shared.c bsd_vsnprintf.c str.c
+libString_a_SOURCES = bsd_output_shared.c bsd_vsnprintf.c \
+	bsd_vsnwprintf.c str.c
 AM_CFLAGS = @COMMON_CFLAGS@ @LIB_STRING_CFLAGS@
 SUBDIRS = shared
 all: all-recursive
@@ -272,6 +278,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsd_output_shared.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsd_vsnprintf.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsd_vsnwprintf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/str.Po@am__quote@
 
 .c.o:

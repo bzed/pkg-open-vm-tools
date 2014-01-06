@@ -1,7 +1,5 @@
-/* *************************************************************
- * Copyright 1998-2003 VMware, Inc.  All rights reserved.
- * 
- * *************************************************************
+/*********************************************************
+ * Copyright (C) 1998-2003 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
   
 #ifndef _LOGLEVEL_USER_H_
 #define _LOGLEVEL_USER_H_
@@ -55,6 +54,7 @@
    LOGLEVEL_VAR(serial), \
    LOGLEVEL_VAR(parallel), \
    LOGLEVEL_VAR(chipset), \
+   LOGLEVEL_VAR(extcfgdevice), \
    LOGLEVEL_VAR(flashram), \
    LOGLEVEL_VAR(pci), \
    LOGLEVEL_VAR(pci_vide), \
@@ -78,10 +78,13 @@
    LOGLEVEL_VAR(http), \
    LOGLEVEL_VAR(vmci), \
    LOGLEVEL_VAR(pci_vmci), \
+   LOGLEVEL_VAR(vmxnet3), \
+   LOGLEVEL_VAR(pci_vmxnet3), \
    \
    /* user/disk */ \
    LOGLEVEL_VAR(aioMgr), \
    LOGLEVEL_VAR(aioWin32), \
+   LOGLEVEL_VAR(aioWin32Completion), \
    LOGLEVEL_VAR(aioLinux), \
    LOGLEVEL_VAR(aioGeneric), \
    LOGLEVEL_VAR(cdrom), \
@@ -170,6 +173,7 @@
    LOGLEVEL_VAR(automation), \
    LOGLEVEL_VAR(oemDevice), \
    LOGLEVEL_VAR(cptOps), \
+   LOGLEVEL_VAR(vprobeExec), \
 
 
 LOGLEVEL_EXTENSION_DECLARE(LOGLEVEL_USER);

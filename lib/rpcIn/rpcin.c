@@ -1,7 +1,5 @@
-/*
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- *
- *
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -15,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -351,35 +350,31 @@ RpcInLoop(void *clientData) // IN
       size_t resultLen;
       char *cmd;
       unsigned int index = 0;
-      RpcInCallbackList *cb;
+      RpcInCallbackList *cb = NULL;
 
       /*
        * Execute the RPC
        */
 
       cmd = StrUtil_GetNextToken(&index, reply, " ");
-      ASSERT(cmd);
-      cb = RpcInLookupCallback(in, cmd);
-      free(cmd);
+      if (cmd != NULL) {
+         cb = RpcInLookupCallback(in, cmd);
+         free(cmd);
+         if (cb) {
+            result = NULL;
+            status = cb->function(&result, &resultLen, cb->name,
+                                  reply + cb->length, repLen - cb->length,
+                                  cb->clientData);
 
-      if (cb) {
-#if 0 /* Costly in non-debug cases --hpreg */
-         if (strlen(reply) <= 128) {
-            Debug("Tclo: Begun executing '%s'\n", reply);
+            ASSERT(result);
          } else {
-            Debug("Tclo: reply string too long to display\n");
+            status = FALSE;
+            result = "Unknown Command";
+            resultLen = strlen(result);
          }
-#endif
-
-         result = NULL;
-         status = cb->function(&result, &resultLen, cb->name,
-                               reply + cb->length, repLen - cb->length,
-                               cb->clientData);
-
-         ASSERT(result);
       } else {
          status = FALSE;
-         result = "Unknown Command";
+         result = "Bad command";
          resultLen = strlen(result);
       }
 

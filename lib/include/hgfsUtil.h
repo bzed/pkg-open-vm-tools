@@ -1,6 +1,5 @@
-/* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved. 
- * **********************************************************
+/*********************************************************
+ * Copyright (C) 1998 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -14,7 +13,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
- */
+ *
+ *********************************************************/
 
 
 /*
@@ -27,10 +27,10 @@
 #ifndef _HGFSUTIL_H_
 #   define _HGFSUTIL_H_
 
-#   ifdef __KERNEL__
+#   if defined(__linux__) && defined(__KERNEL__)
 #      include "driver-config.h"
 #      include <linux/time.h> // for time_t and timespec
-#   else
+#   elif !defined(_KERNEL)
 #      include <time.h>
 #   endif
 #   include "vm_basic_types.h"
@@ -51,8 +51,12 @@ struct timespec {
 
 /* Cross-platform representation of a platform-specific error code. */
 #ifndef _WIN32
-#   ifdef __KERNEL__
-#      include <linux/errno.h>
+#   if defined(__KERNEL__) || defined(_KERNEL)
+#      if defined(__linux__)
+#         include <linux/errno.h>
+#      elif defined(sun) || defined(__FreeBSD__)
+#         include <sys/errno.h>
+#      endif
 #   else
 #      include <errno.h>
 #   endif
@@ -73,7 +77,7 @@ struct timespec {
 #define HGFS_INTERNAL_STATUS_ERROR -1
 
 /*
- * Older FreeBSDs do not define EPROTO, so we'll define our own error code.
+ * FreeBSD (pre-6.0) does not define EPROTO, so we'll define our own error code.
  */
 #if defined(__FreeBSD__) && !defined(EPROTO)
 #define EPROTO (ELAST + 1)
@@ -90,7 +94,7 @@ struct timespec {
 
 uint64 HgfsConvertToNtTime(time_t unixTime, // IN
 			   long   nsec);    // IN
-static INLINE uint64 
+static INLINE uint64
 HgfsConvertTimeSpecToNtTime(const struct timespec *unixTime) // IN
 {
    return HgfsConvertToNtTime(unixTime->tv_sec, unixTime->tv_nsec);
