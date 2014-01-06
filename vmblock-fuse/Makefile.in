@@ -65,8 +65,8 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am_vmware_vmblock_fuse_OBJECTS = stubs.$(OBJEXT) block.$(OBJEXT) \
-	util.$(OBJEXT) fsops.$(OBJEXT) main.$(OBJEXT)
+am_vmware_vmblock_fuse_OBJECTS = util.$(OBJEXT) fsops.$(OBJEXT) \
+	main.$(OBJEXT) block.$(OBJEXT) stubs.$(OBJEXT)
 vmware_vmblock_fuse_OBJECTS = $(am_vmware_vmblock_fuse_OBJECTS)
 am__DEPENDENCIES_1 =
 vmware_vmblock_fuse_DEPENDENCIES = ../lib/misc/libMisc.la \
@@ -178,6 +178,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -193,6 +195,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -269,14 +272,19 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 
-# _XOPEN_SOURCE needs to be defined to at least 500 when compiling
-# vmblock-fuse's os.h to get pthread_rwlock_t.
+# _XOPEN_SOURCE needs to be defined to at least 600 when compiling
+# vmblock-fuse; it's needed by os.h to get pthread_rwlock_t and by fsops.c to
+# get lstat.
 # -D_FILE_OFFSET_BITS=64 required for fuse.
-AM_CFLAGS = -Dvmblock_fuse -D_XOPEN_SOURCE=500 -DUSERLEVEL \
-	-D_FILE_OFFSET_BITS=64 @FUSE_CPPFLAGS@ @VMWARE_USER_CPPFLAGS@
+AM_CFLAGS = -Dvmblock_fuse -U_XOPEN_SOURCE -D_XOPEN_SOURCE=600 \
+	-DUSERLEVEL -D_FILE_OFFSET_BITS=64 @FUSE_CPPFLAGS@ \
+	@VMWARE_USER_CPPFLAGS@ -I$(top_srcdir)/modules/shared/vmblock \
+	-I$(srcdir)
 vmware_vmblock_fuse_LDADD = ../lib/misc/libMisc.la @FUSE_LIBS@ \
 	$(am__append_1)
-vmware_vmblock_fuse_SOURCES = stubs.c block.c util.c fsops.c main.c
+vmware_vmblock_fuse_SOURCES = util.c fsops.c main.c \
+	$(top_srcdir)/modules/shared/vmblock/block.c \
+	$(top_srcdir)/modules/shared/vmblock/stubs.c
 @HAVE_ICU_FALSE@vmware_vmblock_fuse_LINK = $(LINK)
 @HAVE_ICU_TRUE@vmware_vmblock_fuse_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 @HAVE_ICU_TRUE@                      $(LIBTOOLFLAGS) --mode=link $(CXX) $(AM_CXXFLAGS) \
@@ -379,6 +387,34 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+block.o: $(top_srcdir)/modules/shared/vmblock/block.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT block.o -MD -MP -MF $(DEPDIR)/block.Tpo -c -o block.o `test -f '$(top_srcdir)/modules/shared/vmblock/block.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/block.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/block.Tpo $(DEPDIR)/block.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/block.c' object='block.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o block.o `test -f '$(top_srcdir)/modules/shared/vmblock/block.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/block.c
+
+block.obj: $(top_srcdir)/modules/shared/vmblock/block.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT block.obj -MD -MP -MF $(DEPDIR)/block.Tpo -c -o block.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/block.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/block.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/block.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/block.Tpo $(DEPDIR)/block.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/block.c' object='block.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o block.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/block.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/block.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/block.c'; fi`
+
+stubs.o: $(top_srcdir)/modules/shared/vmblock/stubs.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stubs.o -MD -MP -MF $(DEPDIR)/stubs.Tpo -c -o stubs.o `test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/stubs.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/stubs.Tpo $(DEPDIR)/stubs.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/stubs.c' object='stubs.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stubs.o `test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c' || echo '$(srcdir)/'`$(top_srcdir)/modules/shared/vmblock/stubs.c
+
+stubs.obj: $(top_srcdir)/modules/shared/vmblock/stubs.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stubs.obj -MD -MP -MF $(DEPDIR)/stubs.Tpo -c -o stubs.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/stubs.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/stubs.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/stubs.Tpo $(DEPDIR)/stubs.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/modules/shared/vmblock/stubs.c' object='stubs.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stubs.obj `if test -f '$(top_srcdir)/modules/shared/vmblock/stubs.c'; then $(CYGPATH_W) '$(top_srcdir)/modules/shared/vmblock/stubs.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/modules/shared/vmblock/stubs.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

@@ -62,7 +62,8 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libHgfsServer_la_LIBADD =
-am_libHgfsServer_la_OBJECTS = hgfsServer.lo hgfsServerLinux.lo
+am_libHgfsServer_la_OBJECTS = hgfsServer.lo hgfsServerLinux.lo \
+	hgfsDirNotifyStub.lo
 libHgfsServer_la_OBJECTS = $(am_libHgfsServer_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -171,6 +172,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -186,6 +189,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -262,7 +266,8 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libHgfsServer.la
-libHgfsServer_la_SOURCES = hgfsServer.c hgfsServerLinux.c
+libHgfsServer_la_SOURCES = hgfsServer.c hgfsServerLinux.c \
+	hgfsDirNotifyStub.c
 AM_CFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 all: all-am
 
@@ -315,6 +320,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsDirNotifyStub.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsServer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsServerLinux.Plo@am__quote@
 

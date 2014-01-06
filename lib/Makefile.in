@@ -81,13 +81,13 @@ RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = guestRpc appUtil auth backdoor conf dict deployPkg dnd \
-	dndGuest dynxdr err eventManager file foundryMsg ghIntegration \
+DIST_SUBDIRS = guestRpc appUtil auth backdoor conf dict dnd dndGuest \
+	dynxdr err eventManager file foundryMsg ghIntegration \
 	ghIntegrationStub guestApp guestInfo hgfs hgfsBd hgfsServer \
 	hgfsServerManagerGuest hgfsServerPolicyGuest image impersonate \
 	message misc netUtil panic panicDefault printer procMgr raster \
 	region resolution rpcChannel rpcIn rpcOut rpcVmx SLPv2Parser \
-	socketMgr string stubs sync syncDriver system unicode unity \
+	string stubs sync syncDriver system unicode unity \
 	unityWindowTracker unityStub user vixTools vmCheck vmSignal \
 	wiper
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -181,6 +181,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -196,6 +198,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -271,15 +274,15 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = guestRpc $(am__append_1) auth backdoor conf dict deployPkg \
-	dnd $(am__append_2) dynxdr err eventManager file foundryMsg \
+SUBDIRS = guestRpc $(am__append_1) auth backdoor conf dict dnd \
+	$(am__append_2) dynxdr err eventManager file foundryMsg \
 	$(am__append_3) $(am__append_4) guestApp guestInfo hgfs hgfsBd \
 	hgfsServer hgfsServerManagerGuest hgfsServerPolicyGuest \
 	$(am__append_5) impersonate message misc netUtil panic \
 	panicDefault printer procMgr $(am__append_6) $(am__append_7) \
-	rpcChannel rpcIn rpcOut rpcVmx SLPv2Parser socketMgr string \
-	stubs sync syncDriver system unicode $(am__append_8) \
-	$(am__append_9) user vixTools vmCheck vmSignal wiper
+	rpcChannel rpcIn rpcOut rpcVmx SLPv2Parser string stubs sync \
+	syncDriver system unicode $(am__append_8) $(am__append_9) user \
+	vixTools vmCheck vmSignal wiper
 all: all-recursive
 
 .SUFFIXES:

@@ -182,6 +182,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PAM_CPPFLAGS = @PAM_CPPFLAGS@
+PAM_LIBS = @PAM_LIBS@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PLUGIN_CPPFLAGS = @PLUGIN_CPPFLAGS@
@@ -197,6 +199,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TEST_PLUGIN_INSTALLDIR = @TEST_PLUGIN_INSTALLDIR@
 TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
@@ -274,7 +277,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 pamdir = $(PAM_PREFIX)/pam.d
 vmtoolsd_CPPFLAGS = @VMTOOLS_CPPFLAGS@ @GMODULE_CPPFLAGS@ \
-	@GOBJECT_CPPFLAGS@ @GTHREAD_CPPFLAGS@ -I$(builddir)
+	@GOBJECT_CPPFLAGS@ @GTHREAD_CPPFLAGS@ -I$(builddir) \
+	-DVMTOOLSD_PLUGIN_ROOT=\"$(pkglibdir)\"
 vmtoolsd_LDADD = @VMTOOLS_LIBS@ @GMODULE_LIBS@ @GOBJECT_LIBS@ \
 	@GTHREAD_LIBS@ $(am__append_1)
 vmtoolsd_SOURCES = cmdLine.c mainLoop.c mainPosix.c pluginMgr.c \
@@ -288,8 +292,11 @@ EXTRA_DIST = svcSignals.gm
 @HAVE_ICU_TRUE@                      $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
 @HAVE_ICU_TRUE@                      $(LDFLAGS) -o $@
 
-@LINUX_TRUE@@PAMD_TRUE@@THIRTY_TWO_BIT_USERSPACE_FALSE@pam_SCRIPTS = $(top_srcdir)/scripts/linux/pam.d/vmtoolsd-x64
-@LINUX_TRUE@@PAMD_TRUE@@THIRTY_TWO_BIT_USERSPACE_TRUE@pam_SCRIPTS = $(top_srcdir)/scripts/linux/pam.d/vmtoolsd
+@HAVE_PAM_TRUE@@THIRTY_TWO_BIT_USERSPACE_FALSE@pam_SCRIPTS = $(top_srcdir)/scripts/linux/pam.d/64/vmtoolsd
+
+# PAM support is currently only available for Linux, so HAVE_PAM is only
+# defined for that OS.
+@HAVE_PAM_TRUE@@THIRTY_TWO_BIT_USERSPACE_TRUE@pam_SCRIPTS = $(top_srcdir)/scripts/linux/pam.d/vmtoolsd
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
