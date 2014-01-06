@@ -61,7 +61,7 @@ bin_PROGRAMS = vmware-user$(EXEEXT)
 @ENABLE_UNITY_TRUE@	../lib/image/libImage.la \
 @ENABLE_UNITY_TRUE@	../lib/raster/libRaster.la \
 @ENABLE_UNITY_TRUE@	../lib/region/libRegion.la
-@LINUX_TRUE@am__append_8 = -lgcc_s
+@LINUX_TRUE@am__append_8 = -lgcc_s ../lib/slashProc/libSlashProc.la
 @HAVE_GTKMM_TRUE@am__append_9 = @GTKMM_LIBS@
 @ENABLE_UNITY_TRUE@am__append_10 = @URIPARSER_LIBS@ @LIBPNG_LIBS@ \
 @ENABLE_UNITY_TRUE@	@ZLIB_LIBS@ $(am__empty)
@@ -96,7 +96,8 @@ am_vmware_user_OBJECTS = copyPaste.$(OBJEXT) $(am__objects_1) \
 	notify.$(OBJEXT) pointer.$(OBJEXT) $(am__objects_3) \
 	vmware-user.$(OBJEXT)
 vmware_user_OBJECTS = $(am_vmware_user_OBJECTS)
-am__DEPENDENCIES_1 =
+@LINUX_TRUE@am__DEPENDENCIES_1 = ../lib/slashProc/libSlashProc.la
+am__DEPENDENCIES_2 =
 vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	../lib/eventManager/libEventManager.la ../lib/file/libFile.la \
 	$(am__append_2) $(am__append_3) \
@@ -113,10 +114,12 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	../lib/string/libString.la ../lib/sync/libSync.la \
 	../lib/syncDriver/libSyncDriver.la ../lib/system/libSystem.la \
 	$(am__append_4) $(am__append_5) ../lib/user/libUser.la \
-	../lib/vixTools/libVixTools.la ../lib/vmCheck/libVmCheck.la \
-	../lib/vmSignal/libVmSignal.la ../lib/wiper/libWiper.la \
-	../lib/netUtil/libNetUtil.la ../lib/guestRpc/libGuestRpc.la \
-	../lib/err/libErr.la ../lib/foundryMsg/libFoundryMsg.la \
+	../lib/vixTools/libVixTools.la \
+	../lib/hgfsHelper/libHgfsHelper.la \
+	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
+	../lib/wiper/libWiper.la ../lib/netUtil/libNetUtil.la \
+	../lib/guestRpc/libGuestRpc.la ../lib/err/libErr.la \
+	../lib/foundryMsg/libFoundryMsg.la \
 	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
 	$(am__append_6) ../lib/dnd/libDnd.la \
 	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
@@ -125,8 +128,8 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	../lib/procMgr/libProcMgr.la \
 	../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_7) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1)
+	$(am__append_7) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2) \
+	$(am__DEPENDENCIES_2)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -359,10 +362,12 @@ vmware_user_LDADD = ../lib/conf/libConf.la \
 	../lib/string/libString.la ../lib/sync/libSync.la \
 	../lib/syncDriver/libSyncDriver.la ../lib/system/libSystem.la \
 	$(am__append_4) $(am__append_5) ../lib/user/libUser.la \
-	../lib/vixTools/libVixTools.la ../lib/vmCheck/libVmCheck.la \
-	../lib/vmSignal/libVmSignal.la ../lib/wiper/libWiper.la \
-	../lib/netUtil/libNetUtil.la ../lib/guestRpc/libGuestRpc.la \
-	../lib/err/libErr.la ../lib/foundryMsg/libFoundryMsg.la \
+	../lib/vixTools/libVixTools.la \
+	../lib/hgfsHelper/libHgfsHelper.la \
+	../lib/vmCheck/libVmCheck.la ../lib/vmSignal/libVmSignal.la \
+	../lib/wiper/libWiper.la ../lib/netUtil/libNetUtil.la \
+	../lib/guestRpc/libGuestRpc.la ../lib/err/libErr.la \
+	../lib/foundryMsg/libFoundryMsg.la \
 	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
 	$(am__append_6) ../lib/dnd/libDnd.la \
 	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
