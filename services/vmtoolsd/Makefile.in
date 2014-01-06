@@ -278,7 +278,7 @@ top_srcdir = @top_srcdir@
 pamdir = $(PAM_PREFIX)/pam.d
 vmtoolsd_CPPFLAGS = @VMTOOLS_CPPFLAGS@ @GMODULE_CPPFLAGS@ \
 	@GOBJECT_CPPFLAGS@ @GTHREAD_CPPFLAGS@ -I$(builddir) \
-	-DVMTOOLSD_PLUGIN_ROOT=\"$(pkglibdir)\"
+	-DVMTOOLSD_PLUGIN_ROOT=\"$(pkglibdir)/plugins\"
 vmtoolsd_LDADD = @VMTOOLS_LIBS@ @GMODULE_LIBS@ @GOBJECT_LIBS@ \
 	@GTHREAD_LIBS@ $(am__append_1)
 vmtoolsd_SOURCES = cmdLine.c mainLoop.c mainPosix.c pluginMgr.c \
