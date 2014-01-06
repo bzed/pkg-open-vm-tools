@@ -28,12 +28,12 @@ then
    echo "   src:  root of unpacked open-vm-tools package"
    echo "   dst:  where to create the dkms tree"
    echo
-   echo "The script will create an 'open-vm-tools' module with version 2009.08.24."
+   echo "The script will create an 'open-vm-tools' module with version 2009.09.18."
    exit 1
 fi
 
 src=$1
-dst=$2/open-vm-tools-2009.08.24
+dst=$2/open-vm-tools-2009.09.18
 
 SHARED_HEADERS="backdoor_def.h"
 SHARED_HEADERS="$SHARED_HEADERS backdoor_types.h"
@@ -100,6 +100,12 @@ do
       cp -f $src/lib/hgfsBd/*.c $mdst
       cp -f $src/lib/message/*.c $mdst
       cp -f $src/lib/rpcOut/*.c $mdst
+   fi
+
+   # Shared vmmemctl code.
+   if test $m = vmmemctl
+   then
+      cp -f $src/modules/shared/vmmemctl/* $mdst
    fi
 
    # Extra header file for vmsync.

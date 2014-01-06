@@ -1363,6 +1363,27 @@ HgfsRename(struct inode *oldDir,      // IN: Inode of original directory
       goto out;
    }
 
+   if (oldDentry->d_inode && newDentry->d_inode) {
+      HgfsInodeInfo *oldIinfo;
+      HgfsInodeInfo *newIinfo;
+      /*
+       * Don't do rename if the source and target are identical (from the
+       * viewpoint of the host). It is possible that multiple guest inodes
+       * point to the same host inode under the case that both one folder
+       * and its subfolder are mapped as hgfs sharese. Please also see the
+       * comments at fsutil.c/HgfsIget.
+       */
+      oldIinfo = INODE_GET_II_P(oldDentry->d_inode);
+      newIinfo = INODE_GET_II_P(newDentry->d_inode);
+      if (oldIinfo->hostFileId !=0 && newIinfo->hostFileId != 0 &&
+          oldIinfo->hostFileId == newIinfo->hostFileId) {
+         LOG(4, ("VMware hgfs: %s: source and target are the same file.\n",
+                 __func__));
+         result = -EEXIST;
+         goto out;
+      }
+   }
+
    req = HgfsGetNewRequest();
    if (!req) {
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsRename: out of memory while "
@@ -1946,9 +1967,9 @@ HgfsSetattr(struct dentry *dentry,  // IN: File to set attributes of
 
    /*
     * Flush all dirty pages prior to sending the request if we're going to
-    * modify the file size.
+    * modify the file size or change the last write time.
     */
-   if (iattr->ia_valid & ATTR_SIZE) {
+   if (iattr->ia_valid & ATTR_SIZE || iattr->ia_valid & ATTR_MTIME) {
       compat_filemap_write_and_wait(dentry->d_inode->i_mapping);
    }
 
