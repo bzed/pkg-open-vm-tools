@@ -127,11 +127,19 @@
 
 #define PRODUCT_FDM_NAME MAKE_NAME("Fault Domain Manager")
 
+#define PRODUCT_HA_NAME MAKE_NAME("High Availability Extension")
+
 #define PRODUCT_WBC_NAME MAKE_NAME("WebCenter")
 
 #define PRODUCT_SDK_NAME MAKE_NAME("SDK")
 
 #define PRODUCT_DDK_NAME MAKE_NAME("ESX DDK")
+
+#define PRODUCT_NGCINSTALLER_NAME MAKE_NAME("vSphere Web Client")
+
+#define PRODUCT_SSOINSTALLER_NAME MAKE_NAME("Single Sign On")
+
+#define PRODUCT_SSOREGMM_NAME MAKE_NAME("vCenter Registration Tool")
 
 // XXX I think these are dead and can be removed -clayton
 // #define PRODUCT_VDM_SHORT_NAME "VDM"
@@ -315,12 +323,20 @@
 #     define PRODUCT_SHORT_NAME PRODUCT_API_SCRIPTING_PERL_NAME
 #  endif
 #elif defined(VMX86_VPX)
-#  if defined(CSI_FDM)
+#  if defined(CSI_HA)
+#     define PRODUCT_SHORT_NAME PRODUCT_HA_NAME     
+#  elif defined(CSI_FDM)
 #     define PRODUCT_SHORT_NAME PRODUCT_FDM_NAME
 #  elif defined(VPXA)
 #     define PRODUCT_SHORT_NAME PRODUCT_VPXA_NAME
 #  elif defined(XVP)
 #     define PRODUCT_SHORT_NAME PRODUCT_XVP_NAME
+#  elif defined(INSTALL_NGC)
+#     define PRODUCT_SHORT_NAME PRODUCT_NGCINSTALLER_NAME
+#  elif defined(INSTALL_SSO)
+#     define PRODUCT_SHORT_NAME PRODUCT_SSOINSTALLER_NAME
+#  elif defined(INSTALL_SSOREGMM)
+#     define PRODUCT_SHORT_NAME PRODUCT_SSOREGMM_NAME
 #  else
 #     define PRODUCT_SHORT_NAME PRODUCT_VPX_NAME
 #  endif

@@ -634,9 +634,9 @@ FileIO_IsSuccess(FileIOResult res)  // IN:
 /*
  *-----------------------------------------------------------------------------
  *
- * FileIOAtomicTempPath
+ * FileIO_AtomicTempPath
  *
- *      Return a temp path name in the same directory as the argument file.
+ *      Return a temp path name in the same directory as the argument path.
  *      The path is the full path of the source file with a '~' appended.
  *      The caller must free the path when done.
  *
@@ -649,24 +649,21 @@ FileIO_IsSuccess(FileIOResult res)  // IN:
  *-----------------------------------------------------------------------------
  */
 
-static Unicode 
-FileIOAtomicTempPath(FileIODescriptor *fileFD)  // IN:
+Unicode
+FileIO_AtomicTempPath(ConstUnicode path)  // IN:
 {
-   Unicode path;
    Unicode srcPath;
+   Unicode retPath;
 
-   ASSERT(FileIO_IsValid(fileFD));
-
-   srcPath = File_FullPath(FileIO_Filename(fileFD));
+   srcPath = File_FullPath(path);
    if (!srcPath) {
-      Log("%s: File_FullPath of '%s' failed.\n", __FUNCTION__,
-          FileIO_Filename(fileFD));
+      Log("%s: File_FullPath of '%s' failed.\n", __FUNCTION__, path);
       return NULL;
    }
-   path = Unicode_Join(srcPath, "~", NULL);
+   retPath = Unicode_Join(srcPath, "~", NULL);
    Unicode_Free(srcPath);
 
-   return path;
+   return retPath;
 }
 
 
@@ -703,7 +700,7 @@ FileIO_AtomicTempFile(FileIODescriptor *fileFD,  // IN:
    ASSERT(FileIO_IsValid(fileFD));
    ASSERT(tempFD && !FileIO_IsValid(tempFD));
 
-   tempPath = FileIOAtomicTempPath(fileFD);
+   tempPath = FileIO_AtomicTempPath(FileIO_Filename(fileFD));
    if (!tempPath) {
       status = FILEIO_ERROR;
       goto bail;
@@ -716,18 +713,17 @@ FileIO_AtomicTempFile(FileIODescriptor *fileFD,  // IN:
    if (fstat(fileFD->posix, &stbuf)) {
       Log("%s: Failed to fstat '%s', errno: %d.\n", __FUNCTION__,
           FileIO_Filename(fileFD), errno);
-      ASSERT(!vmx86_server); // For APD, hosted can fall-back and write directly
       status = FILEIO_ERROR;
       goto bail;
    }
    permissions = stbuf.st_mode;
 
-   /* Do a "cleanup" unlink in case some previous process left a temp file around */
+   /* Clean up a previously created temp file; if one exists. */
    ret = Posix_Unlink(tempPath);
-   if (ret != 0 && errno != ENOENT) { /* ENOENT is expected, file should not exist */
+   if (ret != 0 && errno != ENOENT) {
       Log("%s: Failed to unlink temporary file, errno: %d\n",
           __FUNCTION__, errno);
-      /* Fall through; FileIO_Create will report the actual error */
+      /* Fall through; FileIO_Create will report the actual error. */
    }
 #endif
 
@@ -735,8 +731,8 @@ FileIO_AtomicTempFile(FileIODescriptor *fileFD,  // IN:
                           FILEIO_ACCESS_READ | FILEIO_ACCESS_WRITE,
                           FILEIO_OPEN_CREATE_SAFE, permissions);
    if (!FileIO_IsSuccess(status)) {
-      Log("%s: Failed to create temporary file, err: %d\n", __FUNCTION__,
-          Err_Errno());
+      Log("%s: Failed to create temporary file, %s (%d). errno: %d\n",
+          __FUNCTION__, FileIO_ErrorEnglish(status), status, Err_Errno());
       goto bail;
    }
 
@@ -799,10 +795,11 @@ bail:
  *      no longer exists on success.
  *
  *      On success the caller must call FileIO_IsValid on newFD to verify it
- *	is still open before using it again.
+ *      is still open before using it again.
  *
  * Results:
  *      TRUE if successful, FALSE on failure.
+ *      errno is preserved.
  *
  * Side effects:
  *      Disk I/O.
@@ -821,6 +818,8 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
    uint32 newAccess;
    Bool ret = FALSE;
    FileIOResult status;
+   FileIODescriptor tmpFD;
+   int savedErrno = 0;
 
    ASSERT(FileIO_IsValid(newFD));
    ASSERT(FileIO_IsValid(currFD));
@@ -832,7 +831,6 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
       char *fileName = NULL;
       char *dstDirName = NULL;
       char *dstFileName = NULL;
-      int savedErrno;
       int fd;
 
       currPath = File_FullPath(FileIO_Filename(currFD));
@@ -854,11 +852,13 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
       if (Str_Snprintf(args->srcFile, sizeof(args->srcFile), "%s",
                        fileName) < 0) {
          Log("%s: Path too long \"%s\".\n", __FUNCTION__, fileName);
+         savedErrno = ENAMETOOLONG;
          goto swapdone;
       }
       if (Str_Snprintf(args->dstFilePath, sizeof(args->dstFilePath), "%s/%s",
                        dstDirName, dstFileName) < 0) {
          Log("%s: Path too long \"%s\".\n", __FUNCTION__, dstFileName);
+         savedErrno = ENAMETOOLONG;
          goto swapdone;
       }
 
@@ -872,10 +872,10 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
          Log("%s: Open failed \"%s\" %d.\n", __FUNCTION__, dirName,
              errno);
          ASSERT_BUG_DEBUGONLY(615124, errno != EBUSY);
+         savedErrno = errno;
          goto swapdone;
       }
 
-      savedErrno = 0;
       if (ioctl(fd, IOCTLCMD_VMFS_SWAP_FILES, args) != 0) {
          savedErrno = errno;
          if (errno != ENOSYS) {
@@ -905,7 +905,8 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
 
          if (File_Rename(newPath, currPath)) {
             Log("%s: rename of '%s' to '%s' failed %d.\n",
-                newPath, currPath, __FUNCTION__, errno);
+                __FUNCTION__, newPath, currPath, errno);
+            savedErrno = errno;
             goto swapdone;
          }
          ret = TRUE;
@@ -924,6 +925,7 @@ swapdone:
       free(currPath);
       free(newPath);
 
+      errno = savedErrno;
       return ret;
 #else
       NOT_REACHED();
@@ -940,12 +942,11 @@ swapdone:
 
    /*
     * The current file needs to be closed and reopened,
-    * but we don't want to drop the file lock by calling 
+    * but we don't want to drop the file lock by calling
     * FileIO_Close() on it.  Instead, use native close primitives.
-    * We'll reopen it later with a temp FileIODescriptor, and
-    * swap the file descriptor/handle.  Set the descriptor/handle
-    * to an invalid value while we're in the middle of transferring
-    * ownership.
+    * We'll reopen it later with FileIO_Open.  Set the
+    * descriptor/handle to an invalid value while we're in the
+    * middle of transferring ownership.
     */
 
 #if defined(_WIN32)
@@ -955,28 +956,41 @@ swapdone:
    close(currFD->posix);
    currFD->posix = -1;
 #endif
-   if (File_RenameRetry(newPath, currPath, 10)) {
-      goto bail;
+   if (File_RenameRetry(newPath, currPath, 10) == 0) {
+      ret = TRUE;
+   } else {
+      savedErrno = errno;
+      ASSERT(!ret);
    }
 
-   ret = TRUE;
-   
-bail:
+   FileIO_Invalidate(&tmpFD);
 
    /*
-    * XXX - We shouldn't drop the file lock here.
-    *       Need to implement FileIO_Reopen to close
-    *       and reopen without dropping the lock.
+    * Clear the locking bits from the requested access so that reopening
+    * the file ignores the advisory lock.
     */
 
-   FileIO_Close(currFD);  // XXX - PR 769296
-
-   status = FileIO_Open(currFD, currPath, currAccess, 0);
+   ASSERT((currAccess & FILEIO_OPEN_LOCK_MANDATORY) == 0);
+   currAccess &= ~(FILEIO_OPEN_LOCK_MANDATORY | FILEIO_OPEN_LOCK_ADVISORY |
+                   FILEIO_OPEN_LOCK_BEST | FILEIO_OPEN_LOCKED);
+   status = FileIO_Open(&tmpFD, currPath, currAccess, FILEIO_OPEN);
    if (!FileIO_IsSuccess(status)) {
-      Panic("Failed to reopen dictionary file.\n");
+      Panic("Failed to reopen dictionary after renaming "
+            "\"%s\" to \"%s\": %s (%d)\n", newPath, currPath,
+            FileIO_ErrorEnglish(status), status);
    }
+   ASSERT(tmpFD.lockToken == NULL);
 
+#if defined(_WIN32)
+   currFD->win32 = tmpFD.win32;
+#else
+   currFD->posix = tmpFD.posix;
+#endif
+
+   FileIO_Cleanup(&tmpFD);
    Unicode_Free(currPath);
    Unicode_Free(newPath);
+   errno = savedErrno;
+
    return ret;
 }

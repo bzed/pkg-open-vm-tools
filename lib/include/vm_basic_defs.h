@@ -142,6 +142,9 @@ Max(int a, int b)
 }
 #endif
 
+#define VMW_CLAMP(x, min, max) \
+   ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
+
 #define ROUNDUP(x,y)		(((x) + (y) - 1) / (y) * (y))
 #define ROUNDDOWN(x,y)		((x) / (y) * (y))
 #define ROUNDUPBITS(x, bits)	(((uintptr_t) (x) + MASK(bits)) & ~MASK(bits))
@@ -634,9 +637,11 @@ typedef int pid_t;
 #ifdef _WIN32
 #define WIN32_ONLY(x) x
 #define POSIX_ONLY(x)
+#define vmx86_win32 1
 #else
 #define WIN32_ONLY(x)
 #define POSIX_ONLY(x) x
+#define vmx86_win32 0
 #endif
 
 #ifdef __linux__
@@ -723,5 +728,14 @@ typedef int pid_t;
       }                                                                 \
    } while (0)
 
+/*
+ * Bug 827422 and 838523.
+ */
+
+#if defined __GNUC__ && __GNUC__ >= 4
+#define VISIBILITY_HIDDEN __attribute__((visibility("hidden")))
+#else
+#define VISIBILITY_HIDDEN /* nothing */
+#endif
 
 #endif // ifndef _VM_BASIC_DEFS_H_

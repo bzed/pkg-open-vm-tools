@@ -175,6 +175,13 @@ memchr(const void *s, int c, size_t n)
 
 #endif // }
 
+#if defined __ANDROID__
+/*
+ * Android doesn't support dtoa().
+ */
+#define NO_DTOA
+#endif
+
 
 /*
  * Local data
@@ -983,23 +990,15 @@ MsgFmt_GetArgsWithBuf(const char *fmt,	  // IN: format string
 	 if (p == NULL) {
 	    a->v.ptr = NULL;
 	 } else {
-	    if ((n = a->p.precision) < 0) {
+	    if (a->p.precision < 0) {
 	       n = wcslen(p);
 	    } else {
-#ifndef _WIN32
-	       const wchar_t *q = wmemchr(p, 0, n);
-	       if (q != NULL) {
-		  n = q - p;
-	       }
-#else
-	       // XXX no wmemchar()
-	       // fix this when we get new compiler -- edward
-	       const wchar_t *e = p + n;
 	       const wchar_t *q;
-	       for (q = p; q < e && *q != 0; q++) {
+	       n = a->p.precision;
+	       q = wmemchr(p, 0, n);
+	       if (q != NULL) {
+	          n = q - p;
 	       }
-	       n = q - p;
-#endif
 	    }
 	    a->v.ptr = MsgFmtAlloc(&state, sizeof (wchar_t) * (n + 1));
 	    if (a->v.ptr == NULL) {
@@ -1965,7 +1964,7 @@ MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
     */
    char *decimal_point;   /* locale specific decimal point */
 #if defined __ANDROID__
-   static const char dp = '.';
+   static char dp = '.';
 #endif
    int signflag;      /* true if float is negative */
    union {         /* floating point arguments %[aAeEfFgG] */
@@ -2396,9 +2395,17 @@ MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
 	    goto error;
 	 }
 	 fparg.dbl = a->v.float64;
+#if defined NO_DTOA
+         NOT_TESTED();
+         dtoaresult = NULL;
+         sbuf.error = TRUE;
+
+         goto error;
+#else
 	 dtoaresult = cp =
 	    dtoa(fparg.dbl, expchar ? 2 : 3, prec,
 		 &expt, &signflag, &dtoaend);
+#endif
 	 if (expt == 9999)
 	    expt = INT_MAX;
          if (signflag)

@@ -1122,7 +1122,7 @@ File_CopyTree(ConstUnicode srcName,    // IN:
    if (!File_IsDirectory(srcName)) {
       err = Err_Errno();
       Msg_Append(MSGID(File.CopyTree.source.notDirectory)
-                 "The source path '%s' is not a directory.\n\n",
+                 "Source path '%s' is not a directory.",
                  UTF8(srcName));
       Err_SetErrno(err);
       return FALSE;
@@ -1131,7 +1131,7 @@ File_CopyTree(ConstUnicode srcName,    // IN:
    if (!File_IsDirectory(dstName)) {
       err = Err_Errno();
       Msg_Append(MSGID(File.CopyTree.dest.notDirectory)
-                 "The destination path '%s' is not a directory.\n\n",
+                 "Destination path '%s' is not a directory.",
                  UTF8(dstName));
       Err_SetErrno(err);
       return FALSE;
@@ -1381,8 +1381,9 @@ File_MoveTree(ConstUnicode srcName,   // IN:
 
    if (!File_IsDirectory(srcName)) {
       Msg_Append(MSGID(File.MoveTree.source.notDirectory)
-                 "The source path '%s' is not a directory.\n\n",
+                 "Source path '%s' is not a directory.",
                  UTF8(srcName));
+
       return FALSE;
    }
 
@@ -1390,13 +1391,15 @@ File_MoveTree(ConstUnicode srcName,   // IN:
       ret = TRUE;
    } else {
       struct stat statbuf;
+
       if (-1 == Posix_Stat(dstName, &statbuf)) {
          int err = Err_Errno();
 
          if (ENOENT == err) {
-            if (!File_CreateDirectoryHierarchy(dstName)) {
+            if (!File_CreateDirectoryHierarchy(dstName, NULL)) {
                Msg_Append(MSGID(File.MoveTree.dst.couldntCreate)
                           "Could not create '%s'.\n\n", UTF8(dstName));
+
                return FALSE;
             }
 
@@ -1405,6 +1408,7 @@ File_MoveTree(ConstUnicode srcName,   // IN:
             Msg_Append(MSGID(File.MoveTree.statFailed)
                        "%d:Failed to stat destination '%s'.\n\n",
                        err, UTF8(dstName));
+
             return FALSE;
          }
       } else {
@@ -1412,12 +1416,14 @@ File_MoveTree(ConstUnicode srcName,   // IN:
             Msg_Append(MSGID(File.MoveTree.dest.notDirectory)
                        "The destination path '%s' is not a directory.\n\n",
                        UTF8(dstName));
+
             return FALSE;
          }
       }
 
       if (File_CopyTree(srcName, dstName, overwriteExisting, FALSE)) {
          ret = TRUE;
+
          if (!File_DeleteDirectoryTree(srcName)) {
             Msg_Append(MSGID(File.MoveTree.cleanupFailed)
                        "Forced to copy '%s' into '%s' but unable to remove "
@@ -1643,9 +1649,18 @@ File_GetSizeByPath(ConstUnicode pathName)  // IN:
  * File_CreateDirectoryHierarchy --
  *
  *      Create a directory including any parents that don't already exist.
+ *      Returns the topmost directory which was created, to allow calling code
+ *      to remove it after in case later operations fail.
  *
  * Results:
  *      TRUE on success, FALSE on failure.
+ *
+ *      If topmostCreated is not NULL, it returns the result of the hierarchy
+ *      creation. If no directory was created, *topmostCreated is set to NULL.
+ *      Otherwise *topmostCreated is set to the topmost directory which was
+ *      created. *topmostCreated is set even in case of failure.
+ *
+ *      The caller most Unicode_Free the resulting string.
  *
  * Side effects:
  *      Only the obvious.
@@ -1654,11 +1669,16 @@ File_GetSizeByPath(ConstUnicode pathName)  // IN:
  */
 
 Bool
-File_CreateDirectoryHierarchy(ConstUnicode pathName)  // IN:
+File_CreateDirectoryHierarchy(ConstUnicode pathName,   // IN:
+                              Unicode *topmostCreated) // OUT:
 {
    Unicode volume;
    UnicodeIndex index;
    UnicodeIndex length;
+
+   if (topmostCreated != NULL) {
+      *topmostCreated = NULL;
+   }
 
    if (pathName == NULL) {
       return TRUE;
@@ -1694,22 +1714,31 @@ File_CreateDirectoryHierarchy(ConstUnicode pathName)  // IN:
 
       index = FileFirstSlashIndex(pathName, index + 1);
 
-      if (index == UNICODE_INDEX_NOT_FOUND) {
-         break;
+      temp = Unicode_Substr(pathName, 0, (index == UNICODE_INDEX_NOT_FOUND) ? -1 : index);
+
+      if (File_IsDirectory(temp)) {
+         failed = FALSE;
+      } else {
+         failed = !File_CreateDirectory(temp);
+         if (!failed && topmostCreated != NULL && *topmostCreated == NULL) {
+            *topmostCreated = temp;
+            temp = NULL;
+         }
       }
-
-      temp = Unicode_Substr(pathName, 0, index);
-
-      failed = !File_IsDirectory(temp) && !File_CreateDirectory(temp);
 
       Unicode_Free(temp);
 
       if (failed) {
          return FALSE;
       }
+
+      if (index == UNICODE_INDEX_NOT_FOUND) {
+         break;
+      }
+
    }
 
-   return File_IsDirectory(pathName) || File_CreateDirectory(pathName);
+   return TRUE;
 }
 
 
@@ -1870,9 +1899,11 @@ File_FindFileInSearchPath(const char *fileIn,      // IN:
    char *cur;
    char *tok;
    Bool found;
+   Bool full;
    char *saveptr = NULL;
    char *sp = NULL;
-   char *file = NULL;
+   Unicode dir = NULL;
+   Unicode file = NULL;
 
    ASSERT(fileIn);
    ASSERT(cwd);
@@ -1882,7 +1913,8 @@ File_FindFileInSearchPath(const char *fileIn,      // IN:
     * First check the usual places - the fullpath or the cwd.
     */
 
-   if (File_IsFullPath(fileIn)) {
+   full = File_IsFullPath(fileIn);
+   if (full) {
       cur = Util_SafeStrdup(fileIn);
    } else {
       cur = Str_SafeAsprintf(NULL, "%s%s%s", cwd, DIRSEPS, fileIn);
@@ -1898,12 +1930,23 @@ File_FindFileInSearchPath(const char *fileIn,      // IN:
    free(cur);
    cur = NULL;
 
+   if (full) {
+      goto done;
+   }
+
+   File_GetPathName(fileIn, &dir, &file);
+
+   /*
+    * Search path applies only if filename is simple basename.
+    */
+   if (Unicode_LengthInCodePoints(dir) != 0) {
+      goto done;
+   }
+
    /*
     * Didn't find it in the usual places so strip it to its bare minimum and
     * start searching.
     */
-
-   File_GetPathName(fileIn, NULL, &file);
 
    sp = Util_SafeStrdup(searchPath);
    tok = strtok_r(sp, FILE_SEARCHPATHTOKEN, &saveptr);
@@ -1955,7 +1998,8 @@ done:
    }
 
    free(sp);
-   free(file);
+   Unicode_Free(dir);
+   Unicode_Free(file);
 
    return found;
 }
