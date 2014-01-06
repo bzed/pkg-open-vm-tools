@@ -66,6 +66,8 @@
 #include "timeutil.h"
 #include "dynbuf.h"
 #include "localconfig.h"
+#include "hostType.h"
+#include "vmfs.h"
 
 #include "unicodeOperations.h"
 
@@ -166,8 +168,8 @@ FileRename(ConstUnicode oldName,  // IN:
  *----------------------------------------------------------------------
  *
  *  FileDeletion --
- *	     Delete the specified file.  A NULL pathName will result in an error
- *	     and errno will be set to EFAULT.
+ *      Delete the specified file.  A NULL pathName will result in an error
+ *      and errno will be set to EFAULT.
  *
  * Results:
  *	0	success
@@ -189,12 +191,14 @@ FileDeletion(ConstUnicode pathName,   // IN:
 
    if (pathName == NULL) {
       errno = EFAULT;
+
       return errno;
    } else if ((primaryPath = Unicode_GetAllocBytes(pathName,
                                STRING_ENCODING_DEFAULT)) == NULL) {
       Log(LGPFX" %s: failed to convert \"%s\" to current encoding\n",
           __FUNCTION__, UTF8(pathName));
       errno = UNICODE_CONVERSION_ERRNO;
+
       return errno;
    }
 
@@ -231,6 +235,7 @@ FileDeletion(ConstUnicode pathName,   // IN:
 bail:
    free(primaryPath);
    free(linkPath);
+
    return err;
 }
 
@@ -349,8 +354,22 @@ FileAttributes(ConstUnicode pathName,  // IN:
  * File_IsRemote --
  *
  *      Determine whether a file is on a remote filesystem.
- *      In case of an error be conservative and assume that 
- *      the file is a remote file.
+ *
+ *      On ESX all files are treated as local files, as all
+ *      callers of this function wants to do is to post message
+ *      that performance will be degraded on remote filesystems.
+ *      On ESX (a) performance should be acceptable with remote
+ *      files, and (b) even if it is not, we should not ask users
+ *      whether they are aware that it is poor.  ESX has
+ *      performance monitoring which can notify user if something
+ *      is wrong.
+ *
+ *      On hosted platform we report remote files as faithfully
+ *      as we can because having mainmem file on NFS is known
+ *      to badly affect VM consistency when NFS filesystem gets
+ *      reconnected.  Due to that we are conservative, and report
+ *      filesystem as remote if there was some problem with
+ *      determining file remoteness.
  *
  * Results:
  *      The answer.
@@ -365,46 +384,65 @@ FileAttributes(ConstUnicode pathName,  // IN:
 Bool
 File_IsRemote(ConstUnicode pathName)  // IN: Path name
 {
-   struct statfs sfbuf;
-
-#if defined(VMX86_SERVER)
-   /*
-    * On ESX, statfs() will always return VMFS_MAGIC for files on VMFS so this
-    * function is only correct for files on COS, otherwise it always returns
-    * FALSE.
-    * On VMvisor, statfs() could return VMFS_NFS_MAGIC but it is very slow.
-    * Since there is no COS for VMvisor, just be on par with ESX and return
-    * FALSE directly.
-    * XXX See PR 158284. It is not clear what the side-effects are of this
-    * function being incorrect for VMFS files.
-    */
-
-   if (HostType_OSIsPureVMK()) {
+   if (HostType_OSIsVMK()) {
+      /*
+       * All files and file systems are treated as "directly attached"
+       * on ESX.  See bug 158284.
+       */
       return FALSE;
-   }
-#endif
+   } else {
+      struct statfs sfbuf;
 
-   if (Posix_Statfs(pathName, &sfbuf) == -1) {
-      Log(LGPFX" %s: statfs(%s) failed: %s\n", __func__, UTF8(pathName),
-          strerror(errno));
-      return TRUE;
-   }
+      if (Posix_Statfs(pathName, &sfbuf) == -1) {
+         Log(LGPFX" %s: statfs(%s) failed: %s\n", __func__, UTF8(pathName),
+             Err_Errno2String(errno));
+
+         return TRUE;
+      }
 #if defined(__APPLE__)
-   return sfbuf.f_flags & MNT_LOCAL ? FALSE : TRUE;
+      return sfbuf.f_flags & MNT_LOCAL ? FALSE : TRUE;
 #else
-   if (NFS_SUPER_MAGIC == sfbuf.f_type) {
-      return TRUE;
-   }
-   if (SMB_SUPER_MAGIC == sfbuf.f_type) {
-      return TRUE;
-   }
-   if (CIFS_SUPER_MAGIC == sfbuf.f_type) {
-      return TRUE;
-   }
-   return FALSE;
+      if (NFS_SUPER_MAGIC == sfbuf.f_type) {
+         return TRUE;
+      }
+
+      if (SMB_SUPER_MAGIC == sfbuf.f_type) {
+         return TRUE;
+      }
+
+      if (CIFS_SUPER_MAGIC == sfbuf.f_type) {
+         return TRUE;
+      }
+
+      return FALSE;
 #endif
+   }
 }
 #endif /* !FreeBSD && !sun */
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_OnVMFS --
+ *
+ *      Return TRUE if file is on a VMFS file system.
+ *
+ * Results:
+ *      TRUE   Caller is running on ESX (all FS are consider VMFS)
+ *      FALSE  Otherwise
+ *
+ * Side effects:
+ *      None
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+File_OnVMFS(ConstUnicode pathName)  // IN:
+{
+   return HostType_OSIsVMK();
+}
 
 
 /*
@@ -578,9 +616,7 @@ File_FullPath(ConstUnicode pathName)  // IN:
           ret = FileStripFwdSlashes(pathName);
        }
    } else {
-      Unicode path;
-
-      path = Unicode_Join(cwd, DIRSEPS, pathName, NULL);
+      Unicode path = Unicode_Join(cwd, DIRSEPS, pathName, NULL);
 
       ret = Posix_RealPath(path);
 
@@ -640,11 +676,11 @@ File_IsFullPath(ConstUnicode pathName)  // IN:
  */
 
 Bool
-File_GetTimes(ConstUnicode pathName,      // IN:
-              VmTimeType *createTime,     // OUT: Windows NT time format
-              VmTimeType *accessTime,     // OUT: Windows NT time format
-              VmTimeType *writeTime,      // OUT: Windows NT time format
-              VmTimeType *attrChangeTime) // OUT: Windows NT time format
+File_GetTimes(ConstUnicode pathName,       // IN:
+              VmTimeType *createTime,      // OUT: Windows NT time format
+              VmTimeType *accessTime,      // OUT: Windows NT time format
+              VmTimeType *writeTime,       // OUT: Windows NT time format
+              VmTimeType *attrChangeTime)  // OUT: Windows NT time format
 {
    struct stat statBuf;
 
@@ -657,7 +693,7 @@ File_GetTimes(ConstUnicode pathName,      // IN:
 
    if (Posix_Lstat(pathName, &statBuf) == -1) {
       Log(LGPFX" %s: error stating file \"%s\": %s\n", __FUNCTION__,
-          UTF8(pathName), strerror(errno));
+          UTF8(pathName), Err_Errno2String(errno));
       return FALSE;
    }
 
@@ -782,6 +818,7 @@ File_SetTimes(ConstUnicode pathName,      // IN:
    if (path == NULL) {
       Log(LGPFX" %s: failed to convert \"%s\" to current encoding\n",
           __FUNCTION__, UTF8(pathName));
+
       return FALSE;
    }
 
@@ -789,8 +826,9 @@ File_SetTimes(ConstUnicode pathName,      // IN:
 
    if (err != 0) {
       Log(LGPFX" %s: error stating file \"%s\": %s\n", __FUNCTION__,
-          UTF8(pathName), strerror(err));
+          UTF8(pathName), Err_Errno2String(err));
       free(path);
+
       return FALSE;
    }
 
@@ -809,6 +847,7 @@ File_SetTimes(ConstUnicode pathName,      // IN:
 
    if (accessTime > 0) {
       struct timespec ts;
+
       TimeUtil_NtTimeToUnixTime(&ts, accessTime);
       aTime->tv_sec = ts.tv_sec;
       aTime->tv_usec = ts.tv_nsec / 1000;
@@ -816,6 +855,7 @@ File_SetTimes(ConstUnicode pathName,      // IN:
 
    if (writeTime > 0) {
       struct timespec ts;
+
       TimeUtil_NtTimeToUnixTime(&ts, writeTime);
       wTime->tv_sec = ts.tv_sec;
       wTime->tv_usec = ts.tv_nsec / 1000;
@@ -827,7 +867,8 @@ File_SetTimes(ConstUnicode pathName,      // IN:
 
    if (err != 0) {
       Log(LGPFX" %s: utimes error on file \"%s\": %s\n", __FUNCTION__,
-          UTF8(pathName), strerror(err));
+          UTF8(pathName), Err_Errno2String(err));
+
       return FALSE;
    }
 
@@ -852,16 +893,19 @@ File_SetTimes(ConstUnicode pathName,      // IN:
  */
 
 Bool
-File_SetFilePermissions(ConstUnicode pathName,     // IN:
-                        int perms)                 // IN: permissions
+File_SetFilePermissions(ConstUnicode pathName,  // IN:
+                        int perms)              // IN: permissions
 {
    ASSERT(pathName);
+
    if (Posix_Chmod(pathName, perms) == -1) {
       /* The error is not critical, just log it. */
-      Log(LGPFX" %s: failed to change permissions on file \"%s\": %s\n", __FUNCTION__,
-          UTF8(pathName), strerror(errno));
+      Log(LGPFX" %s: failed to change permissions on file \"%s\": %s\n",
+          __FUNCTION__, UTF8(pathName), Err_Errno2String(errno));
+
       return FALSE;
    }
+
    return TRUE;
 }
 
@@ -999,95 +1043,16 @@ File_GetFreeSpace(ConstUnicode pathName,  // IN: File name
 
    fullPath = File_FullPath(pathName);
    if (fullPath == NULL) {
-      ret = -1;
-      goto end;
+      return -1;
    }
 
-   if (!FileGetStats(fullPath, doNotAscend, &statfsbuf)) {
+   if (FileGetStats(fullPath, doNotAscend, &statfsbuf)) {
+      ret = (uint64) statfsbuf.f_bavail * statfsbuf.f_bsize;
+   } else {
       Warning("%s: Couldn't statfs %s\n", __func__, fullPath);
       ret = -1;
-      goto end;
    }
 
-   ret = (uint64)statfsbuf.f_bavail * statfsbuf.f_bsize;
-
-#if defined(VMX86_SERVER)
-   /*
-    * The following test is never true on VMvisor but we do not care as
-    * this is only intended for callers going through vmkfs. Direct callers
-    * as we are always get the right answer from statfs above.
-    */
-
-   if (statfsbuf.f_type == VMFS_MAGIC_NUMBER) {
-      int fd;
-      FS_FreeSpaceArgs args = { 0 };
-      Unicode specialPath = NULL;
-
-      /*
-       * If the file exists and can be opened we're all set. If the file
-       * doesn't exist we can use the parent directory for the ioctl.
-       * However, if the file exists and can't be opened (e.g. permissions
-       * issues) a correct answer can only be returned if the target isn't a
-       * directory. If the target is a directory its parent may be a mount
-       * point - leading across a mount point to a different file system.
-       * PR 412387
-       */
-
-      ret = -1;
-
-      fd = Posix_Open(fullPath, O_RDONLY, 0);
-
-      if (fd == -1) {
-         switch (errno) {
-         case EPERM:
-         case EACCES:
-            {
-               int err = errno;
-               struct stat statbuf;
-
-               if (Posix_Stat(fullPath, &statbuf) == -1) {
-                  errno = err;
-                  break;
-               }
-
-               if (S_ISDIR(statbuf.st_mode)) {
-                  Warning(LGPFX" %s: directory (%s) present but inaccessible\n",
-                          __func__, UTF8(fullPath));
-                  errno = err;
-                  break;
-               }
-            }
-            /* FALLTHROUGH */
-
-         case ENOENT:
-         default:
-            File_SplitName(fullPath, NULL, &specialPath, NULL);
-
-            fd = Posix_Open(specialPath, O_RDONLY, 0);
-         }
-      }
-
-      if (fd == -1) {
-         Warning(LGPFX" %s: open of %s failed with: %s\n", __func__,
-                 (specialPath == NULL) ? UTF8(fullPath) : UTF8(specialPath),
-                 Msg_ErrString());
-      } else {
-         if (ioctl(fd, IOCTLCMD_VMFS_GET_FREE_SPACE, &args) == -1) {
-            Warning(LGPFX" %s: ioctl on %s failed with: %s\n", __func__,
-                    (specialPath == NULL) ? UTF8(fullPath) : UTF8(specialPath),
-                    Msg_ErrString());
-         } else {
-            ret = args.bytesFree;
-         }
-
-         close(fd);
-      }
-
-      Unicode_Free(specialPath);
-   }
-#endif
-
-end:
    Unicode_Free(fullPath);
 
    return ret;
@@ -1195,21 +1160,21 @@ static int
 File_GetVMFSVersion(ConstUnicode pathName,  // IN: Filename to test
                     uint32 *version)        // IN/OUT: version number of VMFS
 {
-   int ret = -1;
+   int ret;
    FS_PartitionListResult *fsAttrs = NULL;
 
    ret = File_GetVMFSAttributes(pathName, &fsAttrs);
+
    if (ret < 0) {
       Log(LGPFX" %s: File_GetVMFSAttributes failed\n", __func__);
-      goto done;
+   } else {
+      *version = fsAttrs->versionNumber;
    }
 
-   *version = fsAttrs->versionNumber;
-
-done:
    if (fsAttrs) {
       free(fsAttrs);
    }
+
    return ret;
 }
 
@@ -1235,21 +1200,21 @@ int
 File_GetVMFSBlockSize(ConstUnicode pathName,  // IN: File name to test
                       uint32 *blockSize)      // IN/OUT: VMFS block size
 {
-   int ret = -1;
+   int ret;
    FS_PartitionListResult *fsAttrs = NULL;
 
    ret = File_GetVMFSAttributes(pathName, &fsAttrs);
+
    if (ret < 0) {
       Log(LGPFX" %s: File_GetVMFSAttributes failed\n", __func__);
-      goto done;
+   } else {
+      *blockSize = fsAttrs->fileBlockSize;
    }
 
-   *blockSize = fsAttrs->fileBlockSize;
-
-done:
    if (fsAttrs) {
       free(fsAttrs);
    }
+
    return ret;
 }
 
@@ -1275,22 +1240,22 @@ int
 File_GetVMFSfsType(ConstUnicode pathName,  // IN: File name to test
                    char **fsType)          // IN/OUT: VMFS fsType
 {
-   int ret = -1;
+   int ret;
    FS_PartitionListResult *fsAttrs = NULL;
 
    ret = File_GetVMFSAttributes(pathName, &fsAttrs);
+
    if (ret < 0) {
       Log(LGPFX" %s: File_GetVMFSAttributes failed\n", __func__);
-      goto done;
+   } else {
+      *fsType = Util_SafeMalloc(sizeof(char) * FS_PLIST_DEF_MAX_FSTYPE_LEN);
+      memcpy(*fsType, fsAttrs->fsType, FS_PLIST_DEF_MAX_FSTYPE_LEN);
    }
 
-   *fsType = Util_SafeMalloc(sizeof(char) * FS_PLIST_DEF_MAX_FSTYPE_LEN);
-   memcpy(*fsType, fsAttrs->fsType, FS_PLIST_DEF_MAX_FSTYPE_LEN);
-
-done:
    if (fsAttrs) {
       free(fsAttrs);
    }
+
    return ret;
 }
 
@@ -1315,12 +1280,12 @@ done:
  */
 
 int 
-File_GetVMFSMountInfo(ConstUnicode pathName,
-                     char **fsType,
-                     uint32 *version,
-                     char **remoteIP,
-                     char **remoteMountPoint,
-                     char **localMountPoint)
+File_GetVMFSMountInfo(ConstUnicode pathName,  // IN:
+                     char **fsType,           // OUT:
+                     uint32 *version,         // OUT:
+                     char **remoteIP,         // OUT:
+                     char **remoteMountPoint, // OUT:
+                     char **localMountPoint)  // OUT:
 {
    int ret;
    int len;
@@ -1350,76 +1315,10 @@ File_GetVMFSMountInfo(ConstUnicode pathName,
    }
 
    free(fsAttrs);
+
    return ret;
 }
-
 #endif 
-
-
-/*
- *----------------------------------------------------------------------
- *
- * File_OnVMFS --
- *
- *      Return TRUE if file is on a VMFS file system.
- *
- * Results:
- *      Boolean
- *
- * Side effects:
- *      None
- *
- *----------------------------------------------------------------------
- */
-
-Bool
-File_OnVMFS(ConstUnicode pathName)
-{
-#if defined(VMX86_SERVER)
-   Bool ret;
-   struct statfs statfsbuf;
-
-   /* XXX See Vmfs_IsVMFSDir. Same caveat about fs exclusion. */
-   if (HostType_OSIsPureVMK()) {
-      return TRUE;
-   }
-
-   /*
-    * Do a quick statfs() for best performance in the case that the file
-    * exists.  If file doesn't exist, then get the full path and do a
-    * FileGetStats() to check each of the parent directories.
-    */
-
-   if (Posix_Statfs(pathName, &statfsbuf) == -1) {
-      int err;
-      Unicode fullPath;
-
-      fullPath = File_FullPath(pathName);
-      if (fullPath == NULL) {
-         ret = FALSE;
-         goto end;
-      }
-
-      err = FileGetStats(fullPath, FALSE, &statfsbuf);
-
-      Unicode_Free(fullPath);
-
-      if (err == -1) {
-         Warning(LGPFX" %s: Couldn't statfs\n", __FUNCTION__);
-         ret = FALSE;
-         goto end;
-      }
-   }
-
-   ret = (statfsbuf.f_type == VMFS_MAGIC_NUMBER);
-
-end:
-
-   return ret;
-#else
-   return FALSE;
-#endif
-}
 
 
 /*
@@ -1448,20 +1347,18 @@ File_GetCapacity(ConstUnicode pathName)  // IN: Path name
 
    fullPath = File_FullPath(pathName);
    if (fullPath == NULL) {
-      ret = -1;
-      goto end;
+      return -1;
    }
 
-   if (!FileGetStats(fullPath, FALSE, &statfsbuf)) {
+   if (FileGetStats(fullPath, FALSE, &statfsbuf)) {
+      ret = (uint64) statfsbuf.f_blocks * statfsbuf.f_bsize;
+   } else {
       Warning(LGPFX" %s: Couldn't statfs\n", __func__);
       ret = -1;
-      goto end;
    }
 
-   ret = (uint64)statfsbuf.f_blocks * statfsbuf.f_bsize;
-
-end:
    Unicode_Free(fullPath);
+
    return ret;
 }
 
@@ -1493,40 +1390,41 @@ end:
  */
 
 char *
-File_GetUniqueFileSystemID(char const *path) // IN: File path
+File_GetUniqueFileSystemID(char const *path)  // IN: File path
 {
-#if defined(VMX86_SERVER)
-   char *canPath;
-   char *existPath;
+   if (HostType_OSIsVMK()) {
+      char *canPath;
+      char *existPath;
 
-   existPath = FilePosixNearestExistingAncestor(path);
-   canPath = Posix_RealPath(existPath);
-   free(existPath);
+      existPath = FilePosixNearestExistingAncestor(path);
+      canPath = Posix_RealPath(existPath);
+      free(existPath);
 
-   if (canPath == NULL) {
-      return NULL;
-   }
-
-   /*
-    * VCFS doesn't have real mount points, so the mount point lookup below
-    * returns "/vmfs", instead of the VCFS mount point.
-    *
-    * See bug 61646 for why we care.
-    */
-
-   if (strncmp(canPath, VCFS_MOUNT_POINT, strlen(VCFS_MOUNT_POINT)) == 0) {
-      char vmfsVolumeName[FILE_MAXPATH];
-
-      if (sscanf(canPath, VCFS_MOUNT_PATH "%[^/]%*s", vmfsVolumeName) == 1) {
-         free(canPath);
-
-         return Str_SafeAsprintf(NULL, "%s/%s", VCFS_MOUNT_POINT,
-                                 vmfsVolumeName);
+      if (canPath == NULL) {
+         return NULL;
       }
-   }
 
-   free(canPath);
-#endif
+      /*
+       * VCFS doesn't have real mount points, so the mount point lookup below
+       * returns "/vmfs", instead of the VCFS mount point.
+       *
+       * See bug 61646 for why we care.
+       */
+
+      if (strncmp(canPath, VCFS_MOUNT_POINT, strlen(VCFS_MOUNT_POINT)) == 0) {
+         char vmfsVolumeName[FILE_MAXPATH];
+
+         if (sscanf(canPath, VCFS_MOUNT_PATH "%[^/]%*s",
+                    vmfsVolumeName) == 1) {
+            free(canPath);
+
+            return Str_SafeAsprintf(NULL, "%s/%s", VCFS_MOUNT_POINT,
+                                    vmfsVolumeName);
+         }
+      }
+
+      free(canPath);
+   }
 
    return FilePosixGetBlockDevice(path);
 }
@@ -1554,8 +1452,8 @@ File_GetUniqueFileSystemID(char const *path) // IN: File path
  */
 
 static char *
-FilePosixLookupMountPoint(char const *canPath, // IN: Canonical file path
-                          Bool *bind)          // OUT: Mounted with --[r]bind?
+FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
+                          Bool *bind)           // OUT: Mounted with --[r]bind?
 {
    FILE *f;
    struct mntent *mnt;
@@ -1599,6 +1497,7 @@ FilePosixLookupMountPoint(char const *canPath, // IN: Canonical file path
 
    // 'canPath' is not a mount point.
    endmntent(f);
+
    return NULL;
 }
 #endif
@@ -1625,7 +1524,7 @@ FilePosixLookupMountPoint(char const *canPath, // IN: Canonical file path
  */
 
 char *
-FilePosixGetBlockDevice(char const *path) // IN: File path
+FilePosixGetBlockDevice(char const *path)  // IN: File path
 {
    char *existPath;
    Bool failed;
@@ -1778,7 +1677,7 @@ retry:
  */
 
 static char *
-FilePosixNearestExistingAncestor(char const *path) // IN: File path
+FilePosixNearestExistingAncestor(char const *path)  // IN: File path
 {
    size_t resultSize;
    char *result;
@@ -1786,8 +1685,8 @@ FilePosixNearestExistingAncestor(char const *path) // IN: File path
 
    resultSize = MAX(strlen(path), 1) + 1;
    result = Util_SafeMalloc(resultSize);
-
    Str_Strcpy(result, path, resultSize);
+
    for (;;) {
       char *ptr;
 
@@ -1914,6 +1813,7 @@ File_IsSameFile(ConstUnicode path1,  // IN:
        (st1.st_blocks == st2.st_blocks)) {
       return TRUE;
    }
+
    return FALSE;
 }
 
@@ -1996,49 +1896,8 @@ bail:
    free(oldPath);
 
    errno = status;
+
    return result;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * FileIsVMFS --
- *
- *      Determine whether specified file lives on VMFS filesystem.
- *      Only Linux host can have VMFS, so skip it on Solaris
- *      and FreeBSD.
- *
- * Results:
- *      TRUE if specified file lives on VMFS
- *      FALSE if file is not on VMFS or does not exist
- *
- * Side effects:
- *      None.
- *
- *----------------------------------------------------------------------
- */
-
-static Bool
-FileIsVMFS(ConstUnicode pathName)  // IN: file name to test
-{
-#if defined(linux)
-   struct statfs statfsbuf;
-
-#if defined(VMX86_SERVER)
-   /* XXX See Vmfs_IsVMFSFile. Same caveat about fs exclusion. */
-   if (HostType_OSIsPureVMK()) {
-      return TRUE;
-   }
-#endif
-
-   if (Posix_Statfs(pathName, &statfsbuf) == 0) {
-      return statfsbuf.f_type == VMFS_SUPER_MAGIC;
-   }
-
-#endif
-
-   return FALSE;
 }
 
 
@@ -2063,8 +1922,8 @@ FileIsVMFS(ConstUnicode pathName)  // IN: file name to test
  */
 
 static Bool
-FilePosixCreateTestFileSize(ConstUnicode dirName, // IN: directory to create large file
-                            uint64 fileSize)      // IN: test file size
+FilePosixCreateTestFileSize(ConstUnicode dirName,  // IN: test directory
+                            uint64 fileSize)       // IN: test file size
 {
    Bool retVal;
    int posixFD;
@@ -2129,14 +1988,17 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
 
    if (File_GetVMFSVersion(pathName, &version) < 0) {
       Log(LGPFX" %s: File_GetVMFSVersion Failed\n", __func__);
+
       return FALSE;
    }
    if (File_GetVMFSBlockSize(pathName, &blockSize) < 0) {
       Log(LGPFX" %s: File_GetVMFSBlockSize Failed\n", __func__);
+
       return FALSE;
    }
    if (File_GetVMFSfsType(pathName, &fsType) < 0) {
       Log(LGPFX" %s: File_GetVMFSfsType Failed\n", __func__);
+
       return FALSE;
    }
 
@@ -2151,12 +2013,14 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
 
       if (fileSize <= maxFileSize && maxFileSize != -1) {
          free(fsType);
+
          return TRUE;
       } else {
          Log(LGPFX" %s: Requested file size (%"FMT64"d) larger than maximum "
              "supported filesystem file size (%"FMT64"d)\n", __FUNCTION__,
              fileSize, maxFileSize);
          free(fsType);
+
          return FALSE;
       }
    } else {
@@ -2168,6 +2032,7 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
       if (fullPath == NULL) {
          Log(LGPFX" %s: Error acquiring full path\n", __func__);
          free(fsType);
+
          return FALSE;
       }
 
@@ -2184,6 +2049,7 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
 
 #endif
    Log(LGPFX" %s: did not execute properly\n", __func__);
+
    return FALSE; /* happy compiler */
 }
 
@@ -2235,7 +2101,7 @@ File_SupportsFileSize(ConstUnicode pathName,  // IN:
    /* 
     * This function expects a filename. If given one, truncate the name to
     * point to the parent directory so we can get accurate results from
-    * FileIsVMFS. If handed a directory directly, no truncation is necessary.
+    * File_OnVMFS. If handed a directory directly, no truncation is necessary.
     */
 
    if (File_IsDirectory(pathName)) {
@@ -2249,7 +2115,7 @@ File_SupportsFileSize(ConstUnicode pathName,  // IN:
     * See function File_VMFSSupportsFileSize() - PR 146965
     */
 
-   if (FileIsVMFS(folderPath)) {
+   if (File_OnVMFS(folderPath)) {
       supported = File_VMFSSupportsFileSize(pathName, fileSize);
       goto out;
    }
@@ -2374,6 +2240,7 @@ File_ListDirectory(ConstUnicode pathName,  // IN:
       /* Don't create the file list if we aren't providing it to the caller. */
       if (ids) {
          Unicode id = Unicode_Alloc(entry->d_name, STRING_ENCODING_DEFAULT);
+
          DynBuf_Append(&b, &id, sizeof id);
       }
 
@@ -2423,7 +2290,7 @@ File_ListDirectory(ConstUnicode pathName,  // IN:
  */
 
 WalkDirContext
-File_WalkDirectoryStart(ConstUnicode parentPath) // IN
+File_WalkDirectoryStart(ConstUnicode parentPath)  // IN:
 {
    WalkDirContextImpl *context;
    char * const traversalRoots[] =
@@ -2434,8 +2301,7 @@ File_WalkDirectoryStart(ConstUnicode parentPath) // IN
       return NULL;
    }
 
-   context->fts = fts_open(traversalRoots,
-                           FTS_LOGICAL|FTS_NOSTAT|FTS_NOCHDIR,
+   context->fts = fts_open(traversalRoots, FTS_LOGICAL|FTS_NOSTAT|FTS_NOCHDIR,
                            NULL);
    if (!context->fts) {
       free(context);
@@ -2471,8 +2337,8 @@ File_WalkDirectoryStart(ConstUnicode parentPath) // IN
  */
 
 Bool
-File_WalkDirectoryNext(WalkDirContext context, // IN
-                       Unicode *path)          // OUT
+File_WalkDirectoryNext(WalkDirContext context,  // IN:
+                       Unicode *path)           // OUT:
 {
    FTSENT *nextEntry;
 
@@ -2482,17 +2348,20 @@ File_WalkDirectoryNext(WalkDirContext context, // IN
 
    do {
       nextEntry = fts_read(context->fts);
+
       /*
        * We'll skip any entries that cannot be read, are errors, or
        * are the second traversal (post-order) of a directory.
        */
-      if (   nextEntry
-          && nextEntry->fts_info != FTS_DNR
-          && nextEntry->fts_info != FTS_ERR
-          && nextEntry->fts_info != FTS_DP) {
+
+      if (nextEntry &&
+          nextEntry->fts_info != FTS_DNR &&
+          nextEntry->fts_info != FTS_ERR &&
+          nextEntry->fts_info != FTS_DP) {
          *path = Unicode_AllocWithLength(nextEntry->fts_path,
                                          nextEntry->fts_pathlen,
                                          STRING_ENCODING_DEFAULT);
+
          return TRUE;
       }
    } while (nextEntry);
@@ -2518,7 +2387,7 @@ File_WalkDirectoryNext(WalkDirContext context, // IN
  */
 
 void
-File_WalkDirectoryEnd(WalkDirContext context) // IN
+File_WalkDirectoryEnd(WalkDirContext context)  // IN:
 {
    ASSERT(context);
    ASSERT(context->fts);
@@ -2551,22 +2420,22 @@ File_WalkDirectoryEnd(WalkDirContext context) // IN
  */
 
 WalkDirContext
-File_WalkDirectoryStart(ConstUnicode parentPath) // IN
+File_WalkDirectoryStart(ConstUnicode parentPath)  // IN:
 {
    NOT_IMPLEMENTED();
 }
 
 
 Bool
-File_WalkDirectoryNext(WalkDirContext context, // IN
-                       Unicode *path)          // OUT
+File_WalkDirectoryNext(WalkDirContext context,  // IN:
+                       Unicode *path)           // OUT:
 {
    NOT_IMPLEMENTED();
 }
 
 
 void
-File_WalkDirectoryEnd(WalkDirContext context) // IN
+File_WalkDirectoryEnd(WalkDirContext context)  // IN:
 {
    NOT_IMPLEMENTED();
 }
@@ -2592,7 +2461,7 @@ File_WalkDirectoryEnd(WalkDirContext context) // IN
  */
 
 static Bool
-FileIsGroupsMember(gid_t gid)
+FileIsGroupsMember(gid_t gid)  // IN:
 {
    int nr_members;
    gid_t *members;
@@ -2601,6 +2470,7 @@ FileIsGroupsMember(gid_t gid)
 
    members = NULL;
    nr_members = 0;
+
    for (;;) {
       gid_t *new;
 
@@ -2715,7 +2585,7 @@ FileIsWritableDir(ConstUnicode dirName)  // IN:
  */
 
 static char *
-FileTryDir(const char *dirName) // IN: Is this a writable directory?
+FileTryDir(const char *dirName)  // IN: Is this a writable directory?
 {
    char *edirName;
 
@@ -2753,7 +2623,7 @@ FileTryDir(const char *dirName) // IN: Is this a writable directory?
  */
 
 char *
-File_GetTmpDir(Bool useConf) // IN: Use the config file?
+File_GetTmpDir(Bool useConf)  // IN: Use the config file?
 {
    char *dirName;
    char *edirName;
@@ -2833,7 +2703,7 @@ File_GetTmpDir(Bool useConf) // IN: Use the config file?
  */
 
 Bool
-File_MakeCfgFileExecutable(ConstUnicode pathName)
+File_MakeCfgFileExecutable(ConstUnicode pathName)  // IN:
 {
    struct stat s;
 

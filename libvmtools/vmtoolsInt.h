@@ -28,6 +28,13 @@
 #include "vmware/tools/utils.h"
 
 /* ************************************************************************** *
+ * Internationalization.                                                      *
+ * ************************************************************************** */
+
+void
+VMToolsMsgCleanup(void);
+
+/* ************************************************************************** *
  * Logging.                                                                   *
  * ************************************************************************** */
 
@@ -74,20 +81,29 @@ typedef struct LogHandlerData {
 
 
 LogHandlerData *
-VMFileLoggerConfig(const gchar *domain,
+VMFileLoggerConfig(const gchar *defaultDomain,
+                   const gchar *domain,
                    const gchar *name,
                    GKeyFile *cfg);
 
 LogHandlerData *
-VMStdLoggerConfig(const gchar *domain,
+VMStdLoggerConfig(const gchar *defaultDomain,
+                  const gchar *domain,
                   const gchar *name,
                   GKeyFile *cfg);
 
 #if defined(_WIN32)
 LogHandlerData *
-VMDebugOutputConfig(const gchar *domain,
+VMDebugOutputConfig(const gchar *defaultDomain,
+                    const gchar *domain,
                     const gchar *name,
                     GKeyFile *cfg);
+#else
+LogHandlerData *
+VMSysLoggerConfig(const gchar *defaultDomain,
+                  const gchar *domain,
+                  const gchar *name,
+                  GKeyFile *cfg);
 #endif
 
 #endif /* _VMTOOLSINT_H_ */

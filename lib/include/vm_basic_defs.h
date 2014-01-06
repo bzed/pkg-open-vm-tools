@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2003 VMware, Inc. All rights reserved.
+ * Copyright (C) 2003-2010 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -335,9 +335,11 @@ static INLINE_SINGLE_CALLER uintptr_t
 GetFrameAddr(void)
 {
    uintptr_t bp;
-#if (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ == 0))
+#if    __GNUC__ < 4 \
+    || (__GNUC__ == 4 && __GNUC_MINOR__ == 0) \
+    || (__GNUC__ == 4 && __GNUC_MINOR__ == 2 && __GNUC_PATCHLEVEL__ == 1)
    bp = (uintptr_t)__builtin_frame_address(0);
-#elif (__GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ <= 3)
+#elif __GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ <= 3
 #  if defined(VMM) || defined(VM_X86_64)
      __asm__ __volatile__("movq %%rbp, %0\n" : "=g" (bp));
 #  else
@@ -521,23 +523,12 @@ typedef int pid_t;
  */
 
 #undef DEBUG_ONLY
-#undef SL_DEBUG_ONLY
-#undef VMX86_SL_DEBUG
 #ifdef VMX86_DEBUG
 #define vmx86_debug      1
 #define DEBUG_ONLY(x)    x
-/*
- * Be very, very, very careful with SL_DEBUG. Pls ask ganesh or min before 
- * using it.
- */
-#define VMX86_SL_DEBUG
-#define vmx86_sl_debug   1
-#define SL_DEBUG_ONLY(x) x
 #else
 #define vmx86_debug      0
 #define DEBUG_ONLY(x)
-#define vmx86_sl_debug   0
-#define SL_DEBUG_ONLY(x)
 #endif
 
 #ifdef VMX86_STATS
