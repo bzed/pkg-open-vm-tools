@@ -94,32 +94,35 @@ typedef enum GuestOSFamilyType {
 #define ALLWINEIGHT64   BS(WINEIGHT_64)
 #define ALLWINEIGHT     (ALLWINEIGHT32 | ALLWINEIGHT64)
 
-#define ALLWINVISTA_OR_HIGHER (ALLWINVISTA | ALLWINLONGHORN | ALLWIN2008R2 | \
-                               ALLWINSEVEN | ALLWINEIGHTSERVER | ALLWINEIGHT)
+#define ALLHYPER_V      BS(HYPER_V)
 
+#define ALLWINVISTA_OR_HIGHER (ALLWINVISTA | ALLWINLONGHORN | ALLWIN2008R2 | \
+                               ALLWINSEVEN | ALLWINEIGHTSERVER | \
+                               ALLWINEIGHT | ALLHYPER_V)
 
 #define ALLWINNT32	(BS(WINNT) | ALLWIN2000 | ALLWINXP32 | ALLWINNET32 | \
                          ALLWINVISTA32 | ALLWINLONGHORN32 | \
                          ALLWINSEVEN32 | ALLWIN2008R2_32 | \
                          ALLWINEIGHT32)
 
-#define ALLWINNT64	(ALLWINXP64 | ALLWINNET64 | \
+#define ALLWINNT64	(ALLWINXP64    | ALLWINNET64 | \
                          ALLWINVISTA64 | ALLWINLONGHORN64 | \
                          ALLWINSEVEN64 | ALLWIN2008R2_64 | \
-                         ALLWINEIGHT64 | ALLWINEIGHTSERVER)
+                         ALLWINEIGHT64 | ALLWINEIGHTSERVER | \
+                         ALLHYPER_V)
 
 #define ALLWINNT	(ALLWINNT32 | ALLWINNT64)
 
 #define ALLWIN32	(ALLWIN9X | ALLWINNT32)
 #define ALLWIN64	 ALLWINNT64
 #define ALLWIN          (ALLWIN32 | ALLWIN64)
-#define ALLSOLARIS      (BS(SOLARIS6) | BS(SOLARIS7) | BS(SOLARIS8) | \
-                         BS(SOLARIS9) | BS(SOLARIS10) | BS(SOLARIS10_64))
+#define ALLSOLARIS      (BS(SOLARIS_6_AND_7) | BS(SOLARIS8) | BS(SOLARIS9) | \
+                        BS(SOLARIS10) | BS(SOLARIS10_64))
 #define ALLSOLARIS10    (BS(SOLARIS10) | BS(SOLARIS10_64))
 #define ALLNETWARE      (BS(NETWARE4) | BS(NETWARE5) | BS(NETWARE6))
-#define ALL26XLINUX32   (BS(OTHER26XLINUX) | BS(DEBIAN45) | BS(RHEL6) | \
+#define ALL26XLINUX32   (BS(OTHER26XLINUX) | BS(DEBIAN45) | BS(RHEL) | \
                          BS(UBUNTU))
-#define ALL26XLINUX64   (BS(OTHER26XLINUX_64) | BS(DEBIAN45_64) | BS(RHEL6_64))
+#define ALL26XLINUX64   (BS(OTHER26XLINUX_64) | BS(DEBIAN45_64) | BS(RHEL_64))
 
 #define ALLVMKERNEL     (BS(VMKERNEL) | BS(VMKERNEL5))
 
@@ -386,14 +389,15 @@ typedef enum GuestOSFamilyType {
 #define STR_OS_WIN_2012_DATACENTER_FULL "Windows Server 2012 Datacenter Edition"
 #define STR_OS_WIN_2012_WEB_SERVER_FULL "Windows Web Server 2012 Edition"
 
+/* Microsoft Hyper-V */
+#define STR_OS_HYPER_V "winHyperV"
+#define STR_OS_HYPER_V_FULL "Hyper-V Server"
+
 /* Windows Future/Unknown */
 
 #define STR_OS_WIN_FUTURE                   "windowsUnknown"
 #define STR_OS_WIN_FUTURE_X64               "windowsUnknown-64"
 #define STR_OS_WIN_FUTURE_GENERIC           "Windows Unknown"
-
-#define STR_OS_HYPERV "winHyperV"
-#define STR_OS_HYPERV_FULL "Hyper-V Server"
 
 /* Modifiers for Windows Vista, Windows Server 2008, and later. */
 #define STR_OS_WIN_32_BIT_EXTENSION ", 32-bit"

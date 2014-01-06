@@ -130,9 +130,11 @@ unsigned char  _BitScanForward(unsigned long *, unsigned long);
 unsigned char  _BitScanReverse(unsigned long *, unsigned long);
 #pragma intrinsic(_BitScanForward, _BitScanReverse)
 
+unsigned char  _bittest(const long *, long);
 unsigned char  _bittestandset(long *, long);
 unsigned char  _bittestandreset(long *, long);
-#pragma intrinsic(_bittestandset, _bittestandreset)
+unsigned char  _bittestandcomplement(long *, long);
+#pragma intrinsic(_bittest, _bittestandset, _bittestandreset, _bittestandcomplement)
 #ifdef VM_X86_64
 unsigned char  _bittestandset64(__int64 *, __int64);
 unsigned char  _bittestandreset64(__int64 *, __int64);
@@ -986,18 +988,22 @@ RDTSC_BARRIER(void)
  *-----------------------------------------------------------------------------
  */
 
-#ifdef _MSC_VER
-#define DEBUGBREAK()   __debugbreak()
+#ifdef __arm__
+#define DEBUGBREAK() __asm__("bkpt")
 #else
-#define DEBUGBREAK()   __asm__ (" int $3 ")
+#ifdef _MSC_VER
+#define DEBUGBREAK() __debugbreak()
+#else
+#define DEBUGBREAK() __asm__("int $3")
 #endif
+#endif // __arm__
 #endif // defined(__i386__) || defined(__x86_64__) || defined(__arm__)
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * {Clear,Set}Bit{32,64} --
+ * {Clear,Set,Test}Bit{32,64} --
  *
  *    Sets or clears a specified single bit in the provided variable.  
  *    The index input value specifies which bit to modify and is 0-based. 
@@ -1110,6 +1116,101 @@ TestBit64(const uint64 *var, uint64 index)
 
 /*
  *-----------------------------------------------------------------------------
+ *
+ * {Clear,Set,Complement,Test}BitVector --
+ *
+ *    Sets, clears, complements, or tests a specified single bit in the
+ *    provided array.  The index input value specifies which bit to modify
+ *    and is 0-based.  Bit number can be +-2Gb (+-128MB) relative from 'var'
+ *    variable.
+ *
+ *    All functions return value of the bit before modification was performed.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static INLINE Bool
+SetBitVector(void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "bts %2, %1;"
+      "setc %0"
+      : "=rm" (bit), "+m" (*(volatile uint32 *)var)
+      : "rI" (index)
+      : "memory"
+   );
+   return bit;
+#elif defined(_MSC_VER)
+   return _bittestandset((long *)var, index) != 0;
+#else
+#error No compiler defined for SetBitVector
+#endif
+}
+
+static INLINE Bool
+ClearBitVector(void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "btr %2, %1;"
+      "setc %0"
+      : "=rm" (bit), "+m" (*(volatile uint32 *)var)
+      : "rI" (index)
+      : "cc"
+   );
+   return bit;
+#elif defined(_MSC_VER)
+   return _bittestandreset((long *)var, index) != 0;
+#else
+#error No compiler defined for ClearBitVector
+#endif
+}
+
+static INLINE Bool
+ComplementBitVector(void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "btc %2, %1;"
+      "setc %0"
+      : "=rm" (bit), "+m" (*(volatile uint32 *)var)
+      : "rI" (index)
+      : "cc"
+   );
+   return bit;
+#elif defined(_MSC_VER)
+   return _bittestandcomplement((long *)var, index) != 0;
+#else
+#error No compiler defined for ComplementBitVector
+#endif
+}
+
+static INLINE Bool
+TestBitVector(const void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "bt %2, %1;"
+      "setc %0"
+      : "=rm" (bit)
+      : "m" (*(const uint32 *)var), "rI" (index)
+      : "cc"
+   );
+   return bit;
+#elif defined _MSC_VER
+   return _bittest((long *)var, index) != 0;
+#else
+#error No compiler defined for TestBitVector
+#endif
+}
+
+/*
+ *-----------------------------------------------------------------------------
  * RoundUpPow2_{64,32} --
  *
  *   Rounds a value up to the next higher power of 2.  Returns the original 
@@ -1176,7 +1277,21 @@ RoundUpPow2C32(uint32 value)
 static INLINE uint32
 RoundUpPow2Asm32(uint32 value)
 {
+#ifdef __arm__
+   uint32 out = 1;
+   // Note: None Thumb only!
+   //       The value of the argument "value"
+   //       will be affected!
+   __asm__("sub %[in], %[in], #1;"         // r1 = value - 1 . if value == 0 then r1 = 0xFFFFFFFF
+           "clz %[in], %[in];"             // r1 = log2(value - 1) if value != 1
+                                           // if value == 0 then r1 = 0
+                                           // if value == 1 then r1 = 32
+           "mov %[out], %[out], ror %[in]" // out = 2^(32 - r1)
+                                           // if out == 2^32 then out = 1 as it is right rotate
+       : [in]"+r"(value),[out]"+r"(out));
+#else
    uint32 out = 2;
+
    __asm__("lea -1(%[in]), %%ecx;"      // ecx = value - 1.  Preserve original.
            "bsr %%ecx, %%ecx;"          // ecx = log2(value - 1) if value != 1
                                         // if value == 0, then ecx = 31
@@ -1187,6 +1302,7 @@ RoundUpPow2Asm32(uint32 value)
                                         // zf is always unmodified
            "cmovz %[in], %[out]"        // if value == 1 (zf == 1), write 1 to out.
        : [out]"+r"(out) : [in]"r"(value) : "%ecx", "cc");
+#endif
    return out;
 }
 #endif // __GNUC__

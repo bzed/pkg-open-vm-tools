@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2005-2011 VMware, Inc. All rights reserved.
+ * Copyright (C) 2005-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -99,8 +99,12 @@ typedef enum VMCIIntrType {
  * Queues with pre-mapped data pages must be small, so that we don't pin
  * too much kernel memory (especially on vmkernel).  We limit a queuepair to
  * 32 KB, or 16 KB per queue for symmetrical pairs.
+ *
+ * XXX, we are raising this limit to 4MB to support high-throughput workloads
+ * with vioi-filter.  Once we switch to rings instead of queuepairs for the
+ * page channel, we will drop this limit again.  See PR 852983.
  */
-#define VMCI_MAX_PINNED_QP_MEMORY (32 * 1024)
+#define VMCI_MAX_PINNED_QP_MEMORY (4 * 1024 * 1024)
 
 /*
  * We have a fixed set of resource IDs available in the VMX.
@@ -143,9 +147,25 @@ typedef uint32 VMCI_Resource;
 #define VMCI_RPC_PRIVILEGED       15
 #define VMCI_RPC_UNPRIVILEGED     16
 #define VMCI_RESOURCE_MAX         17
+/*
+ * The core VMCI device functionality only requires the resource IDs of
+ * VMCI_QUEUEPAIR_DETACH and below.
+ */
+#define VMCI_CORE_DEVICE_RESOURCE_MAX  VMCI_QUEUEPAIR_DETACH
+
+/*
+ * VMCI reserved host datagram resource IDs.
+ * vsock control channel has resource id 1.
+ */
+#define VMCI_DVFILTER_DATA_PATH_DATAGRAM 2
 
 /* VMCI Ids. */
 typedef uint32 VMCIId;
+
+typedef struct VMCIIdRange {
+   VMCIId begin;
+   VMCIId end;
+} VMCIIdRange;
 
 typedef struct VMCIHandle {
    VMCIId context;
@@ -827,5 +847,62 @@ VMCIQueueHeader_BufReady(const VMCIQueueHeader *consumeQHeader, // IN:
 }
 
 
-#endif
+/*
+ * Defines for the VMCI traffic filter:
+ * - VMCI_FP_<name> defines the filter protocol values
+ * - VMCI_FD_<name> defines the direction values (guest or host)
+ * - VMCI_FT_<name> are the type values (allow or deny)
+ */
 
+#define VMCI_FP_INVALID     -1
+#define VMCI_FP_HYPERVISOR   0
+#define VMCI_FP_QUEUEPAIR    (VMCI_FP_HYPERVISOR + 1)
+#define VMCI_FP_DOORBELL     (VMCI_FP_QUEUEPAIR + 1)
+#define VMCI_FP_DATAGRAM     (VMCI_FP_DOORBELL + 1)
+#define VMCI_FP_STREAMSOCK   (VMCI_FP_DATAGRAM + 1)
+#define VMCI_FP_SEQPACKET    (VMCI_FP_STREAMSOCK + 1)
+#define VMCI_FP_MAX          (VMCI_FP_SEQPACKET + 1)
+
+#define VMCI_FD_INVALID  -1
+#define VMCI_FD_GUEST     0
+#define VMCI_FD_HOST      (VMCI_FD_GUEST + 1)
+#define VMCI_FD_MAX       (VMCI_FD_HOST + 1)
+
+#define VMCI_FT_INVALID  -1
+#define VMCI_FT_ALLOW     0
+#define VMCI_FT_DENY      (VMCI_FT_ALLOW + 1)
+#define VMCI_FT_MAX       (VMCI_FT_DENY + 1)
+
+/*
+ * The filter list tracks VMCI Id ranges for a given filter.
+ */
+
+typedef struct {
+   uint32 len;
+   VMCIIdRange *list;
+} VMCIFilterList;
+
+
+/*
+ * The filter info is used to communicate the filter configuration
+ * from the VMX to the host kernel.
+ */
+
+typedef struct {
+   VA64   list;   // List of VMCIIdRange
+   uint32 len;    // Length of list
+   uint8  dir;    // VMCI_FD_X
+   uint8  proto;  // VMCI_FP_X
+   uint8  type;   // VMCI_FT_X
+} VMCIFilterInfo;
+
+/*
+ * In the host kernel, the ingoing and outgoing filters are
+ * separated. The VMCIProtoFilters type captures all filters in one
+ * direction. The VMCIFilters type captures all filters.
+ */
+
+typedef VMCIFilterList VMCIProtoFilters[VMCI_FP_MAX][VMCI_FT_MAX];
+typedef VMCIProtoFilters VMCIFilters[VMCI_FD_MAX];
+
+#endif

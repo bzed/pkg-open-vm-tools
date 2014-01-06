@@ -320,16 +320,32 @@ File_SplitName(ConstUnicode pathName,  // IN:
  *
  * File_PathJoin --
  *
- *      Join the dirName and baseName together to create a (full) path but
- *      don't add a DIRSEPS unless necessary.
+ *      Join the dirName and baseName together to create a (full) path.
  *
- *      File_PathJoin("a", "b")  -> "a/b"
- *      File_PathJoin("a/", "b") -> "a/b"
+ *      This code concatenates two strings together and omits a redundant
+ *      directory separator between the two.
  *
- * Results: 
+ *      On Windows, the 'baseName' argument may not be a fully qualified path.
+ *      That is, it may not be an absolute path containing a drive letter nor
+ *      may it be a UNC path.
+ *
+ * Examples:
+ *      File_PathJoin("", "b")            -> "/b"
+ *      File_PathJoin("/", "b")           -> "/b"
+ *      File_PathJoin("a", "b")           -> "a/b"
+ *      File_PathJoin("a/", "b")          -> "a/b"
+ *      File_PathJoin("a/////", "b")      -> "a/b"
+ *      File_PathJoin("a", "")            -> "a/"
+ *      File_PathJoin("a", "/")           -> "a/"
+ *      File_PathJoin("a", "/b")          -> "a/b"
+ *      File_PathJoin("a", "/////b")      -> "a/b" (only posix)
+ *      File_PathJoin("a/", "/b")         -> "a/b"
+ *      File_PathJoin("a/////", "/////b") -> "a/b" (only posix)
+ *
+ * Results:
  *      The constructed path which must be freed by the caller.
  *
- * Side effects: 
+ * Side effects:
  *      None
  *
  *---------------------------------------------------------------------------
@@ -337,18 +353,50 @@ File_SplitName(ConstUnicode pathName,  // IN:
 
 Unicode
 File_PathJoin(ConstUnicode dirName,   // IN:
-              ConstUnicode baseName)  // IN:
+              ConstUnicode baseName)  // IN: See above.
 {
    Unicode result;
+   Unicode newDir = NULL;
 
    ASSERT(dirName);
    ASSERT(baseName);
 
-   if (Unicode_EndsWith(dirName, DIRSEPS)) {
-      result = Unicode_Append(dirName, baseName);
-   } else {
-      result = Unicode_Join(dirName, DIRSEPS, baseName, NULL);
+   /*
+    * Remove ALL directory separators from baseName begin.
+    */
+#if defined(_WIN32)
+   {
+      ConstUnicode oldBaseName = baseName;
+
+      /*
+       * Reject drive letters in baseName.
+       */
+      ASSERT(Unicode_LengthInCodePoints(baseName) < 2 ||
+             Unicode_FindSubstrInRange(baseName, 1, 1, ":", 0, 1) ==
+             UNICODE_INDEX_NOT_FOUND);
+
+      while (*baseName == '/' || *baseName == '\\') {
+         baseName++;
+      }
+
+      /*
+       * Reject UNC paths for baseName.
+       */
+      ASSERT(baseName - oldBaseName < 2);
    }
+#else
+   while (*baseName == '/') {
+      baseName++;
+   }
+#endif
+
+   /*
+    * Remove ALL directory separators from dirName end.
+    */
+   newDir = File_StripSlashes(dirName);
+
+   result = Unicode_Join(newDir, DIRSEPS, baseName, NULL);
+   Unicode_Free(newDir);
 
    return result;
 }
