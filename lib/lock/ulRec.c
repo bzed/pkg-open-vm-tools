@@ -35,15 +35,12 @@ typedef struct
    Atomic_Ptr              heldHisto;
 } MXUserStats;
 
-#define MXUSER_REC_SIGNATURE 0x43524B4C // 'LKRC' in memory
-
 struct MXUserRecLock
 {
    MXUserHeader         header;
    MXRecLock            recursiveLock;
    Atomic_Ptr           statsMem;
-   Atomic_uint32        destroyRefCount;
-   Atomic_uint32        destroyWasCalled;
+   Atomic_uint32        refCount;
 
    /*
     * This is the MX recursive lock override pointer. It is used within the
@@ -156,21 +153,18 @@ MXUserDumpRecLock(MXUserHeader *header)  // IN:
    Warning("\tname %s\n", lock->header.name);
    Warning("\trank 0x%X\n", lock->header.rank);
    Warning("\tserial number %u\n", lock->header.serialNumber);
+   Warning("\treference count %u\n", Atomic_Read(&lock->refCount));
 
    if (lock->vmmLock == NULL) {
       MXUserStats *stats = (MXUserStats *) Atomic_ReadPtr(&lock->statsMem);
 
       Warning("\tcount %u\n", lock->recursiveLock.referenceCount);
 
-#if defined(_WIN32)
-      Warning("\towner %u\n", lock->recursiveLock.nativeThreadID);
-#else
-      Warning("\towner 0x%p\n",
-              (void *)(uintptr_t)lock->recursiveLock.nativeThreadID);
-#endif
+      Warning("\taddress of owner data 0x%p\n",
+              &lock->recursiveLock.nativeThreadID);
 
       if (stats && (stats->holder != NULL)) {
-         Warning("\tholder %p\n", stats->holder);
+         Warning("\tholder 0x%p\n", stats->holder);
       }
    } else {
       Warning("\tvmmLock 0x%p\n", lock->vmmLock);
@@ -202,7 +196,10 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
 {
    Bool result;
 
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
+
+   Atomic_Inc(&lock->refCount);
 
    switch (command) {
    case MXUSER_CONTROL_ACQUISITION_HISTO: {
@@ -210,8 +207,9 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
 
       if (stats && (lock->vmmLock == NULL)) {
          va_list a;
-         uint64 minValue;
          uint32 decades;
+         uint64 minValue;
+
          va_start(a, command);
          minValue = va_arg(a, uint64);
          decades = va_arg(a, uint32);
@@ -232,8 +230,9 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
 
       if (stats && (lock->vmmLock == NULL)) {
          va_list a;
-         uint64 minValue;
          uint32 decades;
+         uint64 minValue;
+
          va_start(a, command);
          minValue = va_arg(a, uint64);
          decades = va_arg(a, uint32);
@@ -278,6 +277,10 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
 
    default:
       result = FALSE;
+   }
+
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
    }
 
    return result;
@@ -328,10 +331,9 @@ MXUserCreateRecLock(const char *userName,  // IN:
    }
 
    lock->vmmLock = NULL;
-   Atomic_Write(&lock->destroyRefCount, 1);
-   Atomic_Write(&lock->destroyWasCalled, 0);
+   Atomic_Write(&lock->refCount, 1);
 
-   lock->header.signature = MXUSER_REC_SIGNATURE;
+   lock->header.signature = MXUserGetSignature(MXUSER_TYPE_REC);
    lock->header.name = properName;
    lock->header.rank = rank;
    lock->header.serialNumber = MXUserAllocSerialNumber();
@@ -429,9 +431,10 @@ MXUser_CreateRecLock(const char *userName,  // IN:
 static void
 MXUserCondDestroyRecLock(MXUserRecLock *lock)  // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
 
-   if (Atomic_FetchAndDec(&lock->destroyRefCount) == 1) {
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
       if (lock->vmmLock == NULL) {
          MXUserStats *stats;
 
@@ -468,21 +471,6 @@ void
 MXUser_DestroyRecLock(MXUserRecLock *lock)  // IN:
 {
    if (lock != NULL) {
-      ASSERT(lock->header.signature == MXUSER_REC_SIGNATURE);
-
-      /*
-       * May not call destroy on a lock more than once
-       *
-       * That the code can get here may only occur if the reference count
-       * mechanism is used.
-       */
-
-      if (Atomic_FetchAndInc(&lock->destroyWasCalled) != 0) {
-         MXUserDumpAndPanic(&lock->header,
-                            "%s: Destroy of a destroyed recursive lock\n",
-                            __FUNCTION__);
-      }
-
       MXUserCondDestroyRecLock(lock);
    }
 }
@@ -506,10 +494,13 @@ MXUser_DestroyRecLock(MXUserRecLock *lock)  // IN:
  *-----------------------------------------------------------------------------
  */
 
-static void
-MXUserAcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
+void
+MXUser_AcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
+
+   Atomic_Inc(&lock->refCount);
 
    if (lock->vmmLock) {
       ASSERT(MXUserMX_LockRec);
@@ -547,17 +538,10 @@ MXUserAcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
          MXRecLockAcquire(&lock->recursiveLock);
       }
    }
-}
 
-
-void
-MXUser_AcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
-{
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
-
-   ASSERT(Atomic_Read(&lock->destroyWasCalled) == 0);
-
-   MXUserAcquireRecLock(lock);
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
+   }
 }
 
 
@@ -580,7 +564,10 @@ MXUser_AcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
 void
 MXUser_ReleaseRecLock(MXUserRecLock *lock)  // IN/OUT:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
+
+   Atomic_Inc(&lock->refCount);
 
    if (lock->vmmLock) {
       ASSERT(MXUserMX_UnlockRec);
@@ -615,6 +602,10 @@ MXUser_ReleaseRecLock(MXUserRecLock *lock)  // IN/OUT:
 
       MXRecLockRelease(&lock->recursiveLock);
    }
+
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
+   }
 }
 
 
@@ -646,11 +637,10 @@ MXUser_TryAcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
 {
    Bool success;
 
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
 
-   if (UNLIKELY(Atomic_Read(&lock->destroyWasCalled) != 0)) {
-      return FALSE;
-   }
+   Atomic_Inc(&lock->refCount);
 
    if (lock->vmmLock) {
       ASSERT(MXUserMX_TryLockRec);
@@ -676,6 +666,10 @@ MXUser_TryAcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
       }
    }
 
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
+   }
+
    return success;
 }
 
@@ -698,16 +692,24 @@ MXUser_TryAcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
  */
 
 Bool
-MXUser_IsCurThreadHoldingRecLock(const MXUserRecLock *lock)  // IN:
+MXUser_IsCurThreadHoldingRecLock(MXUserRecLock *lock)  // IN:
 {
    Bool result;
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
+
+   Atomic_Inc(&lock->refCount);
 
    if (lock->vmmLock) {
       ASSERT(MXUserMX_IsLockedByCurThreadRec);
       result = (*MXUserMX_IsLockedByCurThreadRec)(lock->vmmLock);
    } else {
       result = MXRecLockIsOwner(&lock->recursiveLock);
+   }
+
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
    }
 
    return result;
@@ -781,10 +783,21 @@ MXUser_CreateSingletonRecLock(Atomic_Ptr *lockStorage,  // IN/OUT:
 MXUserCondVar *
 MXUser_CreateCondVarRecLock(MXUserRecLock *lock)
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   MXUserCondVar *condVar;
+
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
    ASSERT(lock->vmmLock == NULL);  // only unbound locks
 
-   return MXUserCreateCondVar(&lock->header, &lock->recursiveLock);
+   Atomic_Inc(&lock->refCount);
+
+   condVar =  MXUserCreateCondVar(&lock->header, &lock->recursiveLock);
+
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
+   }
+
+   return condVar;
 }
 
 
@@ -811,11 +824,18 @@ void
 MXUser_WaitCondVarRecLock(MXUserRecLock *lock,     // IN:
                           MXUserCondVar *condVar)  // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
    ASSERT(lock->vmmLock == NULL);  // only unbound locks
+
+   Atomic_Inc(&lock->refCount);
 
    MXUserWaitCondVar(&lock->header, &lock->recursiveLock, condVar,
                      MXUSER_WAIT_INFINITE);
+
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
+   }
 }
 
 
@@ -843,10 +863,17 @@ MXUser_TimedWaitCondVarRecLock(MXUserRecLock *lock,     // IN:
                                MXUserCondVar *condVar,  // IN:
                                uint32 msecWait)         // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
    ASSERT(lock->vmmLock == NULL);  // only unbound locks
 
+   Atomic_Inc(&lock->refCount);
+
    MXUserWaitCondVar(&lock->header, &lock->recursiveLock, condVar, msecWait);
+
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
+   }
 }
 
 
@@ -869,9 +896,16 @@ MXUser_TimedWaitCondVarRecLock(MXUserRecLock *lock,     // IN:
 void
 MXUser_DumpRecLock(MXUserRecLock *lock)  // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
+
+   Atomic_Inc(&lock->refCount);
 
    MXUserDumpRecLock(&lock->header);
+
+   if (Atomic_FetchAndDec(&lock->refCount) == 1) {
+      Panic("%s: Zero reference count upon exit\n", __FUNCTION__);
+   }
 }
 
 
@@ -892,9 +926,10 @@ MXUser_DumpRecLock(MXUserRecLock *lock)  // IN:
  */
 
 struct MX_MutexRec *
-MXUser_GetRecLockVmm(const MXUserRecLock *lock)  // IN:
+MXUser_GetRecLockVmm(MXUserRecLock *lock)  // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
 
    return lock->vmmLock;
 }
@@ -917,9 +952,10 @@ MXUser_GetRecLockVmm(const MXUserRecLock *lock)  // IN:
  */
 
 MX_Rank
-MXUser_GetRecLockRank(const MXUserRecLock *lock)  // IN:
+MXUser_GetRecLockRank(MXUserRecLock *lock)  // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
 
    return lock->header.rank;
 }
@@ -971,7 +1007,7 @@ MXUser_BindMXMutexRec(struct MX_MutexRec *mutex,  // IN:
 
    lock = Util_SafeCalloc(1, sizeof(*lock));
 
-   lock->header.signature = MXUSER_REC_SIGNATURE;
+   lock->header.signature = MXUserGetSignature(MXUSER_TYPE_REC);
    lock->header.name = Str_SafeAsprintf(NULL, "MX_%p", mutex);
    lock->header.rank = rank;
    lock->header.serialNumber = MXUserAllocSerialNumber();
@@ -979,8 +1015,7 @@ MXUser_BindMXMutexRec(struct MX_MutexRec *mutex,  // IN:
    lock->header.statsFunc = NULL;
 
    Atomic_WritePtr(&lock->statsMem, NULL);
-   Atomic_Write(&lock->destroyRefCount, 1);
-   Atomic_Write(&lock->destroyWasCalled, 0);
+   Atomic_Write(&lock->refCount, 1);
 
    lock->vmmLock = mutex;
 
@@ -1008,9 +1043,10 @@ MXUser_BindMXMutexRec(struct MX_MutexRec *mutex,  // IN:
 void
 MXUser_IncRefRecLock(MXUserRecLock *lock)  // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
 
-   Atomic_Inc(&lock->destroyRefCount);
+   Atomic_Inc(&lock->refCount);
 }
 
 
@@ -1034,42 +1070,10 @@ MXUser_IncRefRecLock(MXUserRecLock *lock)  // IN:
 void
 MXUser_DecRefRecLock(MXUserRecLock *lock)  // IN:
 {
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_REC);
 
    MXUserCondDestroyRecLock(lock);
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * MXUser_AcquireWeakRefRecLock --
- *
- *      Acquire a lock only if destroy has not be called on it. This is 
- *      special implementation that will have limited lifetime. Once Poll
- *      is upgraded to use trylock this implementation will go away.
- *
- * Results:
- *      As above
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-Bool
-MXUser_AcquireWeakRefRecLock(MXUserRecLock *lock)  // IN:
-{
-   ASSERT(lock && (lock->header.signature == MXUSER_REC_SIGNATURE));
-
-   if (Atomic_Read(&lock->destroyWasCalled) != 0) {
-      return FALSE;
-   } else {
-      MXUserAcquireRecLock(lock);
-
-      return TRUE;
-   }
 }
 
 

@@ -29,8 +29,6 @@
 #include "hostinfo.h"
 #include "ulInt.h"
 
-#define MXUSER_RW_SIGNATURE 0x57524B4C // 'LKRW' in memory
-
 static void
 MXUserFreeHashEntry(void *data)  // IN:
 {
@@ -403,7 +401,8 @@ MXUser_ControlRWLock(MXUserRWLock *lock,  // IN/OUT:
 {
    Bool result;
 
-   ASSERT(lock && (lock->header.signature == MXUSER_RW_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_RW);
 
    switch (command) {
    case MXUSER_CONTROL_ACQUISITION_HISTO: {
@@ -530,7 +529,7 @@ MXUser_CreateRWLock(const char *userName,  // IN:
       properName = Util_SafeStrdup(userName);
    }
 
-   lock->header.signature = MXUSER_RW_SIGNATURE;
+   lock->header.signature = MXUserGetSignature(MXUSER_TYPE_RW);
    lock->header.name = properName;
    lock->header.rank = rank;
    lock->header.serialNumber = MXUserAllocSerialNumber();
@@ -595,7 +594,7 @@ MXUser_DestroyRWLock(MXUserRWLock *lock)  // IN:
    if (LIKELY(lock != NULL)) {
       MXUserStats *stats;
 
-      ASSERT(lock->header.signature == MXUSER_RW_SIGNATURE);
+      MXUserValidateHeader(&lock->header, MXUSER_TYPE_RW);
 
       if (Atomic_Read(&lock->holderCount) != 0) {
          MXUserDumpAndPanic(&lock->header,
@@ -611,6 +610,8 @@ MXUser_DestroyRWLock(MXUserRWLock *lock)  // IN:
                                __FUNCTION__, err);
          }
       }
+
+      lock->header.signature = 0;  // just in case...
 
       MXRecLockDestroy(&lock->recursiveLock);  
 
@@ -628,7 +629,6 @@ MXUser_DestroyRWLock(MXUserRWLock *lock)  // IN:
       }
 
       HashTable_FreeUnsafe(lock->holderTable);
-      lock->header.signature = 0;  // just in case...
       free(lock->header.name);
       lock->header.name = NULL;
       free(lock);
@@ -705,7 +705,8 @@ MXUserAcquisition(MXUserRWLock *lock,  // IN/OUT:
    MXUserStats *stats;
    HolderContext *myContext;
 
-   ASSERT(lock && (lock->header.signature == MXUSER_RW_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_RW);
 
    MXUserAcquisitionTracking(&lock->header, TRUE);
 
@@ -853,7 +854,8 @@ MXUser_IsCurThreadHoldingRWLock(MXUserRWLock *lock,  // IN:
 {
    HolderContext *myContext;
 
-   ASSERT(lock && (lock->header.signature == MXUSER_RW_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_RW);
 
    myContext = MXUserGetHolderContext(lock);
 
@@ -895,7 +897,8 @@ MXUser_ReleaseRWLock(MXUserRWLock *lock)  // IN/OUT:
    MXUserStats *stats;
    HolderContext *myContext;
 
-   ASSERT(lock && (lock->header.signature == MXUSER_RW_SIGNATURE));
+   ASSERT(lock);
+   MXUserValidateHeader(&lock->header, MXUSER_TYPE_RW);
 
    myContext = MXUserGetHolderContext(lock);
 

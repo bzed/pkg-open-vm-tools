@@ -29,7 +29,6 @@
 #define _XOPEN_SOURCE 600
 #endif
 #include <semaphore.h>
-#include <time.h>
 #include <sys/time.h>
 #endif
 #endif
@@ -44,7 +43,6 @@
 #include "win32u.h"
 #endif
 
-#define MXUSER_SEMA_SIGNATURE 0x414D4553 // 'SEMA' in memory
 #define MXUSER_A_BILLION (1000 * 1000 * 1000)
 
 #if defined(_WIN32)
@@ -515,7 +513,7 @@ MXUser_CreateSemaphore(const char *userName,  // IN:
    if (LIKELY(MXUserInit(&sema->nativeSemaphore) == 0)) {
       MXUserStats *stats;
 
-      sema->header.signature = MXUSER_SEMA_SIGNATURE;
+      sema->header.signature = MXUserGetSignature(MXUSER_TYPE_SEMA);
       sema->header.name = properName;
       sema->header.rank = rank;
       sema->header.serialNumber = MXUserAllocSerialNumber();
@@ -568,7 +566,7 @@ MXUser_DestroySemaphore(MXUserSemaphore *sema)  // IN:
       int err;
       MXUserStats *stats;
 
-      ASSERT(sema->header.signature == MXUSER_SEMA_SIGNATURE);
+      MXUserValidateHeader(&sema->header, MXUSER_TYPE_SEMA);
 
       if (Atomic_Read(&sema->activeUserCount) != 0) {
          MXUserDumpAndPanic(&sema->header,
@@ -583,6 +581,8 @@ MXUser_DestroySemaphore(MXUserSemaphore *sema)  // IN:
                             __FUNCTION__, err);
       }
 
+      sema->header.signature = 0;  // just in case...
+
       MXUserRemoveFromList(&sema->header);
 
       stats = (MXUserStats *) Atomic_ReadPtr(&sema->statsMem);
@@ -594,7 +594,6 @@ MXUser_DestroySemaphore(MXUserSemaphore *sema)  // IN:
          free(stats);
       }
 
-      sema->header.signature = 0;  // just in case...
       free(sema->header.name);
       sema->header.name = NULL;
       free(sema);
@@ -607,7 +606,7 @@ MXUser_DestroySemaphore(MXUserSemaphore *sema)  // IN:
  *
  * MXUser_DownSemaphore --
  *
- *      Perform an down (P; probeer te verlagen; "try to reduce") operation
+ *      Perform a down (P; probeer te verlagen; "try to reduce") operation
  *      on a semaphore.
  *
  * Results:
@@ -626,7 +625,8 @@ MXUser_DownSemaphore(MXUserSemaphore *sema)  // IN/OUT:
    int err;
    MXUserStats *stats;
 
-   ASSERT(sema && (sema->header.signature == MXUSER_SEMA_SIGNATURE));
+   ASSERT(sema);
+   MXUserValidateHeader(&sema->header, MXUSER_TYPE_SEMA);
 
    Atomic_Inc(&sema->activeUserCount);
 
@@ -679,7 +679,7 @@ MXUser_DownSemaphore(MXUserSemaphore *sema)  // IN/OUT:
  *
  * MXUser_TimedDownSemaphore --
  *
- *      Perform an down (P; probeer te verlagen; "try to reduce") operation
+ *      Perform a down (P; probeer te verlagen; "try to reduce") operation
  *      on a semaphore with a timeout. The wait time will always have elapsed
  *      before the routine returns.
  *
@@ -701,7 +701,8 @@ MXUser_TimedDownSemaphore(MXUserSemaphore *sema,  // IN/OUT:
    MXUserStats *stats;
    Bool downOccurred = FALSE;
 
-   ASSERT(sema && (sema->header.signature == MXUSER_SEMA_SIGNATURE));
+   ASSERT(sema);
+   MXUserValidateHeader(&sema->header, MXUSER_TYPE_SEMA);
 
    Atomic_Inc(&sema->activeUserCount);
 
@@ -760,7 +761,7 @@ MXUser_TimedDownSemaphore(MXUserSemaphore *sema,  // IN/OUT:
  *
  * MXUser_TryDownSemaphore --
  *
- *      Perform an try down (P; probeer te verlagen; "try to reduce") operation
+ *      Perform a try down (P; probeer te verlagen; "try to reduce") operation
  *      on a semaphore.
  *
  * Results:
@@ -784,7 +785,8 @@ MXUser_TryDownSemaphore(MXUserSemaphore *sema)  // IN/OUT:
    MXUserStats *stats;
    Bool downOccurred = FALSE;
 
-   ASSERT(sema && (sema->header.signature == MXUSER_SEMA_SIGNATURE));
+   ASSERT(sema);
+   MXUserValidateHeader(&sema->header, MXUSER_TYPE_SEMA);
 
    Atomic_Inc(&sema->activeUserCount);
 
@@ -830,7 +832,8 @@ MXUser_UpSemaphore(MXUserSemaphore *sema)  // IN/OUT:
 {
    int err;
 
-   ASSERT(sema && (sema->header.signature == MXUSER_SEMA_SIGNATURE));
+   ASSERT(sema);
+   MXUserValidateHeader(&sema->header, MXUSER_TYPE_SEMA);
 
    Atomic_Inc(&sema->activeUserCount);
 

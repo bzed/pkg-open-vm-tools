@@ -29,11 +29,12 @@
 #include <errno.h>
 
 #if defined(_WIN32)
-typedef DWORD MXThreadID;
+typedef DWORD MXUserThreadID;
 #define MXUSER_INVALID_OWNER 0xFFFFFFFF
 #else
+#include "safetime.h"
 #include <pthread.h>
-typedef pthread_t MXThreadID;
+typedef pthread_t MXUserThreadID;
 #endif
 
 #include "vm_basic_types.h"
@@ -58,7 +59,7 @@ typedef struct {
 #endif
 
    int              referenceCount;   // Acquisition count
-   MXThreadID       nativeThreadID;   // Native thread ID
+   MXUserThreadID   nativeThreadID;   // Native thread ID
 } MXRecLock;
 
 
@@ -369,8 +370,12 @@ MXRecLockRelease(MXRecLock *lock)  // IN/OUT:
  * MXUserGetThreadID --
  *
  *      Obtains a unique thread identifier (ID) which can be stored in a
- *      pointer. These thread ID values are NOT necessarily used within
- *      the MXRecLock implementation.
+ *      pointer; typically these thread ID values are used for tracking
+ *      purposes.
+ *
+ *      These values are not typically used with the MXUser MXRecLock
+ *      implementation. Native constructs that are very low overhead are
+ *      used.
  *
  * Results:
  *      As above
@@ -384,12 +389,23 @@ MXRecLockRelease(MXRecLock *lock)  // IN/OUT:
 static INLINE void *
 MXUserGetThreadID(void)
 {
-   /* All thread types must fit into a uintptr_t  */
-
-   ASSERT_ON_COMPILE(sizeof(VThreadID) <= sizeof (void *));
-   return (void *) (uintptr_t) VThread_CurID();
+   return (void *) (uintptr_t) VThread_CurID();  // unsigned
 }
 
+/*
+ * MXUser object type ID values.
+ */
+
+typedef enum {
+   MXUSER_TYPE_NEVER_USE = 0,
+   MXUSER_TYPE_RW = 1,
+   MXUSER_TYPE_REC = 2,
+   MXUSER_TYPE_RANK = 3,
+   MXUSER_TYPE_EXCL = 4,
+   MXUSER_TYPE_SEMA = 5,
+   MXUSER_TYPE_CONDVAR = 6,
+   MXUSER_TYPE_BARRIER = 7
+} MXUserObjectType;
 
 /*
  * MXUser header - all MXUser objects start with this
@@ -416,10 +432,16 @@ void MXUserDumpAndPanic(MXUserHeader *header,
 
 MXRecLock *MXUserInternalSingleton(Atomic_Ptr *storage);
 
+uint32 MXUserGetSignature(MXUserObjectType objectType);
+
 #if defined(MXUSER_DEBUG)
 void MXUserAcquisitionTracking(MXUserHeader *header,
                            Bool checkRank);
+
 void MXUserReleaseTracking(MXUserHeader *header);
+
+void MXUserValidateHeader(MXUserHeader *header,
+                          MXUserObjectType objectType);
 #else
 static INLINE void
 MXUserAcquisitionTracking(MXUserHeader *header,  // IN:
@@ -430,6 +452,13 @@ MXUserAcquisitionTracking(MXUserHeader *header,  // IN:
 
 static INLINE void
 MXUserReleaseTracking(MXUserHeader *header)  // IN:
+{
+   return;
+}
+
+static INLINE void
+MXUserValidateHeader(MXUserHeader *header,         // IN:
+                     MXUserObjectType objectType)  // IN:
 {
    return;
 }
