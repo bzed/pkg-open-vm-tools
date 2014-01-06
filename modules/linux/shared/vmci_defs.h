@@ -56,19 +56,22 @@
 #define VMCI_CONTROL_INT_DISABLE  0x4
 
 /* Capabilities register bits. */
-#define VMCI_CAPS_HYPERCALL    0x1 
-#define VMCI_CAPS_GUESTCALL    0x2
-#define VMCI_CAPS_DATAGRAM     0x4
+#define VMCI_CAPS_HYPERCALL     0x1
+#define VMCI_CAPS_GUESTCALL     0x2
+#define VMCI_CAPS_DATAGRAM      0x4
+#define VMCI_CAPS_NOTIFICATIONS 0x8
 
 /* Interrupt Cause register bits. */
-#define VMCI_ICR_DATAGRAM     0x1
+#define VMCI_ICR_DATAGRAM      0x1
+#define VMCI_ICR_NOTIFICATION  0x2
 
 /* Interrupt Mask register bits. */
-#define VMCI_IMR_DATAGRAM     0x1
+#define VMCI_IMR_DATAGRAM      0x1
+#define VMCI_IMR_NOTIFICATION  0x2
 
-/* 
- * We have a fixed set of resource IDs available in the VMX. 
- * This allows us to have a very simple implementation since we statically 
+/*
+ * We have a fixed set of resource IDs available in the VMX.
+ * This allows us to have a very simple implementation since we statically
  * know how many will create datagram handles. If a new caller arrives and
  * we have run out of slots we can manually increment the maximum size of
  * available resource IDs.
@@ -79,10 +82,10 @@ typedef uint32 VMCI_Resource;
 /* VMCI reserved hypervisor datagram resource IDs. */
 #define VMCI_RESOURCES_QUERY      0
 #define VMCI_GET_CONTEXT_ID       1
-#define VMCI_SHAREDMEM_CREATE     2
-#define VMCI_SHAREDMEM_ATTACH     3
-#define VMCI_SHAREDMEM_DETACH     4
-#define VMCI_SHAREDMEM_QUERY      5
+#define VMCI_SET_NOTIFY_BITMAP    2
+#define VMCI_DOORBELL_LINK        3
+#define VMCI_DOORBELL_UNLINK      4
+#define VMCI_DOORBELL_NOTIFY      5
 #define VMCI_DATAGRAM_REQUEST_MAP 6
 #define VMCI_DATAGRAM_REMOVE_MAP  7
 #define VMCI_EVENT_SUBSCRIBE      8
@@ -90,7 +93,8 @@ typedef uint32 VMCI_Resource;
 #define VMCI_QUEUEPAIR_ALLOC      10
 #define VMCI_QUEUEPAIR_DETACH     11
 #define VMCI_VSOCK_VMX_LOOKUP     12
-#define VMCI_RESOURCE_MAX         13
+#define VMCI_HGFS_TRANSPORT       13
+#define VMCI_RESOURCE_MAX         14
 
 /* VMCI Ids. */
 typedef uint32 VMCIId;
@@ -101,10 +105,12 @@ typedef struct VMCIHandle {
 } VMCIHandle;
 
 static INLINE
-VMCIHandle VMCI_MAKE_HANDLE(VMCIId cid, 
+VMCIHandle VMCI_MAKE_HANDLE(VMCIId cid,
 			    VMCIId rid)
 {
-   VMCIHandle h = {cid, rid};
+   VMCIHandle h;
+   h.context = cid;
+   h.resource = rid;
    return h;
 }
 
@@ -117,8 +123,8 @@ VMCIHandle VMCI_MAKE_HANDLE(VMCIId cid,
  *
  * Results:
  *     The uint64 value.
- * 
- * Side effects:     
+ *
+ * Side effects:
  *     None.
  *
  *----------------------------------------------------------------------
@@ -145,8 +151,8 @@ VMCI_HANDLE_TO_UINT64(VMCIHandle handle) // IN:
  *
  * Results:
  *     The VMCI handle value.
- * 
- * Side effects:     
+ *
+ * Side effects:
  *     None.
  *
  *----------------------------------------------------------------------
@@ -167,7 +173,7 @@ VMCI_UINT64_TO_HANDLE(uint64 handle64) // IN:
 				     (_h1).resource == (_h2).resource)
 
 #define VMCI_INVALID_ID 0xFFFFFFFF
-static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID, 
+static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID,
 					       VMCI_INVALID_ID};
 
 #define VMCI_HANDLE_INVALID(_handle)   \
@@ -187,12 +193,12 @@ static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID,
 
 /*
  * Hypervisor context id, used for calling into hypervisor
- * supplied services from the VM. 
+ * supplied services from the VM.
  */
 #define VMCI_HYPERVISOR_CONTEXT_ID 0
 
-/* 
- * Well-known context id, a logical context that contains 
+/*
+ * Well-known context id, a logical context that contains
  * a set of well-known services.
  */
 #define VMCI_WELL_KNOWN_CONTEXT_ID 1
@@ -200,8 +206,8 @@ static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID,
 /* Todo: Change host context id to dynamic/random id. */
 #define VMCI_HOST_CONTEXT_ID  2
 
-/* 
- * The VMCI_CONTEXT_RESOURCE_ID is used together with VMCI_MAKE_HANDLE to make 
+/*
+ * The VMCI_CONTEXT_RESOURCE_ID is used together with VMCI_MAKE_HANDLE to make
  * handles that refer to a specific context.
  */
 #define VMCI_CONTEXT_RESOURCE_ID 0
@@ -260,6 +266,10 @@ static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID,
 #define VMCI_ERROR_BUSMEM_INVALIDATION   (-37)
 #define VMCI_ERROR_MODULE_NOT_LOADED     (-38)
 
+/* VMCI clients should return error code withing this range */
+#define VMCI_ERROR_CLIENT_MIN     (-500)
+#define VMCI_ERROR_CLIENT_MAX     (-550)
+
 /* Internal error codes. */
 #define VMCI_SHAREDMEM_ERROR_BAD_CONTEXT (-1000)
 
@@ -285,12 +295,11 @@ typedef enum VMCIResourcePrivilegeType {
    VMCI_PRIV_ASSIGN_CLIENT,
    VMCI_PRIV_DG_CREATE,
    VMCI_PRIV_DG_SEND,
-   VMCI_PRIV_SM_CREATE,
-   VMCI_PRIV_SM_ATTACH,
+   VMCI_PRIV_NOTIFY,
    VMCI_NUM_PRIVILEGES,
 } VMCIResourcePrivilegeType;
 
-/* 
+/*
  * VMCI coarse-grained privileges (per context or host
  * process/endpoint. An entity with the restricted flag is only
  * allowed to interact with the hypervisor and trusted entities.

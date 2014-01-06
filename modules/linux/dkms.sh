@@ -28,12 +28,12 @@ then
    echo "   src:  root of unpacked open-vm-tools package"
    echo "   dst:  where to create the dkms tree"
    echo
-   echo "The script will create an 'open-vm-tools' module with version 2010.03.20."
+   echo "The script will create an 'open-vm-tools' module with version 2010.04.25."
    exit 1
 fi
 
 src=$1
-dst=$2/open-vm-tools-2010.03.20
+dst=$2/open-vm-tools-2010.04.25
 
 SHARED_HEADERS="backdoor_def.h"
 SHARED_HEADERS="$SHARED_HEADERS backdoor_types.h"
@@ -64,7 +64,7 @@ rm -rf $dst
 mkdir -p $dst
 cp -f `dirname $0`/dkms.conf $dst
 
-for m in pvscsi vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock
+for m in vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock
 do
    mdst="$dst/$m"
 

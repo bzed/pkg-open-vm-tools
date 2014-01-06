@@ -167,7 +167,7 @@ HgfsUnpackSearchReadReply(HgfsReq *req,        // IN: Reply packet
     * Make sure name length is legal.
     */
    if (fileNameLength > NAME_MAX ||
-       fileNameLength > HGFS_PACKET_MAX - replySize) {
+       fileNameLength > req->bufferSize - replySize) {
       return -ENAMETOOLONG;
    }
 
@@ -395,7 +395,7 @@ HgfsPackDirOpenRequest(struct file *file,   // IN: File pointer for this open
    }
 
    /* Build full name to send to server. */
-   if (HgfsBuildPath(name, HGFS_PACKET_MAX - (requestSize - 1),
+   if (HgfsBuildPath(name, req->bufferSize - (requestSize - 1),
                      file->f_dentry) < 0) {
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsPackDirOpenRequest: build path failed\n"));
       return -EINVAL;
@@ -405,7 +405,7 @@ HgfsPackDirOpenRequest(struct file *file,   // IN: File pointer for this open
 
    /* Convert to CP name. */
    result = CPName_ConvertTo(name,
-                             HGFS_PACKET_MAX - (requestSize - 1),
+                             req->bufferSize - (requestSize - 1),
                              name);
    if (result < 0) {
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsPackDirOpenRequest: CP conversion failed\n"));
@@ -1007,7 +1007,11 @@ HgfsReaddir(struct file *file, // IN:  Directory to read from
           * but if the driver ever goes in the host it's probably not
           * a good idea for an attacker to be able to hang the host
           * simply by using a bogus file type in a reply. [bac]
-          */
+	  *
+	  * Well it happens! Refer bug 548177 for details. In short,
+	  * when the user deletes a share, we hit this code path.
+	  *
+	  */
          d_type = DT_UNKNOWN;
          break;
       }

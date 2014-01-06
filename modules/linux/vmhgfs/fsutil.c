@@ -164,7 +164,7 @@ HgfsUnpackGetattrReply(HgfsReq *req,        // IN: Reply packet
       length = replyV3->symlinkTarget.length;
 
       /* Skip the symlinkTarget if it's too long. */
-      if (length > HGFS_NAME_BUFFER_SIZET(sizeof *replyV3 + sizeof(HgfsReply))) {
+      if (length > HGFS_NAME_BUFFER_SIZET(req->bufferSize, sizeof *replyV3 + sizeof(HgfsReply))) {
          LOG(4, (KERN_DEBUG "VMware hgfs: HgfsUnpackGetattrReply: symlink "
                  "target name too long, ignoring\n"));
          return -ENAMETOOLONG;
@@ -176,7 +176,7 @@ HgfsUnpackGetattrReply(HgfsReq *req,        // IN: Reply packet
       length = replyV2->symlinkTarget.length;
 
       /* Skip the symlinkTarget if it's too long. */
-      if (length > HGFS_NAME_BUFFER_SIZE(replyV2)) {
+      if (length > HGFS_NAME_BUFFER_SIZE(req->bufferSize, replyV2)) {
          LOG(4, (KERN_DEBUG "VMware hgfs: HgfsUnpackGetattrReply: symlink "
                  "target name too long, ignoring\n"));
          return -ENAMETOOLONG;
@@ -279,7 +279,7 @@ HgfsPackGetattrRequest(HgfsReq *req,            // IN/OUT: Request buffer
       }
       requestV3->reserved = 0;
       reqSize = HGFS_REQ_PAYLOAD_SIZE_V3(requestV3);
-      reqBufferSize = HGFS_NAME_BUFFER_SIZET(reqSize);
+      reqBufferSize = HGFS_NAME_BUFFER_SIZET(req->bufferSize, reqSize);
       break;
    }
 
@@ -308,7 +308,7 @@ HgfsPackGetattrRequest(HgfsReq *req,            // IN/OUT: Request buffer
          fileNameLength = &requestV2->fileName.length;
       }
       reqSize = sizeof *requestV2;
-      reqBufferSize = HGFS_NAME_BUFFER_SIZE(requestV2);
+      reqBufferSize = HGFS_NAME_BUFFER_SIZE(req->bufferSize, requestV2);
       break;
    }
 
@@ -322,7 +322,7 @@ HgfsPackGetattrRequest(HgfsReq *req,            // IN/OUT: Request buffer
       fileName = requestV1->fileName.name;
       fileNameLength = &requestV1->fileName.length;
       reqSize = sizeof *requestV1;
-      reqBufferSize = HGFS_NAME_BUFFER_SIZE(requestV1);
+      reqBufferSize = HGFS_NAME_BUFFER_SIZE(req->bufferSize, requestV1);
       break;
    }
 
@@ -773,6 +773,24 @@ HgfsPrivateGetattr(struct dentry *dentry,  // IN: Dentry containing name
       case 0:
          result = HgfsUnpackGetattrReply(req, attr, fileName);
          break;
+
+      case -EIO:
+	 /*
+	  * Fix for bug 548177.
+	  * When user deletes a share, we still show that share during directory
+	  * enumeration to minimize user's surprise. Now when we get getattr on
+	  * that share server returns EIO. Linux file manager doesn't like this,
+	  * and it doesn't display any valid shares too. So as a workaround, we
+	  * remap EIO to success and create minimal fake attributes.
+	  */
+         LOG(1, (KERN_DEBUG "Hgfs:Server returned EIO on unknown file\n"));
+         /* Create fake attributes */
+         attr->mask = HGFS_ATTR_VALID_TYPE | HGFS_ATTR_VALID_SIZE;
+         attr->type = HGFS_FILE_TYPE_DIRECTORY;
+         attr->size = 0;
+         result = 0;
+         break;
+
       case -EBADF:
          /*
           * This can happen if we attempted a getattr by handle and the handle
@@ -1539,6 +1557,9 @@ HgfsStatusConvertToLinux(HgfsStatus hgfsStatus) // IN: Status code to convert
 
    case HGFS_STATUS_GENERIC_ERROR:
       return -EIO;
+
+   case HGFS_STATUS_NOT_SAME_DEVICE:
+      return -EXDEV;
 
    default:
       LOG(10, (KERN_DEBUG "VMware hgfs: HgfsStatusConvertToLinux: unknown "

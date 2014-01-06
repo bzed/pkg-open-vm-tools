@@ -39,10 +39,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="2010.03.20"
+TOOLS_VERSION="2010.04.25"
 AC_INIT(
    [open-vm-tools],
-   [2010.03.20],
+   [2010.04.25],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -991,8 +991,7 @@ if test "$os" = "linux"; then
    CPPFLAGS="$CPPFLAGS -D_SVID_SOURCE"
 
    MODULES="$MODULES vmmemctl vmsync vmci vsock"
-   MODULES="$MODULES vmxnet pvscsi"
-   MODULES="$MODULES vmblock vmhgfs"
+   MODULES="$MODULES vmxnet vmblock vmhgfs"
    buildHgfsmounter=yes
 fi
 

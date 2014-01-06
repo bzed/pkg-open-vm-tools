@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,16 +17,23 @@
  *********************************************************/
 
 /*
- * bdhandler.h --
+ * vmciNotifications.h --
  *
- * Backdoor channel implementation.
+ *     VMCI notifications API for OS device drivers.
  */
 
-#ifndef _HGFS_DRIVER_BDHANDLER_H_
-#define _HGFS_DRIVER_BDHANDLER_H_
+#ifndef _VMCI_NOTIFICATIONS_H_
+#define _VMCI_NOTIFICATIONS_H_
 
-#include "transport.h"
+void VMCINotifications_Init(void);
+void VMCINotifications_Exit(void);
 
-HgfsTransportChannel *HgfsGetBdChannel(void);
+Bool VMCI_RegisterNotificationBitmap(PPN bitmapPPN);
+void VMCI_ScanNotificationBitmap(uint8 *bitmap);
 
-#endif // _HGFS_DRIVER_BDHANDLER_H_
+int VMCINotificationRegister(VMCIHandle *handle, Bool doorbell, uint32 flags,
+                             VMCICallback notifyCB, void *callbackData);
+int VMCINotificationUnregister(VMCIHandle handle, Bool doorbell);
+
+#endif /* !_VMCI_NOTIFICATIONS_H_ */
+

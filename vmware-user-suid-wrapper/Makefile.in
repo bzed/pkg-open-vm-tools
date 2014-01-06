@@ -68,7 +68,8 @@ am_vmware_user_suid_wrapper_OBJECTS = main.$(OBJEXT) \
 	wrapper-@TARGET_OS@.$(OBJEXT)
 vmware_user_suid_wrapper_OBJECTS =  \
 	$(am_vmware_user_suid_wrapper_OBJECTS)
-vmware_user_suid_wrapper_LDADD = $(LDADD)
+vmware_user_suid_wrapper_DEPENDENCIES =  \
+	../lib/vmSignal/libVmSignal.la
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -276,6 +277,7 @@ top_srcdir = @top_srcdir@
 VMWARE_USER_PATH = $(bindir)/vmware-user
 AM_CPPFLAGS = -DVMWARE_USER_PATH=\"$(VMWARE_USER_PATH)\"
 vmware_user_suid_wrapper_SOURCES = main.c wrapper-@TARGET_OS@.c
+vmware_user_suid_wrapper_LDADD = ../lib/vmSignal/libVmSignal.la
 all: all-am
 
 .SUFFIXES:

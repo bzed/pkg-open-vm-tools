@@ -64,7 +64,7 @@ LTLIBRARIES = $(noinst_LTLIBRARIES)
 libUnity_la_LIBADD =
 am_libUnity_la_OBJECTS = unity.lo unityPlatformX11.lo \
 	unityPlatformX11Settings.lo unityPlatformX11Window.lo \
-	x11Event.lo
+	x11Event.lo x11Util.lo
 libUnity_la_OBJECTS = $(am_libUnity_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -269,7 +269,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libUnity.la
 libUnity_la_SOURCES = unity.c unityPlatformX11.c \
-	unityPlatformX11Settings.c unityPlatformX11Window.c x11Event.c
+	unityPlatformX11Settings.c unityPlatformX11Window.c x11Event.c \
+	x11Util.c
 AM_CFLAGS = @GTK_CPPFLAGS@ @URIPARSER_CPPFLAGS@
 all: all-am
 
@@ -327,6 +328,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unityPlatformX11Settings.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unityPlatformX11Window.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/x11Event.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/x11Util.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

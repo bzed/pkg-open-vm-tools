@@ -71,8 +71,9 @@ am__installdirs = "$(DESTDIR)$(plugindir)"
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(plugin_LTLIBRARIES)
 libvmbackup_la_DEPENDENCIES =
-am_libvmbackup_la_OBJECTS = libvmbackup_la-scriptOps.lo \
-	libvmbackup_la-stateMachine.lo libvmbackup_la-syncDriverOps.lo \
+am_libvmbackup_la_OBJECTS = libvmbackup_la-nullProvider.lo \
+	libvmbackup_la-scriptOps.lo libvmbackup_la-stateMachine.lo \
+	libvmbackup_la-syncDriverOps.lo \
 	libvmbackup_la-vmBackupSignals.lo
 libvmbackup_la_OBJECTS = $(am_libvmbackup_la_OBJECTS)
 libvmbackup_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -284,8 +285,8 @@ plugin_LTLIBRARIES = libvmbackup.la
 libvmbackup_la_CPPFLAGS = @PLUGIN_CPPFLAGS@
 libvmbackup_la_LDFLAGS = @PLUGIN_LDFLAGS@
 libvmbackup_la_LIBADD = @GOBJECT_LIBS@ @VMTOOLS_LIBS@
-libvmbackup_la_SOURCES = scriptOps.c stateMachine.c syncDriverOps.c \
-	vmBackupSignals.c
+libvmbackup_la_SOURCES = nullProvider.c scriptOps.c stateMachine.c \
+	syncDriverOps.c vmBackupSignals.c
 BUILT_SOURCES = vmBackupSignals.c vmBackupSignals.h
 CLEANFILES = vmBackupSignals.c vmBackupSignals.h
 EXTRA_DIST = vmBackupSignals.gm
@@ -359,6 +360,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-nullProvider.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-scriptOps.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-stateMachine.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvmbackup_la-syncDriverOps.Plo@am__quote@
@@ -384,6 +386,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+libvmbackup_la-nullProvider.lo: nullProvider.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmbackup_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmbackup_la-nullProvider.lo -MD -MP -MF $(DEPDIR)/libvmbackup_la-nullProvider.Tpo -c -o libvmbackup_la-nullProvider.lo `test -f 'nullProvider.c' || echo '$(srcdir)/'`nullProvider.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libvmbackup_la-nullProvider.Tpo $(DEPDIR)/libvmbackup_la-nullProvider.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='nullProvider.c' object='libvmbackup_la-nullProvider.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmbackup_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvmbackup_la-nullProvider.lo `test -f 'nullProvider.c' || echo '$(srcdir)/'`nullProvider.c
 
 libvmbackup_la-scriptOps.lo: scriptOps.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvmbackup_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvmbackup_la-scriptOps.lo -MD -MP -MF $(DEPDIR)/libvmbackup_la-scriptOps.Tpo -c -o libvmbackup_la-scriptOps.lo `test -f 'scriptOps.c' || echo '$(srcdir)/'`scriptOps.c

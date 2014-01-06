@@ -43,9 +43,10 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(confdir)"
+am__installdirs = "$(DESTDIR)$(confdir)" "$(DESTDIR)$(vmwsrcdir)"
 confSCRIPT_INSTALL = $(INSTALL_SCRIPT)
-SCRIPTS = $(conf_SCRIPTS)
+vmwsrcSCRIPT_INSTALL = $(INSTALL_SCRIPT)
+SCRIPTS = $(conf_SCRIPTS) $(vmwsrc_SCRIPTS)
 SOURCES =
 DIST_SOURCES =
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -233,11 +234,13 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+defaultscripts = poweron-vm-default poweroff-vm-default \
+	suspend-vm-default resume-vm-default
 confdir = /etc/vmware-tools
-conf_SCRIPTS = ./common/vm-support $(MODULES_OS)/poweron-vm-default \
-	$(MODULES_OS)/poweroff-vm-default \
-	$(MODULES_OS)/suspend-vm-default \
-	$(MODULES_OS)/resume-vm-default
+conf_SCRIPTS = ./common/vm-support ./common/statechange.subr \
+	$(defaultscripts)
+vmwsrcdir = $(confdir)/scripts/vmware
+vmwsrc_SCRIPTS = $(MODULES_OS)/network
 all: all-am
 
 .SUFFIXES:
@@ -289,6 +292,25 @@ uninstall-confSCRIPTS:
 	  echo " rm -f '$(DESTDIR)$(confdir)/$$f'"; \
 	  rm -f "$(DESTDIR)$(confdir)/$$f"; \
 	done
+install-vmwsrcSCRIPTS: $(vmwsrc_SCRIPTS)
+	@$(NORMAL_INSTALL)
+	test -z "$(vmwsrcdir)" || $(MKDIR_P) "$(DESTDIR)$(vmwsrcdir)"
+	@list='$(vmwsrc_SCRIPTS)'; for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  if test -f $$d$$p; then \
+	    f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
+	    echo " $(vmwsrcSCRIPT_INSTALL) '$$d$$p' '$(DESTDIR)$(vmwsrcdir)/$$f'"; \
+	    $(vmwsrcSCRIPT_INSTALL) "$$d$$p" "$(DESTDIR)$(vmwsrcdir)/$$f"; \
+	  else :; fi; \
+	done
+
+uninstall-vmwsrcSCRIPTS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(vmwsrc_SCRIPTS)'; for p in $$list; do \
+	  f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
+	  echo " rm -f '$(DESTDIR)$(vmwsrcdir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(vmwsrcdir)/$$f"; \
+	done
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -332,7 +354,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(SCRIPTS)
 installdirs:
-	for dir in "$(DESTDIR)$(confdir)"; do \
+	for dir in "$(DESTDIR)$(confdir)" "$(DESTDIR)$(vmwsrcdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -377,7 +399,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-confSCRIPTS
+install-data-am: install-confSCRIPTS install-vmwsrcSCRIPTS
 
 install-dvi: install-dvi-am
 
@@ -411,7 +433,7 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-confSCRIPTS
+uninstall-am: uninstall-confSCRIPTS uninstall-vmwsrcSCRIPTS
 
 .MAKE: install-am install-strip
 
@@ -422,11 +444,15 @@ uninstall-am: uninstall-confSCRIPTS
 	install-dvi-am install-exec install-exec-am install-html \
 	install-html-am install-info install-info-am install-man \
 	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	uninstall uninstall-am uninstall-confSCRIPTS
+	install-strip install-vmwsrcSCRIPTS installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am uninstall uninstall-am \
+	uninstall-confSCRIPTS uninstall-vmwsrcSCRIPTS
 
+
+$(defaultscripts): $(top_srcdir)/scripts/common/statechange.sh
+	cp $(top_srcdir)/scripts/common/statechange.sh $@
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

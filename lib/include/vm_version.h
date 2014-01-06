@@ -222,7 +222,6 @@
 #define VMLS_VERSION "e.x.p"
 #define VLICENSE_VERSION "1.1.2"
 #define DDK_VERSION "e.x.p"
-#define VIM_API_VERSION "4.1"
 #define VIPERL_VERSION "1.1.0"
 #define RCLI_VERSION "4.5.0"
 #define VDM_VERSION "e.x.p"
@@ -239,6 +238,10 @@
 #define MAKESTR(x) #x
 #define XSTR(x) MAKESTR(x)
 #endif
+
+// This extra version define is here so the Makefiles can easily pick it up.
+// See the VMRC_PLUGIN_VERSION section in /mk/defs-onetime.mk
+#define VMRC_PLUGIN_VERSION_NUMBER "2.5.0"
 
 #define VMRC_PLUGIN_VERSION_MAJOR 2
 #define VMRC_PLUGIN_VERSION_MINOR 5
