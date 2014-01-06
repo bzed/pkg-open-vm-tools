@@ -24,6 +24,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "str.h"
 #include "log.h"
 
@@ -45,7 +46,7 @@ LogV(uint32 unused,
    str = Str_Vasprintf(NULL, fmt, args);
    if (str != NULL) {
       fputs(str, stderr);
-      // what about freeing the allocatred str???
+      free(str);
    }
 }
 

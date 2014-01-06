@@ -87,9 +87,92 @@ VixError Vix_TranslateErrno(int systemError);
 
 #ifdef _WIN32
 VixError Vix_TranslateCOMError(HRESULT comError);
+VixError Vix_TranslateGuestRegistryError(int systemError);
 #endif
 
 #endif // VIX_HIDE_BORA_DEPENDENCIES
+
+
+/*
+ * This is an expanded view of a VixError
+ * Every VixError is a 64-bit int, so it can fit into this struct.
+ *
+ * The flags, extraErrorType, and extraError are all optional. They
+ * do not have to be set for any error. In fact, these are guaranteed
+ * to be all 0 when the error is VIX_OK. This means that any program
+ * that checks (VIX_OK == err) or (VIX_OK != err) will always work.
+ *
+ * The basic error field is a Vix error value, and it's the lsb
+ * of the new struct. This means that a 64-bit error can be assigned
+ * enum constant, like an integer. For example, err = VIX_E_FAIL; works.
+ * This just leaves the flags and extraError fields as 0.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixErrorFields {
+   uint16   error;
+
+   uint8    flags;
+
+   uint8    extraErrorType;
+   uint32   extraError;
+}
+#include "vmware_pack_end.h"
+VixErrorFields;
+
+/*
+ * These are the flags for a Vix error.
+ */
+enum {
+   VIX_ERRORFLAG_GUEST         = 0x0001,
+   VIX_ERRORFLAG_REMOTE        = 0x0002,
+};
+
+/*
+ * These are the types of extra error in a Vix error.
+ */
+enum {
+   VIX_ERROREXTRATYPE_NONE          = 0,
+   VIX_ERROREXTRATYPE_SNAPSHOT      = 1,
+   VIX_ERROREXTRATYPE_DISKLIB       = 2,
+   VIX_ERROREXTRATYPE_WINDOWS       = 3,
+   VIX_ERROREXTRATYPE_LINUX         = 4,
+   VIX_ERROREXTRATYPE_FILE          = 5,
+   VIX_ERROREXTRATYPE_VMDB          = 6,
+   VIX_ERROREXTRATYPE_AIO           = 7,
+   VIX_ERROREXTRATYPE_CRYPTO        = 8,
+   VIX_ERROREXTRATYPE_KEYSAFE       = 9,
+   VIX_ERROREXTRATYPE_BLOCKLIST     = 10,
+   VIX_ERROREXTRATYPE_V2I           = 11,
+   VIX_ERROREXTRATYPE_MSGPOST       = 12,
+};
+
+
+/*
+ * These are the types of extra error in a Vix error.
+ */
+#define VIX_ERROR_BASE_ERROR(err) ((VixErrorFields *) &err)->error
+#define VIX_ERROR_EXTRA_ERROR(err) ((VixErrorFields *) &err)->extraError
+#define VIX_ERROR_EXTRA_ERROR_TYPE(err) ((VixErrorFields *) &err)->extraErrorType
+#define VIX_ERROR_FROM_GUEST(err) (((VixErrorFields *) &err)->flags & VIX_ERRORFLAG_GUEST)
+#define VIX_ERROR_FROM_REMOTE(err) (((VixErrorFields *) &err)->flags & VIX_ERRORFLAG_REMOTE)
+#define VIX_ERROR_SET_FROM_GUEST(err) (((VixErrorFields *) &err)->flags |= VIX_ERRORFLAG_GUEST)
+#define VIX_ERROR_SET_FROM_REMOTE(err) (((VixErrorFields *) &err)->flags |= VIX_ERRORFLAG_REMOTE)
+
+#define VIX_SET_GUEST_WINDOWS_ERROR(err, vixError, winError)          \
+   do {                                                               \
+      err = 0;                                                        \
+      VIX_ERROR_BASE_ERROR(err) = vixError;                           \
+      VIX_ERROR_EXTRA_ERROR(err) = winError;                          \
+      VIX_ERROR_EXTRA_ERROR_TYPE(err) = VIX_ERROREXTRATYPE_WINDOWS;   \
+      VIX_ERROR_SET_FROM_GUEST(err);                                  \
+   } while (0)
+
+#define VIX_ERROR_SET_ADDITIONAL_ERROR(err, vixError, additionalError)   \
+   do {                                                                 \
+      err = additionalError;                                             \
+      err = (err << 32) | vixError;                                     \
+   } while (0)
 
 /*
  * This defines additional error codes.
@@ -104,6 +187,14 @@ enum {
 
    /* File Errors */
    VIX_E_DIRECTORY_NOT_EMPTY                       = 20006,
+
+   VIX_E_GUEST_AUTH_MULIPLE_MAPPINGS               = 20007,
+
+   /* Guest Reg Errors */
+   VIX_E_REG_KEY_INVALID                           = 20008,
+   VIX_E_REG_KEY_HAS_SUBKEYS                       = 20009,
+   VIX_E_REG_VALUE_NOT_FOUND                       = 20010,
+   VIX_E_REG_KEY_ALREADY_EXISTS                    = 20011,
 
    /* Generic Guest Errors */
    VIX_E_HGFS_MOUNT_FAIL                           = 20050,
@@ -184,6 +275,16 @@ enum {
    VIX_PROPERTY_GUEST_CHANGE_FILE_ATTRIBUTES_ENABLED   = 4555,
    VIX_PROPERTY_GUEST_INITIATE_FILE_TRANSFER_FROM_GUEST_ENABLED   = 4556,
    VIX_PROPERTY_GUEST_INITIATE_FILE_TRANSFER_TO_GUEST_ENABLED   = 4557,
+   VIX_PROPERTY_GUEST_ADD_AUTH_ALIAS_ENABLED           = 4558,
+   VIX_PROPERTY_GUEST_REMOVE_AUTH_ALIAS_ENABLED        = 4559,
+   VIX_PROPERTY_GUEST_LIST_AUTH_ALIASES_ENABLED        = 4560,
+   VIX_PROPERTY_GUEST_LIST_MAPPED_ALIASES_ENABLED      = 4561,
+   VIX_PROPERTY_GUEST_CREATE_REGISTRY_KEY_ENABLED      = 4562,
+   VIX_PROPERTY_GUEST_LIST_REGISTRY_KEYS_ENABLED       = 4563,
+   VIX_PROPERTY_GUEST_DELETE_REGISTRY_KEY_ENABLED      = 4564,
+   VIX_PROPERTY_GUEST_SET_REGISTRY_VALUE_ENABLED       = 4565,
+   VIX_PROPERTY_GUEST_LIST_REGISTRY_VALUES_ENABLED     = 4566,
+   VIX_PROPERTY_GUEST_DELETE_REGISTRY_VALUE_ENABLED    = 4567,
 };
 
 
@@ -479,6 +580,53 @@ enum {
    VIX_FILE_ATTRIBUTE_SET_UNIX_PERMISSIONS   = 0x0040,
 };
 
+/*
+ * Subject types for Alias management.
+ */
+typedef enum VixGuestAuthSubjectType {
+   VIX_GUEST_AUTH_SUBJECT_TYPE_NONE              = 0,
+   VIX_GUEST_AUTH_SUBJECT_TYPE_NAMED             = 1,
+   VIX_GUEST_AUTH_SUBJECT_TYPE_ANY               = 2,
+} VixGuestAuthSubjectType;
+
+/*
+ * Types for Windows Registry Management.
+ */
+
+/*
+ * In a 64 bit Windows OS, the registry has two views: 32 bit and 64 bit.
+ * Normally using "registry redirection", 32 bit applications automatically
+ * access the 32 bit view, while 64 bit applications access 64 bit view.
+ * However, applications can pass a flag to specifically access either 32
+ * or 64 bit registry view, irrespective of their own bitness.
+ *
+ * NOTE: 32 bit windows will ignore these flags if passed.
+ *
+ * Based on the above, and on the fact that in our case 32 bit tools run only
+ * on 32 bit windows and 64 bit tools run only on 64 bit windows, we get the
+ * following registry view access matrix:
+ * Application      wowNative            wow32             wow64
+ * -----------      --------             -----             -----
+ * 32 bit tools     32 bit view          32 bit view       32 bit view
+ * 64 bit tools     64 bit view          32 bit view       64 bit view
+ * So in essence, we always access 32 bit view UNLESS its 64 bit tools and user
+ * has specified either wowNative or wow64 as the registry access flag.
+ */
+
+typedef enum VixRegKeyWowBitness {
+   VIX_REGISTRY_KEY_WOW_NATIVE        = 0,
+   VIX_REGISTRY_KEY_WOW_32            = 1,
+   VIX_REGISTRY_KEY_WOW_64            = 2,
+} VixRegKeyWowBitness;
+
+typedef enum VixRegValueDataType {
+   VIX_REGISTRY_VALUE_DWORD           = 0,
+   VIX_REGISTRY_VALUE_QWORD           = 1,
+   VIX_REGISTRY_VALUE_STRING          = 2,
+   VIX_REGISTRY_VALUE_EXPAND_STRING   = 3,
+   VIX_REGISTRY_VALUE_MULTI_STRING    = 4,
+   VIX_REGISTRY_VALUE_BINARY          = 5,
+} VixRegValueDataType;
 
 /*
  *-----------------------------------------------------------------------------

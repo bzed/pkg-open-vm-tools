@@ -405,7 +405,12 @@ Util_GetPrime(unsigned n0)  // IN:
 }
 
 
-#if defined(linux)
+#if defined(linux) && !defined(__ANDROID__)
+/*
+ * Android has its own gettid. gettid has been declared in
+ * <sys/linux-unistd.h> and defined as an extern function in <unistd.h>.
+ */
+
 /*
  *-----------------------------------------------------------------------------
  *

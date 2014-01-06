@@ -90,9 +90,10 @@ long  _InterlockedCompareExchange(long volatile*, long, long);
 long  _InterlockedExchangeAdd(long volatile*, long);
 long  _InterlockedDecrement(long volatile*);
 long  _InterlockedIncrement(long volatile*);
+void  _ReadWriteBarrier(void);
 #pragma intrinsic(_InterlockedExchange, _InterlockedCompareExchange)
 #pragma intrinsic(_InterlockedExchangeAdd, _InterlockedDecrement)
-#pragma intrinsic(_InterlockedIncrement)
+#pragma intrinsic(_InterlockedIncrement, _ReadWriteBarrier)
 
 #if defined(VM_X86_64)
 long     _InterlockedAnd(long volatile*, long);
@@ -121,6 +122,7 @@ __int64  _InterlockedCompareExchange64(__int64 volatile*, __int64, __int64);
 #endif
 #endif /* _MSC_VER */
 
+#if defined(__arm__) && !defined(FAKE_ATOMIC)
 /*
  * LDREX without STREX or CLREX may cause problems in environments where the
  * context switch may not clear the reference monitor - according ARM manual
@@ -128,7 +130,6 @@ __int64  _InterlockedCompareExchange64(__int64 volatile*, __int64, __int64);
  * may not like Linux kernel's non-preemptive context switch path. So use of
  * ARM routines in kernel code may not be safe.
  */
-#ifdef __arm__
 #   if defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) ||  \
        defined(__ARM_ARCH_7R__)|| defined(__ARM_ARCH_7M__)
 #      define VM_ARM_V7
@@ -368,7 +369,11 @@ static INLINE uint32
 Atomic_ReadWrite(Atomic_uint32 *var, // IN
                  uint32 val)         // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   uint32 retval = var->value;
+   var->value = val;
+   return retval;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register volatile uint32 retVal;
    register volatile uint32 res;
@@ -441,7 +446,14 @@ Atomic_ReadIfEqualWrite(Atomic_uint32 *var, // IN
                         uint32 oldVal,      // IN
                         uint32 newVal)      // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   uint32 readVal = var->value;
+
+   if (oldVal == readVal) {
+     var->value = newVal;
+   }
+   return oldVal;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register uint32 retVal;
    register uint32 res;
@@ -593,7 +605,9 @@ static INLINE void
 Atomic_And(Atomic_uint32 *var, // IN
            uint32 val)         // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   var->value &= val;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register volatile uint32 res;
    register volatile uint32 tmp;
@@ -657,7 +671,9 @@ static INLINE void
 Atomic_Or(Atomic_uint32 *var, // IN
           uint32 val)         // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   var->value |= val;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register volatile uint32 res;
    register volatile uint32 tmp;
@@ -721,7 +737,9 @@ static INLINE void
 Atomic_Xor(Atomic_uint32 *var, // IN
            uint32 val)         // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   var->value ^= val;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register volatile uint32 res;
    register volatile uint32 tmp;
@@ -824,7 +842,9 @@ static INLINE void
 Atomic_Add(Atomic_uint32 *var, // IN
            uint32 val)         // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   var->value += val;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register volatile uint32 res;
    register volatile uint32 tmp;
@@ -927,7 +947,9 @@ static INLINE void
 Atomic_Sub(Atomic_uint32 *var, // IN
            uint32 val)         // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   var->value -= val;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register volatile uint32 res;
    register volatile uint32 tmp;
@@ -1030,7 +1052,7 @@ static INLINE void
 Atomic_Inc(Atomic_uint32 *var) // IN
 {
 #ifdef __GNUC__
-#ifdef VM_ARM_V7
+#if defined(VM_ARM_V7) || defined(FAKE_ATOMIC)
    Atomic_Add(var, 1);
 #else // VM_ARM_V7
    /* Checked against the Intel manual and GCC --walken */
@@ -1076,7 +1098,7 @@ static INLINE void
 Atomic_Dec(Atomic_uint32 *var) // IN
 {
 #ifdef __GNUC__
-#ifdef VM_ARM_V7
+#if defined(VM_ARM_V7) || defined(FAKE_ATOMIC)
    Atomic_Sub(var, 1);
 #else // VM_ARM_V7
    /* Checked against the Intel manual and GCC --walken */
@@ -1258,20 +1280,25 @@ static INLINE uint32
 Atomic_FetchAndAddUnfenced(Atomic_uint32 *var, // IN
                            uint32 val)         // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   uint32 res = var->value;
+   var->value = res + val;
+   return res;
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    register volatile uint32 res;
    register volatile uint32 retVal;
+   register volatile uint32 tmp;
 
    dmb();
 
    __asm__ __volatile__(
       "1: ldrex %[retVal], [%[var]] \n\t"
-      "add %[val], %[val], %[retVal] \n\t"
-      "strex %[res], %[val], [%[var]] \n\t"
+      "add %[tmp], %[val], %[retVal] \n\t"
+      "strex %[res], %[tmp], [%[var]] \n\t"
       "teq %[res], #0 \n\t"
       "bne 1b"
-      : [res] "=&r" (res), [retVal] "=&r" (retVal)
+      : [tmp] "=&r" (tmp), [res] "=&r" (res), [retVal] "=&r" (retVal)
       : [var] "r" (&var->value), [val] "r" (val)
       : "cc"
    );
@@ -1337,7 +1364,7 @@ static INLINE uint32
 Atomic_FetchAndAdd(Atomic_uint32 *var, // IN
                    uint32 val)         // IN
 {
-#if defined(__GNUC__) && !defined(VM_ARM_V7)
+#if defined(__GNUC__) && !defined(VM_ARM_V7) && !defined(FAKE_ATOMIC)
    val = Atomic_FetchAndAddUnfenced(var, val);
    AtomicEpilogue();
    return val;
@@ -1384,6 +1411,30 @@ Atomic_ReadAdd64(Atomic_uint64 *var, // IN
 #else
 #error No compiler defined for Atomic_ReadAdd64
 #endif
+}
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Atomic_ReadSub64 --
+ *
+ *      Atomic read (returned), sub a value, write.
+ *
+ * Results:
+ *      The value of the variable before the operation.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static INLINE uint64
+Atomic_ReadSub64(Atomic_uint64 *var, // IN
+                 uint64 val)         // IN
+{
+   // Do an sub by an add and a overflow
+   return Atomic_ReadAdd64(var, -val);
 }
 #endif
 
@@ -1560,8 +1611,14 @@ Atomic_CMPXCHG64(Atomic_uint64 *var,   // IN/OUT
                  uint64 const *oldVal, // IN
                  uint64 const *newVal) // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   uint64 readVal = var->value;
 
+   if (*oldVal == readVal) {
+     var->value = *newVal;
+   }
+   return (*oldVal == readVal);
+#elif defined(__GNUC__)
 #if defined(VM_ARM_V7)
    return (Atomic_ReadIfEqualWrite64(var, *oldVal, *newVal) == *oldVal);
 
@@ -1724,7 +1781,14 @@ Atomic_CMPXCHG32(Atomic_uint32 *var,   // IN/OUT
                  uint32 oldVal, // IN
                  uint32 newVal) // IN
 {
-#ifdef __GNUC__
+#ifdef FAKE_ATOMIC
+   uint32 readVal = var->value;
+
+   if (oldVal == readVal) {
+     var->value = newVal;
+   }
+   return (oldVal == readVal);
+#elif defined(__GNUC__)
 #ifdef VM_ARM_V7
    return (Atomic_ReadIfEqualWrite(var, oldVal, newVal) == oldVal);
 #else // VM_ARM_V7
@@ -1769,7 +1833,9 @@ Atomic_CMPXCHG32(Atomic_uint32 *var,   // IN/OUT
 static INLINE uint64
 Atomic_Read64(Atomic_uint64 const *var) // IN
 {
-#if defined(__GNUC__) && defined(__x86_64__)
+#ifdef FAKE_ATOMIC
+   return var->value;
+#elif defined(__GNUC__) && defined(__x86_64__)
    uint64 value;
 
 #ifdef VMM
@@ -2357,7 +2423,7 @@ Atomic_TestBit64(Atomic_uint64 *var, // IN
       "bt %2, %1; setc %0"
       : "=rm"(out)
       : "m" (var->value),
-        "ri" (bit)
+        "rJ" (bit)
       : "cc"
    );
    return out;
@@ -2562,6 +2628,16 @@ MAKE_ATOMIC_TYPE(Ptr, 32, void const *, void *, uintptr_t)
 MAKE_ATOMIC_TYPE(Int, 32, int, int, int)
 
 
+/* Prevent the compiler from re-ordering memory references. */
+#ifdef __GNUC__
+#define ATOMIC_COMPILER_BARRIER()   __asm__ __volatile__ ("": : :"memory")
+#elif defined(_MSC_VER)
+#define ATOMIC_COMPILER_BARRIER()   _ReadWriteBarrier()
+#else
+#error No compiler defined for ATOMIC_COMPILER_BARRIER
+#endif
+
+
 /*
  *-----------------------------------------------------------------------------
  *
@@ -2586,7 +2662,13 @@ static INLINE void
 Atomic_MFence(void)
 {
    Atomic_uint32 fence;
+   ATOMIC_COMPILER_BARRIER();
    Atomic_Xor(&fence, 0x1);
+   ATOMIC_COMPILER_BARRIER();
 }
+
+#ifdef ATOMIC_COMPILER_BARRIER
+#undef ATOMIC_COMPILER_BARRIER
+#endif
 
 #endif // ifndef _ATOMIC_H_

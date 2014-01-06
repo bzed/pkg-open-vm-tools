@@ -67,10 +67,10 @@
  * an array of the names of all the intrinsics minus the leading
  * underscore.  Searching around in the ntddk.h file can also be helpful.
  *
- * The declarations for the intrinsic functions were taken from the DDK. 
+ * The declarations for the intrinsic functions were taken from the DDK.
  * Our declarations must match the ddk's otherwise the 64-bit c++ compiler
  * will complain about second linkage of the intrinsic functions.
- * We define the intrinsic using the basic types corresponding to the 
+ * We define the intrinsic using the basic types corresponding to the
  * Windows typedefs. This avoids having to include windows header files
  * to get to the windows types.
  */
@@ -111,6 +111,9 @@ void _mm_mfence(void);
 void _mm_lfence(void);
 #pragma intrinsic(_mm_mfence, _mm_lfence)
 
+unsigned int __getcallerseflags(void);
+#pragma intrinsic(__getcallerseflags)
+
 #ifdef VM_X86_64
 /*
  * intrinsic functions only supported by x86-64 windows as of 2k3sp1
@@ -130,9 +133,11 @@ unsigned char  _BitScanForward(unsigned long *, unsigned long);
 unsigned char  _BitScanReverse(unsigned long *, unsigned long);
 #pragma intrinsic(_BitScanForward, _BitScanReverse)
 
+unsigned char  _bittest(const long *, long);
 unsigned char  _bittestandset(long *, long);
 unsigned char  _bittestandreset(long *, long);
-#pragma intrinsic(_bittestandset, _bittestandreset)
+unsigned char  _bittestandcomplement(long *, long);
+#pragma intrinsic(_bittest, _bittestandset, _bittestandreset, _bittestandcomplement)
 #ifdef VM_X86_64
 unsigned char  _bittestandset64(__int64 *, __int64);
 unsigned char  _bittestandreset64(__int64 *, __int64);
@@ -199,6 +204,14 @@ __GCC_IN(l, uint32, IN32)
 #define GET_CURRENT_EIP(_eip) \
       __asm__ __volatile("call 0\n\tpopl %0" : "=r" (_eip): );
 
+static INLINE unsigned int
+GetCallerEFlags(void)
+{
+   unsigned long flags;
+   asm volatile("pushf; pop %0" : "=r"(flags));
+   return flags;
+}
+
 #endif // x86*
 
 #elif defined(_MSC_VER) // } {
@@ -244,6 +257,12 @@ OUT32(uint16 port, uint32 value)
    __asm mov _eip, eax \
 } while (0)
 #endif // VM_X86_64
+
+static INLINE unsigned int
+GetCallerEFlags(void)
+{
+   return __getcallerseflags();
+}
 
 #else // } {
 #error
@@ -359,9 +378,9 @@ mssb64_0(const uint64 value)
 
 /* **********************************************************
  *  GCC's intrinsics for the lssb and mssb family produce sub-optimal code,
- *  so we use inline assembly to improve matters.  However, GCC cannot 
- *  propagate constants through inline assembly, so we help GCC out by 
- *  allowing it to use its intrinsics for compile-time constant values.  
+ *  so we use inline assembly to improve matters.  However, GCC cannot
+ *  propagate constants through inline assembly, so we help GCC out by
+ *  allowing it to use its intrinsics for compile-time constant values.
  *  Some day, GCC will make better code and these can collapse to intrinsics.
  *
  *  For example, in Decoder_AddressSize, inlined into VVT_GetVTInstrInfo:
@@ -407,7 +426,7 @@ lssb32_0(uint32 value)
 static INLINE int
 mssb32_0(uint32 value)
 {
-   /* 
+   /*
     * We must keep the UNLIKELY(...) outside the #if defined ...
     * because __builtin_clz(0) is undefined according to gcc's
     * documentation.
@@ -740,7 +759,8 @@ Bswap16(uint16 v)
 static INLINE uint32
 Bswap32(uint32 v) // IN
 {
-#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)) || defined(__arm__) // {
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)) || \
+   (defined(__arm__) && !defined(__ANDROID__))  // {
 #ifdef __arm__
     __asm__("rev %0, %0" : "+r"(v));
     return v;
@@ -985,22 +1005,26 @@ RDTSC_BARRIER(void)
  *-----------------------------------------------------------------------------
  */
 
-#ifdef _MSC_VER
-#define DEBUGBREAK()   __debugbreak()
+#ifdef __arm__
+#define DEBUGBREAK() __asm__("bkpt")
 #else
-#define DEBUGBREAK()   __asm__ (" int $3 ")
+#ifdef _MSC_VER
+#define DEBUGBREAK() __debugbreak()
+#else
+#define DEBUGBREAK() __asm__("int $3")
 #endif
+#endif // __arm__
 #endif // defined(__i386__) || defined(__x86_64__) || defined(__arm__)
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * {Clear,Set}Bit{32,64} --
+ * {Clear,Set,Test}Bit{32,64} --
  *
- *    Sets or clears a specified single bit in the provided variable.  
- *    The index input value specifies which bit to modify and is 0-based. 
- *    Index is truncated by hardware to a 5-bit or 6-bit offset for the 
+ *    Sets or clears a specified single bit in the provided variable.
+ *    The index input value specifies which bit to modify and is 0-based.
+ *    Index is truncated by hardware to a 5-bit or 6-bit offset for the
  *    32 and 64-bit flavors, respectively, but input values are not validated
  *    with asserts to avoid include dependencies.
  *    64-bit flavors are not provided for 32-bit builds because the inlined
@@ -1079,7 +1103,7 @@ TestBit32(const uint32 *var, uint32 index)
    __asm__ (
       "bt %[index], %[var] \n"
       "setc %[bit]"
-      : [bit] "=rm" (bit)
+      : [bit] "=qQm" (bit)
       : [index] "rI" (index), [var] "r" (*var)
       : "cc"
    );
@@ -1097,7 +1121,7 @@ TestBit64(const uint64 *var, uint64 index)
    __asm__ (
       "bt %[index], %[var] \n"
       "setc %[bit]"
-      : [bit] "=rm" (bit)
+      : [bit] "=qQm" (bit)
       : [index] "rJ" (index), [var] "r" (*var)
       : "cc"
    );
@@ -1109,9 +1133,104 @@ TestBit64(const uint64 *var, uint64 index)
 
 /*
  *-----------------------------------------------------------------------------
+ *
+ * {Clear,Set,Complement,Test}BitVector --
+ *
+ *    Sets, clears, complements, or tests a specified single bit in the
+ *    provided array.  The index input value specifies which bit to modify
+ *    and is 0-based.  Bit number can be +-2Gb (+-128MB) relative from 'var'
+ *    variable.
+ *
+ *    All functions return value of the bit before modification was performed.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static INLINE Bool
+SetBitVector(void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "bts %2, %1;"
+      "setc %0"
+      : "=qQm" (bit), "+m" (*(volatile uint32 *)var)
+      : "rI" (index)
+      : "memory", "cc"
+   );
+   return bit;
+#elif defined(_MSC_VER)
+   return _bittestandset((long *)var, index) != 0;
+#else
+#error No compiler defined for SetBitVector
+#endif
+}
+
+static INLINE Bool
+ClearBitVector(void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "btr %2, %1;"
+      "setc %0"
+      : "=qQm" (bit), "+m" (*(volatile uint32 *)var)
+      : "rI" (index)
+      : "cc"
+   );
+   return bit;
+#elif defined(_MSC_VER)
+   return _bittestandreset((long *)var, index) != 0;
+#else
+#error No compiler defined for ClearBitVector
+#endif
+}
+
+static INLINE Bool
+ComplementBitVector(void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "btc %2, %1;"
+      "setc %0"
+      : "=qQm" (bit), "+m" (*(volatile uint32 *)var)
+      : "rI" (index)
+      : "cc"
+   );
+   return bit;
+#elif defined(_MSC_VER)
+   return _bittestandcomplement((long *)var, index) != 0;
+#else
+#error No compiler defined for ComplementBitVector
+#endif
+}
+
+static INLINE Bool
+TestBitVector(const void *var, int32 index)
+{
+#ifdef __GNUC__
+   Bool bit;
+   __asm__ (
+      "bt %2, %1;"
+      "setc %0"
+      : "=qQm" (bit)
+      : "m" (*(const uint32 *)var), "rI" (index)
+      : "cc"
+   );
+   return bit;
+#elif defined _MSC_VER
+   return _bittest((long *)var, index) != 0;
+#else
+#error No compiler defined for TestBitVector
+#endif
+}
+
+/*
+ *-----------------------------------------------------------------------------
  * RoundUpPow2_{64,32} --
  *
- *   Rounds a value up to the next higher power of 2.  Returns the original 
+ *   Rounds a value up to the next higher power of 2.  Returns the original
  *   value if it is a power of 2.  The next power of 2 for inputs {0, 1} is 1.
  *   The result is undefined for inputs above {2^63, 2^31} (but equal to 1
  *   in this implementation).
@@ -1175,17 +1294,32 @@ RoundUpPow2C32(uint32 value)
 static INLINE uint32
 RoundUpPow2Asm32(uint32 value)
 {
+#ifdef __arm__
+   uint32 out = 1;
+   // Note: None Thumb only!
+   //       The value of the argument "value"
+   //       will be affected!
+   __asm__("sub %[in], %[in], #1;"         // r1 = value - 1 . if value == 0 then r1 = 0xFFFFFFFF
+           "clz %[in], %[in];"             // r1 = log2(value - 1) if value != 1
+                                           // if value == 0 then r1 = 0
+                                           // if value == 1 then r1 = 32
+           "mov %[out], %[out], ror %[in]" // out = 2^(32 - r1)
+                                           // if out == 2^32 then out = 1 as it is right rotate
+       : [in]"+r"(value),[out]"+r"(out));
+#else
    uint32 out = 2;
+
    __asm__("lea -1(%[in]), %%ecx;"      // ecx = value - 1.  Preserve original.
            "bsr %%ecx, %%ecx;"          // ecx = log2(value - 1) if value != 1
                                         // if value == 0, then ecx = 31
                                         // if value == 1 then zf = 1, else zf = 0.
            "rol %%cl, %[out];"          // out = 2 << ecx (if ecx != -1)
-                                        //     = 2^(log2(value - 1) + 1).  
+                                        //     = 2^(log2(value - 1) + 1).
                                         // if ecx == -1 (value == 0), out = 1
                                         // zf is always unmodified
            "cmovz %[in], %[out]"        // if value == 1 (zf == 1), write 1 to out.
        : [out]"+r"(out) : [in]"r"(value) : "%ecx", "cc");
+#endif
    return out;
 }
 #endif // __GNUC__

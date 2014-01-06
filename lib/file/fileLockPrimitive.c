@@ -785,7 +785,7 @@ FileLockScanDirectory(ConstUnicode lockDir,     // IN:
          /* Remove any stale locking files */
          if (FileLockMachineIDMatch(myValues->machineID,
                                     memberValues.machineID)) {
-            char *dispose = NULL;
+            Unicode dispose = NULL;
 
             if (FileLockValidExecutionID(memberValues.executionID)) {
                /* If it's mine it better still be where I put it! */
@@ -793,16 +793,18 @@ FileLockScanDirectory(ConstUnicode lockDir,     // IN:
                    ((memberValues.locationChecksum != NULL) &&
                     (strcmp(memberValues.locationChecksum,
                             locationChecksum) != 0))) {
-                  dispose = "lock file has been moved.";
+                  dispose = Unicode_Duplicate("lock file has been moved.");
                }
             } else {
-               dispose = "invalid executionID.";
+               dispose = Str_SafeAsprintf(NULL, "invalid executionID %s.",
+                                          memberValues.executionID);
             }
 
             if (dispose) {
                Log(LGPFX" %s discarding %s from %s': %s\n",
                    __FUNCTION__, UTF8(fileList[i]), UTF8(lockDir), dispose);
 
+               Unicode_Free(dispose);
                Unicode_Free(memberValues.memberName);
 
                err = FileLockRemoveLockingFile(lockDir, fileList[i]);
@@ -1029,19 +1031,28 @@ FileUnlockIntrinsic(FileLockToken *tokenPtr)  // IN:
    } else {
       ASSERT(FileIO_IsValid(&tokenPtr->u.mandatory.lockFd));
 
-     if (FileIO_CloseAndUnlink(&tokenPtr->u.mandatory.lockFd)) {
-        /*
-         * Should succeed, but there is an unavoidable race:
-         * close() must preceed unlink(), but another locker could acquire
-         * lock between close() and unlink(). Solution: treat EBUSY as
-         * success.
-         */
-        if (Err_Errno() == EBUSY) {
-           LOG(0, ("Tolerating EBUSY on unlink of advisory lock at %s\n",
-                   UTF8(tokenPtr->pathName)));
-        } else {
-           err = Err_Errno();
-        }
+      if (FileIO_CloseAndUnlink(&tokenPtr->u.mandatory.lockFd)) {
+         /*
+          * Should succeed, but there is an unavoidable race:
+          * close() must preceed unlink(), but another thread could touch
+          * the file between close() and unlink(). We only worry about other
+          * FileLock-like manipulations; the advisory lock file should not
+          * experience any name collisions. Treat races as success.
+          * Specific errors:
+          *    EBUSY: other locked file
+          *    ENOENT: other locked + unlocked (w/ implicit unlink) file
+          */
+         if (Err_Errno() == EBUSY || Err_Errno() == ENOENT) {
+            LOG(0, ("Tolerating %s on unlink of advisory lock at %s\n",
+                    Err_Errno() == EBUSY ? "EBUSY" : "ENOENT",
+                    UTF8(tokenPtr->pathName)));
+         } else {
+            err = Err_Errno();
+            if (vmx86_debug) {
+               Log(LGPFX" %s failed for advisory lock '%s': %s\n", __FUNCTION__,
+                   UTF8(tokenPtr->pathName), strerror(err));
+            }
+         }
       }
    }
 

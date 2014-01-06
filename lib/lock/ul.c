@@ -66,8 +66,7 @@ MXUserInternalSingleton(Atomic_Ptr *storage)  // IN:
       MXRecLock *newLock = Util_SafeMalloc(sizeof(MXRecLock));
 
       if (MXRecLockInit(newLock)) {
-         lock = (MXRecLock *) Atomic_ReadIfEqualWritePtr(storage, NULL,
-                                                         (void *) newLock);
+         lock = Atomic_ReadIfEqualWritePtr(storage, NULL, (void *) newLock);
 
          if (lock) {
             MXRecLockDestroy(newLock);
@@ -123,36 +122,11 @@ MXUserSyndrome(void)
    syndrome = Atomic_Read(&syndromeMem);
 
    if (syndrome == 0) {
-      uint32 retries = 25;
-
-      /*
-       * Do not assume that the source of bits from the host OS are sane.
-       * Perhaps its random bits service is not working or always returns
-       * zero or something is misconfigured. Only perform a small number
-       * of retries attempting to appropriate the required bits.
-       */
-
-      do {
-         /* Only changes syndrome on success. No need to check for errors */
-         Random_Crypto(sizeof syndrome, &syndrome);
-
-         if (syndrome != 0) {
-            break;
-         }
-      } while (retries--);
-
-      /*
-       * If the source was unable to provide the appropriate bits, switch
-       * to plan B.
-       */
-
-      if (syndrome == 0) {
 #if defined(_WIN32)
-         syndrome = GetTickCount();
+      syndrome = GetTickCount();
 #else
-         syndrome = time(NULL) & 0xFFFFFFFF;
+      syndrome = time(NULL) & 0xFFFFFFFF;
 #endif
-      }
 
       /*
        * Protect against a total failure.
@@ -293,7 +267,7 @@ MXUserDumpAndPanic(MXUserHeader *header,  // IN:
 
 /*
  *---------------------------------------------------------------------
- * 
+ *
  *  MXUser_SetInPanic --
  *	Notify the locking system that a panic is occurring.
  *
@@ -318,7 +292,7 @@ MXUser_SetInPanic(void)
 
 /*
  *---------------------------------------------------------------------
- * 
+ *
  *  MXUser_InPanic --
  *	Is the caller in the midst of a panic?
  *
@@ -758,7 +732,7 @@ MXUserAcquisitionTracking(MXUserHeader *header,  // IN:
        *
        * Recursive locks are rank checked only upon their first acquisition...
        * just like MX locks.
-       * 
+       *
        * Exclusive locks will have a second entry added into the tracking
        * system but will immediately panic due to the run time checking - no
        * (real) harm done.
@@ -775,7 +749,8 @@ MXUserAcquisitionTracking(MXUserHeader *header,  // IN:
 
          MXUserListLocks();
 
-         MXUserDumpAndPanic(header, "%s: rank violation maxRank=0x%x\n", __FUNCTION__, maxRank);
+         MXUserDumpAndPanic(header, "%s: rank violation maxRank=0x%x\n",
+                            __FUNCTION__, maxRank);
       }
    }
 

@@ -31,7 +31,7 @@
 /*
  * These describe the format of the message objects.
  * This will change when the client/vmx support different
- * structures for the message header. Hopefully, that won't 
+ * structures for the message header. Hopefully, that won't
  * happen.
  */
 #define VIX_COMMAND_MAGIC_WORD        0xd00d0001
@@ -41,11 +41,18 @@
  * These give upper bounds for how big any VIX IPC meesage
  * should be. There are for sanity checks and to ignore maliciously
  * large messages that may be part of an DoS attack. The may need to
- * be revised if large messages are added to the protocol. 
+ * be revised if large messages are added to the protocol.
  */
 
-#define VIX_COMMAND_MAX_SIZE           (16 * 1024 * 1024)  
+#define VIX_COMMAND_MAX_SIZE           (16 * 1024 * 1024)
 #define VIX_COMMAND_MAX_REQUEST_SIZE   65536
+
+/*
+ * We don't want to allow guest ops commands with input size too large.
+ * Limit it to the max request size with enough room for the credentials.
+ * Check bugs 824773, 926819 for more details.
+ */
+#define VIX_COMMAND_MAX_USER_INPUT_SIZE (VIX_COMMAND_MAX_REQUEST_SIZE - 5000)
 
 /*
  * The types of credential we can pass with any request.
@@ -61,6 +68,7 @@
 #define VIX_USER_CREDENTIAL_NAMED_INTERACTIVE_USER    8
 #define VIX_USER_CREDENTIAL_TICKETED_SESSION          9
 #define VIX_USER_CREDENTIAL_SSPI                      10
+#define VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN         11
 
 #define VIX_SHARED_SECRET_CONFIG_USER_NAME          "__VMware_Vix_Shared_Secret_1__"
 
@@ -314,6 +322,20 @@ struct VixCommandSSPI {
 #include "vmware_pack_end.h"
 VixCommandSSPI;
 
+
+/*
+ * **********************************************************
+ * This is a SAML bearer token with optional userName to specify
+ * an IdProvider store.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixCommandSAMLToken {
+   uint32    tokenLength;
+   uint32    nameLength;
+}
+#include "vmware_pack_end.h"
+VixCommandSAMLToken;
 
 /*
  * **********************************************************
@@ -1680,6 +1702,234 @@ struct VixMsgReadEnvironmentVariablesRequest {
 #include "vmware_pack_end.h"
 VixMsgReadEnvironmentVariablesRequest;
 
+/* IdProvider support */
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgAddAliasRequest {
+   VixCommandRequestHeader header;
+
+   uint32                  options;
+
+   uint32                  userNameLen;
+   uint32                  pemCertLen;
+   Bool                    addMapping;
+
+   int32                   subjectType;    // one of VixGuestAuthSubjectType
+   uint32                  subjectNameLen;
+   uint32                  aliasCommentLen;
+
+   /* Followed by the NUL-terminated string arguments. */
+   /* char[]               userName; */
+   /* char[]               pemCert; */
+   /* char[]               subjectName; */
+   /* char[]               aliasComment; */
+}
+#include "vmware_pack_end.h"
+VixMsgAddAuthAliasRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgRemoveAuthAliasRequest {
+   VixCommandRequestHeader header;
+
+   uint32                  options;
+
+   uint32                  userNameLen;
+   uint32                  pemCertLen;
+
+   // special case for RemoveAliasByCert:
+   // if subjectType is NONE, then all aliases will be removed.
+   int32                   subjectType;    // one of VixGuestAuthSubjectType
+   uint32                  subjectNameLen;
+
+   /* Followed by the NUL-terminated string arguments. */
+   /* char[]               userName; */
+   /* char[]               pemCert; */
+   /* char[]               subjectName; */
+}
+#include "vmware_pack_end.h"
+VixMsgRemoveAuthAliasRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgListAuthAliasesRequest {
+   VixCommandRequestHeader header;
+
+   uint32                  options;
+
+   uint32                  userNameLen;
+
+   /* char[]               userName; */
+}
+#include "vmware_pack_end.h"
+VixMsgListAuthAliasesRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgListMappedAliasesRequest {
+   VixCommandRequestHeader header;
+
+   uint32                  options;
+}
+#include "vmware_pack_end.h"
+VixMsgListMappedAliasesRequest;
+
+/*
+ * Windows Registry Management Support.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgCreateRegKeyRequest {
+   VixCommandRequestHeader header;
+
+   uint32 options;
+
+   uint32 pathLength;
+   uint32 wowBitness;
+   Bool isVolatile;
+   uint32 classTypeLength;
+
+   /*
+    * Followed by NUL-terminated string arguments.
+    * char[] path;
+    * char[] classType;
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgCreateRegKeyRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgListRegKeysRequest {
+   VixCommandRequestHeader header;
+
+   uint32 options;
+
+   /*
+    * If we need multiple roundtrips, this is the index
+    * used to identify the result being processed.
+    */
+   uint32 index;
+
+   /*
+    * If we need multiple roundtrips, this is the offset
+    * in the reply from which to send the next chunk.
+    */
+   uint32 offset;
+
+   uint32 pathLength;
+   uint32 wowBitness;
+   Bool recursive;
+   uint32 matchPatternLength;
+
+   /*
+    * Followed by NUL-terminated string arguments.
+    * char[] path;
+    * char[] matchPattern;
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgListRegKeysRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgDeleteRegKeyRequest {
+   VixCommandRequestHeader header;
+
+   uint32 options;
+
+   uint32 pathLength;
+   uint32 wowBitness;
+   Bool recursive;
+
+   /*
+    * Followed by NUL-terminated string arguments.
+    * char[] path;
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgDeleteRegKeyRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgSetRegValueRequest {
+   VixCommandRequestHeader header;
+
+   uint32 options;
+
+   uint32 pathLength;
+   uint32 wowBitness;
+   uint32 nameLength;
+   uint32 dataBlobType;
+   uint32 dataBlobLength;
+
+   /*
+    * Followed by NUL-terminated string arguments.
+    * char[] path;
+    * char[] name;
+    *
+    * Followed by a data blob of specified length
+    * containing information of specified type.
+    * void *dataBlob;
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgSetRegValueRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgListRegValuesRequest {
+   VixCommandRequestHeader header;
+
+   uint32 options;
+
+   /*
+    * If we need multiple roundtrips, this is the index
+    * used to identify the result being processed.
+    */
+   uint32 index;
+
+   /*
+    * If we need multiple roundtrips, this is the offset
+    * in the reply from which to send the next chunk.
+    */
+   uint32 offset;
+
+   uint32 pathLength;
+   uint32 wowBitness;
+   Bool expandStrings;
+   uint32 matchPatternLength;
+
+   /*
+    * Followed by NUL-terminated string arguments.
+    * char[] path;
+    * char[] matchPattern;
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgListRegValuesRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgDeleteRegValueRequest {
+   VixCommandRequestHeader header;
+
+   uint32 options;
+
+   uint32 pathLength;
+   uint32 wowBitness;
+   uint32 nameLength;
+
+   /*
+    * Followed by NUL-terminated string arguments.
+    * char[] path;
+    * char[] name;
+    */
+}
+#include "vmware_pack_end.h"
+VixMsgDeleteRegValueRequest;
+
 
 /*
  * HOWTO: Adding a new Vix Command. Step 3.
@@ -2186,6 +2436,18 @@ enum {
    VIX_COMMAND_DELETE_GUEST_DIRECTORY_EX        = 195,
    VIX_COMMAND_HOT_CHANGE_MONITOR_TYPE          = 196,
 
+   VIX_COMMAND_ADD_AUTH_ALIAS                   = 197,
+   VIX_COMMAND_REMOVE_AUTH_ALIAS                = 198,
+   VIX_COMMAND_LIST_AUTH_PROVIDER_ALIASES       = 199,
+   VIX_COMMAND_LIST_AUTH_MAPPED_ALIASES         = 200,
+
+   VIX_COMMAND_CREATE_REGISTRY_KEY              = 201,
+   VIX_COMMAND_LIST_REGISTRY_KEYS               = 202,
+   VIX_COMMAND_DELETE_REGISTRY_KEY              = 203,
+   VIX_COMMAND_SET_REGISTRY_VALUE               = 204,
+   VIX_COMMAND_LIST_REGISTRY_VALUES             = 205,
+   VIX_COMMAND_DELETE_REGISTRY_VALUE            = 206,
+
    /*
     * HOWTO: Adding a new Vix Command. Step 2a.
     *
@@ -2196,7 +2458,7 @@ enum {
     * Once a new command is added here, a command info field needs to be added
     * in bora/lib/foundryMsg/foundryMsg.c as well.
     */
-   VIX_COMMAND_LAST_NORMAL_COMMAND              = 197,
+   VIX_COMMAND_LAST_NORMAL_COMMAND              = 207,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,

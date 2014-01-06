@@ -87,7 +87,7 @@
    LOGLEVEL_VAR(pci_hyper), \
    LOGLEVEL_VAR(pcibridge), \
    LOGLEVEL_VAR(vide), \
-   LOGLEVEL_VAR(ideCdrom), \
+   LOGLEVEL_VAR(atapiCdrom), \
    LOGLEVEL_VAR(hostonly), \
    LOGLEVEL_VAR(oprom), \
    LOGLEVEL_VAR(http), \
@@ -127,11 +127,13 @@
    LOGLEVEL_VAR(keymap), \
    LOGLEVEL_VAR(mksMouse), \
    LOGLEVEL_VAR(mksHostCursor), \
+   LOGLEVEL_VAR(mksCursorPosition), \
    LOGLEVEL_VAR(mksHostOps), \
    LOGLEVEL_VAR(mksGLManager), \
    LOGLEVEL_VAR(mksGLFBO), \
    LOGLEVEL_VAR(mksGLShader), \
    LOGLEVEL_VAR(mksGLState), \
+   LOGLEVEL_VAR(mksGLWindow), \
    LOGLEVEL_VAR(vdpPlugin), \
    \
    /* user/sound */ \
@@ -165,6 +167,7 @@
    LOGLEVEL_VAR(buslogic), \
    LOGLEVEL_VAR(lsilogic), \
    LOGLEVEL_VAR(pvscsi), \
+   LOGLEVEL_VAR(ahci), \
    LOGLEVEL_VAR(diskVmnix), \
    LOGLEVEL_VAR(hbaCommon), \
    LOGLEVEL_VAR(backdoor), \
@@ -260,7 +263,12 @@
    LOGLEVEL_VAR(blobPythonBE), \
    LOGLEVEL_VAR(grainTrack), \
    LOGLEVEL_VAR(shim3D), \
+   LOGLEVEL_VAR(crc32), \
+   LOGLEVEL_VAR(vmkmgmtlib), \
+   LOGLEVEL_VAR(vflash), \
    LOGLEVEL_VAR(vva),  /* apps/rde/vva */ \
+   LOGLEVEL_VAR(ftConfig), /*lib/ftConfig */ \
+   LOGLEVEL_VAR(vmname),  /* lib/vmname */ \
    /* end of list */
 
 LOGLEVEL_EXTENSION_DECLARE(LOGLEVEL_USER);

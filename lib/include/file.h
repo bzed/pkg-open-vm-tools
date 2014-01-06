@@ -108,7 +108,10 @@ char *FileMacos_DiskDevToVolumeName(char const *bsdDiskDev);
 
 char *FileMacos_DiskDeviceToUniqueID(char const *bsdPath);
 char *FileMacos_UniqueIDToDiskDevice(char const *identifier);
-
+Bool FileMacOS_MakeSecureLibraryCopies(const char   *inDir,
+                                       const char  **dylibName,
+                                       unsigned      numDylibs,
+                                       char        **outDir);
 #elif defined VMX86_SERVER
 struct FS_PartitionListResult;
 
@@ -247,6 +250,13 @@ Bool File_SetFilePermissions(ConstUnicode pathName,
 
 Bool File_SupportsFileSize(ConstUnicode pathName,
                            uint64 fileSize);
+
+Bool File_GetMaxFileSize(ConstUnicode pathName,
+                         uint64 *maxFileSize);
+
+#ifdef VMX86_SERVER
+Bool File_Is2TiBEnabled(void);
+#endif
 
 Bool File_SupportsLargeFiles(ConstUnicode pathName);
 

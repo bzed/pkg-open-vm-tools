@@ -451,6 +451,29 @@ static const VixCommandInfo vixCommandInfoTable[] = {
 
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_HOT_CHANGE_MONITOR_TYPE,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
+
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_ADD_AUTH_ALIAS,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_REMOVE_AUTH_ALIAS,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_LIST_AUTH_PROVIDER_ALIASES,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_LIST_AUTH_MAPPED_ALIASES,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_CREATE_REGISTRY_KEY,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_LIST_REGISTRY_KEYS,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_DELETE_REGISTRY_KEY,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SET_REGISTRY_VALUE,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_LIST_REGISTRY_VALUES,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_DELETE_REGISTRY_VALUE,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
+
 };
 
 
@@ -632,7 +655,8 @@ VixMsg_AllocRequestMsg(size_t msgHeaderAndBodyLength,    // IN
       || (VIX_USER_CREDENTIAL_HOST_CONFIG_SECRET == credentialType)
       || (VIX_USER_CREDENTIAL_HOST_CONFIG_HASHED_SECRET == credentialType)
       || (VIX_USER_CREDENTIAL_TICKETED_SESSION == credentialType)
-      || (VIX_USER_CREDENTIAL_SSPI == credentialType)) {
+      || (VIX_USER_CREDENTIAL_SSPI == credentialType)
+      || (VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN == credentialType)) {
       /*
        * All of these are optional.
        */
@@ -684,7 +708,8 @@ VixMsg_AllocRequestMsg(size_t msgHeaderAndBodyLength,    // IN
          || (VIX_USER_CREDENTIAL_HOST_CONFIG_SECRET == credentialType)
          || (VIX_USER_CREDENTIAL_HOST_CONFIG_HASHED_SECRET == credentialType)
          || (VIX_USER_CREDENTIAL_TICKETED_SESSION == credentialType)
-         || (VIX_USER_CREDENTIAL_SSPI == credentialType)) {
+         || (VIX_USER_CREDENTIAL_SSPI == credentialType)
+         || (VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN == credentialType)) {
       destPtr = (char *) commandRequest;
       destPtr += commandRequest->commonHeader.headerLength;
       destPtr += commandRequest->commonHeader.bodyLength;

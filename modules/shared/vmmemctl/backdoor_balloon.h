@@ -68,14 +68,16 @@
 #ifndef _BACKDOOR_BALLOON_H_
 #define _BACKDOOR_BALLOON_H_
 
+#include "vmballoon.h"
 #include "backdoor.h"
 #include "balloon_def.h"
 
-static INLINE
-void Backdoor_Balloon(Backdoor_proto *myBp) {
-   myBp->in.ax.word = BALLOON_BDOOR_MAGIC;
-   myBp->in.dx.halfs.low = BALLOON_BDOOR_PORT;
-   Backdoor_InOut(myBp);
-}
+int Backdoor_MonitorStart(Balloon *b, uint32 protoVersion);
+int Backdoor_MonitorGuestType(Balloon *b);
+int Backdoor_MonitorGetTarget(Balloon *b, uint32 *target);
+int Backdoor_MonitorLockPage(Balloon *b, PPN64 ppn);
+int Backdoor_MonitorUnlockPage(Balloon *b, PPN64 ppn);
+int Backdoor_MonitorLockPagesBatched(Balloon *b, PPN64 ppn, uint32 nPages);
+int Backdoor_MonitorUnlockPagesBatched(Balloon *b, PPN64 ppn, uint32 nPages);
 
 #endif /* _BACKDOOR_BALLOON_H_ */

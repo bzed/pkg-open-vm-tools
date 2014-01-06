@@ -33,7 +33,6 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <sys/time.h>
-#include <sys/timeb.h>
 #include <pwd.h>
 #include <pthread.h>
 #include <sys/resource.h>
@@ -44,7 +43,15 @@
 #if defined(__FreeBSD__) || defined(__APPLE__)
 # include <sys/sysctl.h>
 #endif
+#if !defined(__APPLE__)
+#define TARGET_OS_IPHONE 0
+#endif
 #if defined(__APPLE__)
+#include <assert.h>
+#include <TargetConditionals.h>
+#if !TARGET_OS_IPHONE
+#include <CoreServices/CoreServices.h>
+#endif
 #include <mach-o/dyld.h>
 #include <mach/mach_host.h>
 #include <mach/mach_init.h>
@@ -67,10 +74,8 @@
 #if !defined(USING_AUTOCONF) || defined(HAVE_SYS_VFS_H)
 #include <sys/vfs.h>
 #endif
-#if !defined(sun) && (!defined(USING_AUTOCONF) || (defined(HAVE_SYS_IO_H) && defined(HAVE_SYS_SYSINFO_H)))
-# ifndef __ANDROID__
-# include <sys/io.h>
-# endif
+#if !defined(sun) && !defined __ANDROID__ && (!defined(USING_AUTOCONF) || (defined(HAVE_SYS_IO_H) && defined(HAVE_SYS_SYSINFO_H)))
+#include <sys/io.h>
 #include <sys/sysinfo.h>
 #ifndef HAVE_SYSINFO
 #define HAVE_SYSINFO 1
@@ -164,6 +169,7 @@ typedef struct distro_info {
 } DistroInfo;
 
 static const DistroInfo distroArray[] = {
+   {"OracleLinux",        "/etc/oracle-release"},
    {"RedHat",             "/etc/redhat-release"},
    {"RedHat",             "/etc/redhat_version"},
    {"Sun",                "/etc/sun-release"},
@@ -204,6 +210,14 @@ static const DistroInfo distroArray[] = {
    {"Yellow Dog",         "/etc/yellowdog-release"},
    {NULL, NULL},
 };
+
+#if defined __ANDROID__
+/*
+ * Android doesn't support getloadavg() or iopl().
+ */
+#define NO_GETLOADAVG
+#define NO_IOPL
+#endif
 
 
 /*
@@ -510,8 +524,11 @@ HostinfoGetOSShortName(char *distro,         // IN: full distro name
       Str_Strcpy(distroShort, STR_OS_OPENSUSE, distroShortSize);
    } else if (strstr(distroLower, "suse")) {
       if (strstr(distroLower, "enterprise")) {
-         if (strstr(distroLower, "server 11") ||
-             strstr(distroLower, "desktop 11")) {
+         if (strstr(distroLower, "server 12") ||
+             strstr(distroLower, "desktop 12")) {
+            Str_Strcpy(distroShort, STR_OS_SLES_12, distroShortSize);
+         } else if (strstr(distroLower, "server 11") ||
+                    strstr(distroLower, "desktop 11")) {
             Str_Strcpy(distroShort, STR_OS_SLES_11, distroShortSize);
          } else if (strstr(distroLower, "server 10") ||
                     strstr(distroLower, "desktop 10")) {
@@ -561,6 +578,8 @@ HostinfoGetOSShortName(char *distro,         // IN: full distro name
          Str_Strcpy(distroShort, STR_OS_DEBIAN_5, distroShortSize);
       } else if (strstr(distroLower, "6.0")) {
          Str_Strcpy(distroShort, STR_OS_DEBIAN_6, distroShortSize);
+      } else if (strstr(distroLower, "7.0")) {
+         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
       }
    } else if (StrUtil_StartsWith(distroLower, "enterprise linux") ||
               StrUtil_StartsWith(distroLower, "oracle")) {
@@ -898,9 +917,12 @@ HostinfoOSData(void)
       } else if (majorVersion == 2 && Hostinfo_OSVersion(1) < 6) {
          Str_Strcpy(distro, STR_OS_OTHER_24_FULL, distroSize);
          Str_Strcpy(distroShort, STR_OS_OTHER_24, distroSize);
-      } else {
+      } else if (majorVersion == 2) {
          Str_Strcpy(distro, STR_OS_OTHER_26_FULL, distroSize);
          Str_Strcpy(distroShort, STR_OS_OTHER_26, distroSize);
+      } else {
+         Str_Strcpy(distro, STR_OS_OTHER_3X_FULL, distroSize);
+         Str_Strcpy(distroShort, STR_OS_OTHER_3X, distroSize);
       }
 
       /*
@@ -1418,7 +1440,7 @@ HostinfoGetLoadAverage(float *avg0,  // IN/OUT:
                        float *avg1,  // IN/OUT:
                        float *avg2)  // IN/OUT:
 {
-#if (defined(__linux__) && !defined(__UCLIBC__)) || defined(__APPLE__)
+#if !defined(NO_GETLOADAVG) && (defined(__linux__) && !defined(__UCLIBC__)) || defined(__APPLE__)
    double avg[3];
    int res;
 
@@ -1606,9 +1628,8 @@ HostinfoSystemTimerMach(VmTimeType *result)  // OUT
 #  define vmx86_apple 1
 
    typedef struct {
-      mach_timebase_info_data_t timeBase;
-      double                    scalingFactor;
-      Bool                      unity;
+      double  scalingFactor;
+      Bool    unity;
    } timerData;
 
    VmTimeType raw;
@@ -1624,17 +1645,18 @@ HostinfoSystemTimerMach(VmTimeType *result)  // OUT
    ptr = Atomic_ReadPtr(&atomic);
 
    if (UNLIKELY(ptr == NULL)) {
-      timerData *new = Util_SafeMalloc(sizeof *new);
+      mach_timebase_info_data_t timeBase;
+      timerData *try = Util_SafeMalloc(sizeof *try);
 
-      mach_timebase_info(&new->timeBase);
+      mach_timebase_info(&timeBase);
 
-      new->scalingFactor = ((double) new->timeBase.numer) /
-                           ((double) new->timeBase.denom);
+      try->scalingFactor = ((double) timeBase.numer) /
+                           ((double) timeBase.denom);
 
-      new->unity = ((new->timeBase.numer == 1) && (new->timeBase.denom == 1));
+      try->unity = ((timeBase.numer == 1) && (timeBase.denom == 1));
 
-      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, new)) {
-         free(new);
+      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, try)) {
+         free(try);
       }
 
       ptr = Atomic_ReadPtr(&atomic);
@@ -1881,7 +1903,12 @@ Hostinfo_ResetProcessState(const int *keepFds, // IN:
          privileges --hpreg */
       ASSERT(euid != 0 || getuid() == 0);
       Id_SetEUid(0);
+#if defined NO_IOPL
+      NOT_IMPLEMENTED();
+      errno = ENOSYS;
+#else
       err = iopl(0);
+#endif
       Id_SetEUid(euid);
       ASSERT_NOT_IMPLEMENTED(err == 0);
    }

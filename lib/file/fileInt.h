@@ -35,6 +35,11 @@
 #include "unicodeTypes.h"
 #include "memaligned.h"
 
+/*
+ * Max supported file size is 64 TB.
+ */
+#define MAX_SUPPORTED_FILE_SIZE CONST64U(0x400000000000)
+
 #if defined __linux__
 /*
  * These magic constants are used only for parsing Linux statfs data.
@@ -42,7 +47,7 @@
  * think once more.
  */
 
-#define ADFS_SUPER_MAGIC      0xADF5
+#define ADFS_SUPER_MAGIC      0xadf5
 #define AFFS_SUPER_MAGIC      0xADFF
 #define EXT_SUPER_MAGIC       0x137D
 #define EXT2_OLD_SUPER_MAGIC  0xEF51
@@ -53,10 +58,10 @@
 #define NFS_SUPER_MAGIC       0x6969
 #define SMB_SUPER_MAGIC       0x517B
 #define ISOFS_SUPER_MAGIC     0x9660
-#define JFFS2_SUPER_MAGIC     0x72B6
-#define PROC_SUPER_MAGIC      0x9FA0
-#define OPENPROM_SUPER_MAGIC  0x9FA1
-#define USBDEVICE_SUPER_MAGIC 0x9FA2
+#define JFFS2_SUPER_MAGIC     0x72b6
+#define PROC_SUPER_MAGIC      0x9fa0
+#define OPENPROM_SUPER_MAGIC  0x9fa1
+#define USBDEVICE_SUPER_MAGIC 0x9fa2
 #define AUTOFS_SUPER_MAGIC    0x0187
 
 #if !defined(MSDOS_SUPER_MAGIC)
@@ -71,7 +76,7 @@
 #define XFS_SUPER_MAGIC       0x58465342
 #define VMFS_SUPER_MAGIC      0x2fABF15E
 #define TMPFS_SUPER_MAGIC     0x01021994
-#define JFS_SUPER_MAGIC       0x3153464A
+#define JFS_SUPER_MAGIC       0x3153464a
 #define AFS_SUPER_MAGIC       0x5346414F
 #define CIFS_SUPER_MAGIC      0xFF534D42
 

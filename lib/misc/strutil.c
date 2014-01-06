@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -32,7 +32,8 @@
 #include "vmware.h"
 #include "strutil.h"
 #include "str.h"
-
+#include "dynbuf.h"
+#include "vm_ctype.h"
 
 
 /*
@@ -520,12 +521,12 @@ StrUtil_StrToDouble(double *out,      // OUT: The output value
 /*
  *-----------------------------------------------------------------------------
  *
- * StrUtil_CapacityToSectorType --
+ * StrUtil_CapacityToBytes --
  *
- *      Converts a string containing a measure of disk capacity (such as
- *      "100MB" or "1.5k") into an unadorned and primitive quantity of sector
+ *      Converts a string containing a measure of capacity (such as
+ *      "100MB" or "1.5k") into an unadorned and primitive quantity of bytes
  *      capacity. The comment before the switch statement describes the kinds
- *      of disk capacity expressible.
+ *      of capacity expressible.
  *
  * Results:
  *      TRUE if conversion was successful, FALSE otherwise.
@@ -538,10 +539,10 @@ StrUtil_StrToDouble(double *out,      // OUT: The output value
  */
 
 Bool
-StrUtil_CapacityToSectorType(SectorType *out,    // OUT: The output value
-                             const char *str,    // IN: String to parse
-                             unsigned int bytes) // IN: Bytes per unit in an
-                                                 //     unadorned string
+StrUtil_CapacityToBytes(uint64 *out,        // OUT: The output value
+                        const char *str,    // IN: String to parse
+                        unsigned int bytes) // IN: Bytes per unit in an
+                                            //     unadorned string
 
 {
    double quantity;
@@ -601,6 +602,44 @@ StrUtil_CapacityToSectorType(SectorType *out,    // OUT: The output value
       quantity *= bytes;
    }
 
+   *out = quantity;
+
+   return TRUE;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * StrUtil_CapacityToSectorType --
+ *
+ *      Converts a string containing a measure of disk capacity (such as
+ *      "100MB" or "1.5k") into an unadorned and primitive quantity of sector
+ *      capacity.
+ *
+ * Results:
+ *      TRUE if conversion was successful, FALSE otherwise.
+ *      Value is stored in 'out', which is left undefined in the FALSE case.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+StrUtil_CapacityToSectorType(SectorType *out,    // OUT: The output value
+                             const char *str,    // IN: String to parse
+                             unsigned int bytes) // IN: Bytes per unit in an
+                                                 //     unadorned string
+
+{
+   uint64 quantityInBytes;
+
+   if (StrUtil_CapacityToBytes(&quantityInBytes, str, bytes) == FALSE) {
+      return FALSE;
+   }
+ 
    /*
     * Convert from "number of bytes" to "number of sectors", rounding up or
     * down appropriately.
@@ -609,7 +648,7 @@ StrUtil_CapacityToSectorType(SectorType *out,    // OUT: The output value
     * disklib header dependencies in this file?
     *
     */
-   *out = (SectorType)((quantity + 256) / 512);
+   *out = (SectorType)((quantityInBytes + 256) / 512);
 
    return TRUE;
 }
@@ -862,6 +901,37 @@ StrUtil_EndsWith(const char *s,      // IN
 /*
  *-----------------------------------------------------------------------------
  *
+ * StrUtil_IsASCII --
+ *
+ * Results:
+ *      Returns TRUE if the string contains only ASCII characters, FALSE
+ *      otherwise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+StrUtil_IsASCII(const char *s) // IN
+{
+   ASSERT(s != NULL);
+
+   while (*s != '\0') {
+      if (!CType_IsAscii(*s)) {
+         return FALSE;
+      }
+      s++;
+   }
+
+   return TRUE;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * StrUtil_VDynBufPrintf --
  *
  *      This is a vprintf() variant which appends directly into a
@@ -1020,4 +1090,98 @@ StrUtil_SafeDynBufPrintf(DynBuf *b,        // IN/OUT
    va_end(args);
 
    ASSERT_MEM_ALLOC(success);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * StrUtil_SafeStrcat --
+ *
+ *      Given an input buffer, append another string and return the resulting
+ *      string. The input buffer is freed along the way. A fancy strcat().
+ *
+ * Results:
+ *      New buffer returned via 'prefix'
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+StrUtil_SafeStrcat(char **prefix,    // IN/OUT
+                   const char *str)  // IN
+{
+   char *tmp;
+   size_t plen = *prefix != NULL ? strlen(*prefix) : 0;
+   size_t slen = strlen(str);
+
+   /* Check for overflow */
+   ASSERT_NOT_IMPLEMENTED((size_t)-1 - plen > slen + 1);
+
+   tmp = realloc(*prefix, plen + slen + 1 /* NUL */);
+   ASSERT_MEM_ALLOC(tmp);
+
+   memcpy(tmp + plen, str, slen + 1 /* NUL */);
+   *prefix = tmp;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * StrUtil_SafeStrcatFV --
+ *
+ *      Given an input buffer, append another string and return the resulting
+ *      string. The input buffer is freed along the way. A fancy vasprintf().
+ *
+ * Results:
+ *      New buffer returned via 'prefix'
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+StrUtil_SafeStrcatFV(char **prefix,    // IN/OUT
+                     const char *fmt,  // IN
+                     va_list args)     // IN
+{
+   char *str = Str_SafeVasprintf(NULL, fmt, args);
+   StrUtil_SafeStrcat(prefix, str);
+   free(str);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * StrUtil_SafeStrcatF --
+ *
+ *      Given an input buffer, append another string and return the resulting
+ *      string. The input buffer is freed along the way. A fancy asprintf().
+ *
+ * Results:
+ *      New buffer returned via 'prefix'
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+StrUtil_SafeStrcatF(char **prefix,    // IN/OUT
+                    const char *fmt,  // IN
+                    ...)              // IN
+{
+   va_list args;
+
+   va_start(args, fmt);
+   StrUtil_SafeStrcatFV(prefix, fmt, args);
+   va_end(args);
 }

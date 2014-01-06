@@ -53,9 +53,12 @@
 typedef uint8 Eth_Address[ETH_ADDR_LENGTH];
 
 // printf helpers
-#define ETH_ADDR_FMT_STR     "%02x:%02x:%02x:%02x:%02x:%02x"
+#define ETH_ADDR_FMT_STR     "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
 #define ETH_ADDR_FMT_ARGS(a) ((uint8 *)a)[0], ((uint8 *)a)[1], ((uint8 *)a)[2], \
                              ((uint8 *)a)[3], ((uint8 *)a)[4], ((uint8 *)a)[5]
+#define ETH_ADDR_PTR_FMT_ARGS(a) &((uint8 *)a)[0], &((uint8 *)a)[1], \
+                                 &((uint8 *)a)[2], &((uint8 *)a)[3], \
+                                 &((uint8 *)a)[4], &((uint8 *)a)[5]
 
 #define ETH_MAX_EXACT_MULTICAST_ADDRS 32
 
@@ -89,22 +92,24 @@ typedef enum {
 
 // DIX type fields we care about
 typedef enum {
-   ETH_TYPE_IPV4        = 0x0800,  
-   ETH_TYPE_IPV6        = 0x86DD,  
-   ETH_TYPE_ARP         = 0x0806,  
+   ETH_TYPE_IPV4        = 0x0800,
+   ETH_TYPE_IPV6        = 0x86DD,
+   ETH_TYPE_ARP         = 0x0806,
    ETH_TYPE_RARP        = 0x8035,
    ETH_TYPE_LLDP        = 0x88CC,
+   ETH_TYPE_CDP         = 0x2000,
    ETH_TYPE_AKIMBI      = 0x88DE,
    ETH_TYPE_VMWARE      = 0x8922,
    ETH_TYPE_802_1PQ     = 0x8100,  // not really a DIX type, but used as such
    ETH_TYPE_LLC         = 0xFFFF,  // 0xFFFF is IANA reserved, used to mark LLC
 } Eth_DixType;
 typedef enum {
-   ETH_TYPE_IPV4_NBO    = 0x0008,  
-   ETH_TYPE_IPV6_NBO    = 0xDD86,  
-   ETH_TYPE_ARP_NBO     = 0x0608,  
+   ETH_TYPE_IPV4_NBO    = 0x0008,
+   ETH_TYPE_IPV6_NBO    = 0xDD86,
+   ETH_TYPE_ARP_NBO     = 0x0608,
    ETH_TYPE_RARP_NBO    = 0x3580,
    ETH_TYPE_LLDP_NBO    = 0xCC88,
+   ETH_TYPE_CDP_NBO     = 0x0020,
    ETH_TYPE_AKIMBI_NBO  = 0xDE88,
    ETH_TYPE_VMWARE_NBO  = 0x2289,
    ETH_TYPE_802_1PQ_NBO = 0x0081,  // not really a DIX type, but used as such
@@ -233,6 +238,7 @@ enum {
    ETH_VMWARE_FRAME_TYPE_BEACON     = 1,
    ETH_VMWARE_FRAME_TYPE_COLOR      = 2,
    ETH_VMWARE_FRAME_TYPE_ECHO       = 3,
+   ETH_VMWARE_FRAME_TYPE_LLC        = 4, // XXX: Just re-use COLOR?
 };
 
 typedef
@@ -1137,7 +1143,7 @@ Eth_GetPayload(const void *frame)
 
 static INLINE Bool
 Eth_IsFrameHeaderComplete(const Eth_Header *eh,
-                          const uint16 len,
+                          const uint32 len,
                           uint16 *ehHdrLen)
 {
    uint16 ehLen;

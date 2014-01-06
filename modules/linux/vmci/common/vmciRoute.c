@@ -114,6 +114,17 @@ VMCI_Route(VMCIHandle *src,       // IN/OUT
          return VMCI_ERROR_INVALID_ARGS;
       }
 
+      /*
+       * If the client passed the ANON source handle then respect it (both
+       * context and resource are invalid).  However, if they passed only
+       * an invalid context, then they probably mean ANY, in which case we
+       * should set the real context here before passing it down.
+       */
+
+      if (VMCI_INVALID_ID == src->context && VMCI_INVALID_ID != src->resource) {
+         src->context = vmci_get_context_id();
+      }
+
       /* Send from local client down to the hypervisor. */
       *route = VMCI_ROUTE_AS_GUEST;
       return VMCI_SUCCESS;
@@ -148,7 +159,7 @@ VMCI_Route(VMCIHandle *src,       // IN/OUT
       if (!fromGuest && hasGuestDevice) {
          /* If no source context then use the current. */
          if (VMCI_INVALID_ID == src->context) {
-            src->context = VMCI_GetContextID();
+            src->context = vmci_get_context_id();
          }
 
          /* Send it from local client down to the host. */
@@ -245,7 +256,7 @@ VMCI_Route(VMCIHandle *src,       // IN/OUT
 
    /* If no source context then use the current context. */
    if (VMCI_INVALID_ID == src->context) {
-      src->context = VMCI_GetContextID();
+      src->context = vmci_get_context_id();
    }
 
    /*
