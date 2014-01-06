@@ -196,6 +196,8 @@ void GuestApp_SetSpawnEnviron(const char **spawnEnviron);
 Bool GuestApp_FindProgram(const char *program);
 #endif
 
+Bool
+GuestApp_ControlRecord(int32 command); //  IN
 #ifdef __cplusplus
 }
 #endif

@@ -87,7 +87,7 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.a ../lib/dnd/libDnd.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
 	$(am__append_1) $(am__append_2) \
 	../lib/guestApp/libGuestAppX11.a \
-	../lib/guestInfo/libGuestInfo.a ../lib/guestRpc/libGuestRpc.a \
+	../lib/guestInfo/libGuestInfo.a \
 	../lib/hgfsServer/libHgfsServer.a \
 	../lib/hgfsServerManagerGuest/libHgfsServerManagerGuest.a \
 	../lib/hgfsServerPolicyGuest/libHgfsServerPolicyGuest.a \
@@ -99,10 +99,10 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.a ../lib/dnd/libDnd.a \
 	../lib/socketMgr/libSocketMgr.a ../lib/string/libString.a \
 	../lib/sync/libSync.a ../lib/syncDriver/libSyncDriver.a \
 	../lib/system/libSystem.a $(am__append_3) $(am__append_4) \
-	../lib/user/libUser.a ../lib/vixTools/libVixTools.a \
-	../lib/vmCheck/libVmCheck.a ../lib/vmSignal/libVmSignal.a \
-	../lib/wiper/libWiper.a ../lib/err/libErr.a \
-	../lib/foundryMsg/libFoundryMsg.a \
+	../lib/guestRpc/libGuestRpc.a ../lib/user/libUser.a \
+	../lib/vixTools/libVixTools.a ../lib/vmCheck/libVmCheck.a \
+	../lib/vmSignal/libVmSignal.a ../lib/wiper/libWiper.a \
+	../lib/err/libErr.a ../lib/foundryMsg/libFoundryMsg.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/dynxdr/libDynxdr.a ../lib/hgfs/libHgfs.a \
 	../lib/message/libMessage.a ../lib/unicode/libUnicode.a \
@@ -207,7 +207,6 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PAM_PREFIX = @PAM_PREFIX@
 PATH_SEPARATOR = @PATH_SEPARATOR@
-PROCPS_CPPFLAGS = @PROCPS_CPPFLAGS@
 PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 RPCGEN = @RPCGEN@
@@ -289,7 +288,7 @@ vmware_user_LDADD = ../lib/conf/libConf.a ../lib/dnd/libDnd.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
 	$(am__append_1) $(am__append_2) \
 	../lib/guestApp/libGuestAppX11.a \
-	../lib/guestInfo/libGuestInfo.a ../lib/guestRpc/libGuestRpc.a \
+	../lib/guestInfo/libGuestInfo.a \
 	../lib/hgfsServer/libHgfsServer.a \
 	../lib/hgfsServerManagerGuest/libHgfsServerManagerGuest.a \
 	../lib/hgfsServerPolicyGuest/libHgfsServerPolicyGuest.a \
@@ -301,10 +300,10 @@ vmware_user_LDADD = ../lib/conf/libConf.a ../lib/dnd/libDnd.a \
 	../lib/socketMgr/libSocketMgr.a ../lib/string/libString.a \
 	../lib/sync/libSync.a ../lib/syncDriver/libSyncDriver.a \
 	../lib/system/libSystem.a $(am__append_3) $(am__append_4) \
-	../lib/user/libUser.a ../lib/vixTools/libVixTools.a \
-	../lib/vmCheck/libVmCheck.a ../lib/vmSignal/libVmSignal.a \
-	../lib/wiper/libWiper.a ../lib/err/libErr.a \
-	../lib/foundryMsg/libFoundryMsg.a \
+	../lib/guestRpc/libGuestRpc.a ../lib/user/libUser.a \
+	../lib/vixTools/libVixTools.a ../lib/vmCheck/libVmCheck.a \
+	../lib/vmSignal/libVmSignal.a ../lib/wiper/libWiper.a \
+	../lib/err/libErr.a ../lib/foundryMsg/libFoundryMsg.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/dynxdr/libDynxdr.a ../lib/hgfs/libHgfs.a \
 	../lib/message/libMessage.a ../lib/unicode/libUnicode.a \
