@@ -22,9 +22,6 @@
 #define INCLUDE_ALLOW_MODULE
 #include "includeCheck.h"
 
-#include "return_status.h"
-#include "net_dist.h"
-
 #define VMXNET_CHIP_NAME "vmxnet ether"
 
 #define CRC_POLYNOMIAL_LE 0xedb88320UL  /* Ethernet CRC, little endian */
@@ -151,7 +148,7 @@ typedef struct Vmxnet_Private {
    Vmxnet2_TxRingEntry         *txRing;
 
    Bool				devOpen;
-   Net_PortID			portID;
+   uint32			portID;
 
    uint32                       capabilities;
    uint32                       features;

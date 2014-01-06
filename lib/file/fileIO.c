@@ -179,10 +179,13 @@ FileIO_MsgError(FileIOResult status) // IN
  */
 
 void
-FileIO_Init(FileIODescriptor *fd,  // IN/OUT
-            const char *fileName)  // IN
+FileIO_Init(FileIODescriptor *fd,   // IN/OUT:
+            ConstUnicode pathName)  // IN:
 {
-   fd->fileName = Util_SafeStrdup(fileName);
+   ASSERT(fd);
+   ASSERT(pathName);
+
+   fd->fileName = Unicode_Duplicate(pathName);
 }
 
 
@@ -204,10 +207,12 @@ FileIO_Init(FileIODescriptor *fd,  // IN/OUT
  */
 
 void
-FileIO_Cleanup(FileIODescriptor *fd) // IN/OUT
+FileIO_Cleanup(FileIODescriptor *fd)  // IN/OUT:
 {
+   ASSERT(fd);
+
    if (fd->fileName) {
-      free(fd->fileName);
+      Unicode_Free(fd->fileName);
       fd->fileName = NULL;
    }
 }
@@ -240,6 +245,8 @@ FileIO_Lock(FileIODescriptor *file, // IN/OUT:
    /*
     * Lock the file if necessary.
     */
+
+   ASSERT(file);
 
 #if !defined(__FreeBSD__) && !defined(sun)
    if (access & FILEIO_OPEN_LOCKED) {
@@ -292,6 +299,8 @@ FileIO_Unlock(FileIODescriptor *file)     // IN/OUT:
 {
    FileIOResult ret = FILEIO_SUCCESS;
 
+   ASSERT(file);
+
 #if !defined(__FreeBSD__) && !defined(sun)
    if (file->lockToken != NULL) {
       int err;
@@ -332,10 +341,13 @@ FileIO_Unlock(FileIODescriptor *file)     // IN/OUT:
  */
 
 void
-FileIO_StatsInit(FileIODescriptor* fd)          // IN
+FileIO_StatsInit(FileIODescriptor *fd)  // IN:
 {
    /* zero out the stat counters */
-#ifdef VMX86_STATS
+
+   ASSERT(fd);
+
+#if defined(VMX86_STATS)
    fd->readIn = 0; fd->writeIn = 0;
    fd->readvIn = 0; fd->writevIn = 0;
    fd->preadvIn = 0; fd->pwritevIn = 0;
@@ -365,9 +377,11 @@ FileIO_StatsInit(FileIODescriptor* fd)          // IN
  */
 
 void
-FileIO_StatsLog(FileIODescriptor* fd)     // IN
+FileIO_StatsLog(FileIODescriptor *fd)  // IN:
 {
-#ifdef VMX86_STATS
+   ASSERT(fd);
+
+#if defined(VMX86_STATS)
    if (fd->bytesRead + fd->bytesWritten == 0) {
       /* No activity --> no interesting stats */
       return;
@@ -383,6 +397,7 @@ FileIO_StatsLog(FileIODescriptor* fd)     // IN
       return;
    }
 
+// XXX unicode "string" in message
    Log("FILEIOSTATS | \"%s\" %d %d %d %d %d %d %d %d %d %d %d %d %d %d %"FMT64"d %"FMT64"d\n",
        fd->fileName ? fd->fileName : "",
        fd->readIn, fd->readDirect, fd->writeIn, fd->writeDirect,
@@ -411,8 +426,9 @@ FileIO_StatsLog(FileIODescriptor* fd)     // IN
  */
 
 void
-FileIO_StatsExit(const FileIODescriptor* fd)     // IN
+FileIO_StatsExit(const FileIODescriptor *fd)  // IN:
 {
+   ASSERT(fd);
 }
 
 
@@ -420,7 +436,7 @@ FileIO_StatsExit(const FileIODescriptor* fd)     // IN
  * Pwrite & Pread are not available in the FreeBSD tools build VM
  */
 #if !defined(VMX86_TOOLS) || !defined(__FreeBSD__)
-#if _WIN32 || defined(GLIBC_VERSION_21) || __APPLE__
+#if defined(_WIN32) || defined(GLIBC_VERSION_21) || defined(__APPLE__)
 /*
  *----------------------------------------------------------------------
  *
@@ -447,6 +463,8 @@ FileIO_Pread(FileIODescriptor *fd,    // IN: File descriptor
              uint64 offset)           // IN: Offset to start reading
 {
    struct iovec iov;
+
+   ASSERT(fd);
 
    iov.iov_base = buf;
    iov.iov_len = len;
@@ -482,6 +500,8 @@ FileIO_Pwrite(FileIODescriptor *fd,   // IN: File descriptor
 {
    struct iovec iov;
 
+   ASSERT(fd);
+
    iov.iov_base = buf;
    iov.iov_len = len;
 
@@ -511,7 +531,7 @@ FileIO_Pwrite(FileIODescriptor *fd,   // IN: File descriptor
  */
 
 Bool
-FileIO_IsSuccess(FileIOResult res)      // IN
+FileIO_IsSuccess(FileIOResult res)  // IN:
 {
    return res == FILEIO_SUCCESS;
 }

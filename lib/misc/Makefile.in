@@ -63,10 +63,10 @@ libMisc_a_AR = $(AR) $(ARFLAGS)
 libMisc_a_LIBADD =
 am_libMisc_a_OBJECTS = base64.$(OBJEXT) codeset.$(OBJEXT) \
 	dbllnklst.$(OBJEXT) dynbuf.$(OBJEXT) escape.$(OBJEXT) \
-	hostinfo_misc.$(OBJEXT) hostname.$(OBJEXT) idLinux.$(OBJEXT) \
-	iovector.$(OBJEXT) machineID.$(OBJEXT) miscSolaris.$(OBJEXT) \
-	random.$(OBJEXT) timeutil.$(OBJEXT) util_misc.$(OBJEXT) \
-	vmstdio.$(OBJEXT)
+	hash.$(OBJEXT) hostinfo_misc.$(OBJEXT) hostname.$(OBJEXT) \
+	idLinux.$(OBJEXT) iovector.$(OBJEXT) machineID.$(OBJEXT) \
+	miscSolaris.$(OBJEXT) random.$(OBJEXT) timeutil.$(OBJEXT) \
+	util_misc.$(OBJEXT) vmstdio.$(OBJEXT)
 libMisc_a_OBJECTS = $(am_libMisc_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -230,8 +230,9 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LIBRARIES = libMisc.a
 libMisc_a_SOURCES = base64.c codeset.c dbllnklst.c dynbuf.c escape.c \
-	hostinfo_misc.c hostname.c idLinux.c iovector.c machineID.c \
-	miscSolaris.c random.c timeutil.c util_misc.c vmstdio.c
+	hash.c hostinfo_misc.c hostname.c idLinux.c iovector.c \
+	machineID.c miscSolaris.c random.c timeutil.c util_misc.c \
+	vmstdio.c
 AM_CFLAGS = @COMMON_CFLAGS@ @LIB_MISC_CFLAGS@
 SUBDIRS = shared
 all: all-recursive
@@ -286,6 +287,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dbllnklst.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dynbuf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/escape.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hash.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostinfo_misc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostname.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/idLinux.Po@am__quote@

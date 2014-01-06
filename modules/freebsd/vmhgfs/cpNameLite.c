@@ -25,8 +25,8 @@
  *
  */
 
-#include "vm_assert.h"
 #include "cpNameLite.h"
+#include "vm_assert.h"
 
 /*
  *----------------------------------------------------------------------

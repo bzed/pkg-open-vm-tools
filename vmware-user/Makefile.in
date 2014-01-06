@@ -86,9 +86,10 @@ vmware_user_DEPENDENCIES = ../lib/atomic/libAtomic.a \
 	../lib/foundryMsg/libFoundryMsg.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
-	../lib/misc/libMisc.a ../lib/fileUtf8/libFileUtf8.a \
-	../lib/procMgr/libProcMgr.a ../lib/auth/libAuth.a \
-	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
+	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
+	../lib/fileUtf8/libFileUtf8.a ../lib/procMgr/libProcMgr.a \
+	../lib/auth/libAuth.a ../lib/panicDefault/libPanicDefault.a \
+	../lib/panic/libPanic.a
 vmware_user_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(vmware_user_LDFLAGS) $(LDFLAGS) -o $@
@@ -243,9 +244,9 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = @GTK_CFLAGS@ @COMMON_CFLAGS@ @VMWARE_USER_CFLAGS@
-# In the absence of the linker options --start-group and --end-group (which can't
-# be put in LDADD), we need to bring the following libraries out of the alphebetical
-# order so their symbols are properly resolved.
+# In the absence of the linker options --start-group and --end-group (which
+# can't be put in LDADD), we need to bring the following libraries out of
+# the alphabetical order so their symbols are properly resolved.
 vmware_user_LDADD = ../lib/atomic/libAtomic.a ../lib/conf/libConf.a \
 	../lib/dnd/libDnd.a ../lib/eventManager/libEventManager.a \
 	../lib/file/libFile.a ../lib/guestApp/libGuestApp.a \
@@ -266,9 +267,10 @@ vmware_user_LDADD = ../lib/atomic/libAtomic.a ../lib/conf/libConf.a \
 	../lib/foundryMsg/libFoundryMsg.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
-	../lib/misc/libMisc.a ../lib/fileUtf8/libFileUtf8.a \
-	../lib/procMgr/libProcMgr.a ../lib/auth/libAuth.a \
-	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
+	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
+	../lib/fileUtf8/libFileUtf8.a ../lib/procMgr/libProcMgr.a \
+	../lib/auth/libAuth.a ../lib/panicDefault/libPanicDefault.a \
+	../lib/panic/libPanic.a
 vmware_user_LDFLAGS = -lcrypt @GTK_LIBS@ @VMWARE_USER_LDFLAGS@ \
 	@COMMON_XLIBS@ $(am__empty)
 vmware_user_SOURCES = copyPaste.c debugStdio.c dnd.c \

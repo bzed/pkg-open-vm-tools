@@ -50,7 +50,7 @@
  */
 
 #define LOGLEVEL_EXTENSION_DECLARE(list) \
-	VMX86_EXTERN_DATA int8 *logLevelPtr; \
+	VMX86_EXTERN_DATA const int8 *logLevelPtr; \
         VMX86_EXTERN_DATA int LOGLEVEL_EXTOFFSET(LOGLEVEL_EXTENSION); \
         enum { list(LOGLEVEL_MODULEVAR) }
 
@@ -65,7 +65,11 @@
 #define LOGLEVEL_BYEXTNAME(_ext, _mod) \
         (*LogLevel_LookUpVar(XSTR(_ext), XSTR(_mod)))
 
-int8 *LogLevel_LookUpVar(const char *extension, const char *module);
+#define LOGLEVEL_BYEXTNAME_SET(_ext, _mod, _val) \
+	LogLevel_Set(XSTR(_ext), XSTR(_mod), _val)
+
+const int8 *LogLevel_LookUpVar(const char *extension, const char *module);
+int LogLevel_Set(const char *extension, const char *module, int val);
 
 #define DOLOG_BYEXTNAME(_ext, _mod, _min) \
         UNLIKELY(LOGLEVEL_BYEXTNAME(_ext, _mod) >= (_min))
@@ -80,6 +84,13 @@ int8 *LogLevel_LookUpVar(const char *extension, const char *module);
 #define LOGLEVEL_BYNAME(_mod) \
         logLevelPtr[LOGLEVEL_EXTOFFSET(LOGLEVEL_EXTENSION) + \
 		    LOGLEVEL_MODULEVAR(_mod)]
+
+#ifdef VMM
+#define LOGLEVEL_BYNAME_SET(_mod, _val) do { \
+	   monitorLogLevels[LOGLEVEL_EXTOFFSET(LOGLEVEL_EXTENSION) + \
+                            LOGLEVEL_MODULEVAR(_mod)] = _val;        \
+        } while (0)
+#endif
 
 #define DOLOG_BYNAME(_mod, _min) \
         UNLIKELY(LOGLEVEL_BYNAME(_mod) >= (_min))
@@ -99,13 +110,17 @@ int8 *LogLevel_LookUpVar(const char *extension, const char *module);
 
 #else /* VMX86_LOG */
 
-#define LOGLEVEL_BYEXTNAME(_ext, _mod)        0
-#define DOLOG_BYEXTNAME(_ext, _mod, _min)     (FALSE)
-#define LOG_BYEXTNAME(_ext, _mod, _min, _log)
+#define LOGLEVEL_BYEXTNAME(_ext, _mod)           0
+#define LOGLEVEL_BYEXTNAME_SET(_ext, _mod, _val) do {} while (0)
+#define DOLOG_BYEXTNAME(_ext, _mod, _min)        (FALSE)
+#define LOG_BYEXTNAME(_ext, _mod, _min, _log)    do {} while (0)
 
 #define LOGLEVEL_BYNAME(_mod)           0
+#ifdef VMM
+#define LOGLEVEL_BYNAME_SET(_mod, _val) do {} while (0)
+#endif
 #define DOLOG_BYNAME(_mod, _min)        (FALSE)
-#define LOG_BYNAME(_mod, _min, _log)
+#define LOG_BYNAME(_mod, _min, _log)    do {} while (0)
 
 #define LOGLEVEL()      0
 #define DOLOG(_min)     (FALSE)

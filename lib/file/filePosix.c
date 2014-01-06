@@ -33,11 +33,7 @@
 # ifdef sun
 #  include <sys/mnttab.h>
 # elif __APPLE__
-#  include <Carbon/Carbon.h> 
-#  include <DiskArbitration/DiskArbitration.h>
-#  include <sys/param.h>
 #  include <sys/mount.h>
-#  include <paths.h>
 # else
 #  include <mntent.h>
 # endif
@@ -64,8 +60,11 @@
 #include "dynbuf.h"
 #include "localconfig.h"
 
+#include "unicodeBase.h"
+#include "unicodeOperations.h"
+
 #if !defined(__FreeBSD__) && !defined(sun)
-#if !__APPLE__
+#if !defined(__APPLE__)
 static char *FilePosixLookupMountPoint(char const *canPath, Bool *bind);
 #endif
 static char *FilePosixNearestExistingAncestor(char const *path);
@@ -91,255 +90,168 @@ static char *FilePosixNearestExistingAncestor(char const *path);
 static Bool FileIsGroupsMember(gid_t gid);
 
 
-#if __APPLE__
-struct FileMacOsUnmountState {
-   Bool finished;
-   FileMacosUnmountStatus unmountStatus;
-   Bool eject;
-};
-
-
 /*
- *----------------------------------------------------------------------
+ *-----------------------------------------------------------------------------
  *
- * FileMacosDADiskUnmountCb --
+ * FileRemoveDirectory --
  *
- *      Callback called when a disk is unmounted.
+ *	Delete a directory.
  *
  * Results:
- *      Context is a FileMacOsUnmountState. Sets 'unmountStatus'.
- *      Logs errors on failure.
+ *	0	success
+ *	> 0	failure (errno)
  *
  * Side effects:
- *      May terminate the current CFRunLoop.
+ *      May change the host file system.
  *
- *----------------------------------------------------------------------
+ *-----------------------------------------------------------------------------
  */
 
-static void
-FileMacosDADiskUnmountCb(DADiskRef disk,            // IN
-                         DADissenterRef dissenter,  // IN
-                         void *context)             // IN/OUT
+int
+FileRemoveDirectory(ConstUnicode pathName)  // IN:
 {
-   struct FileMacOsUnmountState *s = (struct FileMacOsUnmountState *)context;
+   int err;
+   char *path;
 
-   ASSERT(s);
+   if (pathName == NULL) {
+      return EFAULT;
+   }
 
-   if (dissenter) {
-      DAReturn status = DADissenterGetStatus(dissenter);
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-      if (status == kDAReturnNotMounted) {
-         s->unmountStatus = FILEMACOS_UNMOUNT_SUCCESS_ALREADY;
-      } else {
-         Log(LGPFX" DA reported failure to unmount %s: %08X.\n",
-             DADiskGetBSDName(disk), status);
-         s->unmountStatus = FILEMACOS_UNMOUNT_ERROR;
-      }
+   if (path == NULL) {
+      err = ENOMEM;
    } else {
-      s->unmountStatus = FILEMACOS_UNMOUNT_SUCCESS;
+      err = (rmdir(path) == -1) ? errno : 0;
+
+      free(path);
    }
 
-   if (!s->eject) {
-      /*
-       * If we are not still waiting on a pending Eject operation, we are
-       * done.
-       */
-      s->finished = TRUE;
-      CFRunLoopStop(CFRunLoopGetCurrent());
-   }
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * FileMacosDADiskEjectCb --
- *
- *      Callback called when a disk is ejected.
- *
- * Results:
- *      Logs errors on failure.
- *
- * Side effects:
- *      Terminates the current CFRunLoop.
- *
- *----------------------------------------------------------------------
- */
-
-static void
-FileMacosDADiskEjectCb(DADiskRef disk,            // IN
-                       DADissenterRef dissenter,  // IN
-                       void *context)             // IN/OUT
-{
-   struct FileMacOsUnmountState *s = (struct FileMacOsUnmountState*)context;
-
-   ASSERT(s);
-
-   if (dissenter) {
-      Log(LGPFX" DA reported failure to eject %s: %d.\n",
-          DADiskGetBSDName(disk), DADissenterGetStatus(dissenter));
-   }
-
-   s->finished = TRUE;
-   CFRunLoopStop(CFRunLoopGetCurrent());
+   return err;
 }
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * FileMacos_UnmountDev --
+ * FileRename --
  *
- *      Given a BSD device (e.g. disk1 or /dev/disk0s3), unmount the partitions
- *      mounted on it.
- *
- *      This function *must* either be called:
- *
- *         - With the BULL held
- *
- *      or:
- *
- *         - Early enough in initialization such that we can
- *           guarantee no lib/machPoll callbacks are registered.
+ *	Rename a file.
  *
  * Results:
- *      Status of the disk unmount operation (errors ejecting the disk are
- *      ignored).
+ *	0	success
+ *	> 0	failure (errno)
  *
  * Side effects:
- *      Runs a CFRunLoop, therefore this may invoke callbacks
- *      registered by Carbon APIs or by lib/machPoll.
- *
- *      Invokes DiskArbitration callbacks on all other processes
- *      that have registered applicable callbacks.  May block for
- *      several seconds while the disk is unmounted.
+ *      May change the host file system.
  *
  *-----------------------------------------------------------------------------
  */
 
-FileMacosUnmountStatus
-FileMacos_UnmountDev(char const *bsdDev, // IN
-                     Bool  wholeDev,     // IN
-                     Bool  eject)        // IN
+int
+FileRename(ConstUnicode oldName,  // IN:
+           ConstUnicode newName)  // IN:
 {
-   /*
-    * We use our own timeout so we can recover should 'diskarbitrationd' die.
-    *
-    * Our timeout should be longer than any timeout used by 'diskarbitrationd'
-    * internally in order to avoid situations in which we timeout (thus
-    * returning FALSE), but the disk in fact does get unmounted after we return
-    * (so we should have returned TRUE). The maximum 'diskarbitrationd' timeout
-    * we have experienced so far was 18 s.
-    */
-   static const CFTimeInterval timeout = 30.0;
+   int err;
+   char *newPath;
+   char *oldPath;
 
-   const CFStringRef runLoopMode = kCFRunLoopDefaultMode;
-   struct FileMacOsUnmountState state;
-   DASessionRef session;
-   DADiskRef disk;
-
-   state.unmountStatus = FILEMACOS_UNMOUNT_ERROR;
-   state.finished  = FALSE;
-   state.eject = eject;
-
-   session = DASessionCreate(kCFAllocatorDefault);
-   if (!session) {
-      Log(LGPFX" Failed to create a DA session.\n");
-      return FALSE;
+   if ((oldName == NULL) || (newName == NULL)) {
+      return EFAULT;
    }
 
-   disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsdDev);
-   if (!disk) {
-      Log(LGPFX" Failed to create a DA disk.\n");
-      CFRelease(session);
-      return FALSE;
+   newPath = Unicode_GetAllocBytes(newName, STRING_ENCODING_DEFAULT);
+   oldPath = Unicode_GetAllocBytes(oldName, STRING_ENCODING_DEFAULT);
+
+   if ((newPath == NULL) || (oldPath == NULL)) {
+      err = ENOMEM;
+   } else {
+      err = (rename(oldPath, newPath) == -1) ? errno : 0;
    }
 
-   DASessionScheduleWithRunLoop(session, CFRunLoopGetCurrent(), runLoopMode);
+   free(newPath);
+   free(oldPath);
 
-   /*
-    * If the calling thread (not process) 's credentials are those of root or
-    * an admin user, then DADiskUnmount() just proceeds.
-    *
-    * Otherwise, DADiskUnmount() creates its own Authorization session
-    * (XXX there does not seem to be a way to pass it our
-    *      process' Authorization session),
-    * and tries to grant the system.volume.unmount right through it.
-    */
-   DADiskUnmount(disk,
-      wholeDev ? kDADiskUnmountOptionWhole : kDADiskUnmountOptionDefault,
-      FileMacosDADiskUnmountCb, &state);
-
-   if (eject) {
-      DADiskEject(disk, kDADiskEjectOptionDefault, FileMacosDADiskEjectCb,
-                  &state);
-   }
-
-   if (!state.finished &&
-       CFRunLoopRunInMode(runLoopMode,
-                          timeout, FALSE) == kCFRunLoopRunTimedOut) {
-      Log(LGPFX" Timeout while waiting for the DA callback.\n");
-      state.finished = TRUE;
-   }
-
-   ASSERT(state.finished);
-
-   DASessionUnscheduleFromRunLoop(session, CFRunLoopGetCurrent(), runLoopMode);
-
-   CFRelease(disk);
-   CFRelease(session);
-   return state.unmountStatus;
+   return err;
 }
-#endif /* __APPLE__ */
 
 
 /*
  *----------------------------------------------------------------------
  *
- * File_Unlink --
- *
- *      Unlink the file.  If name is a symbolic link, then unlink the
- *      the file the link refers to as well as the link itself.  Only one
- *      level of links are followed.
+ *  FileDeletion --
+ *	Delete the specified file
  *
  * Results:
- *
- *      Return 0 if the unlink is successful.   Otherwise, returns -1.
+ *	0	success
+ *	> 0	failure (errno)
  *
  * Side effects:
- *      The file is removed.
+ *      May change the host file system.
  *
  *----------------------------------------------------------------------
  */
 
 int
-File_Unlink(const char *name)   // IN
+FileDeletion(ConstUnicode pathName,   // IN:
+             const Bool handleLink)   // IN:
 {
-   struct stat statBuf;
+   char *primaryPath;
 
-   if (lstat(name, &statBuf) == -1) {
-      return -1;
+   int err = 0;
+   char *linkPath = NULL;
+
+   if (pathName == NULL) {
+      return EFAULT;
    }
 
-   if (S_ISLNK(statBuf.st_mode)) {
-       char buf[FILE_MAXPATH];
-       ssize_t len = readlink(name, buf, sizeof buf - 1);
-       if (len == -1) {
-          return -1;
-       }
-       buf[len] = 0;
-       if (unlink(buf) == -1) {
-          if (errno != ENOENT) {
-             return -1;
-          }
-       }
+   primaryPath = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (primaryPath == NULL) {
+      return ENOMEM;
    }
 
-   if (unlink(name) == -1) {
-      return -1;
+   if (handleLink) {
+      struct stat statbuf;
+
+      if (lstat(primaryPath, &statbuf) == -1) {
+         err = errno;
+         goto bail;
+      }
+
+      if (S_ISLNK(statbuf.st_mode)) {
+         linkPath = malloc(statbuf.st_size + 1);
+
+         if (linkPath == NULL) {
+            err = ENOMEM;
+            goto bail;
+         }
+
+         if (readlink(primaryPath, linkPath,
+                      statbuf.st_size) != statbuf.st_size) {
+            err = errno;
+            goto bail;
+         }
+
+         linkPath[statbuf.st_size] = '\0';
+
+         if (unlink(linkPath) == -1) {
+            if (errno != ENOENT) {
+               err = errno;
+               goto bail;
+            }
+         }
+      }
    }
 
-   return 0;
+   err = (unlink(primaryPath) == -1) ? errno : 0;
+
+bail:
+
+   free(primaryPath);
+   free(linkPath);
+
+   return err;
 }
 
 
@@ -351,7 +263,7 @@ File_Unlink(const char *name)   // IN
  *    Same as File_Unlink for POSIX systems since we can unlink anytime.
  *
  * Results:
- *    None.
+ *    Return 0 if the unlink is successful.   Otherwise, returns -1.
  *
  * Side effects:
  *    None.
@@ -360,10 +272,96 @@ File_Unlink(const char *name)   // IN
  */
 
 int
-File_UnlinkDelayed(const char *fileName)   // IN
+File_UnlinkDelayed(ConstUnicode pathName)  // IN:
 {
-   return File_Unlink(fileName);
+   return (FileDeletion(pathName, TRUE) == 0) ? 0 : -1;
 }
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FileAttributes --
+ *
+ *	Return the attributes of a file.
+ *
+ * Results:
+ *	0	success
+ *	> 0	failure (errno)
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+FileAttributes(ConstUnicode pathName,  // IN:
+               FileData *fileData)     // OUT:
+{
+   char *path;
+   struct stat statbuf;
+
+   int err = 0;
+
+   if (pathName == NULL) {
+      return EFAULT;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      return ENOMEM;
+   }
+
+   if (stat(path, &statbuf) == -1) {
+      err = errno;
+   } else {
+      if (fileData != NULL) {
+         fileData->fileCreationTime = statbuf.st_ctime;
+         fileData->fileModificationTime = statbuf.st_mtime;
+         fileData->fileAccessTime = statbuf.st_atime;
+         fileData->fileSize = statbuf.st_size;
+
+         switch (statbuf.st_mode & S_IFMT) {
+         case S_IFREG:
+            fileData->fileType = FILE_TYPE_REGULAR;
+            break;
+
+         case S_IFDIR:
+            fileData->fileType = FILE_TYPE_DIRECTORY;
+            break;
+
+         case S_IFBLK:
+            fileData->fileType = FILE_TYPE_BLOCKDEVICE;
+            break;
+
+         case S_IFCHR:
+            fileData->fileType = FILE_TYPE_CHARDEVICE;
+            break;
+
+         case S_IFLNK:
+            fileData->fileType = FILE_TYPE_SYMLINK;
+            break;
+
+         default:
+            fileData->fileType = FILE_TYPE_UNCERTAIN;
+            break;
+         }
+
+         fileData->fileMode = statbuf.st_mode;
+         fileData->fileOwner = statbuf.st_uid;
+         fileData->fileGroup = statbuf.st_gid;
+      }
+
+      err = 0;
+   }
+
+   free(path);
+
+   return err;
+}
+
 
 /*
  *----------------------------------------------------------------------
@@ -406,11 +404,10 @@ File_IsRemote(const char *fileName) // IN: File name
 #endif
 
    if (statfs(fileName, &sfbuf) == -1) {
-      Log("File_IsRemote: statfs(%s) failed: %s\n", 
-          fileName, Msg_ErrString());
+      Log("%s: statfs(%s) failed: %s\n", __func__, fileName, Msg_ErrString());
       return TRUE;
    }
-#if __APPLE__
+#if defined(__APPLE__)
    return sfbuf.f_flags & MNT_LOCAL ? FALSE : TRUE;
 #else
    if (NFS_SUPER_MAGIC == sfbuf.f_type) {
@@ -442,16 +439,28 @@ File_IsRemote(const char *fileName) // IN: File name
  */
 
 Bool
-File_IsSymLink(const char *name)      // IN
+File_IsSymLink(ConstUnicode pathName)  // IN:
 {
-   struct stat statBuf;
+   char *path;
+   struct stat statbuf;
 
-   ASSERT(name);
+   int err = 0;
 
-   if (lstat(name, &statBuf) == -1) {
+   if (pathName == NULL) {
       return FALSE;
    }
-   return S_ISLNK(statBuf.st_mode);
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      return FALSE;
+   }
+
+   err = (lstat(path, &statbuf) == -1) ? errno : 0;
+
+   free(path);
+
+   return (err == 0) && S_ISLNK(statbuf.st_mode);
 }
 
 
@@ -478,7 +487,7 @@ File_Cwd(const char *drive)     // IN
 {
    char buffer[FILE_MAXPATH];
 
-   if (drive != NULL && drive[0] != '\0') {
+   if ((drive != NULL) && (drive[0] != '\0')) {
       Warning("Drive letter %s on Linux?\n", drive);
    }
 
@@ -589,16 +598,14 @@ File_FullPath(const char *fileName)     // IN
 
       n = Str_Snprintf(buffer, FILE_MAXPATH, "%s/%s", cwd, fileName);
       if (n < 0) {
-         Warning("File_FullPath: Couldn't snprintf\n");
+         Warning("%s: Couldn't snprintf\n", __func__);
          ret = NULL;
          goto end;
       }
+
       p = realpath(buffer, rpath);
-      if (p == 0) {
-         ret = buffer;
-      } else {
-         ret = rpath;
-      }
+
+      ret = (p == NULL) ? buffer : rpath;
    }
 
    ret = Util_SafeStrdup(ret);
@@ -629,9 +636,14 @@ end:
  */
 
 Bool
-File_IsFullPath(const char *fileName)   // IN
+File_IsFullPath(ConstUnicode pathName)  // IN:
 {
-   return *fileName == DIRSEPC;
+   if (pathName == NULL) {
+      return FALSE;
+   }
+
+   /* start with a slash? */
+   return Unicode_StartsWith(pathName, U(DIRSEPS));
 }
 
 
@@ -654,25 +666,40 @@ File_IsFullPath(const char *fileName)   // IN
  */
 
 Bool
-File_GetTimes(const char *fileName,       // IN
+File_GetTimes(ConstUnicode pathName,      // IN:
               VmTimeType *createTime,     // OUT: Windows NT time format
               VmTimeType *accessTime,     // OUT: Windows NT time format
               VmTimeType *writeTime,      // OUT: Windows NT time format
               VmTimeType *attrChangeTime) // OUT: Windows NT time format
 {
+   int err;
+   char *path;
    struct stat statBuf;
-   int error;
+
+   if (pathName == NULL) {
+      return FALSE;
+   }
 
    ASSERT(createTime && accessTime && writeTime && attrChangeTime);
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      return FALSE;
+   }
 
    *createTime     = -1;
    *accessTime     = -1;
    *writeTime      = -1;
    *attrChangeTime = -1;
 
-   if (lstat(fileName, &statBuf) == -1) {
-      error = errno;
-      Log(LGPFX" error stating file \"%s\": %s\n", fileName, strerror(error));
+   err = (lstat(path, &statBuf) == -1) ? errno : 0;
+
+   free(path);
+
+   if (err != 0) {
+// XXX unicode "string" in message
+      Log(LGPFX" error stating file \"%s\": %s\n", pathName, strerror(err));
       return FALSE;
    }
 
@@ -685,7 +712,7 @@ File_GetTimes(const char *fileName,       // IN
     * XXX atime is almost always MAX.
     */
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__)
    /*
     * FreeBSD: All supported versions have timestamps with nanosecond resolution.
     *          FreeBSD 5+ has also file creation time.
@@ -775,7 +802,7 @@ File_GetTimes(const char *fileName,       // IN
  */
 
 Bool
-File_SetTimes(const char *fileName,       // IN
+File_SetTimes(ConstUnicode pathName,      // IN:
               VmTimeType createTime,      // IN: ignored
               VmTimeType accessTime,      // IN: Windows NT time format
               VmTimeType writeTime,       // IN: Windows NT time format
@@ -784,12 +811,25 @@ File_SetTimes(const char *fileName,       // IN
    struct timeval times[2];
    struct timeval *aTime, *wTime;
    struct stat statBuf;
-   int error;
+   char *path;
+   int err;
 
-   /* We need the old stats so that we can preserve times. */
-   if (lstat(fileName, &statBuf) == -1) {
-      error = errno;
-      Log(LGPFX" error stating file \"%s\": %s\n", fileName, strerror(error));
+   if (pathName == NULL) {
+      return FALSE;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      return FALSE;
+   }
+
+   err = (lstat(path, &statBuf) == -1) ? errno : 0;
+
+   if (err != 0) {
+// XXX unicode "string" in message
+      Log(LGPFX" error stating file \"%s\": %s\n", pathName, strerror(err));
+      free(path);
       return FALSE;
    }
 
@@ -819,9 +859,13 @@ File_SetTimes(const char *fileName,       // IN
       wTime->tv_usec = ts.tv_nsec / 1000;
    }
 
-   if (utimes(fileName, times) < 0) {
-      error = errno;
-      Log(LGPFX" utimes error on file \"%s\": %s\n", fileName, strerror(error));
+   err = (utimes(path, times) == -1) ? errno : 0;
+
+   free(path);
+
+   if (err != 0) {
+// XXX unicode "string" in message
+      Log(LGPFX" utimes error on file \"%s\": %s\n", pathName, strerror(err));
       return FALSE;
    }
 
@@ -955,7 +999,7 @@ File_GetFreeSpace(const char *fileName) // IN: File name
    }
    
   if (!FileGetStats(fullPath, &statfsbuf)) {
-      Warning("File_GetFreeSpace: Couldn't statfs\n");
+      Warning("%s: Couldn't statfs\n", __func__);
       ret = -1;
       goto end;
    }
@@ -965,7 +1009,6 @@ File_GetFreeSpace(const char *fileName) // IN: File name
    // this is only intended for callers going through vmkfs. Direct callers
    // as we are always get the right answer from statfs above.
    if (statfsbuf.f_type == VMFS_MAGIC_NUMBER) {
-      int r;
       int fd;
       FS_FreeSpaceArgs args = { 0 };
       char *directory = NULL;
@@ -974,18 +1017,17 @@ File_GetFreeSpace(const char *fileName) // IN: File name
       /* Must use an ioctl() to get free space for a VMFS file. */
       ret = -1;
       fd = open(directory, O_RDONLY);
-      if (fd != -1) {
-	 r = ioctl(fd, IOCTLCMD_VMFS_GET_FREE_SPACE, &args);
-	 if (r != -1) {
-	    ret = args.bytesFree;
+      if (fd == -1) {
+         Warning("%s: open of %s failed with: %s\n", __func__, directory,
+                 Msg_ErrString());
+      } else {
+	 if (ioctl(fd, IOCTLCMD_VMFS_GET_FREE_SPACE, &args) == -1) {
+            Warning("%s: ioctl on %s failed with: %s\n", __func__,
+                    fullPath, Msg_ErrString());
 	 } else {
-            Warning("GetFreeSpace: ioctl on %s failed with %d %d\n", 
-                    fullPath, errno, r);
+	    ret = args.bytesFree;
          }
 	 close(fd);
-      } else {
-         Warning("GetFreeSpace: open of %s failed with: %s\n", directory,
-                 Msg_ErrString());
       }
       free(directory);
    }
@@ -1026,7 +1068,7 @@ File_GetVMFSAttributes(const char *fileName,             // IN: File to test
 
    File_SplitName(pathname, NULL, &parentPath, NULL);
 
-   if(parentPath == NULL) {
+   if (parentPath == NULL) {
       Log(LGPFX "%s: Error acquiring parent path name\n", __func__);
       free(pathname);
       return -1;
@@ -1238,7 +1280,7 @@ File_OnVMFS(const char *fileName)
       }
    
       if (!FileGetStats(fullPath, &statfsbuf)) {
-	 Warning("File_IsVMFS: Couldn't statfs\n");
+	 Warning("%s: Couldn't statfs\n", __FUNCTION__);
 	 ret = FALSE;
 	 free(fullPath);
 	 goto end;
@@ -1259,8 +1301,8 @@ end:
  *
  * File_GetCapacity --
  *
- *      Return the total capcity (in bytes) available to the user on a disk where
- *      a file is or would be
+ *      Return the total capacity (in bytes) available to the user on a disk
+ *      where a file is or would be
  *
  * Results:
  *      -1 if error (reported to the user)
@@ -1285,7 +1327,7 @@ File_GetCapacity(const char *fileName) // IN: File name
    }
    
    if (!FileGetStats(fullPath, &statfsbuf)) {
-      Warning("File_GetCapacity: Couldn't statfs\n");
+      Warning("%s: Couldn't statfs\n", __func__);
       ret = -1;
       goto end;
    }
@@ -1351,7 +1393,7 @@ File_GetUniqueFileSystemID(char const *path) // IN: File path
 }
 
 
-#if !__APPLE__
+#if !defined(__APPLE__)
 /*
  *-----------------------------------------------------------------------------
  *
@@ -1446,7 +1488,7 @@ FilePosixGetBlockDevice(char const *path) // IN: File path
 {
    char *existPath;
    Bool failed;
-#if __APPLE__
+#if defined(__APPLE__)
    struct statfs buf;
 #else
    char canPath[FILE_MAXPATH];
@@ -1459,7 +1501,7 @@ FilePosixGetBlockDevice(char const *path) // IN: File path
       return NULL;
    }
 
-#if __APPLE__
+#if defined(__APPLE__)
    failed = statfs(existPath, &buf) == -1;
    free(existPath);
    if (failed) {
@@ -1541,7 +1583,7 @@ retry:
             retries++;
             if (retries > 10) {
                Warning("%s: The --[r]bind mount count exceeds %u. Giving "
-                       "up.\n", __FUNCTION__, 10);
+                       "up.\n", __func__, 10);
                return NULL;
             }
 
@@ -1713,38 +1755,38 @@ File_IsSameFile(const char *path1, // IN
       return FALSE;
    }
 
-#if __APPLE__
-   if( (stfs1.f_flags & MNT_LOCAL) &&
-       (stfs2.f_flags & MNT_LOCAL) ) {
+#if defined(__APPLE__)
+   if ((stfs1.f_flags & MNT_LOCAL) && (stfs2.f_flags & MNT_LOCAL)) {
       return st1.st_dev == st2.st_dev;
    }
 #else
-   if ((stfs1.f_type != NFS_SUPER_MAGIC)
-       && (stfs2.f_type != NFS_SUPER_MAGIC)) {
+   if ((stfs1.f_type != NFS_SUPER_MAGIC) && (stfs2.f_type != NFS_SUPER_MAGIC)) {
       return st1.st_dev == st2.st_dev;
    }
 #endif
 
    /*
-    * At least one of the paths traverses NFS and some older NFS implementations
-    * can set st_dev incorrectly.  Do some extra checks of the stat structure to
-    * increase our confidence.   Since the st_ino numbers had to match to get this
-    * far, the overwhelming odds are the two files are the same.  
+    * At least one of the paths traverses NFS and some older NFS
+    * implementations can set st_dev incorrectly. Do some extra checks of the
+    * stat structure to increase our confidence. Since the st_ino numbers had
+    * to match to get this far, the overwhelming odds are the two files are
+    * the same.  
     *
     * If another process was actively writing or otherwise modifying the file
-    * while we stat'd it, then the following test could fail and we could return
-    * a false negative.   On the other hand, if NFS lies about st_dev and the paths
-    * point to a cloned file system, then the we will return a false positive.
+    * while we stat'd it, then the following test could fail and we could
+    * return a false negative.  On the other hand, if NFS lies about st_dev
+    * and the paths point to a cloned file system, then the we will return a
+    * false positive.
     */
-   if (st1.st_dev == st2.st_dev 
-       && st1.st_mode == st2.st_mode
-       && st1.st_nlink == st2.st_nlink
-       && st1.st_uid == st2.st_uid
-       && st1.st_gid == st2.st_gid
-       && st1.st_rdev == st2.st_rdev
-       && st1.st_size == st2.st_size
-       && st1.st_blksize == st2.st_blksize
-       && st1.st_blocks == st2.st_blocks) {
+   if ((st1.st_dev == st2.st_dev) &&
+       (st1.st_mode == st2.st_mode) &&
+       (st1.st_nlink == st2.st_nlink) &&
+       (st1.st_uid == st2.st_uid) &&
+       (st1.st_gid == st2.st_gid) &&
+       (st1.st_rdev == st2.st_rdev) &&
+       (st1.st_size == st2.st_size) &&
+       (st1.st_blksize == st2.st_blksize) &&
+       (st1.st_blocks == st2.st_blocks)) {
       return TRUE;
    }
    return FALSE;
@@ -1772,53 +1814,54 @@ File_IsSameFile(const char *path1, // IN
  */
 
 Bool
-File_Replace(const char *oldFile,        // IN: old file
-             const char *newFile)        // IN: new file
+File_Replace(ConstUnicode oldName,  // IN: old file
+             ConstUnicode newName)  // IN: new file
 {
+   Bool status;
+   char *newPath;
+   char *oldPath;
    struct stat st;
 
-   if (stat(oldFile, &st) == 0 &&
-       chmod(newFile, st.st_mode) == -1) {
+   if ((oldName == NULL) || (newName == NULL)) {
+      return FALSE;
+   }
+
+   newPath = Unicode_GetAllocBytes(newName, STRING_ENCODING_DEFAULT);
+   oldPath = Unicode_GetAllocBytes(oldName, STRING_ENCODING_DEFAULT);
+
+   if ((oldPath == NULL) || (newPath == NULL)) {
+      status = FALSE;
+      goto bail;
+   }
+
+   /* UNICODE: path names added to Msg_Append... */
+
+   if ((stat(oldPath, &st) == 0) && (chmod(newPath, st.st_mode) == -1)) {
       Msg_Append(MSGID(filePosix.replaceChmodFailed)
                  "Failed to duplicate file permissions from "
                  "\"%s\" to \"%s\": %s\n",
-                 oldFile, newFile, Msg_ErrString());
-      return FALSE;
+                 oldPath, newPath, Msg_ErrString());
+
+      status = FALSE;
+      goto bail;
    }
-   if (rename(newFile, oldFile) == -1) {
+
+   if (rename(newPath, oldPath) == -1) {
       Msg_Append(MSGID(filePosix.replaceRenameFailed)
                  "Failed to rename \"%s\" to \"%s\": %s\n",
-                 newFile, oldFile, Msg_ErrString());
-      return FALSE;
+                 newPath, oldPath, Msg_ErrString());
+
+      status = FALSE;
+      goto bail;
    }
-   return TRUE;
-}
 
+   status = TRUE;
 
-/*
- *----------------------------------------------------------------------
- *
- * File_GetModTime -- 
- *
- *      Get the modification time of a file.
- *
- * Results:
- *      Last modification time of file or -1 if error.
- *      
- * Side effects:
- *      None
- *
- *----------------------------------------------------------------------
- */
+bail:
+   free(newPath);
+   free(oldPath);
 
-int64
-File_GetModTime(const char *fileName)   // IN
-{
-   struct stat statBuf;
-   if (stat(fileName, &statBuf) == -1) {
-      return -1;
-   }
-   return (int64)statBuf.st_mtime;
+   return status;
 }
 
 
@@ -1842,21 +1885,41 @@ File_GetModTime(const char *fileName)   // IN
  */
 
 static Bool
-FileIsVMFS(const char *fileName)  // IN: file name to test
+FileIsVMFS(ConstUnicode pathName)  // IN: file name to test
 {
 #if defined(linux)
-   struct statfs sfbuf;
+   char *path;
+   struct statfs statbuf;
 
-#ifdef VMX86_SERVER
+   int err = 0;
+
+#if defined(VMX86_SERVER)
    // XXX See Vmfs_IsVMFSFile. Same caveat about fs exclusion.
    if (HostType_OSIsPureVMK()) {
       return TRUE;
    }
 #endif
-   if (statfs(fileName, &sfbuf) == 0) {
-      return sfbuf.f_type == VMFS_SUPER_MAGIC;
+
+   if (pathName == NULL) {
+      return FALSE;
    }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      return FALSE;
+   }
+
+   err = (statfs(path, &statbuf) == -1) ? errno : 0;
+
+   free(path);
+
+   if (err == 0) {
+      return statbuf.f_type == VMFS_SUPER_MAGIC;
+   }
+
 #endif
+
    return FALSE;
 }
 
@@ -2110,50 +2173,43 @@ out:
 
 
 /*
- *----------------------------------------------------------------------
+ *-----------------------------------------------------------------------------
  *
- * File_CreateDirectory --
+ * FileCreateDirectory --
  *
- *      Creates the specified directory.
- *
- * Results:
- *      True if the directory is successfully created, false otherwise.
- *
- * Side effects:
- *      Creates the directory on disk.
- *
- *----------------------------------------------------------------------
- */
-
-Bool
-File_CreateDirectory(char const *pathName)     // IN
-{
-   ASSERT(pathName);
-   return mkdir(pathName, S_IRWXU | S_IRWXG | S_IRWXO) == 0;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * File_DeleteEmptyDirectory --
- *
- *      Deletes the specified directory if it is empty.
+ *	Create a directory. The umask is honored.
  *
  * Results:
- *      True if the directory is successfully deleted, false otherwise.
+ *	0	success
+ *	> 0	failure (errno)
  *
  * Side effects:
- *      Deletes the directory from disk.
+ *      May change the host file system.
  *
- *----------------------------------------------------------------------
+ *-----------------------------------------------------------------------------
  */
 
-Bool
-File_DeleteEmptyDirectory(char const *pathName)     // IN
+int
+FileCreateDirectory(ConstUnicode pathName)  // IN:
 {
-   ASSERT(pathName);
-   return rmdir(pathName) == 0;
+   int err;
+   char *path;
+
+   if (pathName == NULL) {
+      return EFAULT;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      err = ENOMEM;
+   } else {
+      err = (mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO) == -1) ? errno : 0;
+
+      free(path);
+   }
+
+   return err;
 }
 
 
@@ -2184,7 +2240,10 @@ File_ListDirectory(char const *pathName,     // IN
    DynBuf b;
    int count = 0;
 
-   ASSERT(pathName);
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
 
    errno = 0;
    dir = opendir(pathName);
@@ -2257,16 +2316,21 @@ File_ListDirectory(char const *pathName,     // IN
  */
 
 Bool
-File_IsWritableDir(const char *dirName)
+File_IsWritableDir(ConstUnicode dirName)  // IN:
 {
-   struct stat statbuf;
+   int err;
    uid_t euid;
+   FileData fileData;
 
-   if (stat(dirName, &statbuf) == -1) {
+   if (dirName == NULL) {
+      errno = EFAULT;
       return FALSE;
    }
 
-   if (!S_ISDIR(statbuf.st_mode)) {
+   err = FileAttributes(dirName, &fileData);
+
+   if ((err != 0) || (fileData.fileType != FILE_TYPE_DIRECTORY)) {
+      errno = err;
       return FALSE;
    }
 
@@ -2278,14 +2342,14 @@ File_IsWritableDir(const char *dirName)
       return TRUE;
    }
 
-   if (statbuf.st_uid == euid) {
-      statbuf.st_mode >>= 6;
-   } else if (FileIsGroupsMember(statbuf.st_gid)) {
-      statbuf.st_mode >>= 3;
+   if (fileData.fileOwner == euid) {
+      fileData.fileMode >>= 6;
+   } else if (FileIsGroupsMember(fileData.fileGroup)) {
+      fileData.fileMode >>= 3;
    }
 
    /* Check for Read and Execute permissions */
-   return (statbuf.st_mode & 3) == 3;
+   return (fileData.fileMode & 3) == 3;
 }
 
 
@@ -2398,7 +2462,7 @@ File_GetTmpDir(Bool useConf) // IN: Use the config file?
       return edirName;
    }
 
-   Warning("File_GetTmpDir: Couldn't get a temporary directory\n");
+   Warning("%s: Couldn't get a temporary directory\n", __FUNCTION__);
    return NULL;
 }
 
@@ -2436,7 +2500,7 @@ FileIsGroupsMember(gid_t gid)
 
       res = getgroups(nr_members, members);
       if (res == -1) {
-	 Warning("FileIsGroupMember: Couldn't getgroups\n");
+	 Warning("%s: Couldn't getgroups\n", __FUNCTION__);
 	 ret = FALSE;
 	 goto end;
       }
@@ -2448,7 +2512,7 @@ FileIsGroupsMember(gid_t gid)
       /* Was bug 17760 --hpreg */
       new = realloc(members, res * sizeof *members);
       if (new == NULL) {
-	 Warning("FileIsGroupMember: Couldn't realloc\n");
+	 Warning("%s: Couldn't realloc\n", __FUNCTION__);
 	 ret = FALSE;
 	 goto end;
       }
@@ -2483,19 +2547,42 @@ end:
  *	FALSE if error
  *
  * Side effects:
- *	None
+ *	errno is set on error
  *
  *----------------------------------------------------------------------
  */
 
 Bool
-File_MakeCfgFileExecutable(const char *path)
-{   
-   return chmod(path,
-                S_IRUSR | S_IWUSR | S_IXUSR |  // rwx by user
-                S_IRGRP | S_IXGRP |            // rx by group
-                S_IROTH | S_IXOTH              // rx by others
-                ) == 0;
+File_MakeCfgFileExecutable(ConstUnicode pathName)
+{
+   char *path;
+   Bool result;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return FALSE;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   if (path == NULL) {
+      errno = ENOMEM;
+      result = FALSE;
+   } else {
+      int err;
+
+      result = chmod(path,
+                     S_IRUSR | S_IWUSR | S_IXUSR |  // rwx by user
+                     S_IRGRP | S_IXGRP |            // rx by group
+                     S_IROTH | S_IXOTH              // rx by others
+                    ) == 0;
+
+      err = errno;
+      free(path);
+      errno = err;
+   }
+
+   return result;
 }
 
 
@@ -2519,38 +2606,7 @@ File_MakeCfgFileExecutable(const char *path)
  */
 
 int64
-File_GetSizeAlternate(const char *fileName)        // IN
+File_GetSizeAlternate(ConstUnicode pathName)  // IN:
 {
-   return File_GetSize(fileName);
+   return File_GetSize(pathName);
 }
-
-/*
- *----------------------------------------------------------------------------
- *
- * File_IsCharDevice --
- *
- *      For files like /dev/ttyS0, /dev/lp0 we need to know whether
- *      they are device files so that we can take appropriate action.
- *      This function checks whether the given file is a char device
- *      and return TRUE in such case.
- *
- * Results:
- *      TRUE if the file is char device FALSE otherwise.
- *
- * Side effects:
- *      None
- *
- *----------------------------------------------------------------------------
- */
-
-Bool
-File_IsCharDevice(const char *filename) //IN
-{
-   struct stat st;
-   if (stat(filename, &st) >= 0 && S_ISCHR(st.st_mode)) {
-      return TRUE;
-   }
-   return FALSE;
-}
-
-

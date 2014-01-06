@@ -202,6 +202,7 @@ EXTERN const char *Msg_GetMessagesAndReset(void);
 EXTERN Msg_List *Msg_GetMsgList(void);
 EXTERN Msg_List *Msg_GetMsgListAndReset(void);
 EXTERN void Msg_FreeMsgList(Msg_List *messages);
+EXTERN char *Msg_LocalizeList(Msg_List *messages);
 #endif
 EXTERN void Msg_Reset(Bool log);
 EXTERN Bool Msg_Present(void);

@@ -40,6 +40,8 @@ hgfsclient_LDADD += ../lib/err/libErr.a
 hgfsclient_LDADD += ../lib/file/libFile.a
 hgfsclient_LDADD += ../lib/message/libMessage.a
 hgfsclient_LDADD += ../lib/rpcVmx/libRpcVmx.a
+hgfsclient_LDADD += ../lib/unicode/libUnicode.a
+hgfsclient_LDADD += ../lib/sync/libSync.a
 hgfsclient_LDADD += ../lib/misc/libMisc.a
 hgfsclient_LDADD += ../lib/atomic/libAtomic.a
 

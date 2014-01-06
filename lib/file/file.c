@@ -44,6 +44,7 @@
 #include "uuid.h"
 #include "config.h"
 #include "file.h"
+#include "fileIO.h"
 #include "fileInt.h"
 #include "stats_file.h"
 #include "dynbuf.h"
@@ -53,6 +54,9 @@
 #if !defined(N_PLAT_NLM)
 #include "vm_atomic.h"
 #endif
+
+#include "unicodeTypes.h"
+#include "unicodeOperations.h"
 
 #define SETUP_DEFINE_VARS
 #include "stats_user_setup.h"
@@ -79,9 +83,9 @@
  */
 
 Bool
-File_Exists(const char *name)   // IN
+File_Exists(ConstUnicode pathName)  // IN:
 {
-   return FileIO_Access(name, FILEIO_ACCESS_EXISTS) == FILEIO_SUCCESS;
+   return FileIO_IsSuccess(FileIO_Access(pathName, FILEIO_ACCESS_EXISTS));
 }
 
 
@@ -103,49 +107,17 @@ File_Exists(const char *name)   // IN
  */
 
 int
-File_UnlinkIfExists(const char *name)   // IN
+File_UnlinkIfExists(ConstUnicode pathName)  // IN:
 {
-   int ret = File_Unlink(name);
-   if (ret < 0 && errno == ENOENT) {
-      ret = 0;
+   int ret;
+
+   ret = FileDeletion(pathName, TRUE);
+
+   if (ret != 0) {
+      ret = (ret == ENOENT) ? 0 : -1;
    }
+
    return ret;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * FileGetType --
- *
- *      Get the file type as returned by stat() in st_mode field.
- *
- * Bugs:
- *      Fails for the root directory of any drive on Windows, because
- *      stat() fails.
- *
- * Results:
- *      Bit mask representing the file type (S_IFDIR, S_IFREG, etc.)
- *
- * Side effects:
- *      None
- *
- *----------------------------------------------------------------------
- */
-
-static unsigned int
-FileGetType(const char *name)      // IN
-{
-   int err;
-   struct stat st;
-
-   ASSERT(name);
-
-   err = stat(name, &st);
-   if (err < 0) {
-      return FALSE;
-   }
-   return (st.st_mode & S_IFMT);
 }
 
 
@@ -155,9 +127,6 @@ FileGetType(const char *name)      // IN
  * File_IsDirectory --
  *
  *      Check if specified file is a directory or not.
- *
- * Bugs:
- *      Fails for the root directory of any drive on Windows.
  *
  * Results:
  *      Bool - TRUE -> is a directory, FALSE -> not a directory or error
@@ -169,9 +138,144 @@ FileGetType(const char *name)      // IN
  */
 
 Bool
-File_IsDirectory(const char *name)      // IN
+File_IsDirectory(ConstUnicode pathName)  // IN:
 {
-   return FileGetType(name) == S_IFDIR;
+   FileData fileData;
+
+   return (FileAttributes(pathName, &fileData) == 0) &&
+           (fileData.fileType == FILE_TYPE_DIRECTORY);
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * File_IsCharDevice --
+ *
+ *      This function checks whether the given file is a char device
+ *      and return TRUE in such case. This is often useful on Windows
+ *      where files like COM?, LPT? must be differentiated from "normal"
+ *      disk files.
+ *
+ * Results:
+ *      TRUE if the file is char device FALSE otherwise.
+ *
+ * Side effects:
+ *      None
+ *
+ *----------------------------------------------------------------------------
+ */
+
+Bool
+File_IsCharDevice(ConstUnicode pathName)  // IN:
+{
+   FileData fileData;
+
+   return (FileAttributes(pathName, &fileData) == 0) &&
+           (fileData.fileType == FILE_TYPE_CHARDEVICE);
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_Unlink --
+ *
+ *      Unlink the file.
+ *
+ *      POSIX: If name is a symbolic link, then unlink the the file the link
+ *      refers to as well as the link itself.  Only one level of links are
+ *      followed.
+ *      WINDOWS: No symbolic links so no link following.
+ *
+ * Results:
+ *      Return 0 if the unlink is successful.   Otherwise, returns -1.
+ *
+ * Side effects:
+ *      The file is removed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+File_Unlink(ConstUnicode pathName)  // IN:
+{
+   return (FileDeletion(pathName, TRUE) == 0) ? 0 : -1;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_GetModTime --
+ *
+ *      Get the last modification time of a file.
+ *
+ * Results:
+ *      Last modification time of file or -1 if error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int64
+File_GetModTime(ConstUnicode pathName)  // IN:
+{
+   FileData fileData;
+
+   if (FileAttributes(pathName, &fileData) != 0) {
+      return -1;
+   }
+
+   return fileData.fileModificationTime;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_CreateDirectory --
+ *
+ *      Creates the specified directory.
+ *
+ * Results:
+ *      True if the directory is successfully created, false otherwise.
+ *
+ * Side effects:
+ *      Creates the directory on disk.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+File_CreateDirectory(ConstUnicode pathName)  // IN:
+{
+   return (FileCreateDirectory(pathName) == 0) ? TRUE : FALSE;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_DeleteEmptyDirectory --
+ *
+ *      Deletes the specified directory if it is empty.
+ *
+ * Results:
+ *      True if the directory is successfully deleted, false otherwise.
+ *
+ * Side effects:
+ *      Deletes the directory from disk.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+File_DeleteEmptyDirectory(ConstUnicode pathName)  // IN:
+{
+   return (FileRemoveDirectory(pathName) == 0) ? TRUE : FALSE;
 }
 
 
@@ -440,15 +544,15 @@ FileLockMachineIDMatch(char *hostMachineID,  // IN:
  */
 
 Bool
-File_IsEmptyDirectory(const char *name)  // IN
+File_IsEmptyDirectory(ConstUnicode pathName)  // IN:
 {
    int numFiles;
 
-   if (!File_IsDirectory(name)) {
+   if (!File_IsDirectory(pathName)) {
       return FALSE;
    }
 
-   numFiles = File_ListDirectory(name, NULL);
+   numFiles = File_ListDirectory(pathName, NULL);
    if (numFiles < 0) {
       return FALSE;
    }
@@ -475,9 +579,12 @@ File_IsEmptyDirectory(const char *name)  // IN
  */
 
 Bool
-File_IsFile(const char *name)      // IN
+File_IsFile(ConstUnicode pathName)  // IN:
 {
-   return FileGetType(name) == S_IFREG;
+   FileData fileData;
+
+   return (FileAttributes(pathName, &fileData) == 0) &&
+           (fileData.fileType == FILE_TYPE_REGULAR);
 }
 
 
@@ -767,27 +874,45 @@ File_GetPathName(const char *fullpath,    // IN
  */
 
 int
-File_MakeTempEx(const char *dir,       // IN
-                const char *fileName,  // IN
-                char **presult)        // OUT
+File_MakeTempEx(ConstUnicode dir,       // IN
+                ConstUnicode fileName,  // IN
+                Unicode *presult)       // OUT
 {
-   char *basePath = NULL, *path = NULL;
-   unsigned int var;
+   uint32 var;
+   Unicode temp;
+
    int fd = -1;
+   Unicode path = NULL;
+   Unicode basePath = NULL;
+
+   if ((dir == NULL) || (fileName == NULL)) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   ASSERT(presult);
 
    *presult = NULL;
 
    /* construct base full pathname to use */
-   basePath = Str_Asprintf(NULL, "%s"DIRSEPS"%s", dir, fileName);
+   temp = Unicode_Append(dir, U(DIRSEPS));
+   basePath = Unicode_Append(temp, fileName);
+   Unicode_Free(temp);
 
    for (var = 0; var <= 0xFFFFFFFF; var++) {
-      /* construct suffixed pathname to use */
-      free(path);
-      path = Str_Asprintf(NULL, "%s%d", basePath, var);
+      char string[16];
 
-      fd = PosixFileOpener(path,
-                           O_CREAT | O_EXCL | O_BINARY | O_RDWR,
-                           0600);
+      /* construct suffixed pathname to use */
+      Unicode_Free(path);
+
+      Str_Sprintf(string, sizeof string, "%d", var);
+      temp = Unicode_Alloc(string, STRING_ENCODING_US_ASCII);
+      path = Unicode_Append(basePath, temp);
+      Unicode_Free(temp);
+
+      fd = FileIO_PosixOpen(path,
+                            O_CREAT | O_EXCL | O_BINARY | O_RDWR,
+                            0600);
 
       if (fd >= 0) {
          *presult = path;
@@ -796,6 +921,7 @@ File_MakeTempEx(const char *dir,       // IN
       }
 
       if (errno != EEXIST) {
+// XXX unicode "string" in message
          Msg_Append(MSGID(file.maketemp.openFailed)
                  "Failed to create temporary file \"%s\": %s.\n",
                  path, Msg_ErrString());
@@ -804,14 +930,15 @@ File_MakeTempEx(const char *dir,       // IN
    }
 
    if (-1 == fd) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(file.maketemp.fullNamespace)
                  "Failed to create temporary file \"%s\": The name space is "
                  "full.\n", path);
    }
 
   exit:
-   free(basePath);
-   free(path);
+   Unicode_Free(basePath);
+   Unicode_Free(path);
 
    return fd;
 }
@@ -856,8 +983,8 @@ File_MakeTempEx(const char *dir,       // IN
  */
 
 int
-File_MakeTemp(const char *tag,  // IN (OPT)
-              char **presult)   // OUT
+File_MakeTemp(const char *tag,   // IN (OPT):
+              Unicode *presult)  // OUT:
 {
    char *dir = NULL, *fileName = NULL;
    int fd = -1;
@@ -912,8 +1039,8 @@ File_MakeTemp(const char *tag,  // IN (OPT)
  */
 
 Bool
-File_CopyFromFdToFd(FileIODescriptor src,       // IN
-                    FileIODescriptor dst)       // IN
+File_CopyFromFdToFd(FileIODescriptor src,  // IN:
+                    FileIODescriptor dst)  // IN:
 {
    FileIOResult fretR;
 
@@ -923,17 +1050,16 @@ File_CopyFromFdToFd(FileIODescriptor src,       // IN
       FileIOResult fretW;
 
       fretR = FileIO_Read(&src, buf, sizeof(buf), &actual);
-      if (fretR != FILEIO_SUCCESS &&
-          fretR != FILEIO_READ_ERROR_EOF) {
-         Msg_Append(MSGID(File.CopyFromFdToFd.read.failure) "Read error: %s.\n\n",
-                    FileIO_MsgError(fretR));
+      if (!FileIO_IsSuccess(fretR) && (fretR != FILEIO_READ_ERROR_EOF)) {
+         Msg_Append(MSGID(File.CopyFromFdToFd.read.failure)
+                               "Read error: %s.\n\n", FileIO_MsgError(fretR));
          return FALSE;
       }
 
       fretW = FileIO_Write(&dst, buf, actual, NULL);
-      if (fretW != FILEIO_SUCCESS) {
-         Msg_Append(MSGID(File.CopyFromFdToFd.write.failure) "Write error: %s.\n\n",
-                    FileIO_MsgError(fretW));
+      if (!FileIO_IsSuccess(fretW)) {
+         Msg_Append(MSGID(File.CopyFromFdToFd.write.failure)
+                              "Write error: %s.\n\n", FileIO_MsgError(fretW));
          return FALSE;
       }
    } while (fretR != FILEIO_READ_ERROR_EOF);
@@ -966,19 +1092,22 @@ File_CopyFromFdToFd(FileIODescriptor src,       // IN
  */
 
 Bool
-File_CopyFromFdToName(FileIODescriptor src,     // IN
-                      const char *dstName,      // IN
-                      int dstDispose)           // IN
+File_CopyFromFdToName(FileIODescriptor src,  // IN:
+                      ConstUnicode dstName,  // IN:
+                      int dstDispose)        // IN:
 {
    FileIODescriptor dst;
    FileIOResult fret;
    Bool result;
-   int ret;
+
+   ASSERT(dstName);
+
    FileIO_Invalidate(&dst);
 
    fret = File_CreatePrompt(&dst, dstName, 0, dstDispose);
-   if (fret != FILEIO_SUCCESS) {
+   if (!FileIO_IsSuccess(fret)) {
       if (fret != FILEIO_CANCELLED) {
+// XXX unicode "string" in message
          Msg_Append(MSGID(File.CopyFromFdToName.create.failure)
                     "Unable to create a new '%s' file: %s.\n\n", dstName,
                     FileIO_MsgError(fret));
@@ -989,12 +1118,10 @@ File_CopyFromFdToName(FileIODescriptor src,     // IN
 
    result = File_CopyFromFdToFd(src, dst);
 
-   ret = FileIO_Close(&dst);
-   if (ret) {
+   if (FileIO_Close(&dst) != 0) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(File.CopyFromFdToName.close.failure)
-                 "Unable to close the '%s' file: %s.\n"
-                 "\n",
-                 dstName,
+                 "Unable to close the '%s' file: %s.\n\n", dstName,
                  Msg_ErrString());
       result = FALSE;
    }
@@ -1024,16 +1151,19 @@ File_CopyFromFdToName(FileIODescriptor src,     // IN
  */
 
 FileIOResult
-File_CreatePrompt(FileIODescriptor *file,       // OUT
-                  const char *name,             // IN
-                  int access,                   // IN
-                  int prompt)                   // IN
+File_CreatePrompt(FileIODescriptor *file,  // OUT:
+                  ConstUnicode pathName,   // IN:
+                  int access,              // IN:
+                  int prompt)              // IN:
 {
    FileIOOpenAction action;
    FileIOResult fret;
-   
+
+   ASSERT(pathName);
+
    action = FILEIO_OPEN_CREATE_SAFE;
-   while ((fret = FileIO_Open(file, name, FILEIO_OPEN_ACCESS_WRITE | access,
+
+   while ((fret = FileIO_Open(file, pathName, FILEIO_OPEN_ACCESS_WRITE | access,
                              action)) == FILEIO_OPEN_ERROR_EXIST) {
       static Msg_String const buttons[] = {
          {BUTTONID(file.create.retry) "Retry"},
@@ -1043,6 +1173,7 @@ File_CreatePrompt(FileIODescriptor *file,       // OUT
       };
       int answer;
 
+// XXX unicode "string" in message
       answer = (prompt != -1) ? prompt : Msg_Question(buttons, 2,
          MSGID(File.CreatePrompt.question)
          "The file '%s' already exists.\n"
@@ -1050,7 +1181,7 @@ File_CreatePrompt(FileIODescriptor *file,       // OUT
          "To retry the operation after you have moved the file "
          "to another location, select Retry.\n"
          "To cancel the operation, select Cancel.\n",
-         name);
+         pathName);
       if (answer == 2) {
          fret = FILEIO_CANCELLED;
          break;
@@ -1089,32 +1220,34 @@ File_CreatePrompt(FileIODescriptor *file,       // OUT
  */
 
 Bool
-File_CopyFromNameToName(const char *srcName, // IN
-                        const char *dstName, // IN
-                        int dstDispose)      // IN
+File_CopyFromNameToName(ConstUnicode srcName,  // IN:
+                        ConstUnicode dstName,  // IN:
+                        int dstDispose)        // IN:
 {
    FileIODescriptor src;
    FileIOResult fret;
    Bool result;
-   int ret;
+
+   ASSERT(srcName);
+   ASSERT(dstName);
+
    FileIO_Invalidate(&src);
 
    fret = FileIO_Open(&src, srcName, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
-   if (fret != FILEIO_SUCCESS) {
+   if (!FileIO_IsSuccess(fret)) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(File.CopyFromNameToName.open.failure)
-                 "Unable to open the '%s' file for read access: %s.\n\n", srcName,
-                 FileIO_MsgError(fret));
+                 "Unable to open the '%s' file for read access: %s.\n\n",
+                 srcName, FileIO_MsgError(fret));
       return FALSE;
    }
 
    result = File_CopyFromFdToName(src, dstName, dstDispose);
    
-   ret = FileIO_Close(&src);
-   if (ret) {
+   if (FileIO_Close(&src) != 0) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(File.CopyFromNameToName.close.failure)
-                 "Unable to close the '%s' file: %s.\n"
-                 "\n",
-                 srcName,
+                 "Unable to close the '%s' file: %s.\n\n", srcName,
                  Msg_ErrString());
       result = FALSE;
    }
@@ -1142,22 +1275,25 @@ File_CopyFromNameToName(const char *srcName, // IN
  */
 
 Bool
-File_CopyFromFd(FileIODescriptor src,     // IN
-                const char *dstName,      // IN
-                Bool overwriteExisting)   // IN
+File_CopyFromFd(FileIODescriptor src,     // IN:
+                ConstUnicode dstName,     // IN:
+                Bool overwriteExisting)   // IN:
 {
    FileIODescriptor dst;
    FileIOOpenAction action;
    FileIOResult fret;
    Bool result;
-   int ret;
+
+   ASSERT(dstName);
+
    FileIO_Invalidate(&dst);
 
    action = overwriteExisting ? FILEIO_OPEN_CREATE_EMPTY :
                                 FILEIO_OPEN_CREATE_SAFE;
 
    fret = FileIO_Open(&dst, dstName, FILEIO_OPEN_ACCESS_WRITE, action);
-   if (fret != FILEIO_SUCCESS) {
+   if (!FileIO_IsSuccess(fret)) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(File.CopyFromFdToName.create.failure)
                  "Unable to create a new '%s' file: %s.\n\n", dstName,
                  FileIO_MsgError(fret));
@@ -1166,12 +1302,10 @@ File_CopyFromFd(FileIODescriptor src,     // IN
 
    result = File_CopyFromFdToFd(src, dst);
 
-   ret = FileIO_Close(&dst);
-   if (ret) {
+   if (FileIO_Close(&dst) != 0) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(File.CopyFromFdToName.close.failure)
-                 "Unable to close the '%s' file: %s.\n"
-                 "\n",
-                 dstName,
+                 "Unable to close the '%s' file: %s.\n\n", dstName,
                  Msg_ErrString());
       result = FALSE;
    }
@@ -1201,33 +1335,35 @@ File_CopyFromFd(FileIODescriptor src,     // IN
  */
 
 Bool
-File_Copy(const char *srcName,    // IN
-          const char *dstName,    // IN
-          Bool overwriteExisting) // IN
+File_Copy(ConstUnicode srcName,    // IN:
+          ConstUnicode dstName,    // IN:
+          Bool overwriteExisting)  // IN:
 {
    FileIODescriptor src;
    FileIOResult fret;
    Bool result;
-   int ret;
+
+   ASSERT(srcName);
+   ASSERT(dstName);
+
    FileIO_Invalidate(&src);
 
    fret = FileIO_Open(&src, srcName, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
-   if (fret != FILEIO_SUCCESS) {
+   if (!FileIO_IsSuccess(fret)) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(File.Copy.open.failure)
-                 "Unable to open the '%s' file for read access: %s.\n\n", srcName,
-                 FileIO_MsgError(fret));
+                 "Unable to open the '%s' file for read access: %s.\n\n",
+                 srcName, FileIO_MsgError(fret));
       return FALSE;
    }
 
    result = File_CopyFromFd(src, dstName, overwriteExisting);
    
-   ret = FileIO_Close(&src);
-   if (ret) {
+   if (FileIO_Close(&src) != 0) {
+// XXX unicode "string" in message
       Msg_Append(MSGID(File.Copy.close.failure)
-                 "Unable to close the '%s' file: %s.\n"
-                 "\n",
-                 srcName,
-                 Msg_ErrString());
+                 "Unable to close the '%s' file: %s.\n\n", srcName,
+                  Msg_ErrString());
       result = FALSE;
    }
 
@@ -1252,14 +1388,15 @@ File_Copy(const char *srcName,    // IN
  */
 
 Bool 
-File_Rename(const char *src, const char *dst)
+File_Rename(ConstUnicode oldFile,  // IN:
+            ConstUnicode newFile)  // IN:
 {
    Bool ret = TRUE;
 
-   if (rename(src, dst) < 0) {
+   if (FileRename(oldFile, newFile) != 0) {
       /* overwrite the file if it exists */
-      if (File_Copy(src, dst, TRUE)) {
-         File_Unlink(src);
+      if (File_Copy(oldFile, newFile, TRUE)) {
+         File_Unlink(oldFile);
       } else {
          ret = FALSE;
       }
@@ -1289,14 +1426,13 @@ File_Rename(const char *src, const char *dst)
  */
 
 char *
-File_GetModTimeString(const char *fileName)   // IN
+File_GetModTimeString(ConstUnicode pathName)  // IN:
 {
-   int64 modTime = File_GetModTime(fileName);
-   if (modTime == -1) {
-      return NULL;
-   } else {
-      return TimeUtil_GetTimeFormat(modTime, TRUE, TRUE);
-   }
+   int64 modTime;
+
+   modTime = File_GetModTime(pathName);
+
+   return (modTime == -1) ? NULL : TimeUtil_GetTimeFormat(modTime, TRUE, TRUE);
 }
 
 
@@ -1317,22 +1453,23 @@ File_GetModTimeString(const char *fileName)   // IN
  */
 
 int64
-File_GetSize(const char *name)
+File_GetSize(ConstUnicode pathName)  // IN:
 {
    int64 ret = -1;
 
-   if (name) {
+   if (pathName != NULL) {
       FileIODescriptor fd;
       FileIOResult res;
 
       FileIO_Invalidate(&fd);
-      res = FileIO_Open(&fd, name, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
+      res = FileIO_Open(&fd, pathName, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
 
-      if (res == FILEIO_SUCCESS) {
+      if (FileIO_IsSuccess(res)) {
          ret = FileIO_GetSize(&fd);
          FileIO_Close(&fd);
       }
    }
+
    return ret;
 }
 
@@ -1380,13 +1517,14 @@ File_SupportsLargeFiles(const char *filePath) // IN
  */
 
 int64
-File_GetSizeByPath(const char *name)
+File_GetSizeByPath(ConstUnicode pathName)
 {
    int64 ret = -1;
    
-   if (name) {
-      ret = FileIO_GetSizeByPath(name);
+   if (pathName != NULL) {
+      ret = FileIO_GetSizeByPath(pathName);
    }
+
    return ret;
 }
 
@@ -1488,8 +1626,6 @@ File_DeleteDirectoryTree(char const *pathName) // IN: directory to delete
    DynBuf b;
    int i, numFiles = 0;
 
-   ASSERT(pathName);
-
    DynBuf_Init(&b);
 
    if (!File_Exists(pathName)) {
@@ -1554,6 +1690,64 @@ File_DeleteDirectoryTree(char const *pathName) // IN: directory to delete
    }
 
    return succeeded;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * File_PrependToPath --
+ *
+ *      This function checks if the elem is already present in the
+ *      searchPath, if it is then it is moved forward in the search path.
+ *      Otherwise it is prepended to the searchPath.
+ *
+ * Results:
+ *      Return file search path with elem in front.
+ *
+ * Side effects:
+ *      Caller must free returned string.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+char *
+File_PrependToPath(const char *searchPath,   // IN
+                   const char *elem)         // IN
+{
+   const char sep = FILE_SEARCHPATHTOKEN[0];
+   char *newPath;
+   char *path;
+   size_t n;
+
+   ASSERT(searchPath);
+   ASSERT(elem);
+
+   newPath = Str_Asprintf(NULL, "%s" FILE_SEARCHPATHTOKEN "%s",
+                          elem, searchPath);
+   ASSERT_MEM_ALLOC(newPath);
+
+   n = strlen(elem);
+   path = newPath + n + 1;
+
+   for (;;) {
+      char *next = Str_Strchr(path, sep);
+      size_t len = next ? next - path : strlen(path);
+
+      if (len == n && Str_Strncmp(path, elem, len) == 0) {
+         if (next) {
+            memmove(path, next + 1, strlen(next + 1) + 1);
+         } else {
+            *--path = '\0';
+         }
+         break;
+      }
+      if (!next) {
+         break;
+      }
+      path = next + 1;
+   }
+   return newPath;
 }
 
 

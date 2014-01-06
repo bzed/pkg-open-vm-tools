@@ -144,8 +144,7 @@ extern void freedtoa(void *mem);
 
 #endif /* !NO_FLOATING_POINT */
 
-/* XXX TEMP: 64-bit windows uses new compiler but old headers/libs. */
-#if defined _MSC_VER && _MSC_VER < 1400 || defined(_WIN64)
+#if defined _MSC_VER && _MSC_VER < 1400
 /* VC80 has an internal wmemchr */
 extern const wchar_t *wmemchr(
    const wchar_t * buf, 

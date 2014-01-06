@@ -19,31 +19,34 @@
 /*
  * kernelStubs.h
  *
- * This header externs a lot of userspace functions that should be
- * implemented in terms of kernel functions in order to use
- * userspace code in a kernel.
+ * KernelStubs implements some userspace library functions in terms
+ * of kernel functions to allow library userspace code to be used in a
+ * kernel. 
  */
 
 #ifndef __KERNELSTUBS_H__
 #define __KERNELSTUBS_H__
 
 #ifdef linux
-#include "vm_basic_types.h"
-#include "driver-config.h"
-#include <linux/kernel.h>
-#include <linux/string.h>
+#   ifndef __KERNEL__
+#      error "__KERNEL__ is not defined" 
+#   endif
+#   include "driver-config.h" // Must be included before any other header files
+#   include "vm_basic_types.h"
+#   include <linux/kernel.h>
+#   include <linux/string.h>
 #elif defined(_WIN32)
-#include "vm_basic_types.h"
-#include <ntddk.h>   /* kernel memory APIs */
-#include <stdio.h>   /* for _vsnprintf, vsprintf */
-#include <stdarg.h>  /* for va_start stuff */
-#include <stdlib.h>  /* for min macro. */
-#include "vm_assert.h"  /* Our assert macros */
+#   include "vm_basic_types.h"
+#   include <ntddk.h>   /* kernel memory APIs */
+#   include <stdio.h>   /* for _vsnprintf, vsprintf */
+#   include <stdarg.h>  /* for va_start stuff */
+#   include <stdlib.h>  /* for min macro. */
+#   include "vm_assert.h"  /* Our assert macros */
 #elif defined(__FreeBSD__)
+#   include "vm_basic_types.h"
 #   ifndef _KERNEL
 #      error "_KERNEL is not defined"
 #   endif
-#   include "vm_basic_types.h"
 #   include <sys/types.h>
 #   include <sys/malloc.h>
 #   include <sys/param.h>
@@ -51,18 +54,35 @@
 #   include <machine/stdarg.h>
 #   include <sys/libkern.h>
 #   include "vm_assert.h"
+#elif defined(__APPLE__)
+#   include "vm_basic_types.h"
+#   ifndef KERNEL
+#      error "KERNEL is not defined" 
+#   endif
+#   include <stdarg.h>
+#   include <string.h> 
 #endif
 
+/*
+ * Function Prototypes
+ */
 
-#ifdef linux                                    /* if (linux) { */
+#if defined(linux) || defined(__APPLE__)     /* if (linux) || (__APPLE__) { */
+
+#  ifdef linux                               /* if (linux) { */
 char *strdup(const char *source);
+#  elif defined(__APPLE__)                   /* else if (__APPLE__) { */
+void KernelStubs_Init(void);
+void KernelStubs_Cleanup(void);
+#  endif
 
+/* Shared between Linux and Apple kernel stubs. */
 void *malloc(size_t size);
 void free(void *mem);
 void *calloc(size_t num, size_t len);
 void *realloc(void *ptr, size_t newSize);
 
-#elif defined(_WIN32)                           /* } else if (Win32) { */
+#elif defined(_WIN32)                           /* } else if (_WIN32) { */
 
 #if (_WIN32_WINNT == 0x0400)
 /* The following declarations are missing on NT4. */
@@ -119,9 +139,6 @@ int Str_Vsnprintf(char *str, size_t size, const char *format,
 char *Str_Vasprintf(size_t *length, const char *format,
                     va_list arguments);
 char *Str_Asprintf(size_t *length, const char *Format, ...);
-char *StrUtil_GetNextToken(unsigned int *index,
-                           const char *str,
-                           const char *delimiters);
 
 /*
  * Functions the driver must implement for the stubs.

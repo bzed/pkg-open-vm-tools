@@ -209,8 +209,8 @@ SUBDIRS = atomic auth backdoor conf dict dnd err eventManager file \
 	hgfsServerManagerGuest hgfsServerPolicyGuest deployPkg \
 	impersonate message misc netUtil panic panicDefault printer \
 	procMgr rpcIn rpcOut rpcVmx SLPv2Parser socketMgr strUtil \
-	string sync syncDriver system toolsLogger user vixTools \
-	vmBackupLib vmCheck vmSignal wiper
+	string sync syncDriver system toolsLogger unicode user \
+	vixTools vmBackupLib vmCheck vmSignal wiper
 all: all-recursive
 
 .SUFFIXES:

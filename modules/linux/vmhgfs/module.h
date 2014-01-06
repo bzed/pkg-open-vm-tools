@@ -125,6 +125,14 @@ extern int LOGLEVEL_THRESHOLD;
 #endif
 
 /*
+ * The writeback support we're using (set_page_dirty()) was added in
+ * 2.5.12, so we only support writeback from then on. 
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 12)
+#define HGFS_ENABLE_WRITEBACK
+#endif
+
+/*
  * For files opened in our actual Host/Guest filesystem, the
  * file->private_data field is used for storing the HgfsFileInfo of the
  * opened file. This macro is for accessing the file information from the

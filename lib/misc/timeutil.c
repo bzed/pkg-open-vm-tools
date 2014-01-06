@@ -240,7 +240,7 @@ TimeUtil_DaysLeft(TimeUtil_Date const *d) // IN
  * Results:
  *    TRUE if yes
  *    FALSE if no
- *      
+ *
  * Side effects:
  *    None
  *
@@ -346,7 +346,7 @@ TimeUtil_DateLowerThan(TimeUtil_Date const *left,  // IN
    if (left->minute > right->minute) {
       return FALSE;
    }
- 
+
    if (left->second < right->second) {
       return TRUE;
    }
@@ -364,7 +364,7 @@ TimeUtil_DateLowerThan(TimeUtil_Date const *left,  // IN
  *
  * Results:
  *    None
- *      
+ *
  * Side effects:
  *    None
  *
@@ -422,7 +422,7 @@ TimeUtil_ProductExpiration(TimeUtil_Expiration *e) // OUT
  *
  *    If Win32, the time will be formatted according to the current
  *    locale.
- *      
+ *
  * Side effects:
  *    None
  *
@@ -438,7 +438,7 @@ TimeUtil_GetTimeFormat(int64 utcTime,  // IN
    SYSTEMTIME systemTime = { 0 };
    TCHAR dateStr[100];
    TCHAR timeStr[100];
-   
+
    if (!showDate && !showTime) {
       return NULL;
    }
@@ -446,13 +446,13 @@ TimeUtil_GetTimeFormat(int64 utcTime,  // IN
    if (!TimeUtil_UTCTimeToSystemTime((const __time64_t) utcTime, &systemTime)) {
       return NULL;
    }
-   
+
    GetDateFormat(LOCALE_USER_DEFAULT, DATE_SHORTDATE,
                  &systemTime, NULL, dateStr, ARRAYSIZE(dateStr));
-   
+
    GetTimeFormat(LOCALE_USER_DEFAULT, 0, &systemTime, NULL,
                  timeStr, ARRAYSIZE(timeStr));
-   
+
    if (showDate && showTime) {
       return Str_Asprintf(NULL, "%s %s", dateStr, timeStr);
    } else {
@@ -586,7 +586,7 @@ TimeUtil_UTCTimeToSystemTime(const __time64_t utcTime,   // IN
    if (utcTime < 0 || utcTime > (60LL * 60 * 24 * 365 * (3000 - 1970))) {
       return FALSE;
    }
-   
+
    atm = _localtime64(&utcTime);
    if (atm == NULL) {
       return FALSE;

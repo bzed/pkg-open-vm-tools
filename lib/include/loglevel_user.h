@@ -54,6 +54,7 @@
    LOGLEVEL_VAR(serial), \
    LOGLEVEL_VAR(parallel), \
    LOGLEVEL_VAR(chipset), \
+   LOGLEVEL_VAR(smc), \
    LOGLEVEL_VAR(extcfgdevice), \
    LOGLEVEL_VAR(flashram), \
    LOGLEVEL_VAR(pci), \
@@ -80,6 +81,7 @@
    LOGLEVEL_VAR(pci_vmci), \
    LOGLEVEL_VAR(vmxnet3), \
    LOGLEVEL_VAR(pci_vmxnet3), \
+   LOGLEVEL_VAR(vcpuhotplug), \
    \
    /* user/disk */ \
    LOGLEVEL_VAR(aioMgr), \
@@ -148,6 +150,8 @@
    LOGLEVEL_VAR(snapshot), \
    LOGLEVEL_VAR(asyncsocket), \
    LOGLEVEL_VAR(mainMem), \
+   LOGLEVEL_VAR(mainMemReplayCheck), \
+   LOGLEVEL_VAR(memoryHotplug), \
    LOGLEVEL_VAR(remoteDevice), \
    LOGLEVEL_VAR(vncDecode), \
    LOGLEVEL_VAR(vncEncode), \
@@ -174,6 +178,7 @@
    LOGLEVEL_VAR(oemDevice), \
    LOGLEVEL_VAR(cptOps), \
    LOGLEVEL_VAR(vprobeExec), \
+   LOGLEVEL_VAR(vp), \
 
 
 LOGLEVEL_EXTENSION_DECLARE(LOGLEVEL_USER);

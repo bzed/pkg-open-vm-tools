@@ -105,6 +105,8 @@ Vix_TranslateSystemError(int systemError) // IN
       err = VIX_E_NOT_FOUND;
       break;
    case ERROR_NOT_ENOUGH_MEMORY:
+      err = VIX_E_OUT_OF_MEMORY;
+      break;
    default:
       err = VIX_E_FAIL;
    }
@@ -174,6 +176,70 @@ Vix_TranslateSystemError(int systemError) // IN
 
    return err;
 } // Vix_TranslateSystemError
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Vix_TranslateCOMError --
+ *
+ *     Translate a COM (Windows) error to a Foundry error. 
+ *
+ * Results:
+ *     VixError.
+ *
+ * Side effects:
+ *     None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+#ifdef _WIN32
+VixError
+Vix_TranslateCOMError(HRESULT hrError) // IN
+{
+   VixError err = VIX_E_FAIL;
+
+   switch (hrError) {
+   case E_ACCESSDENIED:
+      err = VIX_E_FILE_ACCESS_ERROR;
+      break;
+
+   case STG_E_PATHNOTFOUND:
+   case STG_E_FILENOTFOUND:
+      err = VIX_E_FILE_NOT_FOUND;
+      break;
+
+   case STG_E_MEDIUMFULL:
+      err = VIX_E_DISK_FULL;
+      break;
+
+   case STG_E_FILEALREADYEXISTS:
+      err = VIX_E_FILE_ALREADY_EXISTS;
+      break;
+
+   case E_INVALIDARG:
+   case E_POINTER:
+      err = VIX_E_INVALID_ARG;
+      break;
+
+   case E_NOTIMPL:
+   case E_NOINTERFACE:
+      err = VIX_E_NOT_SUPPORTED;
+      break;
+
+   case E_OUTOFMEMORY:
+      err = VIX_E_OUT_OF_MEMORY;
+      break;
+
+   case E_FAIL:
+   default:
+      err = VIX_E_FAIL;
+   }
+  
+   return err;
+} // Vix_TranslateCOMError
+#endif
 
 
 /*

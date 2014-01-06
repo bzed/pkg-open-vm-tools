@@ -25,7 +25,7 @@
  */
 
 /* Some of the headers in cpNameUtil.c cannot be included in driver code */
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && !defined(_KERNEL) && !defined(KERNEL)
 
 #include "cpNameUtil.h"
 #include "cpNameUtilInt.h"

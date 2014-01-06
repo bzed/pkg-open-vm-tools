@@ -58,6 +58,7 @@ MODULE_SRCS += kernelStubsBSD.c
 SRCS = $(MODULE_SRCS) $(COMMON_SRCS) $(HEADERS)
 
 KMOD    = vmhgfs
+PROG    = ../$(KMOD).ko
 NOMAN   = t
 KLDMOD  = t
 

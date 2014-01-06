@@ -1640,6 +1640,11 @@ HgfsRevalidate(struct dentry *dentry)  // IN: Dentry to revalidate
    if (age > si->ttl) {
       LOG(6, (KERN_DEBUG "VMware hgfs: HgfsRevalidate: dentry is too old, "
               "getting new attributes\n"));
+      /*
+       * Sync unwritten file data so the file size on the server will
+       * be current with our view of the file.
+       */
+      compat_filemap_write_and_wait(dentry->d_inode->i_mapping);
       attr.fileName = NULL;
       error = HgfsPrivateGetattr(dentry,
                                  &attr);

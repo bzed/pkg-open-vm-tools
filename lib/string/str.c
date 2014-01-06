@@ -781,11 +781,6 @@ Str_Vaswprintf(size_t *length,         // OUT
                const wchar_t *format,  // IN
                va_list arguments)      // IN
 {
-   /*
-    * Since the FmtConv library doesn't speak wchar_t, we won't bother
-    * using it and playing the games with FormatMessage(). Thus don't
-    * expect positional parameters to work with Str_Vaswprintf on Windows.
-    */
    size_t bufSize;
    wchar_t *buf;
    int retval;

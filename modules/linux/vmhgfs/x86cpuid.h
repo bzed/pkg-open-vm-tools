@@ -349,7 +349,7 @@ FLAGDEF(  81, EDX, AMD,    23,  1, MMX,                 HOST,    0)            \
 FLAGDEF(  81, EDX, AMD,    24,  1, FXSAVE,              HOST,    0)            \
 FLAGDEFA( 81, EDX, AMD,    25,  1, FFXSR,               HOST,    0, FFXSR)     \
 FLAGDEF(  81, EDX, AMD,    26,  1, PDPE1GB,             MASK,    0)            \
-FLAGDEFA( 81, EDX, AMD,    27,  1, RDTSCP,              HOST,    0, RDTSCP)    \
+FLAGDEFA( 81, EDX, COMMON, 27,  1, RDTSCP,              HOST,    0, RDTSCP)    \
 FLAGDEFA( 81, EDX, COMMON, 29,  1, LM,                  TEST,    1, LM)        \
 FLAGDEFA( 81, EDX, AMD,    30,  1, 3DNOWPLUS,           HOST,    0, 3DNOWPLUS) \
 FLAGDEFA( 81, EDX, AMD,    31,  1, 3DNOW,               HOST,    0, 3DNOW)
@@ -400,12 +400,12 @@ FIELDDEF( 8A, EDX, AMD,     4, 28, SVMEDX_RSVD,         MASK,    0)
  * Note: The FEATURE/MASK definitions must use some gymnastics to get
  * around a warning when shifting left by 32.
  */
-#define BIT_MASK(shift)  (((1 << (shift - 1)) << 1) - 1)
+#define VMW_BIT_MASK(shift)  (((1 << (shift - 1)) << 1) - 1)
 
 #define FIELDDEF(lvl, reg, vend, bitpos, size, name, m, v)              \
    CPUID_##vend##_ID##lvl##reg##_##name##_SHIFT = bitpos,               \
    CPUID_##vend##_ID##lvl##reg##_##name##_MASK  =                       \
-                      BIT_MASK(size) << bitpos,                         \
+                      VMW_BIT_MASK(size) << bitpos,                     \
    CPUID_FEATURE_##vend##_ID##lvl##reg##_##name =                       \
                       CPUID_##vend##_ID##lvl##reg##_##name##_MASK,
 
@@ -419,7 +419,7 @@ enum {
    /* Define data for every CPUID field we have */
    CPUID_FIELD_DATA
 };
-#undef BIT_MASK
+#undef VMW_BIT_MASK
 #undef FIELDDEF
 #undef FLAGDEF
 #undef FIELDDEFA

@@ -46,10 +46,8 @@ DWORD NetUtil_FreeIpHlpApiDll(void);
 Bool NetUtil_ReleaseRenewIP(Bool release);
 
 /* Wrappers for functions in iphlpapi.dll */
-DWORD NetUtil_GetNetworkParams(PFIXED_INFO pFixedInfo,
-                               PULONG pOutBufLen);
-DWORD NetUtil_GetAdaptersInfo(PIP_ADAPTER_INFO pAdapterInfo,
-                              PULONG pOutBufLen);
+PFIXED_INFO NetUtil_GetNetworkParams(void);
+PIP_ADAPTER_INFO NetUtil_GetAdaptersInfo(void);
 
 #endif
 

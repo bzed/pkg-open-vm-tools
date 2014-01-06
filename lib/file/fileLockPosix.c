@@ -45,6 +45,7 @@
 
 #include "vmware.h"
 #include "file.h"
+#include "fileIO.h"
 #include "fileLock.h"
 #include "fileInt.h"
 #include "util.h"
@@ -53,6 +54,9 @@
 #include "localconfig.h"
 #include "hostinfo.h"
 #include "su.h"
+
+#include "unicodeTypes.h"
+#include "unicodeOperations.h"
 
 #if defined(VMX86_SERVER)
 #include "hostType.h"
@@ -233,7 +237,7 @@ FileLockGetPid(void)
     * For a UserWorld, we want to get this cartel's proxy's cos pid.
     */
    if (fileLockOptions.userWorld) {
-      int pid;
+      int pid = 0;
 
       VMKernel_GetLockPid(&pid);
 
@@ -920,11 +924,13 @@ FileLockValidOwner(const char *executionID, // IN:
  */
 
 int
-FileLockOpenFile(const char *path,             // IN:
+FileLockOpenFile(ConstUnicode pathName,        // IN:
                  int flags,                    // IN:
                  FILELOCK_FILE_HANDLE *handle) // OUT:
 {
-   *handle = PosixFileOpener(path, flags, 0644);
+   ASSERT(pathName);
+
+   *handle = FileIO_PosixOpen(pathName, flags, 0644);
 
    return *handle == -1 ? errno : 0;
 }
@@ -951,31 +957,6 @@ int
 FileLockCloseFile(FILELOCK_FILE_HANDLE handle) // IN:
 {
    return close(handle) == -1 ? errno : 0;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * FileLockRenameFile --
- *
- *	Rename a file.
- *
- * Results:
- *	0	success
- *	> 0	failure (errno)
- *
- * Side effects:
- *      May change the host file system.
- *
- *-----------------------------------------------------------------------------
- */
-
-int
-FileLockRenameFile(const char *from,  // IN:
-                   const char *to)    // IN:
-{
-   return rename(from, to) == -1 ? errno : 0;
 }
 
 
@@ -1062,156 +1043,6 @@ FileLockWriteFile(FILELOCK_FILE_HANDLE handle,  // IN:
 /*
  *----------------------------------------------------------------------
  *
- *  FileLockDeleteFile --
- *	Delete the specified file
- *
- * Results:
- *	0	success
- *	> 0	failure (errno)
- *
- * Side effects:
- *      May change the host file system.
- *
- *----------------------------------------------------------------------
- */
-
-int
-FileLockDeleteFile(const char *path)  // IN:
-{
-   return unlink(path) == -1 ? errno : 0;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * FileLockFileSize --
- *
- *	Return the size of an opened file.
- *
- * Results:
- *	0	success
- *	> 0	failure (errno)
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-int
-FileLockFileSize(FILELOCK_FILE_HANDLE handle,  // IN:
-                 uint32 *fileSize)             // OUT:
-{
-   int err;
-   struct stat statbuf;
-
-   if (fstat(handle, &statbuf) == -1) {
-      err = errno;
-   } else {
-      *fileSize = statbuf.st_size;
-      err = 0;
-   }
-
-   return err;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * FileLockFileType --
- *
- *	Return the type of a file.
- *
- * Results:
- *	0	success
- *	> 0	failure (errno)
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-int
-FileLockFileType(const char *path,  // IN:
-                 int *type)         // OUT:
-{
-   int err;
-   struct stat statbuf;
-
-   if (stat(path, &statbuf) == -1) {
-      err = errno;
-   } else {
-      if (type) {
-         *type = statbuf.st_mode & S_IFMT;
-      }
-      err = 0;
-   }
-
-   return err;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * FileLockCreateDirectory --
- *
- *	Create a directory.
- *
- * Results:
- *	0	success
- *	> 0	failure (errno)
- *
- * Side effects:
- *      May change the host file system.
- *
- *-----------------------------------------------------------------------------
- */
-
-int
-FileLockCreateDirectory(const char *path) // IN:
-{
-   int err;
-   mode_t save;
-
-   save = umask(0);
-   err = mkdir(path, 0777) == -1 ? errno : 0;
-   umask(save);
-
-   return err;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * FileLockDeleteDirectory --
- *
- *	Delete a directory.
- *
- * Results:
- *	0	success
- *	> 0	failure (errno)
- *
- * Side effects:
- *      May change the host file system.
- *
- *-----------------------------------------------------------------------------
- */
-
-int
-FileLockDeleteDirectory(const char *path) // IN:
-{
-   return rmdir(path) == -1 ? errno : 0;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
  * FileLock_Lock --
  *
  *	Obtain a lock on a file; shared or exclusive access. Also specify
@@ -1237,12 +1068,12 @@ FileLockDeleteDirectory(const char *path) // IN:
  */
 
 void *
-FileLock_Lock(const char *filePath,         // IN:
+FileLock_Lock(ConstUnicode filePath,        // IN:
               const Bool readOnly,          // IN:
               const uint32 msecMaxWaitTime, // IN:
               int *err)                     // OUT:
 {
-   char *fullPath;
+   Unicode fullPath;
    void *lockToken;
    char pidString[16];
    char creationTimeString[32];
@@ -1267,7 +1098,7 @@ FileLock_Lock(const char *filePath,         // IN:
                                  creationTimeString, fullPath, !readOnly,
                                  msecMaxWaitTime, err);
 
-   free(fullPath);
+   Unicode_Free(fullPath);
 
    return lockToken;
 }
@@ -1291,11 +1122,11 @@ FileLock_Lock(const char *filePath,         // IN:
  */
 
 int
-FileLock_Unlock(const char *filePath,   // IN:
+FileLock_Unlock(ConstUnicode filePath,  // IN:
                 const void *lockToken)  // IN:
 {
    int err;
-   char *fullPath;
+   Unicode fullPath;
    char pidString[16];
 
    ASSERT(filePath);
@@ -1312,7 +1143,7 @@ FileLock_Unlock(const char *filePath,   // IN:
    err = FileUnlockIntrinsic(FileLockGetMachineID(), pidString, fullPath,
                              lockToken);
 
-   free(fullPath);
+   Unicode_Free(fullPath);
 
    return err;
 }
@@ -1339,10 +1170,10 @@ FileLock_Unlock(const char *filePath,   // IN:
  */
 
 int
-FileLock_DeleteFileVMX(const char *filePath)	// IN:
+FileLock_DeleteFileVMX(ConstUnicode filePath)  // IN:
 {
    int err;
-   char *fullPath;
+   Unicode fullPath;
    char pidString[16];
 
    ASSERT(filePath);
@@ -1357,7 +1188,7 @@ FileLock_DeleteFileVMX(const char *filePath)	// IN:
 
    err = FileLockHackVMX(FileLockGetMachineID(), pidString, fullPath);
 
-   free(fullPath);
+   Unicode_Free(fullPath);
 
    return err;
 }

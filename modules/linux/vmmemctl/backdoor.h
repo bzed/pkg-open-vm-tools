@@ -29,93 +29,7 @@
 #include "vm_basic_types.h"
 #include "vm_assert.h"
 
-#ifndef VM_I386
-#error The backdoor protocol is only supported on x86 architectures.
-#endif
-
-/*
- * These #defines are intended for defining register structs as part of
- * existing named unions. If the union should encapsulate the register
- * (and nothing else), use DECLARE_REG_NAMED_STRUCT defined below.
- */
-
-#define DECLARE_REG32_STRUCT \
-   struct { \
-      uint16 low; \
-      uint16 high; \
-   } halfs; \
-   uint32 word
-
-#define DECLARE_REG64_STRUCT \
-   DECLARE_REG32_STRUCT; \
-   struct { \
-      uint32 low; \
-      uint32 high; \
-   } words; \
-   uint64 quad
-
-#ifndef VM_X86_64
-#define DECLARE_REG_STRUCT DECLARE_REG32_STRUCT
-#else
-#define DECLARE_REG_STRUCT DECLARE_REG64_STRUCT
-#endif
-
-#define DECLARE_REG_NAMED_STRUCT(_r) \
-   union { DECLARE_REG_STRUCT; } _r
-
-/*
- * Some of the registers are expressed by semantic name, because if they were
- * expressed as register structs declared above, we could only address them
- * by fixed size (half-word, word, quad, etc.) instead of by varying size
- * (size_t, uintptr_t).
- *
- * To be cleaner, these registers are expressed ONLY by semantic name,
- * rather than by a union of the semantic name and a register struct.
- */
-typedef union {
-   struct {
-      DECLARE_REG_NAMED_STRUCT(ax);
-      size_t size; /* Register bx. */
-      DECLARE_REG_NAMED_STRUCT(cx);
-      DECLARE_REG_NAMED_STRUCT(dx);
-      DECLARE_REG_NAMED_STRUCT(si);
-      DECLARE_REG_NAMED_STRUCT(di);
-   } in;
-   struct {
-      DECLARE_REG_NAMED_STRUCT(ax);
-      DECLARE_REG_NAMED_STRUCT(bx);
-      DECLARE_REG_NAMED_STRUCT(cx);
-      DECLARE_REG_NAMED_STRUCT(dx);
-      DECLARE_REG_NAMED_STRUCT(si);
-      DECLARE_REG_NAMED_STRUCT(di);
-   } out;
-} Backdoor_proto;
-
-typedef union {
-   struct {
-      DECLARE_REG_NAMED_STRUCT(ax);
-      DECLARE_REG_NAMED_STRUCT(bx);
-      size_t size; /* Register cx. */
-      DECLARE_REG_NAMED_STRUCT(dx);
-      uintptr_t srcAddr; /* Register si. */
-      uintptr_t dstAddr; /* Register di. */
-      DECLARE_REG_NAMED_STRUCT(bp);
-   } in;
-   struct {
-      DECLARE_REG_NAMED_STRUCT(ax);
-      DECLARE_REG_NAMED_STRUCT(bx);
-      DECLARE_REG_NAMED_STRUCT(cx);
-      DECLARE_REG_NAMED_STRUCT(dx);
-      DECLARE_REG_NAMED_STRUCT(si);
-      DECLARE_REG_NAMED_STRUCT(di);
-      DECLARE_REG_NAMED_STRUCT(bp);
-   } out;
-} Backdoor_proto_hb;
-
-MY_ASSERTS(BACKDOOR_STRUCT_SIZES,
-           ASSERT_ON_COMPILE(sizeof(Backdoor_proto) == 6 * sizeof(uintptr_t));
-           ASSERT_ON_COMPILE(sizeof(Backdoor_proto_hb) == 7 * sizeof(uintptr_t));
-)
+#include "backdoor_types.h"
 
 void
 Backdoor(Backdoor_proto *bp); // IN/OUT
@@ -128,8 +42,5 @@ Backdoor_HbOut(Backdoor_proto_hb *bp); // IN/OUT
 
 void
 Backdoor_HbIn(Backdoor_proto_hb *bp); // IN/OUT
-
-
-#undef DECLARE_REG_STRUCT
 
 #endif /* _BACKDOOR_H_ */

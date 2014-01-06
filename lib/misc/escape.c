@@ -68,7 +68,7 @@ static char const Dec2Hex[] = {
 /*
  *-----------------------------------------------------------------------------
  *
- * Escape_Do --
+ * Escape_DoString --
  *
  *    Escape a buffer --hpreg
  *
@@ -85,42 +85,47 @@ static char const Dec2Hex[] = {
  */
 
 void *
-Escape_Do(char escByte,          // IN
-          int const *bytesToEsc, // IN
-          void const *bufIn,     // IN
-          size_t sizeIn,         // IN
-          size_t *sizeOut)       // OUT
+Escape_DoString(const char *escStr,    // IN
+                int const *bytesToEsc, // IN
+                void const *bufIn,     // IN
+                size_t sizeIn,         // IN
+                size_t *sizeOut)       // OUT
 {
    char const *buf;
    DynBuf b;
    size_t startUnescaped;
    size_t index;
-   char escSeq[3];
+   size_t escStrLen;
+
+   ASSERT(escStr);
+   escStrLen = strlen(escStr);
+   ASSERT(escStrLen > 0);
 
    ASSERT(bytesToEsc);
    /* Unsigned does matter --hpreg */
-   ASSERT(bytesToEsc[(unsigned char)escByte]);
+   ASSERT(bytesToEsc[(unsigned char)escStr[0]]);
+
    buf = (char const *)bufIn;
    ASSERT(buf);
 
    DynBuf_Init(&b);
    startUnescaped = 0;
-   escSeq[0] = escByte;
 
    for (index = 0; index < sizeIn; index++) {
       /* Unsigned does matter --hpreg */
       unsigned char ubyte;
+      char escSeq[2];
 
       ubyte = buf[index];
       if (bytesToEsc[ubyte]) {
          /* We must escape that byte --hpreg */
 
-         escSeq[1] = Dec2Hex[ubyte >> 4];
-	 escSeq[2] = Dec2Hex[ubyte & 0xF];
+         escSeq[0] = Dec2Hex[ubyte >> 4];
+	 escSeq[1] = Dec2Hex[ubyte & 0xF];
          if (   DynBuf_Append(&b, &buf[startUnescaped],
                    index - startUnescaped) == FALSE
-             || DynBuf_Append(&b, escSeq,
-                   sizeof(escSeq)) == FALSE) {
+             || DynBuf_Append(&b, escStr, escStrLen) == FALSE
+             || DynBuf_Append(&b, escSeq, sizeof escSeq) == FALSE) {
             goto nem;
          }
          startUnescaped = index + 1;
@@ -169,10 +174,10 @@ nem:
  */
 
 void *
-Escape_Undo(char escByte,          // IN
-            void const *bufIn,     // IN
-            size_t sizeIn,   // IN
-            size_t *sizeOut) // OUT
+Escape_Undo(char escByte,      // IN
+            void const *bufIn, // IN
+            size_t sizeIn,     // IN
+            size_t *sizeOut)   // OUT
 {
    char const *buf;
    DynBuf b;
@@ -270,9 +275,9 @@ nem:
  */
 
 void *
-Escape_AnsiToUnix(void const *bufIn,     // IN
-                  size_t sizeIn,   // IN
-                  size_t *sizeOut) // OUT
+Escape_AnsiToUnix(void const *bufIn, // IN
+                  size_t sizeIn,     // IN
+                  size_t *sizeOut)   // OUT
 {
    char const *buf;
    DynBuf b;
@@ -403,9 +408,9 @@ main(int argc,
  */
 
 void *
-Escape_Sh(void const *bufIn,     // IN
-          size_t sizeIn,   // IN
-          size_t *sizeOut) // OUT
+Escape_Sh(void const *bufIn, // IN
+          size_t sizeIn,     // IN
+          size_t *sizeOut)   // OUT
 {
    static const char be[] = { '\'', };
    static const char escSeq[] = { '\'', '"', '\'', '"', };

@@ -134,6 +134,11 @@
 #define PRODUCT_VMRC_NAME MAKE_NAME("Virtual Machine Remote Console")
 #define PRODUCT_VMRC_PLUGIN_NAME PRODUCT_VMRC_NAME " Plug-in"
 #define PRODUCT_VMRC_DESCRIPTION "Enables remote interaction with virtual machines."
+#ifdef _WIN32
+#define PRODUCT_VMRC_EXECUTABLE PRODUCT_GENERIC_NAME_LOWER "-vmrc.exe"
+#else
+#define PRODUCT_VMRC_EXECUTABLE PRODUCT_GENERIC_NAME_LOWER "-vmrc"
+#endif
 
 /*
  * TODO: This properly lives in productState, but we need it here to
@@ -437,5 +442,11 @@
  */
 
 #define ACE_MGMT_SERVER_PRODUCT_NAME_FOR_LICENSE      "VMware ACE Management Server"
+
+/*
+ * For Host Agent (hostd)
+ */
+
+#define HOST_AGENT_PRODUCT_NAME		PRODUCT_NAME " Host Agent"
 
 #endif /* VM_PRODUCT_H */

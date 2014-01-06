@@ -36,8 +36,8 @@
 #   endif
 #endif
 
-#include "vm_assert.h"
 #include "staticEscape.h"
+#include "vm_assert.h"
 
 
 /*

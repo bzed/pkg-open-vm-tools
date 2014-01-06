@@ -30,14 +30,16 @@
 #ifdef __KERNEL__
 #include "driver-config.h"
 #include <linux/string.h>
-/* Don't include these if compiling for the Solaris kernel. */
-#elif !defined(_KERNEL)
+/* Don't include these if compiling for the Solaris or Apple kernels. */
+#elif !defined(_KERNEL) && !defined(KERNEL)
 #include <stdlib.h>
 #include <string.h>
 #endif
 
 #if defined(_KERNEL) && defined(__FreeBSD__)
 # include <sys/libkern.h>
+#elif defined(KERNEL) && defined(__APPLE__)
+# include <string.h>
 #endif
 
 #include "vm_assert.h"

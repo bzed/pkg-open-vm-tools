@@ -628,6 +628,9 @@ HgfsInitFileSystem(void)
       goto exit;
    }
    LOG(4, (KERN_DEBUG "VMware hgfs: Module Loaded\n"));
+#ifdef HGFS_ENABLE_WRITEBACK
+   LOG(4, (KERN_DEBUG "VMware hgfs: writeback cache enabled\n"));
+#endif
    success = TRUE;
 
   exit:

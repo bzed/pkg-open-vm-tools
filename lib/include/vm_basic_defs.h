@@ -229,9 +229,6 @@ Max(int a, int b)
 #define HIBYTE(_w)    (((_w) >> 8) & 0xff)
 #endif
 
-#define MERGE_LOBYTE(_w, _b)    (((_w) & ~0x00ff) | ((_b) & 0x00ff))
-#define MERGE_HIBYTE(_w, _b)    (((_w) & ~0xff00) | (((_b) << 8) & 0xff00))
-
 #define HIDWORD(_qw)   ((uint32)((_qw) >> 32))
 #define LODWORD(_qw)   ((uint32)(_qw))
 #define QWORD(_hi, _lo)   ((((uint64)(_hi)) << 32) | ((uint32)(_lo)))
@@ -380,6 +377,7 @@ typedef int pid_t;
 #endif // }
 
 #ifndef va_copy
+
 #ifdef _WIN32
 
 /*
@@ -390,9 +388,7 @@ typedef int pid_t;
 
 #define va_copy(dest, src) ((dest) = (src))
 
-#endif // _WIN32
-
-#if defined(__APPLE__) && defined(KERNEL)
+#elif defined(__APPLE__) && defined(KERNEL)
 
 /*
  * MacOS kernel-mode needs va_copy. Based on inspection of stdarg.h
@@ -402,7 +398,16 @@ typedef int pid_t;
 
 #define va_copy(dest, src) ((dest) = (src))
 
-#endif // __APPLE__ && KERNEL
+#elif defined(__GNUC__) && (__GNUC__ < 3)
+
+/*
+ * Old versions of gcc recognize __va_copy, but not va_copy.
+ */
+
+#define va_copy(dest, src) __va_copy(dest, src)
+
+#endif // _WIN32
+
 #endif // va_copy
 
 /*
@@ -538,20 +543,18 @@ typedef int pid_t;
 #endif
 #endif
 
-#if defined PCI_PASSTHRU
-#define vmx86_passthruvm  1
-#define vmx86_idmem  1
-#else
-#define vmx86_passthruvm  0
-#define vmx86_idmem  0
-#endif
-
 #ifdef VMX86_VPROBES
 #define vmx86_vprobes 1
 #define VPROBES_ONLY(x) x
 #else
 #define vmx86_vprobes 0
 #define VPROBES_ONLY(x)
+#endif
+
+#ifdef _WIN32
+#define VMW_INVALID_HANDLE INVALID_HANDLE_VALUE
+#else
+#define VMW_INVALID_HANDLE -1
 #endif
 
 #endif // ifndef _VM_BASIC_DEFS_H_

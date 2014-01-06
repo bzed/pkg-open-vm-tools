@@ -435,8 +435,9 @@ Base64_DecodedLength(char const *src, size_t srcLength) {
  *      Base64-encode 'data' into a NUL-terminated string.
  *
  * Results:
- *      TRUE on success, FALSE otherwise, plus the encoded string on success.
- *      Caller must free 'target' with free().
+ *      On success: TRUE. '*target' is set to an allocated string, that the
+ *                  caller must eventually free().
+ *      On failure: FALSE. '*target' is set to NULL.
  *
  * Side effects:
  *      None.
@@ -471,6 +472,7 @@ Base64_EasyEncode(const uint8 *src,  // IN: data to encode
 
 exit:
    if (!succeeded) {
+      free(*target);
       *target = NULL;
    }
 

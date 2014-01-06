@@ -110,6 +110,7 @@ VM_EMBED_VERSION(GUESTD_VERSION_STRING);
  * Global constants
  */
 
+#define DEFAULT_PIDFILE             "/var/run/vmware-guestd.pid"
 #define EXEC_LOG                    "/var/log/vmware-tools-guestd"
 #define UPGRADER_FILENAME           "vmware-tools-upgrader"
 
@@ -1946,13 +1947,11 @@ GuestdDaemonWrapper(GuestApp_Dict **pConfDict) // IN
  *
  * GuestdAlreadyRunning --
  *
- *    Check if there is a guestd running already.
- *    Attempt to use 'pgrep', as the more reliable method. If this fails, fall
- *    back to trying to get a pid from the file and checking if the pid belongs
- *    to a running process. If last condition is false, remove the stale file.
- *    Notice that if 'pgrep' isn't available, the original implementation is
- *    a 'best effort' attempt, but isn't 100% reliable (stale, missing pid
- *    file, pid recycling, etc.)
+ *    Check if there is an instance of guestd already running.
+ *
+ *    Note that we used to use pgrep(1) but that approach produces false
+ *    positives when the init script that starts guestd has the same name as
+ *    the guestd binary, as is done for open-vm-tools packages.
  *
  * Return value:
  *    TRUE if there is another guestd running.
@@ -1965,28 +1964,12 @@ GuestdDaemonWrapper(GuestApp_Dict **pConfDict) // IN
  */
 
 static Bool
-GuestdAlreadyRunning(char const *programName, // IN
-                     char const *pidFileName) // IN
+GuestdAlreadyRunning(char const *pidFileName) // IN
 {
    FILE *pidFile = NULL;
    pid_t pid = 0;
-   char *cmd = NULL;
 
-   cmd = Str_Asprintf(NULL,
-                      "pgrep `basename %s` | grep -v %ld >/dev/null 2>&1",
-                      programName,
-                      (long)getpid());
-   if (cmd) {
-      if (ProcMgr_ExecSync(cmd, NULL)) {
-         free(cmd);
-         return TRUE;
-      }
-      free(cmd);
-   }
-
-   if (!pidFileName) {
-      return FALSE;
-   }
+   ASSERT(pidFileName);
 
    pidFile = fopen(pidFileName, "r");
    if (pidFile) {
@@ -1999,9 +1982,9 @@ GuestdAlreadyRunning(char const *programName, // IN
        * also checked because it is possible that there is another process 
        * with same pid. 2 reasons it is not checked. First we can not find
        * a cross-platform method to check the process name. Second is that
-       * the possibility is very low in our case because the pid file should
+       * the possibility is very low in our case because the PID file should
        * always be with guestd process. Even user manually kills the guestd,
-       * the pid file will also be removed. Perhaps longer term we should 
+       * the PID file will also be removed. Perhaps longer term we should 
        * add a function like System_GetProcessName(pid_t) to 
        * bora-vmsoft/lib/system that will hide the platform-specific 
        * messiness. 
@@ -2010,8 +1993,8 @@ GuestdAlreadyRunning(char const *programName, // IN
          return TRUE;
       }
       /*
-       * If process with pid is dead, the pid file will be removed. If pid
-       * is same as getpid(), pid file will also be removed. 
+       * If process with pid is dead, the PID file will be removed. If pid
+       * is same as getpid(), PID file will also be removed. 
        */
       unlink(pidFileName);
    }
@@ -2140,9 +2123,6 @@ main(int argc,    // IN: Number of command line arguments
    Bool help;
    char const *pidFile;
    GuestApp_Dict *confDict;
-#ifdef VMX86_DEVEL
-   unsigned int bwTestSize = 0;
-#endif
 
    int index;
    Bool parseOptions;
@@ -2200,17 +2180,6 @@ main(int argc,    // IN: Number of command line arguments
             rpci = TRUE;
 	 } else if (strcmp(option, "-help") == 0) {
             help = TRUE;
-#ifdef VMX86_DEVEL
-	 } else if (strcmp(option, "-bwtest") == 0) {
-            if (index + 1 < argc) {
-               index++;
-               if (!StrUtil_StrToInt(&bwTestSize, argv[index])) {
-                  fprintf(stderr, "The \"%s\" option on the command line requires an "
-                          "integer argument.\n\n", option);
-                  GuestdUsage(argv[0], 1);
-               }
-            }
-#endif
 	 } else if (strcmp(option, "-background") == 0) {
             if (index + 1 == argc) {
                fprintf(stderr, "The \"%s\" option on the command line requires an "
@@ -2290,62 +2259,14 @@ main(int argc,    // IN: Number of command line arguments
       return GuestdCommandLineRpci(arguments[0]) ? 0 : 1;
    }
 
-#ifdef VMX86_DEVEL
-   if (bwTestSize != 0) {
-      const unsigned int packetSize = 512;
-      unsigned int bufSize;
-      const char *testCmd = "info-set guestinfo.bwTest ";
-      unsigned int testCmdLen = strlen(testCmd);
-      unsigned int i;
-      Bool retVal;
-      char *buf;
-      int64 startSecs, startUsecs;
-      int64 endSecs, endUsecs;
-      int64 usecsTaken;
-      int64 bytesSent;
-      double bytesPerSec;
-
-      bufSize = bwTestSize * packetSize + testCmdLen + 1;
-      buf = malloc(bufSize);
-      Str_Sprintf(buf, bufSize, "%s", testCmd);
-      for (i = 0; i < bwTestSize; i++) {
-         Str_Strcat(buf, /* 'packetSize' chars follow */
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-                    "@@@@@@@@@@@@"
-                    , bufSize);
-      }
-
-      System_GetCurrentTime(&startSecs, &startUsecs);
-      retVal = GuestdCommandLineRpci(buf);
-      System_GetCurrentTime(&endSecs, &endUsecs);
-
-      bytesSent = (int64)bwTestSize * (int64)packetSize;
-      usecsTaken = (endSecs - startSecs) * 1000000 + (endUsecs - startUsecs);
-      bytesPerSec = bytesSent * 1000000.0L / usecsTaken;
-      printf("Backdoor bandwidth test: %"FMT64"d bytes; %"FMT64"u usecs; %.2f bytes/sec\n",
-             bytesSent, usecsTaken, bytesPerSec);
-
-      free(buf);
-
-      return retVal ? 0 : 1;
-   }
-#endif
 
    /*
     * We must (attempt to) check for another instance running, even when the
     * '--background <PID file>' option wasn't specified (fix for bug 8098).
-    * GuestdAlreadyRunning() accepts a NULL 'pidFile' argument.
+    * In such cases, we'll assume that the PID file can be found at
+    * DEFAULT_PIDFILE, which should work for Linux, Solaris, and FreeBSD guests.
     */
-   if (GuestdAlreadyRunning(argv[0], pidFile)) {
+   if (GuestdAlreadyRunning(pidFile ? pidFile : DEFAULT_PIDFILE)) {
       fprintf(stderr, "Guestd is already running, exiting.\n");
       GuestApp_FreeDict(confDict);
       /*

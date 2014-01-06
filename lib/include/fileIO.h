@@ -41,11 +41,16 @@
 #include "includeCheck.h"
 
 #include "vm_basic_types.h"
-#ifndef __FreeBSD__
+#include "unicodeTypes.h"
+
+#if !defined(__FreeBSD__)
 #include "iovector.h"        // for struct iovec
 #endif
 
-#ifdef VMX86_STATS
+#include <stdio.h>
+#include <stdlib.h>
+
+#if defined(VMX86_STATS)
 
 struct StatsUserBlock;
 
@@ -70,7 +75,7 @@ struct StatsUserBlock;
 typedef struct FileIODescriptor {
    HANDLE win32;
    uint32 flags;
-   char *fileName;	// sometime in the current encoding, sometime utf8
+   Unicode fileName;
    void *lockToken;
    FILEIO_STATS_VARS
 } FileIODescriptor;
@@ -80,7 +85,7 @@ typedef struct FileIODescriptor {
 typedef struct FileIODescriptor {
    int posix;
    int flags;
-   char *fileName;
+   Unicode fileName;
    void *lockToken;
    FILEIO_STATS_VARS
 } FileIODescriptor;
@@ -158,6 +163,10 @@ typedef enum {
  * (supported on ESX file systems)
  */
 #define FILEIO_OPEN_MULTIWRITER_LOCK     (1 << 14)
+/*
+ * Flag the file as not to be backed up by Time Machine on Mac OS X.
+ */
+#define FILEIO_OPEN_NO_TIME_MACHINE      (1 << 15)
 
 // Flag passed to open() to get exclusive VMFS lock.  This definition must
 // match USEROBJ_OPEN_EXCLUSIVE_LOCK in user_vsiTypes.h.
@@ -239,17 +248,27 @@ typedef enum {
 const char *FileIO_MsgError(FileIOResult status);
 void FileIO_Invalidate(FileIODescriptor *file);
 Bool FileIO_IsValid(const FileIODescriptor *fd);
+
+FileIOResult FileIO_Create(FileIODescriptor *file,
+                           ConstUnicode pathName,
+                           int access,
+                           FileIOOpenAction action,
+                           int mode);
+
 FileIOResult FileIO_Open(FileIODescriptor *file,
-                         const char *name,
+                         ConstUnicode pathName,
                          int access,
                          FileIOOpenAction action);
+
 uint64 FileIO_Seek(const FileIODescriptor *file,
                    int64 distance,
                    FileIOSeekOrigin origin);
+
 FileIOResult FileIO_Read(FileIODescriptor *file,
                          void *buf,
                          size_t requested,
                          size_t *actual);
+
 FileIOResult FileIO_Write(FileIODescriptor *file,
                           const void *buf,
                           size_t requested,
@@ -292,42 +311,71 @@ FileIOResult FileIO_Pwrite(FileIODescriptor *fd,   // IN: File descriptor
                            uint64 offset);         // IN: Offset to start writing
 #endif
 
-FileIOResult FileIO_Access(const char *name,
+FileIOResult FileIO_Access(ConstUnicode pathName,
                            int accessMode);
-int     FileIO_Sync(const FileIODescriptor *file);
-int64   FileIO_GetSize(const FileIODescriptor *fd);
-int64   FileIO_GetSizeByPath(const char *name);
+
 Bool    FileIO_Truncate(FileIODescriptor *file,
                         uint64 newSize);
+
+int     FileIO_Sync(const FileIODescriptor *file);
+
+int64   FileIO_GetSize(const FileIODescriptor *fd);
+
+int64   FileIO_GetSizeByPath(ConstUnicode pathName);
+
 int     FileIO_Close(FileIODescriptor *file);
+
 uint32  FileIO_GetFlags(FileIODescriptor *file);
-Bool    FileIO_GetVolumeSectorSize(const char *name, uint32 *sectorSize);
-Bool    FileIO_SupportsFileSize(const FileIODescriptor *file, uint64 testSize);
+
+Bool    FileIO_GetVolumeSectorSize(const char *name,
+                                   uint32 *sectorSize);
+
+Bool    FileIO_SupportsFileSize(const FileIODescriptor *file,
+                                uint64 testSize);
 
 FileIOResult FileIO_Lock(FileIODescriptor *file,  // IN/OUT
                          int access);             // IN
 
 FileIOResult FileIO_Unlock(FileIODescriptor *file);
 
-#if defined(_WIN32)
-FileIODescriptor FileIO_CreateFDWin32(HANDLE win32,
-                                      DWORD access,
-                                      DWORD attributes);
-#else
-FileIODescriptor FileIO_CreateFDPosix(int posix, int flags);
-#endif
-
 /* Only users not using FileIO_Open should use these two */
-void FileIO_Init(FileIODescriptor *fd, const char *fileName);
+void FileIO_Init(FileIODescriptor *fd,
+                 const char *fileName);
+
 void FileIO_Cleanup(FileIODescriptor *fd);
 
 void FileIO_StatsInit(FileIODescriptor *fd);
+
 void FileIO_StatsLog(FileIODescriptor *fd);
+
 void FileIO_StatsExit(const FileIODescriptor *fd);
 
 const char *FileIO_ErrorEnglish(FileIOResult status);
 
 void FileIO_OptionalSafeInitialize(void);
+
+int FileIO_PosixCreat(ConstUnicode pathName,
+                      int mode);
+
+int FileIO_PosixOpen(ConstUnicode pathName,
+                     int flags,
+                     int mode);
+
+FILE *FileIO_PosixFopen(ConstUnicode pathName,
+                        const char *mode);
+
+#if defined(_WIN32)
+FileIODescriptor FileIO_CreateFDWin32(HANDLE win32,
+                                      DWORD access,
+                                      DWORD attributes);
+#else
+FileIODescriptor FileIO_CreateFDPosix(int posix,
+                                      int flags);
+
+int FileIO_PrivilegedPosixOpen(ConstUnicode pathName,
+                               int flags);
+#endif
+
 
 /*
  *-------------------------------------------------------------------------
@@ -359,6 +407,11 @@ FileIO_IsSuccess(FileIOResult res)      // IN
  * have a separate definition that is neither static nor inline.
  */
 Bool FileIO_IsSuccess(FileIOResult res);
+#endif
+
+#if defined(__APPLE__)
+EXTERN Bool FileIO_SetExcludedFromTimeMachine(char const *pathName,
+                                              Bool isExcluded);
 #endif
 
 #endif // _FILEIO_H_

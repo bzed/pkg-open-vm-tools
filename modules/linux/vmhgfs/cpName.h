@@ -28,20 +28,20 @@
 
 
 #ifdef __KERNEL__
-#include "driver-config.h"
-#include <linux/string.h>
-#elif !defined(sun) && !defined(__FreeBSD__)
-#include <stdlib.h>
-#include <string.h>
-#endif
-
-#if defined(__FreeBSD__)
+#  include "driver-config.h"
+#  include <linux/string.h>
+#elif defined(__FreeBSD__)
 #   if defined(_KERNEL)
 #      include <sys/libkern.h>
 #      define strchr(s,c)       index(s,c)
 #   else
 #      include <string.h>
 #   endif
+#elif defined(__APPLE__) && defined(KERNEL)
+#  include <string.h>
+#elif !defined(sun)
+#  include <stdlib.h>
+#  include <string.h>
 #endif
 
 #include "vm_basic_types.h"

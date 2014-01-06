@@ -47,6 +47,7 @@ CSRCS  += subr.c
 SRCS   := $(HEADERS) $(CSRCS)
 
 KMOD    = vmblock
+PROG    = ../$(KMOD).ko
 NOMAN   = t
 NO_MAN  = t
 KLDMOD  = t

@@ -91,6 +91,7 @@ typedef signed __int64 int64;
 #pragma warning (disable :4761) // integral size mismatch in argument; conversion supplied
 #pragma warning (disable :4305) // truncation from 'const int' to 'short'
 #pragma warning (disable :4244) // conversion from 'unsigned short' to 'unsigned char'
+#pragma warning (disable :4267) // truncation of 'size_t'
 #if !defined VMX86_DEVEL // XXX until we clean up all the code -- edward
 #pragma warning (disable :4133) // incompatible types - from 'struct VM *' to 'int *'
 #pragma warning (disable :4047) // differs in levels of indirection
@@ -215,6 +216,8 @@ typedef int64 VmTimeVirtualClock;  /* Virtual Clock kept in CPU cycles */
  * Printf format specifiers for size_t and 64-bit number.
  * Use them like this:
  *    printf("%"FMT64"d\n", big);
+ *
+ * FMTH is for handles/fds.
  */
 
 #ifdef _MSC_VER
@@ -222,11 +225,14 @@ typedef int64 VmTimeVirtualClock;  /* Virtual Clock kept in CPU cycles */
    #ifdef VM_X86_64
       #define FMTSZ      "I64"
       #define FMTPD      "I64"
+      #define FMTH       "I64"
    #else
       #define FMTSZ      "I"
       #define FMTPD      "I"
+      #define FMTH       "I"
    #endif
 #elif __GNUC__
+   #define FMTH ""
    #if defined(N_PLAT_NLM) || defined(sun) || \
        (defined(__FreeBSD__) && (__FreeBSD__ + 0) && ((__FreeBSD__ + 0) < 5))
       /*
@@ -242,7 +248,8 @@ typedef int64 VmTimeVirtualClock;  /* Virtual Clock kept in CPU cycles */
          #define FMTSZ  ""
          #define FMTPD  ""
       #endif
-   #elif (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) \
+   #elif defined(__linux__) \
+      || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) \
       || (defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112L) \
       || (defined(_POSIX2_VERSION) && _POSIX2_VERSION >= 200112L)
       /* BSD/Darwin, Linux */
@@ -297,6 +304,21 @@ typedef int64 VmTimeVirtualClock;  /* Virtual Clock kept in CPU cycles */
 #endif
 #endif
 
+/*
+ * Use CONST3264/CONST3264U if you want a constant to be
+ * treated as a 32-bit number on 32-bit compiles and
+ * a 64-bit number on 64-bit compiles. Useful in the case
+ * of shifts, like (CONST3264U(1) << x), where x could be
+ * more than 31 on a 64-bit compile.
+ */
+
+#ifdef VM_X86_64
+    #define CONST3264(a) CONST64(a)
+    #define CONST3264U(a) CONST64U(a)
+#else
+    #define CONST3264(a) (a)
+    #define CONST3264U(a) (a)
+#endif
 
 #define MIN_INT32  ((int32)0x80000000)
 #define MAX_INT32  ((int32)0x7fffffff)
@@ -310,6 +332,7 @@ typedef int64 VmTimeVirtualClock;  /* Virtual Clock kept in CPU cycles */
 #define MIN_UINT64 (CONST64U(0))
 #define MAX_UINT64 (CONST64U(0xffffffffffffffff))
 
+typedef uint8 *TCA;  /* Pointer into TC (usually). */
 
 /*
  * Type big enough to hold an integer between 0..100
@@ -409,6 +432,7 @@ typedef uint64 MPN64;
  * VA typedefs for user world apps.
  */
 typedef VA32 UserVA32;
+typedef VA64 UserVA64;
 typedef UserVA32 UserVAConst; /* Userspace ptr to data that we may only read. */
 #ifdef VMKERNEL
 typedef UserVA32 UserVA;
@@ -484,6 +508,21 @@ typedef void * UserVA;
 #define THREADSPECIFIC __declspec(thread)
 #else
 #define THREADSPECIFIC
+#endif
+
+/*
+ * Due to the wonderful "registry redirection" feature introduced in
+ * 64-bit Windows, if you access any key under HKLM\Software in 64-bit
+ * code, you need to open/create/delete that key with
+ * VMKEY_WOW64_32KEY if you want a consistent view with 32-bit code.
+ */
+
+#ifdef _WIN32
+#ifdef _WIN64
+#define VMW_KEY_WOW64_32KEY KEY_WOW64_32KEY
+#else
+#define VMW_KEY_WOW64_32KEY 0x0
+#endif
 #endif
 
 
@@ -670,21 +709,10 @@ typedef void * UserVA;
              typedef uint32 size_t;
 #         endif
 #      endif /* VM_I386 */
-
 #   endif
-#else
-#   ifndef _SIZE_T
-#      define _SIZE_T
-#      ifdef VM_I386
-#         ifdef VM_X86_64
-             typedef uint64 size_t;
-#         else
-             typedef uint32 size_t;
-#         endif
-#      endif /* VM_I386 */
 
-#   endif
-#   if !defined(FROBOS) && !defined(_SSIZE_T) && !defined(ssize_t)  && !defined(__ssize_t_defined) && !defined(_SSIZE_T_DECLARED)
+#   ifdef _BSD_SSIZE_T_
+#      undef _BSD_SSIZE_T_
 #      define _SSIZE_T
 #      define __ssize_t_defined
 #      define _SSIZE_T_DECLARED
@@ -695,8 +723,34 @@ typedef void * UserVA;
              typedef int32 ssize_t;
 #         endif
 #      endif /* VM_I386 */
-
 #   endif
+
+#else
+#   ifndef _SIZE_T
+#      define _SIZE_T
+#      ifdef VM_I386
+#         ifdef VM_X86_64
+             typedef uint64 size_t;
+#         else
+             typedef uint32 size_t;
+#         endif
+#      endif /* VM_I386 */
+#   endif
+
+#   if !defined(FROBOS) && !defined(_SSIZE_T) && !defined(ssize_t) && \
+       !defined(__ssize_t_defined) && !defined(_SSIZE_T_DECLARED)
+#      define _SSIZE_T
+#      define __ssize_t_defined
+#      define _SSIZE_T_DECLARED
+#      ifdef VM_I386
+#         ifdef VM_X86_64
+             typedef int64 ssize_t;
+#         else
+             typedef int32 ssize_t;
+#         endif
+#      endif /* VM_I386 */
+#   endif
+
 #endif
 
 /*
@@ -755,6 +809,26 @@ typedef void * UserVA;
 #   define FMTTIME FMTSZ"d"
 #else
 #   define FMTTIME "ld"
+#endif
+
+/*
+ * Define MXSemaHandle here so both vmmon and vmx see this definition.
+ */
+
+#ifdef _WIN32
+typedef uintptr_t MXSemaHandle;
+#else
+typedef int MXSemaHandle;
+#endif
+
+/*
+ * Define type for poll device handles.
+ */
+
+#ifdef _WIN32
+typedef uintptr_t PollDevHandle;
+#else
+typedef int PollDevHandle;
 #endif
 
 #endif  /* _VM_BASIC_TYPES_H_ */

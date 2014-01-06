@@ -24,7 +24,7 @@
 
 AC_INIT(
    [open-vm-tools],
-   [2007.11.21-64693],
+   [2008.01.23-74039],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -325,6 +325,7 @@ AC_CHECK_HEADERS([sys/user.h],
    ])
 AC_CHECK_HEADERS([sys/vfs.h])
 AC_CHECK_HEADERS([syslimits.h])
+AC_CHECK_HEADERS([unwind.h])
 
 AC_CHECK_HEADER(
    [wchar.h],
@@ -626,6 +627,7 @@ AC_CONFIG_FILES([                      \
    lib/syncDriver/Makefile             \
    lib/system/Makefile                 \
    lib/toolsLogger/Makefile            \
+   lib/unicode/Makefile                \
    lib/user/Makefile                   \
    lib/vixTools/Makefile               \
    lib/vmBackupLib/Makefile            \
