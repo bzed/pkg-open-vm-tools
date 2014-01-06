@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2005 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -16,46 +16,57 @@
  *
  *********************************************************/
 
-#include <stdlib.h>
+/*
+ * stub-log.c --
+ *
+ *   Stub for lib/log.
+ *
+ */
+
 #include <stdio.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#include "vmware.h"
 #include "str.h"
 
 
 /*
- * Stubs for symbols needed by vmGuestLib
+ * XXX: the check is a hack to work around stupid libraries, like
+ * bora/lib/install, that provide implementations for only some of
+ * the functions of the real library, but not all.
  */
-
+#if !defined(NO_LOG_STUB)
 void
-Debug(const char *fmt, ...) // IN
+Log(const char *fmt,
+    ...)
 {
-   // do nothing
-}
+   char *str;
+   va_list args;
 
-void
-Log(const char *fmt, ...) // IN
-{
-   // do nothing
-}
-
-
-void
-Warning(const char *fmt, ...) // IN
-{
-   // do nothing
-}
-
-
-int64
-File_GetModTime(const char *fileName)   // IN
-{
-   struct stat statBuf;
-   if (stat(fileName, &statBuf) == -1) {
-      return -1;
+   va_start(args, fmt);
+   str = Str_Vasprintf(NULL, fmt, args);
+   if (str != NULL) {
+      fputs(str, stderr);
    }
-   return (int64)statBuf.st_mtime;
+   va_end(args);
 }
+#endif
+
+
+void
+Log_DisableThrottling(void)
+{
+
+}
+
+
+const char *
+Log_GetFileName(void)
+{
+   return NULL;
+}
+
+
+void
+Log_SetAlwaysKeep(Bool alwaysKeep)
+{
+
+}
+

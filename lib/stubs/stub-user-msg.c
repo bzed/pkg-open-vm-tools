@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -17,56 +17,23 @@
  *********************************************************/
 
 /*
- * stub.c --
+ * stub-user-msg.c --
  *
- *   Stub for unuseful functions. Stolen from the Tools upgrader.
+ *   Stubs for Msg_* functions in lib/user.
  *
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <stdarg.h>
-#include <string.h>
-
-#ifdef _MSC_VER
-#   include <io.h>
-#   include <windows.h>
-#endif
-
-
 #include "vm_assert.h"
+#include "msg.h"
 #include "str.h"
-#include "debug.h"
-
-typedef int MsgSeverity;
 
 
-Bool
-Config_GetBool(Bool defaultValue,
-               const char *fmt,
-               ...)
-{
-   return defaultValue;
-}
-
-
-int32
-Config_GetLong(int32 defaultValue,
-               const char *fmt,
-               ...)
-{
-   return defaultValue;
-}
-
-
-void 
-Msg_Append(const char *id, 
-           const char *fmt,
+void
+Msg_Append(const char *fmt,
            ...)
 {
    static char buf[1000];
-   
+
    va_list args;
    va_start(args, fmt);
    Str_Vsnprintf(buf, sizeof buf, fmt, args);
@@ -76,14 +43,22 @@ Msg_Append(const char *id,
 }
 
 
-unsigned int 
-Msg_Question(void *buttons,
-	     char const *id,
+void
+Msg_Post(MsgSeverity severity,
+         const char *idFmt, ...)
+{
+   NOT_IMPLEMENTED();
+}
+
+
+unsigned int
+Msg_Question(Msg_String const *buttons,
+             int defaultAnswer,
              char const *fmt,
              ...)
 {
    static char buf[1000];
-   
+
    va_list args;
    va_start(args, fmt);
    Str_Vsnprintf(buf, sizeof buf, fmt, args);
@@ -91,33 +66,13 @@ Msg_Question(void *buttons,
 
    Warning("Msg_Question: %s\n", buf);
 
-   return 0;
+   return (unsigned int) defaultAnswer;
 }
 
 
-Bool
-Preference_GetBool(Bool defaultValue, 
-                   const char *name) 
-{
-   return defaultValue;
-}
-
-
-char *
-Preference_GetString(char *defaultValue, 
-                     const char *name) 
-{
-   return defaultValue;
-}
-
-const char *
-Hostinfo_NameGet(void)
+void
+Msg_Reset(Bool log)
 {
    NOT_IMPLEMENTED();
 }
 
-char *
-Util_ExpandString(const char *fileName)
-{
-   NOT_IMPLEMENTED();
-}
