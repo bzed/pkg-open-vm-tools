@@ -107,7 +107,7 @@ FFLAGS = @FFLAGS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDFLAGS = @GUESTD_LDFLAGS@
+GUESTD_LDADD = @GUESTD_LDADD@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -140,6 +140,8 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PROCPS_CFLAGS = @PROCPS_CFLAGS@
+PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -147,7 +149,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
 VMWARE_USER_CFLAGS = @VMWARE_USER_CFLAGS@
-VMWARE_USER_LDFLAGS = @VMWARE_USER_LDFLAGS@
+VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
 XMKMF = @XMKMF@
 X_CFLAGS = @X_CFLAGS@
 X_EXTRA_LIBS = @X_EXTRA_LIBS@
@@ -204,13 +206,13 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = atomic auth backdoor conf dict dnd err eventManager file \
-	foundryMsg ghIntegrationStub guestApp guestInfo hgfs hgfsBd \
-	hgfsServer hgfsServerManagerGuest hgfsServerPolicyGuest \
-	deployPkg impersonate message misc netUtil panic panicDefault \
-	printer procMgr rpcIn rpcOut rpcVmx SLPv2Parser socketMgr \
-	strUtil string sync syncDriver system toolsLogger unicode \
-	unityStub user vixTools vmBackupLib vmCheck vmSignal wiper
+SUBDIRS = auth backdoor conf dict dnd err eventManager file foundryMsg \
+	ghIntegrationStub guestApp guestInfo hgfs hgfsBd hgfsServer \
+	hgfsServerManagerGuest hgfsServerPolicyGuest deployPkg \
+	impersonate message misc netUtil panic panicDefault printer \
+	procMgr rpcIn rpcOut rpcVmx SLPv2Parser socketMgr strUtil \
+	string sync syncDriver system toolsLogger unicode unityStub \
+	user vixTools vmBackupLib vmCheck vmSignal wiper
 all: all-recursive
 
 .SUFFIXES:

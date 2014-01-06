@@ -66,8 +66,7 @@ am_vmware_user_OBJECTS = copyPaste.$(OBJEXT) debugStdio.$(OBJEXT) \
 	pointer.$(OBJEXT) resolution.$(OBJEXT) stub.$(OBJEXT) \
 	vmware-user.$(OBJEXT)
 vmware_user_OBJECTS = $(am_vmware_user_OBJECTS)
-vmware_user_DEPENDENCIES = ../lib/atomic/libAtomic.a \
-	../lib/conf/libConf.a ../lib/dnd/libDnd.a \
+vmware_user_DEPENDENCIES = ../lib/conf/libConf.a ../lib/dnd/libDnd.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
 	../lib/ghIntegrationStub/libghIntegrationStub.a \
 	../lib/guestApp/libGuestApp.a ../lib/guestInfo/libGuestInfo.a \
@@ -90,9 +89,6 @@ vmware_user_DEPENDENCIES = ../lib/atomic/libAtomic.a \
 	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
 	../lib/procMgr/libProcMgr.a ../lib/auth/libAuth.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
-vmware_user_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(vmware_user_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -146,7 +142,7 @@ FFLAGS = @FFLAGS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDFLAGS = @GUESTD_LDFLAGS@
+GUESTD_LDADD = @GUESTD_LDADD@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -179,6 +175,8 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PROCPS_CFLAGS = @PROCPS_CFLAGS@
+PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -186,7 +184,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
 VMWARE_USER_CFLAGS = @VMWARE_USER_CFLAGS@
-VMWARE_USER_LDFLAGS = @VMWARE_USER_LDFLAGS@
+VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
 XMKMF = @XMKMF@
 X_CFLAGS = @X_CFLAGS@
 X_EXTRA_LIBS = @X_EXTRA_LIBS@
@@ -247,9 +245,8 @@ AM_CFLAGS = @GTK_CFLAGS@ @COMMON_CFLAGS@ @VMWARE_USER_CFLAGS@
 # In the absence of the linker options --start-group and --end-group (which
 # can't be put in LDADD), we need to bring the following libraries out of
 # the alphabetical order so their symbols are properly resolved.
-vmware_user_LDADD = ../lib/atomic/libAtomic.a ../lib/conf/libConf.a \
-	../lib/dnd/libDnd.a ../lib/eventManager/libEventManager.a \
-	../lib/file/libFile.a \
+vmware_user_LDADD = ../lib/conf/libConf.a ../lib/dnd/libDnd.a \
+	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
 	../lib/ghIntegrationStub/libghIntegrationStub.a \
 	../lib/guestApp/libGuestApp.a ../lib/guestInfo/libGuestInfo.a \
 	../lib/hgfsServer/libHgfsServer.a \
@@ -270,9 +267,8 @@ vmware_user_LDADD = ../lib/atomic/libAtomic.a ../lib/conf/libConf.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
 	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
 	../lib/procMgr/libProcMgr.a ../lib/auth/libAuth.a \
-	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
-vmware_user_LDFLAGS = -lcrypt @GTK_LIBS@ @VMWARE_USER_LDFLAGS@ \
-	@COMMON_XLIBS@ $(am__empty)
+	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a \
+	-lcrypt @GTK_LIBS@ @VMWARE_USER_LDADD@ @COMMON_XLIBS@
 vmware_user_SOURCES = copyPaste.c debugStdio.c dnd.c \
 	foreignVMToolsDaemon.c foreignVMToolsNetworking.c \
 	foundryToolsDaemon.c libvmwarectrl.c pointer.c resolution.c \
@@ -319,7 +315,7 @@ clean-noinstPROGRAMS:
 	done
 vmware-user$(EXEEXT): $(vmware_user_OBJECTS) $(vmware_user_DEPENDENCIES) 
 	@rm -f vmware-user$(EXEEXT)
-	$(vmware_user_LINK) $(vmware_user_OBJECTS) $(vmware_user_LDADD) $(LIBS)
+	$(LINK) $(vmware_user_OBJECTS) $(vmware_user_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

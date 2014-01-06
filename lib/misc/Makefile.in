@@ -61,12 +61,13 @@ LIBRARIES = $(noinst_LIBRARIES)
 ARFLAGS = cru
 libMisc_a_AR = $(AR) $(ARFLAGS)
 libMisc_a_LIBADD =
-am_libMisc_a_OBJECTS = base64.$(OBJEXT) codeset.$(OBJEXT) \
-	dbllnklst.$(OBJEXT) dynbuf.$(OBJEXT) escape.$(OBJEXT) \
-	hashTable.$(OBJEXT) hostinfo_misc.$(OBJEXT) hostname.$(OBJEXT) \
-	idLinux.$(OBJEXT) iovector.$(OBJEXT) machineID.$(OBJEXT) \
-	miscSolaris.$(OBJEXT) random.$(OBJEXT) timeutil.$(OBJEXT) \
-	util_misc.$(OBJEXT) vmstdio.$(OBJEXT)
+am_libMisc_a_OBJECTS = atomic.$(OBJEXT) base64.$(OBJEXT) \
+	codeset.$(OBJEXT) dbllnklst.$(OBJEXT) dynarray.$(OBJEXT) \
+	dynbuf.$(OBJEXT) escape.$(OBJEXT) hashTable.$(OBJEXT) \
+	hostinfo_misc.$(OBJEXT) hostname.$(OBJEXT) idLinux.$(OBJEXT) \
+	iovector.$(OBJEXT) machineID.$(OBJEXT) miscSolaris.$(OBJEXT) \
+	random.$(OBJEXT) timeutil.$(OBJEXT) util_misc.$(OBJEXT) \
+	vmstdio.$(OBJEXT) posixPosix.$(OBJEXT) posixDlopen.$(OBJEXT)
 libMisc_a_OBJECTS = $(am_libMisc_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -131,7 +132,7 @@ FFLAGS = @FFLAGS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDFLAGS = @GUESTD_LDFLAGS@
+GUESTD_LDADD = @GUESTD_LDADD@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -164,6 +165,8 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PROCPS_CFLAGS = @PROCPS_CFLAGS@
+PROCPS_LIBS = @PROCPS_LIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -171,7 +174,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
 VMWARE_USER_CFLAGS = @VMWARE_USER_CFLAGS@
-VMWARE_USER_LDFLAGS = @VMWARE_USER_LDFLAGS@
+VMWARE_USER_LDADD = @VMWARE_USER_LDADD@
 XMKMF = @XMKMF@
 X_CFLAGS = @X_CFLAGS@
 X_EXTRA_LIBS = @X_EXTRA_LIBS@
@@ -229,10 +232,10 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LIBRARIES = libMisc.a
-libMisc_a_SOURCES = base64.c codeset.c dbllnklst.c dynbuf.c escape.c \
-	hashTable.c hostinfo_misc.c hostname.c idLinux.c iovector.c \
-	machineID.c miscSolaris.c random.c timeutil.c util_misc.c \
-	vmstdio.c
+libMisc_a_SOURCES = atomic.c base64.c codeset.c dbllnklst.c dynarray.c \
+	dynbuf.c escape.c hashTable.c hostinfo_misc.c hostname.c \
+	idLinux.c iovector.c machineID.c miscSolaris.c random.c \
+	timeutil.c util_misc.c vmstdio.c posixPosix.c posixDlopen.c
 AM_CFLAGS = @COMMON_CFLAGS@ @LIB_MISC_CFLAGS@
 SUBDIRS = shared
 all: all-recursive
@@ -282,9 +285,11 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/atomic.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/base64.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/codeset.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dbllnklst.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dynarray.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dynbuf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/escape.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashTable.Po@am__quote@
@@ -294,6 +299,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iovector.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/machineID.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/miscSolaris.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/posixDlopen.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/posixPosix.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/random.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/timeutil.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util_misc.Po@am__quote@
