@@ -302,25 +302,30 @@ MXRecLockAcquire(MXRecLock *lock)  // IN/OUT:
 static INLINE Bool
 MXRecLockTryAcquire(MXRecLock *lock)  // IN/OUT:
 {
-   int err;
    Bool acquired;
 
-   err = MXRecLockTryAcquireInternal(lock);
+   if ((MXRecLockCount(lock) != 0) && MXRecLockIsOwner(lock)) {
+      acquired = TRUE;
+   } else {
+      int err = MXRecLockTryAcquireInternal(lock);
 
-   if (err == 0) {
+      if (err == 0) {
+         acquired = TRUE;
+      } else {
+         if (vmx86_debug && (err != EBUSY)) {
+            Panic("%s: MXRecLockTryAcquireInternal returned %d\n",
+                  __FUNCTION__, err);
+         }
+
+         acquired = FALSE;
+      }
+   }
+
+   if (acquired) {
       MXRecLockIncCount(lock, 1);
 
       ASSERT((MXRecLockCount(lock) > 0) &&
              (MXRecLockCount(lock) < MXUSER_MAX_REC_DEPTH));
-
-      acquired = TRUE;
-   } else {
-      if (vmx86_debug && (err != EBUSY)) {
-         Panic("%s: MXRecLockTryAcquireInternal returned %d\n", __FUNCTION__,
-               err);
-      }
-
-      acquired = FALSE;
    }
 
    return acquired;
@@ -361,13 +366,14 @@ MXRecLockRelease(MXRecLock *lock)  // IN/OUT:
 /*
  *-----------------------------------------------------------------------------
  *
- * MXUserGetNativeTID --
+ * MXUserGetThreadID --
  *
- *      Gets a native representation of the thread ID, which can be stored
- *      in a pointer.
+ *      Obtains a unique thread identifier (ID) which can be stored in a
+ *      pointer. These thread ID values are NOT necessarily used within
+ *      the MXRecLock implementation.
  *
  * Results:
- *      Native representation of a thread ID.
+ *      As above
  *
  * Side effects:
  *      None.
@@ -376,17 +382,12 @@ MXRecLockRelease(MXRecLock *lock)  // IN/OUT:
  */
 
 static INLINE void *
-MXUserGetNativeTID(void)
+MXUserGetThreadID(void)
 {
    /* All thread types must fit into a uintptr_t  */
 
-#if defined(_WIN32)
-   ASSERT_ON_COMPILE(sizeof(DWORD) <= sizeof (void *));
-   return (void *) (uintptr_t) GetCurrentThreadId();
-#else
-   ASSERT_ON_COMPILE(sizeof(pthread_t) <= sizeof (void *));
-   return (void *) (uintptr_t) pthread_self();
-#endif
+   ASSERT_ON_COMPILE(sizeof(VThreadID) <= sizeof (void *));
+   return (void *) (uintptr_t) VThread_CurID();
 }
 
 

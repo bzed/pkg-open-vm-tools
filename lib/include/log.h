@@ -222,7 +222,6 @@ void Log_UpdatePerLine(Bool perLineTimeStamps,
                        Bool perLineThreadNames);
 
 void Log_Exit(void);
-void Log_SetConfigDir(const char *configDir);
 
 Bool Log_Outputting(void);
 const char *Log_GetFileName(void);
@@ -231,8 +230,10 @@ void Log_SetAlwaysKeep(Bool alwaysKeep);
 Bool Log_RemoveFile(Bool alwaysRemove);
 void Log_DisableThrottling(void);
 void Log_EnableStderrWarnings(Bool stderrOutput);
-void Log_BackupOldFiles(const char *fileName, Bool noRename);
-Bool Log_CopyFile(const char *fileName, struct MsgList **errs);
+void Log_BackupOldFiles(const char *fileName,
+                        Bool noRename);
+Bool Log_CopyFile(const char *fileName,
+                  struct MsgList **errs);
 uint32 Log_MaxLineLength(void);
 
 void Log_RegisterOutputFunction(LogOutputFunc *func);
@@ -248,35 +249,34 @@ size_t Log_MakeTimeString(Bool millisec,
                           char *buf,
                           size_t max);
 
+typedef Bool (LogOwnerFunc)(void *userData,
+                            const char *fileName);
+
+Bool Log_BoundNumFiles(LogOwnerFunc *func,
+                       void *userData);
 
 /* Logging that uses the custom guest throttling configuration. */
 void GuestLog_Init(void);
-void GuestLog_Log(const char *fmt, ...) PRINTF_DECL(1, 2);
+void GuestLog_Log(const char *fmt,
+                  ...) PRINTF_DECL(1, 2);
 
 
 /*
- * How many old log files to keep around.
+ * Default values for the log are obtained via Log_GetStaticDefaults.
  *
- * ESX needs more old log files for bug fixing (and vmotion).
+ * These values represent commonly used override values.
  */
 
 #if defined(VMX86_SERVER)
-#define LOG_DEFAULT_KEEPOLD 6
+#define LOG_KEEPOLD 6  // Old log files to keep around; ESX value
 #else
-#define LOG_DEFAULT_KEEPOLD 3
+#define LOG_KEEPOLD 3  // Old log files to keep around; non-ESX value
 #endif
 
-#define LOG_NO_BPS_LIMIT               0xFFFFFFFF
-#define LOG_NO_ROTATION_SIZE           0
-#define LOG_NO_THROTTLE_THRESHOLD      0
-
-#if defined(VMX86_RELEASE)
-#define LOG_DEFAULT_THROTTLE_BPS       1000
-#else
-#define LOG_DEFAULT_THROTTLE_BPS       LOG_NO_BPS_LIMIT
-#endif
-
-#define LOG_DEFAULT_THROTTLE_THRESHOLD 1000000
+#define LOG_NO_KEEPOLD                 0  // Keep no old log files
+#define LOG_NO_ROTATION_SIZE           0  // Do not rotate based on file size
+#define LOG_NO_THROTTLE_THRESHOLD      0  // No threshold before throttling
+#define LOG_NO_BPS_LIMIT               0xFFFFFFFF  // unlimited input rate
 
 
 /*

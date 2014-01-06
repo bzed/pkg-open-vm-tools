@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2005-2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2005-2011 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -112,12 +112,21 @@ typedef uint32 VMCI_Resource;
 #define VMCI_DOORBELL_LINK        3
 #define VMCI_DOORBELL_UNLINK      4
 #define VMCI_DOORBELL_NOTIFY      5
+/*
+ * VMCI_DATAGRAM_REQUEST_MAP and VMCI_DATAGRAM_REMOVE_MAP are
+ * obsoleted by the removal of VM to VM communication.
+ */
 #define VMCI_DATAGRAM_REQUEST_MAP 6
 #define VMCI_DATAGRAM_REMOVE_MAP  7
 #define VMCI_EVENT_SUBSCRIBE      8
 #define VMCI_EVENT_UNSUBSCRIBE    9
 #define VMCI_QUEUEPAIR_ALLOC      10
 #define VMCI_QUEUEPAIR_DETACH     11
+
+/* VMCI reserved host datagram resource IDs */
+/* vsock control channel has resource id 1 */
+#define VMCI_DVFILTER_DATA_CHANNEL  2
+
 /*
  * VMCI_VSOCK_VMX_LOOKUP was assigned to 12 for Fusion 3.0/3.1,
  * WS 7.0/7.1 and ESX 4.1
@@ -228,13 +237,18 @@ static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID,
 #define VMCI_HYPERVISOR_CONTEXT_ID 0
 
 /*
- * Well-known context id, a logical context that contains
- * a set of well-known services.
+ * Well-known context id, a logical context that contains a set of
+ * well-known services. This context ID is now obsolete.
  */
 #define VMCI_WELL_KNOWN_CONTEXT_ID 1
 
-/* Todo: Change host context id to dynamic/random id. */
+/*
+ * Context ID used by host endpoints.
+ */
 #define VMCI_HOST_CONTEXT_ID  2
+
+#define VMCI_CONTEXT_IS_VM(_cid) (VMCI_INVALID_ID != _cid && \
+                                  _cid > VMCI_HOST_CONTEXT_ID)
 
 /*
  * The VMCI_CONTEXT_RESOURCE_ID is used together with VMCI_MAKE_HANDLE to make
@@ -296,6 +310,8 @@ static const VMCIHandle VMCI_INVALID_HANDLE = {VMCI_INVALID_ID,
 #define VMCI_ERROR_BUSMEM_INVALIDATION   (-37)
 #define VMCI_ERROR_MODULE_NOT_LOADED     (-38)
 #define VMCI_ERROR_DEVICE_NOT_FOUND      (-39)
+#define VMCI_ERROR_QUEUEPAIR_NOT_READY   (-40)
+#define VMCI_ERROR_WOULD_BLOCK           (-41)
 
 /* VMCI clients should return error code withing this range */
 #define VMCI_ERROR_CLIENT_MIN     (-500)

@@ -35,6 +35,7 @@
 #include "vmci_call_defs.h"
 #include "vmci_handle_array.h"
 #include "vmci_infrastructure.h"
+#include "vmci_kernel_if.h"
 
 #define MAX_QUEUED_GUESTCALLS_PER_VM  100
 
@@ -46,9 +47,6 @@ int VMCIContext_InitContext(VMCIId cid, VMCIPrivilegeFlags flags,
                             uintptr_t eventHnd, int version,
                             VMCIHostUser *user, VMCIContext **context);
 #ifdef VMKERNEL
-int VMCIContext_SetDomainName(VMCIContext *context, const char *domainName);
-int VMCIContext_GetDomainName(VMCIId contextID, char *domainName,
-                              size_t domainNameBufSize);
 void VMCIContext_SetFSRState(VMCIContext *context,
                              Bool isQuiesced,
                              VMCIId migrateCid,
@@ -57,10 +55,9 @@ void VMCIContext_SetFSRState(VMCIContext *context,
 VMCIContext *VMCIContext_FindAndUpdateSrcFSR(VMCIId migrateCid,
                                              uintptr_t eventHnd,
                                              uintptr_t *srcEventHnd);
-Bool VMCIContext_IsActiveHnd(VMCIContext *context,
-                             uintptr_t eventHnd);
-void VMCIContext_SetInactiveHnd(VMCIContext *context,
-                                uintptr_t eventHnd);
+Bool VMCIContext_IsActiveHnd(VMCIContext *context, uintptr_t eventHnd);
+uintptr_t VMCIContext_GetActiveHnd(VMCIContext *context);
+void VMCIContext_SetInactiveHnd(VMCIContext *context, uintptr_t eventHnd);
 Bool VMCIContext_RemoveHnd(VMCIContext *context,
                            uintptr_t eventHnd,
                            uint32 *numOld,
@@ -79,18 +76,19 @@ void VMCIContext_Release(VMCIContext *context);
 Bool VMCIContext_Exists(VMCIId cid);
 
 VMCIId VMCIContext_GetId(VMCIContext *context);
-int VMCIContext_AddGroupEntry(VMCIContext *context,
-                              VMCIHandle entryHandle);
-VMCIHandle VMCIContext_RemoveGroupEntry(VMCIContext *context,
-                                        VMCIHandle entryHandle);
-int VMCIContext_AddWellKnown(VMCIId contextID, VMCIId wellKnownID);
-int VMCIContext_RemoveWellKnown(VMCIId contextID, VMCIId wellKnownID);
 int VMCIContext_AddNotification(VMCIId contextID, VMCIId remoteCID);
 int VMCIContext_RemoveNotification(VMCIId contextID, VMCIId remoteCID);
 int VMCIContext_GetCheckpointState(VMCIId contextID, uint32 cptType,
                                    uint32 *numCIDs, char **cptBufPtr);
 int VMCIContext_SetCheckpointState(VMCIId contextID, uint32 cptType,
                                    uint32 numCIDs, char *cptBuf);
+void VMCIContext_RegisterGuestMem(VMCIContext *context);
+void VMCIContext_ReleaseGuestMem(VMCIContext *context, VMCIGuestMemID gid);
+
+int VMCIContext_QueuePairCreate(VMCIContext *context, VMCIHandle handle);
+int VMCIContext_QueuePairDestroy(VMCIContext *context, VMCIHandle handle);
+Bool VMCIContext_QueuePairExists(VMCIContext *context, VMCIHandle handle);
+
 #ifndef VMX86_SERVER
 void VMCIContext_CheckAndSignalNotify(VMCIContext *context);
 #  ifdef __linux__

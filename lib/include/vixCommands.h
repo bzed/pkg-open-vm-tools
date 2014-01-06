@@ -877,6 +877,20 @@ VixMsgHotRemoveDeviceRequest;
 
 /*
  * **********************************************************
+ * Change monitor type of a running VM.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgHotChangeMonitorTypeRequest {
+   VixCommandRequestHeader header;
+   int32                   monitorType;
+}
+#include "vmware_pack_end.h"
+VixMsgHotChangeMonitorTypeRequest;
+
+
+/*
+ * **********************************************************
  * Hot plug begin batch.
  */
 typedef
@@ -1078,98 +1092,6 @@ struct VixMsgRemoveBulkSnapshotRequest {
 }
 #include "vmware_pack_end.h"
 VixMsgRemoveBulkSnapshotRequest;
-
-/*
- * Rolling Tier operations.
- */
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgAddRollingTierRequest {
-   VixCommandRequestHeader    header;
-   int32                      options;
-   uint32                     interval;
-   int                        maximum;
-   uint32                     clientFlags;
-   uint32                     propertyListLength;
-   /*
-    * Followed by:
-    *   serialized property list.
-    */
-}
-#include "vmware_pack_end.h"  
-VixMsgAddRollingTierRequest;
-   
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgAddRollingTierResponse {
-   VixCommandResponseHeader  header;
-   uint32                     tierUid;
-   uint32                     propertyListLength;
-   /*
-    * Followed by:
-    *   serialized property list.
-    */
-}
-#include "vmware_pack_end.h"  
-VixMsgAddRollingTierResponse;
-   
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgRemoveRollingTierRequest {
-   VixCommandRequestHeader    header;
-
-   int32                      options;
-   int32                      tierUid;
-   uint32                     propertyListLength;
-   /*
-    * Followed by:
-    *   serialized property list.
-    */
-}  
-#include "vmware_pack_end.h"
-VixMsgRemoveRollingTierRequest;
-   
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgRemoveRollingTierResponse {
-   VixCommandResponseHeader  header;
-   uint32                     propertyListLength;
-   /*
-    * Followed by:
-    *   serialized property list.
-    */
-}
-#include "vmware_pack_end.h"
-VixMsgRemoveRollingTierResponse;
-
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgListRollingTierRequest {
-   VixCommandRequestHeader    header;
-
-   int32                      options;
-   uint32                     propertyListLength;
-   /*
-    * Followed by:
-    *   serialized property list.
-    */
-}
-#include "vmware_pack_end.h"
-VixMsgListRollingTierRequest;
-
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgListRollingTierResponse {
-   VixCommandResponseHeader  header;
-   uint32                     propertyListLength;
-   /*
-    * Followed by:
-    *   serialized property list.
-    */
-}
-#include "vmware_pack_end.h"
-VixMsgListRollingTierResponse;
-
 
 /*
  * Stop recording or playback of a snapshot event log.
@@ -2207,13 +2129,13 @@ enum {
    VIX_COMMAND_TRANSFER_REQUEST                 = 161,
    VIX_COMMAND_TRANSFER_FINAL_DATA              = 162,
 
-   VIX_COMMAND_ADD_ROLLING_SNAPSHOT_TIER        = 163,
-   VIX_COMMAND_REMOVE_ROLLING_SNAPSHOT_TIER     = 164,
-   VIX_COMMAND_LIST_ROLLING_SNAPSHOT_TIER       = 165,
+   /* DEPRECATED VIX_COMMAND_ADD_ROLLING_SNAPSHOT_TIER        = 163,    */
+   /* DEPRECATED VIX_COMMAND_REMOVE_ROLLING_SNAPSHOT_TIER     = 164,    */
+   /* DEPRECATED VIX_COMMAND_LIST_ROLLING_SNAPSHOT_TIER       = 165,    */
 
-   VIX_COMMAND_ADD_ROLLING_SNAPSHOT_TIER_VMX    = 166,
-   VIX_COMMAND_REMOVE_ROLLING_SNAPSHOT_TIER_VMX = 167,
-   VIX_COMMAND_LIST_ROLLING_SNAPSHOT_TIER_VMX   = 168,
+   /* DEPRECATED VIX_COMMAND_ADD_ROLLING_SNAPSHOT_TIER_VMX    = 166,    */
+   /* DEPRECATED VIX_COMMAND_REMOVE_ROLLING_SNAPSHOT_TIER_VMX = 167,    */
+   /* DEPRECATED VIX_COMMAND_LIST_ROLLING_SNAPSHOT_TIER_VMX   = 168,    */
 
    VIX_COMMAND_LIST_FILESYSTEMS                 = 169,
 
@@ -2262,6 +2184,7 @@ enum {
    VIX_COMMAND_TERMINATE_PROCESS                = 193,
    VIX_COMMAND_DELETE_GUEST_FILE_EX             = 194,
    VIX_COMMAND_DELETE_GUEST_DIRECTORY_EX        = 195,
+   VIX_COMMAND_HOT_CHANGE_MONITOR_TYPE          = 196,
 
    /*
     * HOWTO: Adding a new Vix Command. Step 2a.
@@ -2273,7 +2196,7 @@ enum {
     * Once a new command is added here, a command info field needs to be added
     * in bora/lib/foundryMsg/foundryMsg.c as well.
     */
-   VIX_COMMAND_LAST_NORMAL_COMMAND              = 196,
+   VIX_COMMAND_LAST_NORMAL_COMMAND              = 197,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,
