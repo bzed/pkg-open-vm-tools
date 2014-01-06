@@ -145,6 +145,9 @@ Max(int a, int b)
 }
 #endif
 
+#define VMW_CLAMP(x, min, max) \
+   ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
+
 #define ROUNDUP(x,y)		(((x) + (y) - 1) / (y) * (y))
 #define ROUNDDOWN(x,y)		((x) / (y) * (y))
 #define ROUNDUPBITS(x, bits)	(((uintptr_t) (x) + MASK(bits)) & ~MASK(bits))
@@ -210,8 +213,10 @@ Max(int a, int b)
  * Wide versions of string constants.
  */
 
+#ifndef WSTR
 #define WSTR_(X)     L ## X
 #define WSTR(X)      WSTR_(X)
+#endif
 
 
 /*
@@ -430,6 +435,8 @@ GetCallerFrameAddr(void)
 /* We do not have YIELD() as we do not need it yet... */
 #elif defined(_WIN32)
 #      define YIELD()		Sleep(0)
+#elif defined(VMKERNEL)
+/* We don't have a YIELD macro in the vmkernel */
 #else
 #      include <sched.h>        // For sched_yield.  Don't ask.  --Jeremy.
 #      define YIELD()		sched_yield()
@@ -560,6 +567,9 @@ typedef int pid_t;
 #endif
 #if __GLIBC_PREREQ(2, 5) && !defined GLIBC_VERSION_25
 #define GLIBC_VERSION_25
+#endif
+#if __GLIBC_PREREQ(2, 12) && !defined GLIBC_VERSION_212
+#define GLIBC_VERSION_212
 #endif
 #endif
 

@@ -230,13 +230,13 @@ OS_ReservedPageGetLimit(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * OS_ReservedPageGetPPN --
+ * OS_ReservedPageGetPA --
  *
  *      Convert a page handle (of a physical page previously reserved with
- *      OS_ReservedPageAlloc()) to a ppn.
+ *      OS_ReservedPageAlloc()) to a pa.
  *
  * Results:
- *      The ppn.
+ *      The pa.
  *
  * Side effects:
  *      None.
@@ -244,10 +244,115 @@ OS_ReservedPageGetLimit(void)
  *-----------------------------------------------------------------------------
  */
 
-unsigned long
-OS_ReservedPageGetPPN(PageHandle handle) // IN: A valid page handle
+PA64
+OS_ReservedPageGetPA(PageHandle handle) // IN: A valid page handle
 {
-   return (((vm_page_t)handle)->phys_addr) >> PAGE_SHIFT;
+   return (((vm_page_t)handle)->phys_addr);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_ReservedPageGetHandle --
+ *
+ *      Convert a pa (of a physical page previously reserved with
+ *      OS_ReservedPageAlloc()) to a page handle.
+ *
+ * Results:
+ *      The page handle.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+PageHandle
+OS_ReservedPageGetHandle(PA64 pa)     // IN
+{
+   return (PageHandle)PHYS_TO_VM_PAGE(pa);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_MapPageHandle --
+ *
+ *      Map a page handle into kernel address space, and return the
+ *      mapping to that page handle.
+ *
+ * Results:
+ *      The mapping.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Mapping
+OS_MapPageHandle(PageHandle handle)     // IN
+{
+   vm_offset_t res = kmem_alloc_nofault(kernel_map, PAGE_SIZE);
+   vm_page_t page = (vm_page_t)handle;
+
+   if (!res) {
+      return MAPPING_INVALID;
+   }
+
+   pmap_qenter(res, &page, 1);
+
+   return (Mapping)res;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_Mapping2Addr --
+ *
+ *      Return the address of a previously mapped page handle (with
+ *      OS_MapPageHandle).
+ *
+ * Results:
+ *      The mapping address.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void *
+OS_Mapping2Addr(Mapping mapping)        // IN
+{
+   return (void *)mapping;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_UnmapPage --
+ *
+ *      Unmap a previously mapped page handle.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+OS_UnmapPage(Mapping mapping)           // IN
+{
+   pmap_qremove((vm_offset_t)mapping, 1);
+   kmem_free(kernel_map, (vm_offset_t)mapping, PAGE_SIZE);
 }
 
 
@@ -411,7 +516,7 @@ os_balloonobject_create(void)
  *      Reserve a physical page for the exclusive use of this driver.
  *
  * Results:
- *      On success: A valid page handle that can be passed to OS_ReservedPageGetPPN()
+ *      On success: A valid page handle that can be passed to OS_ReservedPageGetPA()
  *                  or OS_ReservedPageFree().
  *      On failure: PAGE_HANDLE_INVALID
  *

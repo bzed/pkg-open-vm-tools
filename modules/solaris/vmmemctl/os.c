@@ -40,6 +40,7 @@
 #include "os.h"
 #include "vmballoon.h"
 #include "balloon_def.h"
+#include "vm_assert.h"
 #include "vmballoon_kstats.h"
 #include "buildNumber.h"
 
@@ -220,13 +221,13 @@ OS_ReservedPageGetLimit(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * OS_ReservedPageGetPPN --
+ * OS_ReservedPageGetPA --
  *
  *      Convert a page handle (of a physical page previously reserved with
- *      OS_ReservedPageAlloc()) to a ppn.
+ *      OS_ReservedPageAlloc()) to a pa.
  *
  * Results:
- *      The ppn.
+ *      The pa.
  *
  * Side effects:
  *      None.
@@ -234,12 +235,122 @@ OS_ReservedPageGetLimit(void)
  *-----------------------------------------------------------------------------
  */
 
-unsigned long
-OS_ReservedPageGetPPN(PageHandle handle) // IN: A valid page handle
+PA64
+OS_ReservedPageGetPA(PageHandle handle) // IN: A valid page handle
 {
-   return page_pptonum(((os_page *)handle)->pp);
+   return ptob(page_pptonum(((os_page *)handle)->pp));
 }
 
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_ReservedPageGetHandle --
+ *
+ *      Convert a pa (of a physical page previously reserved with
+ *      OS_ReservedPageAlloc()) to a page handle.
+ *
+ * Results:
+ *      The page handle.
+ *
+ * Side effects:
+ *      None.
+ *
+ * Note:
+ *      Currently not implemented on Solaris.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+PageHandle
+OS_ReservedPageGetHandle(PA64 pa)     // IN
+{
+   // Solaris does not use batched commands.
+   NOT_IMPLEMENTED();
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_MapPageHandle --
+ *
+ *      Map a page handle into kernel address space, and return the
+ *      mapping to that page handle.
+ *
+ * Results:
+ *      The mapping.
+ *
+ * Side effects:
+ *      None.
+ *
+ * Note:
+ *      Currently not implemented on Solaris.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Mapping
+OS_MapPageHandle(PageHandle handle)     // IN
+{
+   // Solaris does not use batched commands.
+   NOT_IMPLEMENTED();
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_Mapping2Addr --
+ *
+ *      Return the address of a previously mapped page handle (with
+ *      OS_MapPageHandle).
+ *
+ * Results:
+ *      The mapping address.
+ *
+ * Side effects:
+ *      None.
+ *
+ * Note:
+ *      Currently not implemented on Solaris.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void *
+OS_Mapping2Addr(Mapping mapping)        // IN
+{
+   // Solaris does not use batched commands.
+   NOT_IMPLEMENTED();
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * OS_UnmapPage --
+ *
+ *      Unmap a previously mapped page handle.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ * Note:
+ *      Currently not implemented on Solaris.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+OS_UnmapPage(Mapping mapping)   // IN
+{
+   // Solaris does not use protocol v3.
+   NOT_IMPLEMENTED();
+}
 
 /*
  * NOTE: cast id before shifting to avoid overflow (id_t is 32 bits,
@@ -270,7 +381,7 @@ OS_ReservedPageGetPPN(PageHandle handle) // IN: A valid page handle
  *      eliminate some of this.
  *
  * Results:
- *      On success: A valid page handle that can be passed to OS_ReservedPageGetPPN()
+ *      On success: A valid page handle that can be passed to OS_ReservedPageGetPA()
  *                  or OS_ReservedPageFree().
  *      On failure: PAGE_HANDLE_INVALID
  *

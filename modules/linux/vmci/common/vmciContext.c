@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006-2011 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -49,6 +49,7 @@ static int VMCIContextFireNotification(VMCIId contextID,
 #if defined(VMKERNEL)
 static void VMCIContextReleaseGuestMemLocked(VMCIContext *context,
                                              VMCIGuestMemID gid);
+static void VMCIContextInFilterCleanup(VMCIContext *context);
 #endif
 
 /*
@@ -170,11 +171,11 @@ VMCIContext_CheckAndSignalNotify(VMCIContext *context) // IN:
    VMCILockFlags flags;
 
    ASSERT(context);
-   VMCI_GrabLock(&contextList.lock, &flags);
+   VMCI_GrabLock(&context->lock, &flags);
    if (context->pendingDatagrams) {
       VMCIContextSignalNotify(context);
    }
-   VMCI_ReleaseLock(&contextList.lock, flags);
+   VMCI_ReleaseLock(&context->lock, flags);
 }
 #endif
 
@@ -331,6 +332,8 @@ VMCIContext_InitContext(VMCIId cid,                   // IN
       goto error;
    }
    context->curGuestMemID = INVALID_VMCI_GUEST_MEM_ID;
+
+   context->inFilters = NULL;
 #endif
 
    /* Inititialize host-specific VMCI context. */
@@ -482,7 +485,7 @@ VMCIContextFreeContext(VMCIContext *context)  // IN
    }
 
    /*
-    * It is fine to destroy this without locking the callQueue, as
+    * It is fine to destroy this without locking the datagramQueue, as
     * this is the only thread having a reference to the context.
     */
 
@@ -501,6 +504,7 @@ VMCIContextFreeContext(VMCIContext *context)  // IN
    VMCIHandleArray_Destroy(context->pendingDoorbellArray);
    VMCI_CleanupLock(&context->lock);
 #if defined(VMKERNEL)
+   VMCIContextInFilterCleanup(context);
    VMCIMutex_Destroy(&context->guestMemMutex);
 #endif
    VMCIHost_ReleaseContext(&context->hostContext);
@@ -606,6 +610,18 @@ VMCIContext_EnqueueDatagram(VMCIId cid,        // IN: Target VM
    VMCIList_InitEntry(&dqEntry->listItem);
 
    VMCI_GrabLock(&context->lock, &flags);
+
+#if defined(VMKERNEL)
+   if (context->inFilters != NULL) {
+      if (VMCIFilterDenyDgIn(context->inFilters->filters, dg)) {
+         VMCI_ReleaseLock(&context->lock, flags);
+         VMCIContext_Release(context);
+         VMCI_FreeKernelMem(dqEntry, sizeof *dqEntry);
+         return VMCI_ERROR_NO_ACCESS;
+      }
+   }
+#endif
+
    /*
     * We put a higher limit on datagrams from the hypervisor.  If the pending
     * datagram is not from hypervisor, then we check if enqueueing it would
@@ -1240,7 +1256,7 @@ VMCIContext_GetId(VMCIContext *context) // IN:
 /*
  *----------------------------------------------------------------------
  *
- * VMCIContext_GetPrivFlags --
+ * vmci_context_get_priv_flags --
  *
  *      Retrieves the privilege flags of the given VMCI context ID.
  *
@@ -1253,9 +1269,9 @@ VMCIContext_GetId(VMCIContext *context) // IN:
  *----------------------------------------------------------------------
  */
 
-VMCI_EXPORT_SYMBOL(VMCIContext_GetPrivFlags)
+VMCI_EXPORT_SYMBOL(vmci_context_get_priv_flags)
 VMCIPrivilegeFlags
-VMCIContext_GetPrivFlags(VMCIId contextID)  // IN
+vmci_context_get_priv_flags(VMCIId contextID)  // IN
 {
    if (VMCI_HostPersonalityActive()) {
       VMCIPrivilegeFlags flags;
@@ -1961,7 +1977,8 @@ VMCIContext_NotifyDoorbell(VMCIId srcCID,                   // IN
    if (srcCID != handle.context) {
       VMCIPrivilegeFlags dstPrivFlags;
 
-      if (VMCI_CONTEXT_IS_VM(srcCID) && VMCI_CONTEXT_IS_VM(handle.context)) {
+      if (!vmkernel && VMCI_CONTEXT_IS_VM(srcCID) &&
+          VMCI_CONTEXT_IS_VM(handle.context)) {
          VMCI_DEBUG_LOG(4, (LGPFX"Doorbell notification from VM to VM not "
                             "supported (src=0x%x, dst=0x%x).\n",
                             srcCID, handle.context));
@@ -1979,7 +1996,7 @@ VMCIContext_NotifyDoorbell(VMCIId srcCID,                   // IN
 
       if (srcCID != VMCI_HOST_CONTEXT_ID ||
           srcPrivFlags == VMCI_NO_PRIVILEGE_FLAGS) {
-         srcPrivFlags = VMCIContext_GetPrivFlags(srcCID);
+         srcPrivFlags = vmci_context_get_priv_flags(srcCID);
       }
 
       if (VMCIDenyInteraction(srcPrivFlags, dstPrivFlags)) {
@@ -1993,6 +2010,13 @@ VMCIContext_NotifyDoorbell(VMCIId srcCID,                   // IN
    } else {
       VMCI_GrabLock(&dstContext->lock, &flags);
 
+#if defined(VMKERNEL)
+      if (dstContext->inFilters != NULL &&
+          VMCIFilterProtoDeny(dstContext->inFilters->filters, handle.resource,
+                              VMCI_FP_DOORBELL)) {
+         result = VMCI_ERROR_NO_ACCESS;
+      } else
+#endif // VMKERNEL
       if (!VMCIHandleArray_HasEntry(dstContext->doorbellArray, handle)) {
          result = VMCI_ERROR_NOT_FOUND;
       } else {
@@ -2114,7 +2138,7 @@ VMCIContext_SignalPendingDatagrams(VMCIId contextID)
 /*
  *----------------------------------------------------------------------
  *
- * VMCI_ContextID2HostVmID --
+ * vmci_cid_2_host_vm_id --
  *
  *      Maps a context ID to the host specific (process/world) ID
  *      of the VM/VMX.
@@ -2128,11 +2152,11 @@ VMCIContext_SignalPendingDatagrams(VMCIId contextID)
  *----------------------------------------------------------------------
  */
 
-VMCI_EXPORT_SYMBOL(VMCI_ContextID2HostVmID)
+VMCI_EXPORT_SYMBOL(vmci_cid_2_host_vm_id)
 int
-VMCI_ContextID2HostVmID(VMCIId contextID,    // IN
-                        void *hostVmID,      // OUT
-                        size_t hostVmIDLen)  // IN
+vmci_cid_2_host_vm_id(VMCIId contextID,    // IN
+                      void *hostVmID,      // OUT
+                      size_t hostVmIDLen)  // IN
 {
 #if defined(VMKERNEL)
    VMCIContext *context;
@@ -2165,13 +2189,14 @@ VMCI_ContextID2HostVmID(VMCIId contextID,    // IN
 /*
  *----------------------------------------------------------------------
  *
- * VMCI_IsContextOwner --
+ * vmci_is_context_owner --
  *
  *      Determines whether a given host OS specific representation of
  *      user is the owner of the VM/VMX.
  *
  * Results:
- *      VMCI_SUCCESS if the hostUser is owner, error code otherwise.
+ *      Linux: 1 (true) if hostUser is owner, 0 (false) otherwise.
+ *      Other: VMCI_SUCCESS if the hostUser is owner, error code otherwise.
  *
  * Side effects:
  *      None.
@@ -2179,10 +2204,33 @@ VMCI_ContextID2HostVmID(VMCIId contextID,    // IN
  *----------------------------------------------------------------------
  */
 
-VMCI_EXPORT_SYMBOL(VMCI_IsContextOwner)
+VMCI_EXPORT_SYMBOL(vmci_is_context_owner)
+#if defined(linux) && !defined(VMKERNEL)
 int
-VMCI_IsContextOwner(VMCIId contextID,   // IN
-                    void *hostUser)     // IN
+vmci_is_context_owner(VMCIId contextID,   // IN
+                      uid_t uid)          // IN
+{
+   int isOwner = 0;
+
+   if (VMCI_HostPersonalityActive()) {
+      VMCIContext *context = VMCIContext_Get(contextID);
+      if (context) {
+         if (context->validUser) {
+            if (VMCIHost_CompareUser((VMCIHostUser *)&uid,
+                                     &context->user) == VMCI_SUCCESS) {
+               isOwner = 1;
+            }
+         }
+         VMCIContext_Release(context);
+      }
+   }
+
+   return isOwner;
+}
+#else // !linux || VMKERNEL
+int
+vmci_is_context_owner(VMCIId contextID,   // IN
+                      void *hostUser)     // IN
 {
    if (VMCI_HostPersonalityActive()) {
       VMCIContext *context;
@@ -2213,6 +2261,7 @@ VMCI_IsContextOwner(VMCIId contextID,   // IN
    }
    return VMCI_ERROR_UNAVAILABLE;
 }
+#endif // !linux || VMKERNEL
 
 
 /*
@@ -2270,21 +2319,18 @@ int
 VMCIContext_QueuePairCreate(VMCIContext *context, // IN: Context structure
                             VMCIHandle handle)    // IN
 {
-   VMCILockFlags flags;
    int result;
 
    if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
       return VMCI_ERROR_INVALID_ARGS;
    }
 
-   VMCI_GrabLock(&context->lock, &flags);
    if (!VMCIHandleArray_HasEntry(context->queuePairArray, handle)) {
       VMCIHandleArray_AppendEntry(&context->queuePairArray, handle);
       result = VMCI_SUCCESS;
    } else {
       result = VMCI_ERROR_DUPLICATE_ENTRY;
    }
-   VMCI_ReleaseLock(&context->lock, flags);
 
    return result;
 }
@@ -2311,16 +2357,13 @@ int
 VMCIContext_QueuePairDestroy(VMCIContext *context, // IN: Context structure
                              VMCIHandle handle)    // IN
 {
-   VMCILockFlags flags;
    VMCIHandle removedHandle;
 
    if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
       return VMCI_ERROR_INVALID_ARGS;
    }
 
-   VMCI_GrabLock(&context->lock, &flags);
    removedHandle = VMCIHandleArray_RemoveEntry(context->queuePairArray, handle);
-   VMCI_ReleaseLock(&context->lock, flags);
 
    if (VMCI_HANDLE_INVALID(removedHandle)) {
       return VMCI_ERROR_NOT_FOUND;
@@ -2351,16 +2394,13 @@ Bool
 VMCIContext_QueuePairExists(VMCIContext *context, // IN: Context structure
                             VMCIHandle handle)    // IN
 {
-   VMCILockFlags flags;
    Bool result;
 
    if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
       return VMCI_ERROR_INVALID_ARGS;
    }
 
-   VMCI_GrabLock(&context->lock, &flags);
    result = VMCIHandleArray_HasEntry(context->queuePairArray, handle);
-   VMCI_ReleaseLock(&context->lock, flags);
 
    return result;
 }
@@ -2540,3 +2580,137 @@ VMCIContext_ReleaseGuestMem(VMCIContext *context, // IN: Context structure
    VMCIMutex_Release(&context->guestMemMutex);
 #endif
 }
+
+#if defined(VMKERNEL)
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContext_FilterSet --
+ *
+ *      Sets an ingoing (host to guest) filter for the VMCI firewall of the
+ *      given context. If a filter list already exists for the given filter
+ *      entry, the old entry will be deleted. It is assumed that the list
+ *      can be used as is, and that the memory backing it will be freed by the
+ *      VMCI Context module once the filter is deleted.
+ *
+ * Results:
+ *      VMCI_SUCCESS on success,
+ *      VMCI_ERROR_NOT_FOUND if there is no active context linked to the cid,
+ *      VMCI_ERROR_INVALID_ARGS if a non-VM cid is specified.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+VMCIContext_FilterSet(VMCIId cid,                // IN
+                      VMCIFilterState *filters)  // IN
+{
+   VMCIContext *context;
+   VMCILockFlags flags;
+   VMCIFilterState *oldState;
+
+   if (!VMCI_CONTEXT_IS_VM(cid)) {
+      return VMCI_ERROR_INVALID_ARGS;
+   }
+
+   context = VMCIContext_Get(cid);
+   if (!context) {
+      return VMCI_ERROR_NOT_FOUND;
+   }
+
+   VMCI_GrabLock(&context->lock, &flags);
+
+   oldState = context->inFilters;
+   context->inFilters = filters;
+
+   VMCI_ReleaseLock(&context->lock, flags);
+   if (oldState) {
+      VMCIVMKDevFreeFilterState(oldState);
+   }
+   VMCIContext_Release(context);
+
+   return VMCI_SUCCESS;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCIContextInFilterCleanup --
+ *
+ *      When a context is destroyed, all filters will be deleted.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+VMCIContextInFilterCleanup(VMCIContext *context)
+{
+   if (context->inFilters != NULL) {
+      VMCIVMKDevFreeFilterState(context->inFilters);
+      context->inFilters = NULL;
+   }
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VMCI_Uuid2ContextId --
+ *
+ *      Given a running VM's UUID, retrieve the VM's VMCI context ID.
+ *      The given UUID is local to the host; it is _not_ the UUID
+ *      handed out by VC.  It comes from the "bios.uuid" field in the
+ *      VMX file.  We walk the context list and try to match the given
+ *      UUID against each context.  If we get a match, we return the
+ *      contexts's VMCI ID.
+ *
+ * Results:
+ *      VMCI_SUCCESS if found and *contextID contains the CID.
+ *      VMCI_ERROR_INVALID_ARGS for bad parameters.
+ *      VMCI_ERROR_NOT_FOUND if no match.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+VMCI_Uuid2ContextId(const char *uuidString, // IN
+                    VMCIId *contextID)      // OUT
+{
+   int err;
+   VMCIListItem *next;
+   VMCILockFlags flags;
+
+   if (!uuidString || *uuidString == '\0' || !contextID) {
+      return VMCI_ERROR_INVALID_ARGS;
+   }
+
+   err = VMCI_ERROR_NOT_FOUND;
+
+   VMCI_GrabLock(&contextList.lock, &flags);
+   VMCIList_Scan(next, &contextList.head) {
+      VMCIContext *context = VMCIList_Entry(next, VMCIContext, listItem);
+      if (VMCIHost_ContextHasUuid(&context->hostContext, uuidString) ==
+          VMCI_SUCCESS) {
+         *contextID = context->cid;
+         err = VMCI_SUCCESS;
+         break;
+      }
+   }
+   VMCI_ReleaseLock(&contextList.lock, flags);
+
+   return err;
+}
+#endif // VMKERNEL

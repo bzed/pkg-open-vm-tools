@@ -166,7 +166,7 @@ DatagramCreateHnd(VMCIId resourceID,            // IN:
       if ((flags & VMCI_FLAG_ANYCID_DG_HND) != 0) {
          contextID = VMCI_INVALID_ID;
       } else {
-         contextID = VMCI_GetContextID();
+         contextID = vmci_get_context_id();
          if (contextID == VMCI_INVALID_ID) {
             return VMCI_ERROR_NO_RESOURCES;
          }
@@ -274,7 +274,7 @@ VMCIDatagram_Exit(void)
 /*
  *------------------------------------------------------------------------------
  *
- * VMCIDatagram_CreateHnd --
+ * vmci_datagram_create_handle --
  *
  *      Creates a host context datagram endpoint and returns a handle to it.
  *
@@ -287,14 +287,14 @@ VMCIDatagram_Exit(void)
  *------------------------------------------------------------------------------
  */
 
-VMCI_EXPORT_SYMBOL(VMCIDatagram_CreateHnd)
+VMCI_EXPORT_SYMBOL(vmci_datagram_create_handle)
 int
-VMCIDatagram_CreateHnd(VMCIId resourceID,          // IN: Optional, generated
-                                                   //     if VMCI_INVALID_ID
-                       uint32 flags,               // IN:
-                       VMCIDatagramRecvCB recvCB,  // IN:
-                       void *clientData,           // IN:
-                       VMCIHandle *outHandle)      // OUT: newly created handle
+vmci_datagram_create_handle(
+   VMCIId resourceID,         // IN: Optional, generated if VMCI_INVALID_ID
+   uint32 flags,              // IN:
+   VMCIDatagramRecvCB recvCB, // IN:
+   void *clientData,          // IN:
+   VMCIHandle *outHandle)     // OUT: newly created handle
 {
    if (outHandle == NULL) {
       return VMCI_ERROR_INVALID_ARGS;
@@ -314,7 +314,7 @@ VMCIDatagram_CreateHnd(VMCIId resourceID,          // IN: Optional, generated
 /*
  *------------------------------------------------------------------------------
  *
- * VMCIDatagram_CreateHndPriv --
+ * vmci_datagram_create_handle_priv --
  *
  *      Creates a host context datagram endpoint and returns a handle to it.
  *
@@ -327,15 +327,15 @@ VMCIDatagram_CreateHnd(VMCIId resourceID,          // IN: Optional, generated
  *------------------------------------------------------------------------------
  */
 
-VMCI_EXPORT_SYMBOL(VMCIDatagram_CreateHndPriv)
+VMCI_EXPORT_SYMBOL(vmci_datagram_create_handle_priv)
 int
-VMCIDatagram_CreateHndPriv(VMCIId resourceID,           // IN: Optional, generated
-                                                        //     if VMCI_INVALID_ID
-                           uint32 flags,                // IN:
-                           VMCIPrivilegeFlags privFlags,// IN:
-                           VMCIDatagramRecvCB recvCB,   // IN:
-                           void *clientData,            // IN:
-                           VMCIHandle *outHandle)       // OUT: newly created handle
+vmci_datagram_create_handle_priv(
+   VMCIId resourceID,            // IN: Optional, generated if VMCI_INVALID_ID
+   uint32 flags,                 // IN:
+   VMCIPrivilegeFlags privFlags, // IN:
+   VMCIDatagramRecvCB recvCB,    // IN:
+   void *clientData,             // IN:
+   VMCIHandle *outHandle)        // OUT: newly created handle
 {
    if (outHandle == NULL) {
       return VMCI_ERROR_INVALID_ARGS;
@@ -359,7 +359,7 @@ VMCIDatagram_CreateHndPriv(VMCIId resourceID,           // IN: Optional, generat
 /*
  *------------------------------------------------------------------------------
  *
- * VMCIDatagram_DestroyHnd --
+ * vmci_datagram_destroy_handle --
  *
  *      Destroys a handle.
  *
@@ -372,9 +372,9 @@ VMCIDatagram_CreateHndPriv(VMCIId resourceID,           // IN: Optional, generat
  *------------------------------------------------------------------------------
  */
 
-VMCI_EXPORT_SYMBOL(VMCIDatagram_DestroyHnd)
+VMCI_EXPORT_SYMBOL(vmci_datagram_destroy_handle)
 int
-VMCIDatagram_DestroyHnd(VMCIHandle handle)       // IN
+vmci_datagram_destroy_handle(VMCIHandle handle) // IN
 {
    DatagramEntry *entry;
    VMCIResource *resource = VMCIResource_Get(handle,
@@ -444,7 +444,7 @@ VMCIDatagramGetPrivFlagsInt(VMCIId contextID,              // IN
    } else if (contextID == VMCI_HYPERVISOR_CONTEXT_ID) {
       *privFlags = VMCI_MAX_PRIVILEGE_FLAGS;
    } else {
-      *privFlags = VMCIContext_GetPrivFlags(contextID);
+      *privFlags = vmci_context_get_priv_flags(contextID);
    }
 
    return VMCI_SUCCESS;
@@ -553,6 +553,7 @@ VMCIDatagramDispatchAsHost(VMCIId contextID,  // IN:
 
    if (contextID == VMCI_HOST_CONTEXT_ID &&
        dg->dst.context == VMCI_HYPERVISOR_CONTEXT_ID) {
+      VMCI_DEBUG_LOG(4, (LGPFX"Host cannot talk to hypervisor\n"));
       return VMCI_ERROR_DST_UNREACHABLE;
    }
 
@@ -666,29 +667,37 @@ VMCIDatagramDispatchAsHost(VMCIId contextID,  // IN:
 
       if (contextID != dg->dst.context) {
          if (VMCIDenyInteraction(srcPrivFlags,
-                                 VMCIContext_GetPrivFlags(dg->dst.context))) {
+                              vmci_context_get_priv_flags(dg->dst.context))) {
+            VMCI_DEBUG_LOG(4, (LGPFX"Interaction denied (%X/%X - %X/%X)\n",
+                           contextID, srcPrivFlags,
+                           dg->dst.context,
+                           vmci_context_get_priv_flags(dg->dst.context)));
             return VMCI_ERROR_NO_ACCESS;
          } else if (VMCI_CONTEXT_IS_VM(contextID)) {
             /*
              * If the sending context is a VM, it cannot reach another VM.
              */
 
-            VMCI_DEBUG_LOG(4, (LGPFX"Datagram communication between VMs not"
-                               "supported (src=0x%x, dst=0x%x).\n",
-                               contextID, dg->dst.context));
-            return VMCI_ERROR_DST_UNREACHABLE;
+            if (!vmkernel) {
+               VMCI_DEBUG_LOG(4, (LGPFX"Datagram communication between VMs not "
+                                  "supported (src=0x%x, dst=0x%x).\n",
+                                  contextID, dg->dst.context));
+               return VMCI_ERROR_DST_UNREACHABLE;
+            }
          }
       }
 
       /* We make a copy to enqueue. */
       newDG = VMCI_AllocKernelMem(dgSize, VMCI_MEMORY_NORMAL);
       if (newDG == NULL) {
+         VMCI_DEBUG_LOG(4, (LGPFX"No memory for datagram\n"));
          return VMCI_ERROR_NO_MEM;
       }
       memcpy(newDG, dg, dgSize);
       retval = VMCIContext_EnqueueDatagram(dg->dst.context, newDG);
       if (retval < VMCI_SUCCESS) {
          VMCI_FreeKernelMem(newDG, dgSize);
+         VMCI_DEBUG_LOG(4, (LGPFX"Enqueue failed\n"));
          return retval;
       }
    }
@@ -884,7 +893,7 @@ exit:
 /*
  *------------------------------------------------------------------------------
  *
- * VMCIDatagram_Send --
+ * vmci_datagram_send --
  *
  *      Sends the payload to the destination datagram handle.
  *
@@ -897,9 +906,9 @@ exit:
  *------------------------------------------------------------------------------
  */
 
-VMCI_EXPORT_SYMBOL(VMCIDatagram_Send)
+VMCI_EXPORT_SYMBOL(vmci_datagram_send)
 int
-VMCIDatagram_Send(VMCIDatagram *msg) // IN
+vmci_datagram_send(VMCIDatagram *msg) // IN
 {
    if (msg == NULL) {
       return VMCI_ERROR_INVALID_ARGS;

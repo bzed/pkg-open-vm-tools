@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2000 VMware, Inc. All rights reserved.
+ * Copyright (C) 2000-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -58,19 +58,17 @@
  *
  *********************************************************/
 
-/* 
+/*
  * vmballoon.h: Definitions and macros for vmballoon driver.
  */
 
 #ifndef	VMBALLOON_H
 #define	VMBALLOON_H
 
+#include "balloonInt.h"
 #include "vm_basic_types.h"
-
-#define BALLOON_NAME                    "vmmemctl"
-#define BALLOON_NAME_VERBOSE            "VMware memory control driver"
-
-#define BALLOON_POLL_PERIOD             1 /* sec */
+#include "dbllnklst.h"
+#include "os.h"
 
 /*
  * Page allocation flags
@@ -117,6 +115,71 @@ typedef struct {
    uint32 guestType;
    uint32 guestTypeFail;
 } BalloonStats;
+
+#define BALLOON_ERROR_PAGES             16
+
+typedef struct {
+   PageHandle page[BALLOON_ERROR_PAGES];
+   uint32 pageCount;
+} BalloonErrorPages;
+
+#define BALLOON_CHUNK_PAGES             1000
+
+typedef struct BalloonChunk {
+   PageHandle page[BALLOON_CHUNK_PAGES];
+   uint32 pageCount;
+   DblLnkLst_Links node;
+} BalloonChunk;
+
+struct BalloonOps;
+
+typedef struct {
+   /* sets of reserved physical pages */
+   DblLnkLst_Links chunks;
+   int nChunks;
+
+   /* transient list of non-balloonable pages */
+   BalloonErrorPages errors;
+
+   BalloonGuest guestType;
+
+   /* balloon size */
+   int nPages;
+   int nPagesTarget;
+
+   /* reset flag */
+   int resetFlag;
+
+   /* adjustment rates (pages per second) */
+   int rateAlloc;
+   int rateFree;
+
+   /* slowdown page allocations for next few cycles */
+   int slowPageAllocationCycles;
+
+   /* statistics */
+   BalloonStats stats;
+
+   /* hypervisor exposed capabilities */
+   BalloonCapabilities hypervisorCapabilities;
+
+   /* balloon operations, tied to the capabilities */
+   const struct BalloonOps *balloonOps;
+
+   /* Either the batch page handle, or the page to lock on v2 */
+   PageHandle pageHandle;
+   Mapping batchPageMapping;
+   BalloonBatchPage *batchPage;
+   uint16 batchMaxPages;
+
+   BalloonChunk *fallbackChunk;
+} Balloon;
+
+typedef struct BalloonOps {
+   void (*addPage)(Balloon *b, uint16 idx, PageHandle page);
+   int (*lock)(Balloon *b, uint16 nPages);
+   int (*unlock)(Balloon *b, uint16 nPages);
+} BalloonOps;
 
 /*
  * Operations

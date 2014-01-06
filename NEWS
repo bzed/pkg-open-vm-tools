@@ -1,43 +1,40 @@
-open-vm-tools 9.2.3 changes:
-	* Release of open-vm-tools matching Workstation 9.0.2
+open-vm-tools 9.4.0 changes:
+	* Release of open-vm-tools matching vSphere 5.5.
 
-	* Fixes for HGFS driver to compile on newer kernels (3.9)
+	* Branch was cut from commit id 63be9626897c801ccafee8367e15d7ac1e1c4b6f
+	(tagged as 2012.12.26-958366) and clobbered with the released files.
 
-	* Fix for HGFS performance regression.
+open-vm-tools 2012.05.21 changes:
+	* Updates for newer Linux kernel releases (3.4).
 
-	* vmci/vsock drivers are disabled on kernels 3.9 and above.
+	* Fix for vmxnet driver and IPV6
 
-	* vmblock driver is disabled on kernels 3.0+.
+	* VMCI updates and fixes.
 
-	* Fix and re-enable Copy/Paste on Solaris.
+	* Other fixes and cleanups.
 
-	* Configure script will detect procsps-ng library.
+open-vm-tools 2012.03.13 changes:
+	* Updates for newer Linux kernel releases (3.3).
 
-	* Suppress deprecated warnings coming form newer glib.
+	* Updates for Solaris 11.
 
-open-vm-tools 9.2.2 changes:
-	* Release of open-vm-tools matching Workstation 9.0.1
+	* Updates for FreeBSD 9.0.
 
-	* Fixes for HGFS driver to compile on newer kernels (3.6)
+	* Translation updates.
 
-	* vmsync driver is disabled on kernels 3.0+ as vmbackup
-	plugin uses FIFREEZE/FITHAW standard ioctls
+	* Other fixes and cleanups.
 
-	* Fixes for Copy/Paste (and C&P is temporarily disabled on
-	Solaris due to C++ library issues).
+open-vm-tools 2011.12.20 changes:
+	* Updates for new Linux kernel releases, including some fixes for
+	Fedora's re-versioned 3.x kernels.
 
-open-vm-tools 9.2.0 changes:
-	* Release of open-vm-tools matching Workstation 9.0.
+	* VMCI sockets has some changes for a new socket type, targeted
+	at replacing the "backdoor" communication used by the tools services.
 
-	* Branch was cut from commit id d84ff325e0a00fda99 (tagged as
-	stable-9.0.0) and clobbered with changes from Workstation
-	branch.
+	* HGFS has better session support.
 
-open-vm-tools 9.0.0 changes:
-	* Release of open-vm-tools matching vSphere 5.1.
-
-	* Branch was cut from commit id e611d054aa26d88f92 (tagged as
-	2011.11.20-535097).
+	* Miscelaneous bug fixes and small enhancements in other parts
+	of the code.
 
 open-vm-tools 2011.11.20 changes:
 	* Updates for new Linux kernel releases.

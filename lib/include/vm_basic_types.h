@@ -570,23 +570,26 @@ typedef void * UserVA;
  * for any region other than buserror.
  */
 #define PHYSMEM_MAX_PPN   ((PPN)0xffffffff)
-#define MAX_PPN           ((PPN)0x1fffffff) /* Maximal observable PPN value. */
+#define MAX_PPN           ((PPN)0x3fffffff) /* Maximal observable PPN value. */
 #define INVALID_PPN       ((PPN)0xffffffff)
-#define APIC_DISABLED_PPN ((PPN)0xfffffffe)
+#define APIC_INVALID_PPN  ((PPN)0xfffffffe)
 
-#define INVALID_BPN       ((BPN)0x1fffffff)
+#define INVALID_BPN       ((BPN)0x3fffffff)
 
 #define RESERVED_MPN      ((MPN) 0)
 #define INVALID_MPN       ((MPN)-1)
 #define MEMREF_MPN        ((MPN)-2)
 #define RELEASED_MPN      ((MPN)-3)
-#define MAX_MPN           ((MPN)0x7fffffff)  /* 43 bits of address space. */
+
+/* 0xfffffffc to account for special MPNs defined above. */
+#define MAX_MPN           ((MPN)0xfffffffc)  /* 44 bits of address space. */
 
 #define INVALID_LPN       ((LPN)-1)
 #define INVALID_VPN       ((VPN)-1)
 #define INVALID_LPN64     ((LPN64)-1)
 #define INVALID_PAGENUM   ((PageNum)-1)
 
+#define INVALID_MPN64     ((MPN64)-1)
 
 /*
  * Format modifier for printing VA, LA, and VPN.
@@ -695,8 +698,21 @@ typedef void * UserVA;
  * that gcc will not do inlining.
  */
 
-#if defined(__GNUC__) && (defined(VMM) || defined (VMKERNEL))
+#if defined(__GNUC__) && (defined(VMM) || defined (VMKERNEL) || defined (VMKBOOT))
 #define ABSOLUTELY_NOINLINE __attribute__((__noinline__))
+#endif
+
+/*
+ * Used when a function has no effects except the return value and the
+ * return value depends only on the parameters and/or global variables
+ * Such a function can be subject to common subexpression elimination
+ * and loop optimization just as an arithmetic operator would be. 
+ */
+
+#if defined(__GNUC__) && (defined(VMM) || defined (VMKERNEL))
+#define SIDE_EFFECT_FREE __attribute__((__pure__))
+#else
+#define SIDE_EFFECT_FREE
 #endif
 
 /*
@@ -710,6 +726,21 @@ typedef void * UserVA;
 #define NORETURN __attribute__((__noreturn__))
 #else
 #define NORETURN
+#endif
+
+/*
+ * Static profiling hints for functions.
+ *    A function can be either hot, cold, or neither.
+ *    It is an error to specify both hot and cold for the same function.
+ *    Note that there is no annotation for "neither."
+ */
+
+#if defined __GNUC__ && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
+#define HOT __attribute__((hot))
+#define COLD __attribute__((cold))
+#else
+#define HOT
+#define COLD
 #endif
 
 /*
@@ -779,31 +810,6 @@ typedef void * UserVA;
 // XXX is there a better way?
 #  define UNUSED_VARIABLE(_var) (void)_var
 #endif
-
-/*
- * REGPARM defaults to REGPARM3; i.e., a request that gcc
- * put the first three arguments in registers.  (It is fine
- * if the function has fewer than three arguments.)  Gcc only.
- * Syntactically, put REGPARM where you'd put INLINE or NORETURN.
- *
- * Note that 64-bit code already puts the first six arguments in
- * registers, so these attributes are only useful for 32-bit code.
- */
-
-#if defined(__GNUC__)
-# define REGPARM0 __attribute__((regparm(0)))
-# define REGPARM1 __attribute__((regparm(1)))
-# define REGPARM2 __attribute__((regparm(2)))
-# define REGPARM3 __attribute__((regparm(3)))
-# define REGPARM REGPARM3
-#else
-# define REGPARM0
-# define REGPARM1
-# define REGPARM2
-# define REGPARM3
-# define REGPARM
-#endif
-
 
 /*
  * gcc can warn us if we're ignoring returns

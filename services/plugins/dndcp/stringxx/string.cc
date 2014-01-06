@@ -297,12 +297,6 @@ string::string(const char *s,           // IN
  *
  *      Constructor.
  *
- *      XXX: When initializing mUstr, we do a deep copy of the string data
- *      instead of just calling mUstr(s). This is because Glib::ustring is very
- *      smart about sharing storage, and zero_clear is very dumb. Once we get
- *      rid of zero_clear and have a separate sensitive-string class, this can
- *      go back to being simple.
- *
  * Results:
  *      None.
  *
@@ -312,8 +306,8 @@ string::string(const char *s,           // IN
  *-----------------------------------------------------------------------------
  */
 
-string::string(const Glib::ustring &s)    // IN
-   : mUstr(s.c_str()),
+string::string(const Glib::ustring& s) // IN
+   : mUstr(s),
      mUtf16Cache(NULL),
      mUtf16Length(npos)
 {
@@ -328,12 +322,6 @@ string::string(const Glib::ustring &s)    // IN
  *
  *      Copy constructor.
  *
- *      XXX: When initializing mUstr, we do a deep copy of the string data
- *      instead of just calling mUstr(s). This is because Glib::ustring is very
- *      smart about sharing storage, and zero_clear is very dumb. Once we get
- *      rid of zero_clear and have a separate sensitive-string class, this can
- *      go back to being simple.
- *
  * Results:
  *      None.
  *
@@ -343,8 +331,8 @@ string::string(const Glib::ustring &s)    // IN
  *-----------------------------------------------------------------------------
  */
 
-string::string(const string &s) // IN
-   : mUstr(s.mUstr.c_str()),
+string::string(const string& s) // IN
+   : mUstr(s.mUstr),
      mUtf16Cache(NULL),
      mUtf16Length(npos)
 {
@@ -624,30 +612,6 @@ string::empty()
    const
 {
    return mUstr.empty();
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * utf::string::isASCII --
- *
- *      Test if every character in the string is in the ASCII range.
- *
- * Results:
- *      true if all ASCII, otherwise false.
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-bool
-string::isASCII()
-   const
-{
-   return mUstr.is_ascii();
 }
 
 
@@ -1144,46 +1108,6 @@ void
 string::clear()
 {
    InvalidateCache();
-   mUstr.clear();
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * utf::string::zero_clear --
- *
- *      Zeroes and clears this string.
- *
- *      XXX: This is temporary until we have a separate string class for
- *      passwords.
- *
- * Results:
- *      None
- *
- * Side effects:
- *      None
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-string::zero_clear()
-{
-   if (mUtf16Cache != NULL) {
-      Util_ZeroFree(mUtf16Cache,
-                    Unicode_UTF16Strlen(mUtf16Cache) * sizeof *mUtf16Cache);
-      mUtf16Cache = NULL;
-   }
-
-   /*
-    * This is a best effort.  We aren't guaranteed that Glib::ustring doesn't
-    * leave behind any internal copies of the string.
-    */
-   if (mUstr.c_str() != mUstr.data()) {
-      Util_Zero(const_cast<char *>(mUstr.c_str()), mUstr.bytes());
-   }
-   Util_Zero(const_cast<char *>(mUstr.data()), mUstr.bytes());
    mUstr.clear();
 }
 

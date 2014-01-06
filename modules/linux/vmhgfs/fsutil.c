@@ -511,8 +511,7 @@ HgfsUnpackCommonAttr(HgfsReq *req,            // IN: Reply packet
          attrInfo->groupId = attrV2->groupId;
          attrInfo->mask |= HGFS_ATTR_VALID_GROUPID;
       }
-      if (attrV2->mask & (HGFS_ATTR_VALID_FILEID |
-                          HGFS_ATTR_VALID_NON_STATIC_FILEID)) {
+      if (attrV2->mask & HGFS_ATTR_VALID_FILEID) {
          attrInfo->hostFileId = attrV2->hostFileId;
          attrInfo->mask |= HGFS_ATTR_VALID_FILEID;
       }

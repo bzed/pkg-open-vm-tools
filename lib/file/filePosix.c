@@ -39,9 +39,6 @@
 #  include <sys/mount.h>
 # else
 #  include <mntent.h>
-#  if defined __ANDROID__
-#   include <paths.h> /* for _PATH_MOUNTED */
-#  endif
 # endif
 #include <signal.h>
 #endif
@@ -69,6 +66,9 @@
 #include "localconfig.h"
 #include "hostType.h"
 #include "vmfs.h"
+
+#define LOGLEVEL_MODULE main
+#include "loglevel_user.h"
 
 #include "unicodeOperations.h"
 
@@ -99,7 +99,7 @@ static char *FilePosixNearestExistingAncestor(char const *path);
  * happens the prosix version should be updated to use the generic code.
  */
 
-#if defined(__USE_FILE_OFFSET64) || defined(sun)
+#if defined(__USE_FILE_OFFSET64) || defined(sun) || defined(__ANDROID__)
 # define CAN_USE_FTS 0
 #else
 # define CAN_USE_FTS 1
@@ -108,8 +108,7 @@ static char *FilePosixNearestExistingAncestor(char const *path);
 #if CAN_USE_FTS
 # include <fts.h>
 
-struct WalkDirContextImpl
-{
+struct WalkDirContextImpl {
    FTS *fts;
 };
 
@@ -119,6 +118,18 @@ struct WalkDirContextImpl
 #define FS_NFS_ON_ESX "NFS"
 /* A string for VMFS on ESX file system type */
 #define FS_VMFS_ON_ESX "VMFS"
+#define FS_VSAN_URI_PREFIX      "vsan:"
+
+#if defined __ANDROID__
+/*
+ * Android doesn't support setmntent(), endmntent() or MOUNTED.
+ */
+#define NO_SETMNTENT
+#define NO_ENDMNTENT
+#endif
+
+/* Long path chunk growth size */
+#define FILE_PATH_GROW_SIZE 1024
 
 
 /*
@@ -201,55 +212,38 @@ FileDeletion(ConstUnicode pathName,  // IN:
              const Bool handleLink)  // IN:
 {
    int err;
-   char *linkPath = NULL;
-   char *primaryPath;
 
    if (pathName == NULL) {
       errno = EFAULT;
 
       return errno;
-   } else if ((primaryPath = Unicode_GetAllocBytes(pathName,
-                               STRING_ENCODING_DEFAULT)) == NULL) {
-      Log(LGPFX" %s: failed to convert \"%s\" to current encoding\n",
-          __FUNCTION__, UTF8(pathName));
-      errno = UNICODE_CONVERSION_ERRNO;
-
-      return errno;
    }
 
    if (handleLink) {
-      struct stat statbuf;
+      Unicode linkPath = Posix_ReadLink(pathName);
 
-      if (lstat(primaryPath, &statbuf) == -1) {
+      if (linkPath == NULL) {
+         /* If there is no link involved, continue */
          err = errno;
-         goto bail;
-      }
 
-      if (S_ISLNK(statbuf.st_mode)) {
-         linkPath = Util_SafeMalloc(statbuf.st_size + 1);
-
-         if (readlink(primaryPath, linkPath,
-                      statbuf.st_size) != statbuf.st_size) {
-            err = errno;
+         if (err != EINVAL) {
             goto bail;
          }
+      } else {
+         err = (Posix_Unlink(linkPath) == -1) ? errno : 0;
 
-         linkPath[statbuf.st_size] = '\0';
+         Unicode_Free(linkPath);
 
-         if (unlink(linkPath) == -1) {
-            if (errno != ENOENT) {
-               err = errno;
-               goto bail;
-            }
+         /* Ignore a file that has already disappeared */
+         if (err != ENOENT) {
+            goto bail;
          }
       }
    }
 
-   err = (unlink(primaryPath) == -1) ? errno : 0;
+   err = (Posix_Unlink(pathName) == -1) ? errno : 0;
 
 bail:
-   free(primaryPath);
-   free(linkPath);
 
    return err;
 }
@@ -260,13 +254,13 @@ bail:
  *
  * File_UnlinkDelayed --
  *
- *    Same as File_Unlink for POSIX systems since we can unlink anytime.
+ *      Same as File_Unlink for POSIX systems since we can unlink anytime.
  *
  * Results:
- *    Return 0 if the unlink is successful.   Otherwise, returns -1.
+ *      Return 0 if the unlink is successful.   Otherwise, returns -1.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *-----------------------------------------------------------------------------
  */
@@ -454,9 +448,8 @@ File_IsSymLink(ConstUnicode pathName)  // IN:
  *
  * File_Cwd --
  *
- *      Find the current directory on drive DRIVE.
- *      DRIVE is either NULL (current drive) or a string
- *      starting with [A-Za-z].
+ *      Find the current directory on drive DRIVE. DRIVE is either NULL
+ *      (current drive) or a string starting with [A-Za-z].
  *
  * Results:
  *      NULL if error.
@@ -470,26 +463,51 @@ File_IsSymLink(ConstUnicode pathName)  // IN:
 Unicode
 File_Cwd(ConstUnicode drive)  // IN:
 {
-   char buffer[FILE_MAXPATH];
+   size_t size;
+   char *buffer;
+   Unicode path;
 
    if ((drive != NULL) && !Unicode_IsEmpty(drive)) {
       Warning(LGPFX" %s: Drive letter %s on Linux?\n", __FUNCTION__,
               UTF8(drive));
    }
 
-   if (getcwd(buffer, FILE_MAXPATH) == NULL) {
+   size = FILE_PATH_GROW_SIZE;
+   buffer = Util_SafeMalloc(size);
+
+   while (TRUE) {
+      if (getcwd(buffer, size) != NULL) {
+         break;
+      }
+
+      free(buffer);
+      buffer = NULL;
+
+      if (errno != ERANGE) {
+         break;
+      }
+
+      size += FILE_PATH_GROW_SIZE;
+      buffer = Util_SafeMalloc(size);
+   }
+
+   if (buffer == NULL) {
       Msg_Append(MSGID(filePosix.getcwd)
                  "Unable to retrieve the current working directory: %s. "
-                 "Check if the directory has been deleted or "
-                 "unmounted.\n",
+                 "Check if the directory has been deleted or unmounted.\n",
                  Msg_ErrString());
+
       Warning(LGPFX" %s: getcwd() failed: %s\n", __FUNCTION__,
               Msg_ErrString());
 
       return NULL;
-   };
+   }
 
-   return Unicode_Alloc(buffer, STRING_ENCODING_DEFAULT);
+   path = Unicode_Alloc(buffer, STRING_ENCODING_DEFAULT);
+
+   free(buffer);
+
+   return path;
 }
 
 
@@ -600,7 +618,7 @@ File_FullPath(ConstUnicode pathName)  // IN:
 
       if (ret == NULL) {
          ret = FileStripFwdSlashes(path);
-      } 
+      }
       Unicode_Free(path);
    }
 
@@ -724,6 +742,23 @@ File_GetTimes(ConstUnicode pathName,       // IN:
 
       timeBuf.tv_sec  = statBuf.st_ctime;
       timeBuf.tv_nsec = statBuf.__unused3;
+      *attrChangeTime = TimeUtil_UnixTimeToNtTime(timeBuf);
+   }
+#   elif defined(__ANDROID__)
+   {
+      struct timespec timeBuf;
+
+      timeBuf.tv_sec  = statBuf.st_atime;
+      timeBuf.tv_nsec = statBuf.st_atime_nsec;
+      *accessTime     = TimeUtil_UnixTimeToNtTime(timeBuf);
+
+
+      timeBuf.tv_sec  = statBuf.st_mtime;
+      timeBuf.tv_nsec = statBuf.st_mtime_nsec;
+      *writeTime      = TimeUtil_UnixTimeToNtTime(timeBuf);
+
+      timeBuf.tv_sec  = statBuf.st_ctime;
+      timeBuf.tv_nsec = statBuf.st_ctime_nsec;
       *attrChangeTime = TimeUtil_UnixTimeToNtTime(timeBuf);
    }
 #   else
@@ -1044,7 +1079,7 @@ File_GetFreeSpace(ConstUnicode pathName,  // IN: File name
  *
  * File_GetVMFSAttributes --
  *
- *      Acquire the attributes for a given file on a VMFS volume.
+ *      Acquire the attributes for a given file or directory on a VMFS volume.
  *
  * Results:
  *      Integer return value and populated FS_PartitionListResult
@@ -1057,14 +1092,13 @@ File_GetFreeSpace(ConstUnicode pathName,  // IN: File name
  */
 
 int
-File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File to test
+File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File/dir to test
                        FS_PartitionListResult **fsAttrs)  // IN/OUT: VMFS Info
 {
    int fd;
    int ret;
    Unicode fullPath;
-
-   Unicode parentPath = NULL;
+   Unicode directory = NULL;
 
    fullPath = File_FullPath(pathName);
    if (fullPath == NULL) {
@@ -1072,7 +1106,11 @@ File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File to test
       goto bail;
    }
 
-   File_SplitName(fullPath, NULL, &parentPath, NULL);
+   if (File_IsDirectory(fullPath)) {
+      directory = Unicode_Duplicate(fullPath);
+   } else {
+      File_SplitName(fullPath, NULL, &directory, NULL);
+   }
 
    if (!HostType_OSIsVMK()) {
       Log(LGPFX" %s: File %s not on VMFS volume\n", __func__, UTF8(pathName));
@@ -1087,12 +1125,14 @@ File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File to test
    (*fsAttrs)->ioctlAttr.maxPartitions = FS_PLIST_DEF_MAX_PARTITIONS;
    (*fsAttrs)->ioctlAttr.getAttrSpec = FS_ATTR_SPEC_BASIC;
 
-   fd = Posix_Open(parentPath, O_RDONLY, 0);
+   fd = Posix_Open(directory, O_RDONLY, 0);
 
    if (fd == -1) {
       Log(LGPFX" %s: could not open %s: %s\n", __func__, UTF8(pathName),
           Err_Errno2String(errno));
       ret = -1;
+      free(*fsAttrs);
+      *fsAttrs = NULL;
       goto bail;
    }
 
@@ -1102,11 +1142,13 @@ File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File to test
    if (ret == -1) {
       Log(LGPFX" %s: Could not get volume attributes (ret = %d): %s\n",
           __func__, ret, Err_Errno2String(errno));
+      free(*fsAttrs);
+      *fsAttrs = NULL;
    }
 
 bail:
    Unicode_Free(fullPath);
-   Unicode_Free(parentPath);
+   Unicode_Free(directory);
 
    return ret;
 }
@@ -1141,7 +1183,7 @@ File_GetVMFSVersion(ConstUnicode pathName,  // IN: File name to test
       errno = EINVAL;
       goto exit;
    }
-   
+
    ret = File_GetVMFSAttributes(pathName, &fsAttrs);
 
    if (ret < 0) {
@@ -1212,29 +1254,28 @@ exit:
  *
  *      Acquire the FS mount point info such as fsType, major version,
  *      local mount point (/vmfs/volumes/xyz), and for NFS,
- *      remote IP and remote mount point for a given file.     
+ *      remote IP and remote mount point for a given file.
  *
  * Results:
  *      Integer return value and allocated data
  *
  * Side effects:
- *      Only implemented on ESX. Will fail on other platforms. 
- *      remoteIP and remoteMountPoint are only populated for files on NFS.   
+ *      Only implemented on ESX. Will fail on other platforms.
+ *      remoteIP and remoteMountPoint are only populated for files on NFS.
  *
  *----------------------------------------------------------------------
  */
 
-int 
+int
 File_GetVMFSMountInfo(ConstUnicode pathName,   // IN:
-                     char **fsType,            // OUT:
-                     uint32 *version,          // OUT:
-                     char **remoteIP,          // OUT:
-                     char **remoteMountPoint,  // OUT:
-                     char **localMountPoint)   // OUT:
+                      char **fsType,           // OUT:
+                      uint32 *version,         // OUT:
+                      char **remoteIP,         // OUT:
+                      char **remoteMountPoint, // OUT:
+                      char **localMountPoint)  // OUT:
 {
    int ret;
-   int len;
-   FS_PartitionListResult *fsAttrs;
+   FS_PartitionListResult *fsAttrs = NULL;
 
    *localMountPoint = File_GetUniqueFileSystemID(pathName);
 
@@ -1243,27 +1284,39 @@ File_GetVMFSMountInfo(ConstUnicode pathName,   // IN:
    }
 
    // Get file IP and mount point
-   ret = File_GetVMFSAttributes(pathName, &fsAttrs);  
-   if (ret >= 0 && fsAttrs) { 
+   ret = File_GetVMFSAttributes(pathName, &fsAttrs);
+   if (ret >= 0 && fsAttrs) {
       *version = fsAttrs->versionNumber;
       *fsType = Util_SafeStrdup(fsAttrs->fsType);
- 
-      if (strncmp(fsAttrs->fsType, FS_NFS_ON_ESX, sizeof(FS_NFS_ON_ESX)) == 0) {
-         len = strlen(fsAttrs->logicalDevice);
-         *remoteIP = Util_SafeMalloc(len);
-         *remoteMountPoint = Util_SafeMalloc(len);
-         sscanf(fsAttrs->logicalDevice, "%s %s", *remoteIP, *remoteMountPoint);
+
+      if (memcmp(fsAttrs->fsType, FS_NFS_ON_ESX, sizeof(FS_NFS_ON_ESX)) == 0) {
+         /*
+          * logicalDevice from NFS3 client contains remote IP and remote
+          * mount point, separated by space.  Split them out.  If there is
+          * no space then this is probably NFS41 client, and we cannot
+          * obtain its remote mount point details at this time.
+          */
+         char *sep = strchr(fsAttrs->logicalDevice, ' ');
+
+         if (sep) {
+            *sep++ = 0;
+            *remoteIP = Util_SafeStrdup(fsAttrs->logicalDevice);
+            *remoteMountPoint = Util_SafeStrdup(sep);
+         } else {
+            *remoteIP = NULL;
+            *remoteMountPoint = NULL;
+         }
       } else {
          *remoteIP = NULL;
-         *remoteMountPoint = NULL;   
-      }  
-   }
+         *remoteMountPoint = NULL;
+      }
 
-   free(fsAttrs);
+      free(fsAttrs);
+   }
 
    return ret;
 }
-#endif 
+#endif
 
 
 /*
@@ -1283,7 +1336,7 @@ File_GetVMFSMountInfo(ConstUnicode pathName,   // IN:
  *----------------------------------------------------------------------
  */
 
-Bool
+static Bool
 FileIsVMFS(ConstUnicode pathName)  // IN:
 {
    Bool result = FALSE;
@@ -1293,8 +1346,9 @@ FileIsVMFS(ConstUnicode pathName)  // IN:
    FS_PartitionListResult *fsAttrs = NULL;
 
    if (File_GetVMFSAttributes(pathName, &fsAttrs) >= 0) {
+      /* We want to match anything that starts with VMFS */
       result = strncmp(fsAttrs->fsType, FS_VMFS_ON_ESX,
-                       sizeof(FS_VMFS_ON_ESX)) == 0;
+                       strlen(FS_VMFS_ON_ESX)) == 0;
    } else {
       Log(LGPFX" %s: File_GetVMFSAttributes failed\n", __func__);
    }
@@ -1303,7 +1357,7 @@ FileIsVMFS(ConstUnicode pathName)  // IN:
       free(fsAttrs);
    }
 #endif
- 
+
    return result;
 }
 
@@ -1338,7 +1392,7 @@ File_SupportsZeroedThick(ConstUnicode pathName)  // IN:
  *----------------------------------------------------------------------
  *
  * File_SupportsMultiWriter --
- *  
+ *
  *      Check if the given file is on an FS supports opening files
  *      in multi-writer mode.
  *      Currently only VMFS on ESX supports multi-writer mode, but
@@ -1431,40 +1485,61 @@ File_GetCapacity(ConstUnicode pathName)  // IN: Path name
 char *
 File_GetUniqueFileSystemID(char const *path)  // IN: File path
 {
-   if (HostType_OSIsVMK()) {
-      char *canPath;
-      char *existPath;
+#ifdef VMX86_SERVER
+   char vmfsVolumeName[FILE_MAXPATH];
+   char *existPath;
+   char *canPath;
 
-      existPath = FilePosixNearestExistingAncestor(path);
-      canPath = Posix_RealPath(existPath);
-      free(existPath);
+   existPath = FilePosixNearestExistingAncestor(path);
+   canPath = Posix_RealPath(existPath);
+   free(existPath);
 
-      if (canPath == NULL) {
-         return NULL;
-      }
-
-      /*
-       * VCFS doesn't have real mount points, so the mount point lookup below
-       * returns "/vmfs", instead of the VCFS mount point.
-       *
-       * See bug 61646 for why we care.
-       */
-
-      if (strncmp(canPath, VCFS_MOUNT_POINT, strlen(VCFS_MOUNT_POINT)) == 0) {
-         char vmfsVolumeName[FILE_MAXPATH];
-
-         if (sscanf(canPath, VCFS_MOUNT_PATH "%[^/]%*s",
-                    vmfsVolumeName) == 1) {
-            free(canPath);
-
-            return Str_SafeAsprintf(NULL, "%s/%s", VCFS_MOUNT_POINT,
-                                    vmfsVolumeName);
-         }
-      }
-
-      free(canPath);
+   if (canPath == NULL) {
+      return NULL;
    }
 
+   /*
+    * VCFS doesn't have real mount points, so the mount point lookup below
+    * returns "/vmfs", instead of the VCFS mount point.
+    *
+    * See bug 61646 for why we care.
+    */
+   if (strncmp(canPath, VCFS_MOUNT_POINT, strlen(VCFS_MOUNT_POINT)) != 0 ||
+       sscanf(canPath, VCFS_MOUNT_PATH "%[^/]%*s", vmfsVolumeName) != 1) {
+      free(canPath);
+      goto exit;
+   }
+
+   /*
+    * If the path points to a file or directory that is on a vsan datastore,
+    * we have to determine which namespace object is involved.
+    */
+   if (strncmp(vmfsVolumeName, FS_VSAN_URI_PREFIX,
+               strlen(FS_VSAN_URI_PREFIX)) == 0) {
+      FS_PartitionListResult *fsAttrs = NULL;
+      int res;
+
+      res = File_GetVMFSAttributes(canPath, &fsAttrs);
+
+      if (res >= 0 && fsAttrs != NULL &&
+          strncmp(fsAttrs->fsType, FS_VMFS_ON_ESX,
+                  strlen(FS_VMFS_ON_ESX)) == 0) {
+         char *unique;
+         unique = Str_SafeAsprintf(NULL, "%s/%s/%s",
+                                   VCFS_MOUNT_POINT, vmfsVolumeName,
+                                   fsAttrs->name);
+         free(fsAttrs);
+         free(canPath);
+         return unique;
+      }
+      free(fsAttrs);
+   }
+   free(canPath);
+
+   return Str_SafeAsprintf(NULL, "%s/%s", VCFS_MOUNT_POINT,
+                           vmfsVolumeName);
+exit:
+#endif
    return FilePosixGetBlockDevice(path);
 }
 
@@ -1494,6 +1569,11 @@ static char *
 FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
                           Bool *bind)           // OUT: Mounted with --[r]bind?
 {
+#if defined NO_SETMNTENT || defined NO_ENDMNTENT
+   NOT_IMPLEMENTED();
+   errno = ENOSYS;
+   return NULL;
+#else
    FILE *f;
    struct mntent mnt;
    char *buf;
@@ -1507,16 +1587,7 @@ FilePosixLookupMountPoint(char const *canPath,  // IN: Canonical file path
    size = 4 * FILE_MAXPATH;  // Should suffice for most locales
 
 retry:
-#if defined __ANDROID__
-   /*
-    * Android supports neither setmntent() nor MOUNTED.
-    * The code below is a workaround.
-    */
-   NOT_TESTED();
-   f = fopen(_PATH_MOUNTED, "r");
-#else
    f = setmntent(MOUNTED, "r");
-#endif
    if (f == NULL) {
       return NULL;
    }
@@ -1526,30 +1597,30 @@ retry:
    while (Posix_Getmntent_r(f, &mnt, buf, size) != NULL) {
 
       /*
-       * Our Posix_Getmntent_r graciously sets errno when the buffer 
+       * Our Posix_Getmntent_r graciously sets errno when the buffer
        * is too small, but on UTF-8 based platforms Posix_Getmntent_r
-       * is #defined to the system's getmntent_r, which can simply 
-       * truncate the strings with no other indication.  See how much 
+       * is #defined to the system's getmntent_r, which can simply
+       * truncate the strings with no other indication.  See how much
        * space it used and increase the buffer size if needed.  Note
        * that if some of the strings are empty, they may share a
-       * common nul in the buffer, and the resulting size calculation 
+       * common nul in the buffer, and the resulting size calculation
        * will be a little over-zealous.
        */
 
-      used = 0;  
+      used = 0;
       if (mnt.mnt_fsname) {
          used += strlen(mnt.mnt_fsname) + 1;
-      } 
+      }
       if (mnt.mnt_dir) {
          used += strlen(mnt.mnt_dir) + 1;
-      } 
+      }
       if (mnt.mnt_type) {
          used += strlen(mnt.mnt_type) + 1;
-      } 
+      }
       if (mnt.mnt_opts) {
          used += strlen(mnt.mnt_opts) + 1;
-      } 
-      if (used >= size || !mnt.mnt_fsname || !mnt.mnt_dir || 
+      }
+      if (used >= size || !mnt.mnt_fsname || !mnt.mnt_dir ||
           !mnt.mnt_type || !mnt.mnt_opts) {
          size += 4 * FILE_MAXPATH;
          ASSERT(size <= 32 * FILE_MAXPATH);
@@ -1569,7 +1640,7 @@ retry:
 
       if (strcmp(mnt.mnt_dir, canPath) == 0) {
          /*
-          * The --bind and --rbind options behave differently. See 
+          * The --bind and --rbind options behave differently. See
           * FilePosixGetBlockDevice() for details.
           *
           * Sadly (I blame a bug in 'mount'), there is no way to tell them
@@ -1591,6 +1662,7 @@ retry:
    free(buf);
 
    return ret;
+#endif
 }
 #endif
 
@@ -1812,7 +1884,7 @@ FilePosixNearestExistingAncestor(char const *path)  // IN: File path
  *
  *      Determine whether both paths point to the same file.
  *
- *      Caveats - While local files are matched based on inode and device 
+ *      Caveats - While local files are matched based on inode and device
  *      ID, some older versions of NFS return buggy device IDs, so the
  *      determination cannot be done with 100% confidence across NFS.
  *      Paths that traverse NFS mounts are matched based on device, inode
@@ -1820,7 +1892,7 @@ FilePosixNearestExistingAncestor(char const *path)  // IN: File path
  *      This introduces a race condition in that if the target files are not
  *      locked, they can change out from underneath this function yielding
  *      false negative results.  Cloned files sytems mounted across an old
- *      version of NFS may yield a false positive.  
+ *      version of NFS may yield a false positive.
  *
  * Results:
  *      TRUE if both paths point to the same file, FALSE otherwise.
@@ -1889,7 +1961,7 @@ File_IsSameFile(ConstUnicode path1,  // IN:
       return FALSE;
    }
 
-#if defined(__APPLE__) || defined(__FreeBSD__) 
+#if defined(__APPLE__) || defined(__FreeBSD__)
    if ((stfs1.f_flags & MNT_LOCAL) && (stfs2.f_flags & MNT_LOCAL)) {
       return TRUE;
    }
@@ -1906,7 +1978,7 @@ File_IsSameFile(ConstUnicode path1,  // IN:
     * implementations can set st_dev incorrectly. Do some extra checks of the
     * stat structure to increase our confidence. Since the st_ino numbers had
     * to match to get this far, the overwhelming odds are the two files are
-    * the same.  
+    * the same.
     *
     * If another process was actively writing or otherwise modifying the file
     * while we stat'd it, then the following test could fail and we could
@@ -1952,7 +2024,7 @@ Bool
 File_Replace(ConstUnicode oldName,  // IN: old file
              ConstUnicode newName)  // IN: new file
 {
-   int status;
+   int status = 0;
    Bool result = FALSE;
    char *newPath = NULL;
    char *oldPath = NULL;
@@ -1990,8 +2062,9 @@ File_Replace(ConstUnicode oldName,  // IN: old file
       goto bail;
    }
 
-   status = (rename(newPath, oldPath) == -1) ? errno : 0;
-   if (status != 0) {
+
+   if (rename(newPath, oldPath) < 0) {
+      status = errno;
       Msg_Append(MSGID(filePosix.replaceRenameFailed)
                  "Failed to rename \"%s\" to \"%s\": %s\n",
                  newName, oldName, Msg_ErrString());
@@ -2010,19 +2083,59 @@ bail:
 }
 
 
+#ifdef VMX86_SERVER
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * File_Is2TiBEnabled --
+ *
+ *      Look up for the config option "disk.enable2TiB" in config file
+ *      (/etc/vmware/config). If config option is not present then return
+ *      TRUE.
+ *
+ * Results:
+ *      TRUE if 2tbplus vdisk support is enabled (default value).
+ *      FALSE otherwise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+File_Is2TiBEnabled(void)
+{
+   static Bool enable2TiB = FALSE;
+   static Bool enable2TiBInited = FALSE;
+
+   if (!enable2TiBInited) {
+      enable2TiB = LocalConfig_GetBool(TRUE, "disk.enable2TiB");
+      enable2TiBInited = TRUE;
+   }
+   return enable2TiB;
+}
+#endif
+
+
 /*
  *----------------------------------------------------------------------
  *
- * FilePosixCreateTestFileSize --
+ * FilePosixGetMaxOrSupportsFileSize --
  *
- *      See if the given directory is on a file system that supports
- *      large files.  We just create an empty file and pass it to the
- *      FileIO_SupportsFileSize which does actual job of determining
- *      file size support.
+ *      Given a file descriptor to a file on a volume, either find out the
+ *      max file size for the volume on which the file is located or check
+ *      if the volume supports the given file size.
+ *      If getMaxFileSize is set then find out the max file size and store it
+ *      in *maxFileSize on success, otherwise figure out if *fileSize is
+ *      supported.
  *
  * Results:
- *      TRUE if FS supports files of specified size
- *      FALSE otherwise (no support, invalid path, ...)
+ *      If getMaxFileSize was set:
+ *        TRUE with max file size stored in *fileSize.
+ *      Otherwise:
+ *        TRUE fileSize is supported.
+ *        FALSE fileSize not supported or could not figure out the answer.
  *
  * Side effects:
  *      None.
@@ -2031,8 +2144,63 @@ bail:
  */
 
 static Bool
-FilePosixCreateTestFileSize(ConstUnicode dirName,  // IN: test directory
-                            uint64 fileSize)       // IN: test file size
+FilePosixGetMaxOrSupportsFileSize(FileIODescriptor *fd,  // IN:
+                                  uint64 *fileSize,      // IN/OUT:
+                                  Bool getMaxFileSize)   // IN:
+{
+   uint64 value = 0;
+   uint64 mask;
+
+   ASSERT(fd);
+   ASSERT(fileSize);
+
+   if (!getMaxFileSize) {
+      return FileIO_SupportsFileSize(fd, *fileSize);
+   }
+
+   /*
+    * Try to do a binary search and figure out the max supported file size.
+    */
+   for (mask = (1ULL << 62); mask != 0; mask >>= 1) {
+      if (FileIO_SupportsFileSize(fd, value | mask)) {
+         value |= mask;
+      }
+   }
+   *fileSize = value;
+   return TRUE;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FilePosixCreateTestGetMaxOrSupportsFileSize --
+ *
+ *      Given a path to a dir on a volume, either find out the max file size
+ *      for the volume on which the dir is located or check if the volume
+ *      supports the given file size.
+ *      If getMaxFileSize is set then find out the max file size and store it
+ *      in *maxFileSize on success, otherwise figure out if *fileSize is
+ *      supported.
+ *
+ * Results:
+ *      If getMaxFileSize was set:
+ *        TRUE if figured out the max file size.
+ *        FALSE failed to figure out the max file size.
+ *      Otherwise:
+ *        TRUE fileSize is supported.
+ *        FALSE fileSize not supported or could not figure out the answer.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static Bool
+FilePosixCreateTestGetMaxOrSupportsFileSize(ConstUnicode dirName,// IN: test dir
+                                            uint64 *fileSize,    // IN/OUT:
+                                            Bool getMaxFileSize) // IN:
 {
    Bool retVal;
    int posixFD;
@@ -2040,17 +2208,23 @@ FilePosixCreateTestFileSize(ConstUnicode dirName,  // IN: test directory
    Unicode path;
    FileIODescriptor fd;
 
+   ASSERT(fileSize);
+
    temp = Unicode_Append(dirName, "/.vmBigFileTest");
    posixFD = File_MakeSafeTemp(temp, &path);
    Unicode_Free(temp);
 
    if (posixFD == -1) {
+      Log(LGPFX" %s: Failed to create temporary file in dir: %s\n", __func__,
+          UTF8(dirName));
+
       return FALSE;
    }
 
    fd = FileIO_CreateFDPosix(posixFD, O_RDWR);
 
-   retVal = FileIO_SupportsFileSize(&fd, fileSize);
+   retVal = FilePosixGetMaxOrSupportsFileSize(&fd, fileSize,
+                                              getMaxFileSize);
    /* Eventually perform destructive tests here... */
 
    FileIO_Close(&fd);
@@ -2060,23 +2234,20 @@ FilePosixCreateTestFileSize(ConstUnicode dirName,  // IN: test directory
    return retVal;
 }
 
+
+#ifdef VMX86_SERVER
 /*
  *----------------------------------------------------------------------
  *
- * File_VMFSSupportsFileSize --
+ * FileVMKGetMaxFileSize --
  *
- *      Check if the given file is on a VMFS supports such a file size
- *
- *      In the case of VMFS3, the largest supported file size is
- *         256 * 1024 * B bytes
- *      VMFS5 supports larger file sizes.
- *
- *      where B represents the blocksize in bytes
- *
+ *      Given a path to a file on a volume, find out the max file size for
+ *      the volume on which the file is located.
+ *      Max file size gets stored in *maxFileSize on success.
  *
  * Results:
- *      TRUE if VMFS supports such file size
- *      FALSE otherwise (file size not supported)
+ *      TRUE if figured out the max file size.
+ *      FALSE failed to figure out the max file size.
  *
  * Side effects:
  *      None
@@ -2085,13 +2256,115 @@ FilePosixCreateTestFileSize(ConstUnicode dirName,  // IN: test directory
  */
 
 static Bool
-File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
-                          uint64 fileSize)        // IN:
+FileVMKGetMaxFileSize(ConstUnicode pathName,  // IN:
+                      uint64 *maxFileSize)    // OUT:
+{
+   int fd;
+   Bool retval = TRUE;
+   Unicode fullPath;
+
+   Unicode dirPath = NULL;
+
+   ASSERT(maxFileSize);
+
+   fullPath = File_FullPath(pathName);
+   if (fullPath == NULL) {
+      Log(LGPFX" %s: Failed to get the full path for %s\n", __func__,
+          UTF8(pathName));
+      retval = FALSE;
+      goto bail;
+   }
+
+   if (File_IsDirectory(fullPath)) {
+      dirPath = Unicode_Duplicate(fullPath);
+   } else {
+      dirPath = NULL;
+      File_SplitName(fullPath, NULL, &dirPath, NULL);
+   }
+
+   /*
+    * We always try to open the dir in order to avoid any contention on VMDK
+    * descriptor file with those threads which already have descriptor file
+    * opened for writing.
+    */
+   fd = Posix_Open(dirPath, O_RDONLY, 0);
+   if (fd == -1) {
+      Log(LGPFX" %s: could not open %s: %s\n", __func__, UTF8(dirPath),
+          Err_Errno2String(errno));
+      retval = FALSE;
+      goto bail;
+   }
+
+   if(ioctl(fd, IOCTLCMD_VMFS_GET_MAX_FILE_SIZE, maxFileSize) == -1) {
+      Log(LGPFX" %s: Could not get max file size for path: %s, error: %s\n",
+          __func__, UTF8(pathName), Err_Errno2String(errno));
+      retval = FALSE;
+   }
+   close(fd);
+
+bail:
+   Unicode_Free(fullPath);
+   Unicode_Free(dirPath);
+
+   return retval;
+}
+#endif
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileVMKGetMaxOrSupportsFileSize --
+ *
+ *      Given a path to a file on a volume, either find out the max file size
+ *      for the volume on which the file is located or check if the volume
+ *      supports the given file size.
+ *      If getMaxFileSize is set then find out the max file size and store it
+ *      in *maxFileSize on success, otherwise figure out if *fileSize is
+ *      supported.
+ *
+ * Results:
+ *      If getMaxFileSize was set:
+ *        TRUE if figured out the max file size.
+ *        FALSE failed to figure out the max file size.
+ *      Otherwise:
+ *        TRUE fileSize is supported.
+ *        FALSE fileSize not supported or could not figure out the answer.
+ *
+ * Side effects:
+ *      None
+ *
+ *----------------------------------------------------------------------
+ */
+
+static Bool
+FileVMKGetMaxOrSupportsFileSize(ConstUnicode pathName,  // IN:
+                                uint64 *fileSize,       // IN/OUT:
+                                Bool getMaxFileSize)    // IN:
 {
 #if defined(VMX86_SERVER)
-   uint64 maxFileSize = -1;
-   Bool supported;
    FS_PartitionListResult *fsAttrs = NULL;
+   uint64 maxFileSize;
+
+   /*
+    * Let's first try IOCTL to figure out max file size.
+    */
+   if (FileVMKGetMaxFileSize(pathName, &maxFileSize)) {
+      if (getMaxFileSize) {
+         *fileSize = maxFileSize;
+
+         return TRUE;
+      }
+      return (*fileSize <= maxFileSize);
+   }
+
+   /*
+    * Try the old way if IOCTL failed.
+    */
+   LOG(0, (LGPFX" %s: Failed to figure out max file size via "
+           "IOCTLCMD_VMFS_GET_MAX_FILE_SIZE. Falling back to old method.\n",
+           __func__));
+   maxFileSize = -1;
 
    if (File_GetVMFSAttributes(pathName, &fsAttrs) < 0) {
       Log(LGPFX" %s: File_GetVMFSAttributes Failed\n", __func__);
@@ -2113,22 +2386,25 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
          return FALSE;
       }
 
-      if (fileSize <= maxFileSize && maxFileSize != -1) {
-         free(fsAttrs);
+      free(fsAttrs);
+      if (maxFileSize == -1) {
+         Log(LGPFX" %s: Failed to figure out the max file size for %s\n",
+             __func__, pathName);
+         return FALSE;
+      }
 
+      if (getMaxFileSize) {
+         *fileSize = maxFileSize;
          return TRUE;
       } else {
-         Log(LGPFX" %s: Requested file size (%"FMT64"d) larger than maximum "
-             "supported filesystem file size (%"FMT64"d)\n", __FUNCTION__,
-             fileSize, maxFileSize);
-         free(fsAttrs);
-
-         return FALSE;
+         return *fileSize <= maxFileSize;
       }
    } else {
       Unicode fullPath;
       Unicode parentPath;
+      Bool supported;
 
+      Log(LGPFX" %s: Trying create file and seek approach.\n", __func__);
       fullPath = File_FullPath(pathName);
 
       if (fullPath == NULL) {
@@ -2140,7 +2416,9 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
 
       File_GetPathName(fullPath, &parentPath, NULL);
 
-      supported = FilePosixCreateTestFileSize(parentPath, fileSize);
+      supported = FilePosixCreateTestGetMaxOrSupportsFileSize(parentPath,
+                                                              fileSize,
+                                                              getMaxFileSize);
 
       free(fsAttrs);
       Unicode_Free(fullPath);
@@ -2155,16 +2433,26 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
    return FALSE; /* happy compiler */
 }
 
+
 /*
  *----------------------------------------------------------------------
  *
- * File_SupportsFileSize --
+ * FileGetMaxOrSupportsFileSize --
  *
- *      Check if the given file is on an FS that supports such file size
+ *      Given a path to a file on a volume, either find out the max file size
+ *      for the volume on which the file is located or check if the volume
+ *      supports the given file size.
+ *      If getMaxFileSize is set then find out the max file size and store it
+ *      in *maxFileSize on success, otherwise figure out if *fileSize is
+ *      supported.
  *
  * Results:
- *      TRUE if FS supports such file size
- *      FALSE otherwise (file size not supported, invalid path, read-only, ...)
+ *      If getMaxFileSize was set:
+ *        TRUE if figured out the max file size.
+ *        FALSE failed to figure out the max file size.
+ *      Otherwise:
+ *        TRUE fileSize is supported.
+ *        FALSE fileSize not supported or could not figure out the answer.
  *
  * Side effects:
  *      None
@@ -2173,51 +2461,60 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
  */
 
 Bool
-File_SupportsFileSize(ConstUnicode pathName,  // IN:
-                      uint64 fileSize)        // IN:
+FileGetMaxOrSupportsFileSize(ConstUnicode pathName,  // IN:
+                             uint64 *fileSize,       // IN/OUT:
+                             Bool getMaxFileSize)    // IN:
 {
    Unicode fullPath;
    Unicode folderPath;
+   Bool retval = FALSE;
 
-   Bool supported = FALSE;
+   ASSERT(fileSize);
 
-   /* All supported filesystems can hold at least 2GB - 1 files. */
-   if (fileSize <= 0x7FFFFFFF) {
-      return TRUE;
+#ifdef VMX86_SERVER
+   if (!File_Is2TiBEnabled()) {
+      if (getMaxFileSize) {
+         /*
+          * Return 2tb-512b since hostd uses this value directly to report max
+          * VMDK's sizes to the UI.
+          */
+         *fileSize = CONST64U(0x20000000000) - CONST64U(512);
+         return TRUE;
+      }
+      return *fileSize <= (CONST64U(0x20000000000) - CONST64U(512));
    }
+#endif
 
-   /* 
-    * We acquire the full path name for testing in 
-    * FilePosixCreateTestFileSize().  This is also done in the event that
-    * a user tries to create a virtual disk in the directory that they want
-    * a vmdk created in (setting filePath only to the disk name, not the
-    * entire path.
+   /*
+    * We acquire the full path name for testing in
+    * FilePosixCreateTestGetMaxOrSupportsFileSize().  This is also done in the
+    * event that a user tries to create a virtual disk in the directory that
+    * they want a vmdk created in (setting filePath only to the disk name,
+    * not the entire path.).
     */
 
    fullPath = File_FullPath(pathName);
    if (fullPath == NULL) {
-      Log(LGPFX" %s: Error acquiring full path\n", __func__);
+      Log(LGPFX" %s: Error acquiring full path for path: %s.\n", __func__,
+          pathName);
       goto out;
    }
-
-   /* 
-    * We know that VMFS supports large files - But they have limitations
-    * See function File_VMFSSupportsFileSize() - PR 146965
-    */
 
    if (HostType_OSIsVMK()) {
-      supported = File_VMFSSupportsFileSize(pathName, fileSize);
+      retval = FileVMKGetMaxOrSupportsFileSize(fullPath, fileSize,
+                                               getMaxFileSize);
       goto out;
    }
 
-   if (File_IsFile(pathName)) {
+   if (File_IsFile(fullPath)) {
       FileIOResult res;
       FileIODescriptor fd;
 
       FileIO_Invalidate(&fd);
-      res = FileIO_Open(&fd, pathName, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
+      res = FileIO_Open(&fd, fullPath, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
       if (FileIO_IsSuccess(res)) {
-         supported = FileIO_SupportsFileSize(&fd, fileSize);
+         retval = FilePosixGetMaxOrSupportsFileSize(&fd, fileSize,
+                                                    getMaxFileSize);
          FileIO_Close(&fd);
          goto out;
       }
@@ -2235,12 +2532,100 @@ File_SupportsFileSize(ConstUnicode pathName,  // IN:
       File_SplitName(fullPath, NULL, &folderPath, NULL);
    }
 
-   supported = FilePosixCreateTestFileSize(folderPath, fileSize);
+   retval = FilePosixCreateTestGetMaxOrSupportsFileSize(folderPath, fileSize,
+                                                        getMaxFileSize);
    Unicode_Free(folderPath);
 
 out:
    Unicode_Free(fullPath);
-   return supported;
+
+   return retval;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_GetMaxFileSize --
+ *
+ *      Given a path to a file on a volume, return the max file size for that
+ *      volume. The max file size is stored on *maxFileSize on success.
+ *      The function caps the max file size to be MAX_SUPPORTED_FILE_SIZE on
+ *      any type of FS.
+ *
+ * Results:
+ *      TRUE on success.
+ *      FALSE failed to figure out max file size due to some reasons.
+ *
+ * Side effects:
+ *      None
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+File_GetMaxFileSize(ConstUnicode pathName,  // IN:
+                    uint64 *maxFileSize)    // OUT:
+{
+   Bool result;
+
+   if (!maxFileSize) {
+      Log(LGPFX" %s: maxFileSize passed as NULL.\n", __func__);
+
+      return FALSE;
+   }
+
+   result = FileGetMaxOrSupportsFileSize(pathName, maxFileSize, TRUE);
+   if (result) {
+      /*
+       * Cap the max supported file size at MAX_SUPPORTED_FILE_SIZE.
+       */
+      if (*maxFileSize > MAX_SUPPORTED_FILE_SIZE) {
+         *maxFileSize = MAX_SUPPORTED_FILE_SIZE;
+      }
+   }
+   return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_SupportsFileSize --
+ *
+ *      Check if the given file is on an FS that supports such file size.
+ *      The function caps the max supported file size to be
+ *      MAX_SUPPORTED_FILE_SIZE on any type of FS.
+ *
+ * Results:
+ *      TRUE if FS supports such file size.
+ *      FALSE otherwise (file size not supported, invalid path, read-only, ...)
+ *
+ * Side effects:
+ *      None
+ *
+ *----------------------------------------------------------------------
+ */
+
+Bool
+File_SupportsFileSize(ConstUnicode pathName,  // IN:
+                      uint64 fileSize)        // IN:
+{
+   /*
+    * All supported filesystems can hold at least 2GB-1 bytes files.
+    */
+   if (fileSize <= 0x7FFFFFFF) {
+      return TRUE;
+   }
+
+   /*
+    * Cap the max supported file size at MAX_SUPPORTED_FILE_SIZE.
+    */
+   if (fileSize > MAX_SUPPORTED_FILE_SIZE) {
+      return FALSE;
+   }
+
+   return FileGetMaxOrSupportsFileSize(pathName, &fileSize, FALSE);
 }
 
 
@@ -2689,7 +3074,7 @@ FileIsWritableDir(ConstUnicode dirName)  // IN:
  *
  * File_MakeCfgFileExecutable --
  *
- *	Make a .vmx file executable. This is sometimes necessary 
+ *	Make a .vmx file executable. This is sometimes necessary
  *      to enable MKS access to the VM.
  *
  *      Owner always gets rwx.  Group/other get x where r is set.

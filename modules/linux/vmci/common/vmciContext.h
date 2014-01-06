@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006-2011 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -36,6 +36,7 @@
 #include "vmci_handle_array.h"
 #include "vmci_infrastructure.h"
 #include "vmci_kernel_if.h"
+#include "vmciCommonInt.h"
 
 #define MAX_QUEUED_GUESTCALLS_PER_VM  100
 
@@ -113,8 +114,7 @@ void VMCIContext_ReceiveNotificationsRelease(VMCIId contextID,
 #if defined(VMKERNEL)
 void VMCIContext_SignalPendingDoorbells(VMCIId contextID);
 void VMCIContext_SignalPendingDatagrams(VMCIId contextID);
-
-int VMCIContextID2HostVmID(VMCIId contextID, void *hostVmID, size_t hostVmIDLen);
-#endif
-
+int VMCIContext_FilterSet(VMCIId cid, VMCIFilterState *filterState);
+int VMCI_Uuid2ContextId(const char *uuidString, VMCIId *contextID);
+#endif // VMKERNEL
 #endif // _VMCI_CONTEXT_H_

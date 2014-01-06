@@ -24,8 +24,14 @@
 #define INCLUDE_ALLOW_VMCORE
 #include "includeCheck.h"
 
+#include "guest_os_tables.h"
+
 /*
- * There's a max of 64 guests that can be defined in this list below.
+ * There's no practical max to the number of guests that can be defined in
+ * the list below (guest IDs are limited to 2^32), but there is a maximum
+ * of MAXGOSSET guests that can comprise a set, such as ALLLINUX, ALLDARWIN,
+ * or ALLWIN64.
+ *
  * Be conservative and only declare entries in this list if you need to refer
  * to the guest specifically in vmx/main/guest_os.c,
  * vmcore/vmx/main/monitorControl.c, or similar. Don't rely on every supported
@@ -35,70 +41,15 @@
 typedef enum GuestOSType {
    GUEST_OS_BASE                = 0x5000,
    GUEST_OS_BASE_MINUS_ONE      = 0x4fff, /* So that ANY is equal to BASE */
-
-   GUEST_OS_ANY                 = GUEST_OS_BASE + 0,
-   GUEST_OS_DOS                 = GUEST_OS_BASE + 1,
-   GUEST_OS_WIN31               = GUEST_OS_BASE + 2,
-   GUEST_OS_WIN95               = GUEST_OS_BASE + 3,
-   GUEST_OS_WIN98               = GUEST_OS_BASE + 4,
-   GUEST_OS_WINME               = GUEST_OS_BASE + 5,
-   GUEST_OS_WINNT               = GUEST_OS_BASE + 6,
-   GUEST_OS_WIN2000             = GUEST_OS_BASE + 7,
-   GUEST_OS_WINXP               = GUEST_OS_BASE + 8,
-   GUEST_OS_WINXPPRO_64         = GUEST_OS_BASE + 9,
-   GUEST_OS_WINNET              = GUEST_OS_BASE + 10,
-   GUEST_OS_WINNET_64           = GUEST_OS_BASE + 11,
-   GUEST_OS_LONGHORN            = GUEST_OS_BASE + 12,
-   GUEST_OS_LONGHORN_64         = GUEST_OS_BASE + 13,
-   GUEST_OS_WINVISTA            = GUEST_OS_BASE + 14,
-   GUEST_OS_WINVISTA_64         = GUEST_OS_BASE + 15,
-   GUEST_OS_WINSEVEN            = GUEST_OS_BASE + 16, // Windows 7
-   GUEST_OS_WINSEVEN_64         = GUEST_OS_BASE + 17, // Windows 7
-   GUEST_OS_WIN2008R2           = GUEST_OS_BASE + 18, // Server 2008 R2
-   GUEST_OS_WIN2008R2_64        = GUEST_OS_BASE + 19, // Server 2008 R2
-   GUEST_OS_WINEIGHT            = GUEST_OS_BASE + 20, // Windows 8
-   GUEST_OS_WINEIGHT_64         = GUEST_OS_BASE + 21, // Windows 8 x64
-   GUEST_OS_WINEIGHTSERVER_64   = GUEST_OS_BASE + 22, // Windows 8 Server X64
-   GUEST_OS_HYPER_V             = GUEST_OS_BASE + 23, // Microsoft Hyper-V 
-   GUEST_OS_OS2                 = GUEST_OS_BASE + 24,
-   GUEST_OS_ECOMSTATION         = GUEST_OS_BASE + 25, // OS/2 variant; 1.x
-   GUEST_OS_ECOMSTATION2        = GUEST_OS_BASE + 26, // OS/2 variant; 2.x
-   GUEST_OS_OTHER24XLINUX       = GUEST_OS_BASE + 27,
-   GUEST_OS_OTHER24XLINUX_64    = GUEST_OS_BASE + 28,
-   GUEST_OS_OTHER26XLINUX       = GUEST_OS_BASE + 29,
-   GUEST_OS_OTHER26XLINUX_64    = GUEST_OS_BASE + 30,
-   GUEST_OS_OTHERLINUX          = GUEST_OS_BASE + 31,
-   GUEST_OS_OTHERLINUX_64       = GUEST_OS_BASE + 32,
-   GUEST_OS_OTHER               = GUEST_OS_BASE + 33,
-   GUEST_OS_OTHER_64            = GUEST_OS_BASE + 34,
-   GUEST_OS_UBUNTU              = GUEST_OS_BASE + 35,
-   GUEST_OS_DEBIAN45            = GUEST_OS_BASE + 36,
-   GUEST_OS_DEBIAN45_64         = GUEST_OS_BASE + 37,
-   GUEST_OS_RHEL                = GUEST_OS_BASE + 38,
-   GUEST_OS_RHEL_64             = GUEST_OS_BASE + 39,
-   GUEST_OS_FREEBSD             = GUEST_OS_BASE + 40,
-   GUEST_OS_FREEBSD_64          = GUEST_OS_BASE + 41,
-   GUEST_OS_SOLARIS_6_AND_7     = GUEST_OS_BASE + 42,
-   GUEST_OS_SOLARIS8            = GUEST_OS_BASE + 43,
-   GUEST_OS_SOLARIS9            = GUEST_OS_BASE + 44,
-   GUEST_OS_SOLARIS10           = GUEST_OS_BASE + 45,
-   GUEST_OS_SOLARIS10_64        = GUEST_OS_BASE + 46,
-   GUEST_OS_DARWIN9             = GUEST_OS_BASE + 47, // Mac OS 10.5
-   GUEST_OS_DARWIN9_64          = GUEST_OS_BASE + 48,
-   GUEST_OS_DARWIN10            = GUEST_OS_BASE + 49, // Mac OS 10.6
-   GUEST_OS_DARWIN10_64         = GUEST_OS_BASE + 50,
-   GUEST_OS_DARWIN11            = GUEST_OS_BASE + 51, // Mac OS 10.7
-   GUEST_OS_DARWIN11_64         = GUEST_OS_BASE + 52,
-   GUEST_OS_DARWIN12_64         = GUEST_OS_BASE + 53,
-   GUEST_OS_OPENSERVER_5_AND_6  = GUEST_OS_BASE + 54,
-   GUEST_OS_UNIXWARE7           = GUEST_OS_BASE + 55,
-   GUEST_OS_NETWARE4            = GUEST_OS_BASE + 56,
-   GUEST_OS_NETWARE5            = GUEST_OS_BASE + 57,
-   GUEST_OS_NETWARE6            = GUEST_OS_BASE + 58,
-   GUEST_OS_VMKERNEL            = GUEST_OS_BASE + 59, // ESX 4.x
-   GUEST_OS_VMKERNEL5           = GUEST_OS_BASE + 60, // ESX 5.x and later
+#define GOT(_name) _name,
+GUEST_OS_TYPE_GEN
+#undef GOT
 } GuestOSType;
 
+/*
+ * Maximum number of guests in a set, must be <= LIST_SIZE in geninfo.h
+ */
+#define MAXGOSSET 64
 
 typedef enum GuestOSFamilyType {
    GUEST_OS_FAMILY_ANY         = 0x0000,
@@ -113,93 +64,114 @@ typedef enum GuestOSFamilyType {
    GUEST_OS_FAMILY_DARWIN      = 0x0100
 } GuestOSFamilyType;
 
-#define ALLOS           (~CONST64U(0))
-#define B(guest)	((uint64) 1 << ((guest) - GUEST_OS_BASE))
-#define BS(suf)		B(GUEST_OS_##suf)
-#define ALLWIN9X	(BS(WIN95) | BS(WIN98) | BS(WINME))
-#define ALLWIN2000	BS(WIN2000)
+#define ALLOS           GUEST_OS_ANY
+#define BS(suf)		GUEST_OS_##suf
+#define GOS_IN_SET(gos, ...)   Gos_InSet(gos, __VA_ARGS__, 0)
+#define GOS_IN_SET_ARRAY(gos, set)   Gos_InSetArray(gos, set)
 
-#define ALLWINXP32	BS(WINXP)
-#define ALLWINXP64	BS(WINXPPRO_64)
-#define ALLWINXP        (ALLWINXP32 | ALLWINXP64)
+Bool Gos_InSet(uint32 gos, ...);
+Bool Gos_InSetArray(uint32 gos, const uint32 *set);
 
-#define ALLFREEBSD      (BS(FREEBSD) | BS(FREEBSD_64))
+#define ALLWIN9X              BS(WIN95), BS(WIN98), BS(WINME)
+#define ALLWIN2000            BS(WIN2000)
 
-#define ALLWINNET32	BS(WINNET)
-#define ALLWINNET64	BS(WINNET_64)
-#define ALLWINNET	(ALLWINNET32 | ALLWINNET64)
+#define ALLWINXP32            BS(WINXP)
+#define ALLWINXP64            BS(WINXPPRO_64)
+#define ALLWINXP              ALLWINXP32, ALLWINXP64
 
-#define ALLWINLONGHORN32  BS(LONGHORN)
-#define ALLWINLONGHORN64  BS(LONGHORN_64)
-#define ALLWINLONGHORN  (ALLWINLONGHORN32 | ALLWINLONGHORN64)
+#define ALLFREEBSD            BS(FREEBSD), BS(FREEBSD_64)
 
-#define ALLWINVISTA32   BS(WINVISTA)
-#define ALLWINVISTA64   BS(WINVISTA_64)
-#define ALLWINVISTA     (ALLWINVISTA32 | ALLWINVISTA64)
+#define ALLWINNET32           BS(WINNET)
+#define ALLWINNET64           BS(WINNET_64)
+#define ALLWINNET	      ALLWINNET32, ALLWINNET64
 
-#define ALLWIN2008R2_32 BS(WIN2008R2)
-#define ALLWIN2008R2_64 BS(WIN2008R2_64)
-#define ALLWIN2008R2    (ALLWIN2008R2_32 | ALLWIN2008R2_64)
+#define ALLWINLONGHORN32      BS(LONGHORN)
+#define ALLWINLONGHORN64      BS(LONGHORN_64)
+#define ALLWINLONGHORN        ALLWINLONGHORN32, ALLWINLONGHORN64
 
-#define ALLWINSEVEN32   BS(WINSEVEN)
-#define ALLWINSEVEN64   BS(WINSEVEN_64)
-#define ALLWINSEVEN     (ALLWINSEVEN32 | ALLWINSEVEN64)
+#define ALLWINVISTA32         BS(WINVISTA)
+#define ALLWINVISTA64         BS(WINVISTA_64)
+#define ALLWINVISTA           ALLWINVISTA32, ALLWINVISTA64
 
-#define ALLWINEIGHTSERVER64 BS(WINEIGHTSERVER_64)
-#define ALLWINEIGHTSERVER   ALLWINEIGHTSERVER64
+#define ALLWIN2008R2_64       BS(WIN2008R2_64)
+#define ALLWIN2008R2          ALLWIN2008R2_64
 
-#define ALLWINEIGHT32   BS(WINEIGHT)
-#define ALLWINEIGHT64   BS(WINEIGHT_64)
-#define ALLWINEIGHT     (ALLWINEIGHT32 | ALLWINEIGHT64)
+#define ALLWINSEVEN32         BS(WINSEVEN)
+#define ALLWINSEVEN64         BS(WINSEVEN_64)
+#define ALLWINSEVEN           ALLWINSEVEN32, ALLWINSEVEN64
 
-#define ALLHYPER_V      BS(HYPER_V)
+#define ALLWINEIGHTSERVER64   BS(WINEIGHTSERVER_64)
+#define ALLWINEIGHTSERVER     ALLWINEIGHTSERVER64
 
-#define ALLWINVISTA_OR_HIGHER (ALLWINVISTA | ALLWINLONGHORN | ALLWIN2008R2 | \
-                               ALLWINSEVEN | ALLWINEIGHTSERVER | \
-                               ALLWINEIGHT | ALLHYPER_V)
+#define ALLWINEIGHTCLIENT32   BS(WINEIGHT)
+#define ALLWINEIGHTCLIENT64   BS(WINEIGHT_64)
+#define ALLWINEIGHTCLIENT     ALLWINEIGHTCLIENT32, ALLWINEIGHTCLIENT64
 
-#define ALLWINNT32	(BS(WINNT) | ALLWIN2000 | ALLWINXP32 | ALLWINNET32 | \
-                         ALLWINVISTA32 | ALLWINLONGHORN32 | \
-                         ALLWINSEVEN32 | ALLWIN2008R2_32 | \
-                         ALLWINEIGHT32)
+#define ALLHYPER_V            BS(HYPER_V)
 
-#define ALLWINNT64	(ALLWINXP64    | ALLWINNET64 | \
-                         ALLWINVISTA64 | ALLWINLONGHORN64 | \
-                         ALLWINSEVEN64 | ALLWIN2008R2_64 | \
-                         ALLWINEIGHT64 | ALLWINEIGHTSERVER | \
-                         ALLHYPER_V)
+#define ALLWINVISTA_OR_HIGHER ALLWINVISTA, ALLWINLONGHORN,           \
+                              ALLWIN2008R2, ALLWINSEVEN,             \
+                              ALLWINEIGHTSERVER, ALLHYPER_V,         \
+                              ALLWINEIGHTCLIENT
 
-#define ALLWINNT	(ALLWINNT32 | ALLWINNT64)
+#define ALLWINNT32	      BS(WINNT), ALLWIN2000, ALLWINXP32,     \
+                              ALLWINNET32, ALLWINVISTA32,            \
+                              ALLWINLONGHORN32, ALLWINSEVEN32,       \
+                              ALLWINEIGHTCLIENT32
 
-#define ALLWIN32	(ALLWIN9X | ALLWINNT32)
-#define ALLWIN64	 ALLWINNT64
-#define ALLWIN          (ALLWIN32 | ALLWIN64)
-#define ALLSOLARIS      (BS(SOLARIS_6_AND_7) | BS(SOLARIS8) | BS(SOLARIS9) | \
-                        BS(SOLARIS10) | BS(SOLARIS10_64))
-#define ALLSOLARIS10    (BS(SOLARIS10) | BS(SOLARIS10_64))
-#define ALLNETWARE      (BS(NETWARE4) | BS(NETWARE5) | BS(NETWARE6))
-#define ALL26XLINUX32   (BS(OTHER26XLINUX) | BS(DEBIAN45) | BS(RHEL) | \
-                         BS(UBUNTU))
-#define ALL26XLINUX64   (BS(OTHER26XLINUX_64) | BS(DEBIAN45_64) | BS(RHEL_64))
+#define ALLWINNT64	      ALLWINXP64, ALLWINNET64,               \
+                              ALLWINVISTA64, ALLWINLONGHORN64,       \
+                              ALLWINSEVEN64,  ALLWIN2008R2_64,       \
+                              ALLWINEIGHTCLIENT64,                   \
+                              ALLWINEIGHTSERVER, ALLHYPER_V
 
-#define ALLVMKERNEL     (BS(VMKERNEL) | BS(VMKERNEL5))
+#define ALLWINNT	      ALLWINNT32, ALLWINNT64
 
-#define ALLLINUX32      (BS(OTHER24XLINUX) | ALL26XLINUX32 | \
-                         BS(OTHERLINUX) | BS(VMKERNEL))
-#define ALLLINUX64      (BS(OTHER24XLINUX_64) | ALL26XLINUX64 | \
-                         BS(OTHERLINUX_64))
-#define ALLLINUX        (ALLLINUX32 | ALLLINUX64)
-#define ALLDARWIN32     (BS(DARWIN9)  | BS(DARWIN10) | BS(DARWIN11))
-#define ALLDARWIN64     (BS(DARWIN9_64)  | BS(DARWIN10_64) | \
-                         BS(DARWIN11_64) | BS(DARWIN12_64))
-#define ALLDARWIN       (ALLDARWIN32 | ALLDARWIN64)
-#define ALL64           (ALLWIN64 | ALLLINUX64 | \
-                         BS(SOLARIS10_64) | BS(FREEBSD_64) | \
-                         ALLDARWIN64 | BS(OTHER_64) | ALLVMKERNEL)
+#define ALLWIN32	      ALLWIN9X, ALLWINNT32
+#define ALLWIN64              ALLWINNT64
+#define ALLWIN                ALLWIN32, ALLWIN64
+#define ALLWIN_EXCEPT9XAND2000                                       \
+                              ALLWINXP, ALLWINNET, ALLWINLONGHORN,   \
+                              ALLWINVISTA, ALLWIN2008R2, ALLWINSEVEN,\
+                              ALLWINEIGHTSERVER, ALLWINEIGHTCLIENT,  \
+                              ALLHYPER_V, BS(WINNT)
 
-#define ALLECOMSTATION  (BS(ECOMSTATION) | BS(ECOMSTATION2))
-#define ALLOS2          (BS(OS2) | ALLECOMSTATION)
+#define ALLSOLARIS            BS(SOLARIS_6_AND_7), BS(SOLARIS8),     \
+                              BS(SOLARIS9), BS(SOLARIS10),           \
+                              BS(SOLARIS10_64)
+#define ALLSOLARIS10          BS(SOLARIS10), BS(SOLARIS10_64)
+#define ALLNETWARE            BS(NETWARE4), BS(NETWARE5), BS(NETWARE6)
+#define ALL26XLINUX32         BS(OTHER26XLINUX), BS(DEBIAN45),       \
+                              BS(RHEL), BS(UBUNTU)
+#define ALL26XLINUX64         BS(OTHER26XLINUX_64), BS(DEBIAN45_64), \
+                              BS(RHEL_64)
+#define ALL3XLINUX32          BS(OTHER3XLINUX)
+#define ALL3XLINUX64          BS(OTHER3XLINUX_64)
 
+#define ALLVMKERNEL           BS(VMKERNEL), BS(VMKERNEL5)
+
+#define ALLLINUX32            BS(OTHER24XLINUX), ALL26XLINUX32, ALL3XLINUX32, \
+                              BS(OTHERLINUX), BS(VMKERNEL)
+#define ALLLINUX64            BS(OTHER24XLINUX_64), ALL26XLINUX64, \
+                              ALL3XLINUX64, BS(OTHERLINUX_64)
+#define ALLLINUX              ALLLINUX32, ALLLINUX64
+#define ALLDARWIN32           BS(DARWIN9), BS(DARWIN10), BS(DARWIN11)
+#define ALLDARWIN64           BS(DARWIN9_64), BS(DARWIN10_64), \
+                              BS(DARWIN11_64), BS(DARWIN12_64), \
+                              BS(DARWIN13_64)
+#define ALLDARWIN             ALLDARWIN32, ALLDARWIN64
+#define ALL64                 ALLWIN64, ALLLINUX64, BS(SOLARIS10_64), \
+                              BS(FREEBSD_64), ALLDARWIN64,            \
+                              BS(OTHER_64), ALLVMKERNEL
+
+#define ALLECOMSTATION        BS(ECOMSTATION), BS(ECOMSTATION2)
+#define ALLOS2                BS(OS2), ALLECOMSTATION
+#define ALLOS_EXCEPTDARWINANDVMKERNEL                                \
+                              ALLWIN, ALLFREEBSD, ALLSOLARIS,        \
+                              ALLNETWARE, ALLLINUX, ALLECOMSTATION,  \
+                              ALLOS2, BS(DOS), BS(WIN31),            \
+                              BS(UNIXWARE7), BS(OPENSERVER_5_AND_6), \
+                              BS(OTHER), BS(OTHER_64)
 
 /*
  * These constants are generated by GuestInfoGetOSName which is in
@@ -226,6 +198,7 @@ typedef enum GuestOSFamilyType {
 #define STR_OS_DEBIAN_4            "debian4"
 #define STR_OS_DEBIAN_5            "debian5"
 #define STR_OS_DEBIAN_6            "debian6"
+#define STR_OS_DEBIAN_7            "debian7"
 #define STR_OS_FEDORA              "Fedora"
 #define STR_OS_GENTOO              "Gentoo"
 #define STR_OS_IMMUNIX             "Immunix"
@@ -234,38 +207,42 @@ typedef enum GuestOSFamilyType {
 #define STR_OS_LINUX_FULL         "Other Linux"
 #define STR_OS_LINUX_PPC          "Linux-PPC"
 #define STR_OS_MANDRAKE           "mandrake"
-#define STR_OS_MANDRAKE_FULL      "Mandrake Linux"  
-#define STR_OS_MANDRIVA           "mandriva"   
-#define STR_OS_MKLINUX            "MkLinux"   
-#define STR_OS_NOVELL             "nld9"   
+#define STR_OS_MANDRAKE_FULL      "Mandrake Linux"
+#define STR_OS_MANDRIVA           "mandriva"
+#define STR_OS_MKLINUX            "MkLinux"
+#define STR_OS_NOVELL             "nld9"
 #define STR_OS_NOVELL_FULL        "Novell Linux Desktop 9"
 #define STR_OS_ORACLE             "oraclelinux"
-#define STR_OS_OTHER              "otherlinux"   
-#define STR_OS_OTHER_24           "other24xlinux"   
+#define STR_OS_OTHER              "otherlinux"
+#define STR_OS_OTHER_24           "other24xlinux"
 #define STR_OS_OTHER_24_FULL      "Other Linux 2.4.x kernel"
-#define STR_OS_OTHER_26           "other26xlinux"   
+#define STR_OS_OTHER_26           "other26xlinux"
 #define STR_OS_OTHER_26_FULL      "Other Linux 2.6.x kernel"
-#define STR_OS_OTHER_FULL         "Other Linux"  
-#define STR_OS_PLD                "PLD"   
-#define STR_OS_RED_HAT            "redhat"  
-#define STR_OS_RED_HAT_EN         "rhel"   
-#define STR_OS_RED_HAT_FULL       "Red Hat Linux" 
-#define STR_OS_SLACKWARE          "Slackware"   
-#define STR_OS_SLES               "sles"   
+#define STR_OS_OTHER_3X           "other3xlinux"
+#define STR_OS_OTHER_3X_FULL      "Other Linux 3.x kernel"
+#define STR_OS_OTHER_FULL         "Other Linux"
+#define STR_OS_PLD                "PLD"
+#define STR_OS_RED_HAT            "redhat"
+#define STR_OS_RED_HAT_EN         "rhel"
+#define STR_OS_RED_HAT_FULL       "Red Hat Linux"
+#define STR_OS_SLACKWARE          "Slackware"
+#define STR_OS_SLES               "sles"
 #define STR_OS_SLES_FULL          "SUSE Linux Enterprise Server"
 #define STR_OS_SLES_10            "sles10"
 #define STR_OS_SLES_10_FULL       "SUSE Linux Enterprise Server 10"
 #define STR_OS_SLES_11            "sles11"
 #define STR_OS_SLES_11_FULL       "SUSE Linux Enterprise Server 11"
-#define STR_OS_SUSE               "suse"   
+#define STR_OS_SLES_12            "sles12"
+#define STR_OS_SLES_12_FULL       "SUSE Linux Enterprise Server 12"
+#define STR_OS_SUSE               "suse"
 #define STR_OS_SUSE_FULL          "SUSE Linux"
 #define STR_OS_OPENSUSE           "opensuse"
-#define STR_OS_SMESERVER          "SMEServer"   
-#define STR_OS_SUN_DESK           "sjds"   
+#define STR_OS_SMESERVER          "SMEServer"
+#define STR_OS_SUN_DESK           "sjds"
 #define STR_OS_SUN_DESK_FULL      "Sun Java Desktop System"
-#define STR_OS_TINYSOFA           "Tiny Sofa"  
-#define STR_OS_TURBO              "turbolinux"   
-#define STR_OS_TURBO_FULL         "Turbolinux"   
+#define STR_OS_TINYSOFA           "Tiny Sofa"
+#define STR_OS_TURBO              "turbolinux"
+#define STR_OS_TURBO_FULL         "Turbolinux"
 #define STR_OS_UBUNTU             "ubuntu"
 #define STR_OS_ULTRAPENGUIN       "UltraPenguin"
 #define STR_OS_UNITEDLINUX        "UnitedLinux"
@@ -410,7 +387,6 @@ typedef enum GuestOSFamilyType {
 
 /* Windows Server 2008 R2 (based on Windows 7) */
 
-#define STR_OS_WIN_2008R2     "windows7srv"
 #define STR_OS_WIN_2008R2_X64 "windows7srv-64"
 
 #define STR_OS_WIN_2008R2_FOUNDATION_FULL "Windows Server 2008 R2 Foundation Edition"
@@ -424,7 +400,7 @@ typedef enum GuestOSFamilyType {
 #define STR_OS_WIN_EIGHT               "windows8"
 #define STR_OS_WIN_EIGHT_X64           "windows8-64"
 #define STR_OS_WIN_EIGHT_GENERIC       "Windows 8"
-#define STR_OS_WIN_EIGHTSERVER_GENERIC "Windows 8 Server"
+#define STR_OS_WIN_EIGHTSERVER_GENERIC "Windows Server 2012"
 
 /*
  * XXX - These need to be updated when MS announces official Win 8 names.

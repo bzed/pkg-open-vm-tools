@@ -120,6 +120,7 @@ enum {
    VIX_E_AUTHENTICATION_FAIL                    = 35,
    VIX_E_HOST_CONNECTION_LOST                   = 36,
    VIX_E_DUPLICATE_NAME                         = 41,
+   VIX_E_ARGUMENT_TOO_BIG                       = 44,
 
    /* Handle Errors */
    VIX_E_INVALID_HANDLE                         = 1000,
@@ -382,6 +383,12 @@ enum {
    VIX_E_MNTAPI_OPEN_FAILURE                    = 24321,
    VIX_E_MNTAPI_VOLUME_NOT_WRITABLE             = 24322,
 
+   /* Success on operation that completes asynchronously */
+   VIX_ASYNC                                    = 25000,
+
+   /* Async errors */
+   VIX_E_ASYNC_MIXEDMODE_UNSUPPORTED            = 26000,
+
    /* Network Errors */
    VIX_E_NET_HTTP_UNSUPPORTED_PROTOCOL     = 30001,
    VIX_E_NET_HTTP_URL_MALFORMAT            = 30003,
@@ -440,6 +447,7 @@ enum {
    /* VIX_HANDLETYPE_HOST properties */
    VIX_PROPERTY_HOST_HOSTTYPE                         = 50,
    VIX_PROPERTY_HOST_API_VERSION                      = 51,
+   VIX_PROPERTY_HOST_SOFTWARE_VERSION                 = 52,
 
    /* VIX_HANDLETYPE_VM properties */
    VIX_PROPERTY_VM_NUM_VCPUS                          = 101,

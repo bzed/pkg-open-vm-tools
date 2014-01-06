@@ -65,7 +65,7 @@
 #include <mntent.h>
 #endif
 
-#if !defined(__FreeBSD__) || __FreeBSD_release >= 503001
+#if (!defined(__FreeBSD__) || __FreeBSD_release >= 503001) && !defined __ANDROID__
 #define VM_SYSTEM_HAS_GETPWNAM_R 1
 #define VM_SYSTEM_HAS_GETPWUID_R 1
 #define VM_SYSTEM_HAS_GETGRNAM_R 1
@@ -88,6 +88,17 @@
 static struct passwd *GetpwInternal(struct passwd *pw);
 static int GetpwInternal_r(struct passwd *pw, char *buf, size_t size,
                            struct passwd **ppw);
+
+#if defined __ANDROID__
+/*
+ * Android doesn't support getmntent_r(), getpwent() or setmntent().
+ */
+#define NO_GETMNTENT_R
+#define NO_GETPWENT
+#define NO_SETMNTENT
+
+EXTERN int truncate(const char *, off_t);
+#endif
 
 
 /*
@@ -1414,25 +1425,34 @@ Posix_RealPath(ConstUnicode pathName)  // IN:
 Unicode
 Posix_ReadLink(ConstUnicode pathName)  // IN:
 {
-   char *path;
-   ssize_t bytes;
+   char *path = NULL;
    Unicode result = NULL;
-   char link[PATH_MAX];
 
-   if (!PosixConvertToCurrent(pathName, &path)) {
-      return NULL;
+   if (PosixConvertToCurrent(pathName, &path)) {
+      size_t size = 2 * 1024;
+
+      while (TRUE) {
+         char *linkPath = Util_SafeMalloc(size);
+         ssize_t len = readlink(path, linkPath, size);
+
+         if (len == -1) {
+            free(linkPath);
+            break;
+         }
+
+         if (len < size) {
+            linkPath[len] = '\0'; // Add the missing NUL to path
+            result = Unicode_Alloc(linkPath, STRING_ENCODING_DEFAULT);
+            free(linkPath);
+            break;
+         }
+         free(linkPath);
+
+         size += 1024;
+      }
    }
-
-   bytes = readlink(path, link, sizeof link - 1);
-   ASSERT_NOT_IMPLEMENTED(bytes < (ssize_t) sizeof link);
 
    free(path);
-
-   if (bytes != -1) {
-      /* add the missing NUL character to path */
-      link[bytes] = '\0';
-      result = Unicode_Alloc(link, STRING_ENCODING_DEFAULT);
-   }
 
    return result;
 }
@@ -1911,9 +1931,15 @@ Posix_Unsetenv(ConstUnicode name)  // IN:
 struct passwd *
 Posix_Getpwent(void)
 {
+#if defined NO_GETPWENT
+   NOT_IMPLEMENTED();
+   errno = ENOSYS;
+   return NULL;
+#else
    struct passwd *pw = getpwent();
 
    return GetpwInternal(pw);
+#endif
 }
 
 #if !defined(VM_SYSTEM_HAS_GETPWNAM_R) || \
@@ -2893,6 +2919,11 @@ FILE *
 Posix_Setmntent(ConstUnicode pathName,  // IN:
                 const char *mode)       // IN:
 {
+#if defined NO_SETMNTENT
+   NOT_IMPLEMENTED();
+   errno = ENOSYS;
+   return NULL;
+#else
    char *path;
    FILE *stream;
 
@@ -2901,19 +2932,11 @@ Posix_Setmntent(ConstUnicode pathName,  // IN:
    if (!PosixConvertToCurrent(pathName, &path)) {
       return NULL;
    }
-#if defined __ANDROID__
-   /*
-    * Android doesn't support setmntent().
-    */
-   NOT_TESTED();
-   errno = ENOSYS;
-   return NULL;
-#else
    stream = setmntent(path, mode);
-#endif
    free(path);
 
    return stream;
+#endif
 }
 
 
@@ -3014,11 +3037,8 @@ Posix_Getmntent_r(FILE *fp,          // IN:
                   char *buf,         // IN:
                   int size)          // IN:
 {
-#if defined __ANDROID__
-   /*
-    * Android doesn't support getmntent_r();
-    * using getmntent() will break thread safety.
-    */
+#if defined NO_GETMNTENT_R
+   NOT_IMPLEMENTED();
    errno = ENOSYS;
    return NULL;
 #else

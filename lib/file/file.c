@@ -66,6 +66,7 @@
 #include "hostType.h"
 #include "vm_atomic.h"
 #include "fileLock.h"
+#include "userlock.h"
 
 #include "unicodeOperations.h"
 
@@ -1407,6 +1408,7 @@ File_MoveTree(ConstUnicode srcName,   // IN:
       Msg_Append(MSGID(File.MoveTree.source.notDirectory)
                  "Source path '%s' is not a directory.",
                  UTF8(srcName));
+
       return FALSE;
    }
 
@@ -1414,6 +1416,7 @@ File_MoveTree(ConstUnicode srcName,   // IN:
       ret = TRUE;
    } else {
       struct stat statbuf;
+
       if (-1 == Posix_Stat(dstName, &statbuf)) {
          int err = Err_Errno();
 
@@ -1421,6 +1424,7 @@ File_MoveTree(ConstUnicode srcName,   // IN:
             if (!File_CreateDirectoryHierarchy(dstName, NULL)) {
                Msg_Append(MSGID(File.MoveTree.dst.couldntCreate)
                           "Could not create '%s'.\n\n", UTF8(dstName));
+
                return FALSE;
             }
 
@@ -1429,6 +1433,7 @@ File_MoveTree(ConstUnicode srcName,   // IN:
             Msg_Append(MSGID(File.MoveTree.statFailed)
                        "%d:Failed to stat destination '%s'.\n\n",
                        err, UTF8(dstName));
+
             return FALSE;
          }
       } else {
@@ -1436,9 +1441,11 @@ File_MoveTree(ConstUnicode srcName,   // IN:
             Msg_Append(MSGID(File.MoveTree.dest.notDirectory)
                        "The destination path '%s' is not a directory.\n\n",
                        UTF8(dstName));
+
             return FALSE;
          }
       }
+
 #if !defined(__FreeBSD__) && !defined(sun)
       /*
        * File_GetFreeSpace is not defined for FreeBSD
@@ -1468,6 +1475,7 @@ File_MoveTree(ConstUnicode srcName,   // IN:
 
       if (File_CopyTree(srcName, dstName, overwriteExisting, FALSE)) {
          ret = TRUE;
+
          if (!File_DeleteDirectoryTree(srcName)) {
             Msg_Append(MSGID(File.MoveTree.cleanupFailed)
                        "Forced to copy '%s' into '%s' but unable to remove "
@@ -2132,9 +2140,6 @@ File_ExpandAndCheckDir(const char *dirName)  // IN:
  *
  *      Return a random number in the range of 0 and 2^32-1.
  *
- *      This isn't thread safe but it's more than good enough for the
- *      purposes required of it.
- *
  * Results:
  *      Random number is returned.
  *
@@ -2147,20 +2152,19 @@ File_ExpandAndCheckDir(const char *dirName)  // IN:
 uint32
 FileSimpleRandom(void)
 {
-   static Atomic_Ptr atomic; /* Implicitly initialized to NULL. --mbellon */
-   rqContext *context;
+   static Atomic_Ptr lckStorage;
+   static rqContext *context = NULL;
+   uint32 result;
+   MXUserExclLock *lck = MXUser_CreateSingletonExclLock(&lckStorage,
+                                                        "fileSimpleRandomLock",
+                                                        RANK_LEAF);
 
-   context = Atomic_ReadPtr(&atomic);
+   ASSERT_NOT_IMPLEMENTED(lck != NULL);
+
+   MXUser_AcquireExclLock(lck);
 
    if (UNLIKELY(context == NULL)) {
-      rqContext *newContext;
       uint32 value;
-
-      /*
-       * Threads will hash up this RNG - this isn't officially thread safe
-       * which is just fine - but ensure that different processes have
-       * different answer streams.
-       */
 
 #if defined(_WIN32)
       value = GetCurrentProcessId();
@@ -2168,17 +2172,15 @@ FileSimpleRandom(void)
       value = getpid();
 #endif
 
-      newContext = Random_QuickSeed(value);
-
-      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, (void *) newContext)) {
-         free(newContext);
-      }
-
-      context = Atomic_ReadPtr(&atomic);
+      context = Random_QuickSeed(value);
       ASSERT(context);
    }
 
-   return Random_Quick(context);
+   result = Random_Quick(context);
+
+   MXUser_ReleaseExclLock(lck);
+
+   return result;
 }
 
 
@@ -2260,6 +2262,10 @@ FileRotateByRename(const char *fileName,  // IN: full path to file
    int i;
    int result;
 
+   if (newFileName != NULL) {
+      *newFileName = NULL;
+   }
+
    for (i = n; i >= 0; i--) {
       src = (i == 0) ? (char *) fileName :
                        Str_SafeAsprintf(NULL, "%s-%d%s", baseName, i - 1, ext);
@@ -2284,8 +2290,8 @@ FileRotateByRename(const char *fileName,  // IN: full path to file
          }
       }
 
-      if ((src == fileName) && (newFileName != NULL)) {
-         *newFileName = result == -1 ? NULL : strdup(dst);
+      if ((src == fileName) && (newFileName != NULL) && (result == 0)) {
+         *newFileName = Util_SafeStrdup(dst);
       }
 
       ASSERT(dst != fileName);
@@ -2358,6 +2364,10 @@ FileRotateByRenumber(const char *filePath,       // IN: full path to file
    uint32 *fileNumbers = NULL;
    int result;
 
+   if (newFilePath != NULL) {
+      *newFilePath = NULL;
+   }
+
    fullPathNoExt = File_FullPath(filePathNoExt);
    if (fullPathNoExt == NULL) {
       Log(LGPFX" %s: failed to get full path for '%s'.\n", __FUNCTION__,
@@ -2421,7 +2431,6 @@ FileRotateByRenumber(const char *filePath,       // IN: full path to file
 
    if (newFilePath != NULL) {
       if (result == -1) {
-         *newFilePath = NULL;
          free(tmp);
       } else {
          *newFilePath = tmp;

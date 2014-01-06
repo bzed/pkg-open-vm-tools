@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -27,7 +27,7 @@
 #include <stdarg.h>
 
 /*
- * The bora/lig Log Facility log level model.
+ * The bora/lib Log Facility log level model.
  * This the same as the vmacore/hostd Log Facility.
  *
  * The VMW_LOG_BASE is chosen to ensure that on all platforms commonly
@@ -61,6 +61,10 @@ void LogV(uint32 routing,
           const char *fmt,
           va_list args);
 
+void Log_Level(uint32 routing,
+               const char *fmt,
+               ...) PRINTF_DECL(2, 3);
+
 
 /*
  * Handy wrapper functions.
@@ -70,27 +74,6 @@ void LogV(uint32 routing,
  *
  * TODO: even Log and Warning become wrapper functions around LogV.
  */
-
-static INLINE void PRINTF_DECL(2, 3)
-Log_Level(uint32 routing,
-          const char *fmt,
-          ...)
-{
-   va_list ap;
-
-   va_start(ap, fmt);
-   LogV(routing, fmt, ap);
-   va_end(ap);
-}
-
-
-static INLINE void
-Log_String(uint32 routing,
-           const char *string)
-{
-   Log_Level(routing, "%s", string);
-}
-
 
 static INLINE void PRINTF_DECL(1, 2)
 Log_Panic(const char *fmt,
@@ -189,6 +172,7 @@ typedef struct
 
    int32          stderrMinLevel;       // This level and above to stderr
    int32          logMinLevel;          // This level and above to log
+   int            permissions;          // Permissions for log files
 
    uint32         keepOld;              // Number of old logs to keep
    uint32         throttleThreshold;    // Threshold for throttling
@@ -210,6 +194,8 @@ Bool Log_InitWithFile(const char *fileName,
                       const char *appPrefix);
 
 Bool Log_InitWithConfig(const char *appPrefix);
+
+void Log_UpdateFilePermissions(int permissions);
 
 void Log_UpdateFileControl(Bool append,
                            unsigned keepOld,
@@ -285,8 +271,8 @@ void GuestLog_Log(const char *fmt,
  */
 
 void Log_HexDump(const char *prefix,
-                 const uint8 *data,
-                 int size);
+                 const void *data,
+                 size_t size);
 
 void Log_Time(VmTimeType *time,
               int count,
