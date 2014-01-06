@@ -57,16 +57,16 @@ typedef sem_t NativeSemaphore;
 
 typedef struct
 {
-   MXUserAcquisitionStats  data;
-   Atomic_Ptr              histo;
-} MXUserAcquireStats;
+   MXUserAcquisitionStats  acquisitionStats;
+   Atomic_Ptr              acquisitionHisto;
+} MXUserStats;
 
 struct MXUserSemaphore
 {
    MXUserHeader     header;
    Atomic_uint32    activeUserCount;
    NativeSemaphore  nativeSemaphore;
-   Atomic_Ptr       acquireStatsMem;
+   Atomic_Ptr       statsMem;
 };
 
 
@@ -403,9 +403,9 @@ static void
 MXUserStatsActionSema(MXUserHeader *header)  // IN:
 {
    MXUserSemaphore *sema = (MXUserSemaphore *) header;
-   MXUserAcquireStats *acquireStats = Atomic_ReadPtr(&sema->acquireStatsMem);
+   MXUserStats *stats = (MXUserStats *) Atomic_ReadPtr(&sema->statsMem);
 
-   if (LIKELY(acquireStats != NULL)) {
+   if (stats) {
       Bool isHot;
       Bool doLog;
       double contentionRatio;
@@ -414,20 +414,21 @@ MXUserStatsActionSema(MXUserHeader *header)  // IN:
        * Dump the statistics for the specified semaphore.
        */
 
-      MXUserDumpAcquisitionStats(&acquireStats->data, header);
+      MXUserDumpAcquisitionStats(&stats->acquisitionStats, header);
 
-      if (Atomic_ReadPtr(&acquireStats->histo) != NULL) {
-         MXUserHistoDump(Atomic_ReadPtr(&acquireStats->histo), header);
+      if (Atomic_ReadPtr(&stats->acquisitionHisto) != NULL) {
+         MXUserHistoDump(Atomic_ReadPtr(&stats->acquisitionHisto), header);
       }
 
       /*
        * Has the semaphore gone "hot"? If so, implement the hot actions.
        */
 
-      MXUserKitchen(&acquireStats->data, &contentionRatio, &isHot, &doLog);
+      MXUserKitchen(&stats->acquisitionStats, &contentionRatio, &isHot,
+                    &doLog);
 
       if (isHot) {
-         MXUserForceHisto(&acquireStats->histo,
+         MXUserForceHisto(&stats->acquisitionHisto,
                           MXUSER_STAT_CLASS_ACQUISITION,
                           MXUSER_DEFAULT_HISTO_MIN_VALUE_NS,
                           MXUSER_DEFAULT_HISTO_DECADES);
@@ -510,24 +511,32 @@ MXUser_CreateSemaphore(const char *userName,  // IN:
    }
 
    if (LIKELY(MXUserInit(&sema->nativeSemaphore) == 0)) {
+      Bool doStats;
+      MXUserStats *stats;
+
       sema->header.signature = MXUserGetSignature(MXUSER_TYPE_SEMA);
       sema->header.name = properName;
       sema->header.rank = rank;
       sema->header.serialNumber = MXUserAllocSerialNumber();
       sema->header.dumpFunc = MXUserDumpSemaphore;
 
-      if (MXUserStatsMode() == 0) {
-         sema->header.statsFunc = NULL;
-         Atomic_WritePtr(&sema->acquireStatsMem, NULL);
+      if (vmx86_stats) {
+         doStats = MXUserStatsEnabled();
       } else {
-         MXUserAcquireStats *acquireStats;
+         doStats = FALSE;
+      }
 
-         acquireStats = Util_SafeCalloc(1, sizeof(*acquireStats));
-
-         MXUserAcquisitionStatsSetUp(&acquireStats->data);
-
+      if (doStats) {
          sema->header.statsFunc = MXUserStatsActionSema;
-         Atomic_WritePtr(&sema->acquireStatsMem, acquireStats);
+
+         stats = Util_SafeCalloc(1, sizeof(*stats));
+
+         MXUserAcquisitionStatsSetUp(&stats->acquisitionStats);
+
+         Atomic_WritePtr(&sema->statsMem, stats);
+      } else {
+         sema->header.statsFunc = NULL;
+         Atomic_WritePtr(&sema->statsMem, NULL);
       }
 
       MXUserAddToList(&sema->header);
@@ -583,15 +592,13 @@ MXUser_DestroySemaphore(MXUserSemaphore *sema)  // IN:
       MXUserRemoveFromList(&sema->header);
 
       if (vmx86_stats) {
-         MXUserAcquireStats *acquireStats;
+         MXUserStats *stats = Atomic_ReadPtr(&sema->statsMem);
 
-         acquireStats = Atomic_ReadPtr(&sema->acquireStatsMem);
+         if (LIKELY(stats != NULL)) {
+            MXUserAcquisitionStatsTearDown(&stats->acquisitionStats);
+            MXUserHistoTearDown(Atomic_ReadPtr(&stats->acquisitionHisto));
 
-         if (LIKELY(acquireStats != NULL)) {
-            MXUserAcquisitionStatsTearDown(&acquireStats->data);
-            MXUserHistoTearDown(Atomic_ReadPtr(&acquireStats->histo));
-
-            free(acquireStats);
+            free(stats);
          }
       }
 
@@ -635,11 +642,9 @@ MXUser_DownSemaphore(MXUserSemaphore *sema)  // IN/OUT:
    if (vmx86_stats) {
       VmTimeType start = 0;
       Bool tryDownSuccess = FALSE;
-      MXUserAcquireStats *acquireStats;
+      MXUserStats *stats = Atomic_ReadPtr(&sema->statsMem);
 
-      acquireStats = Atomic_ReadPtr(&sema->acquireStatsMem);
-
-      if (LIKELY(acquireStats != NULL)) {
+      if (LIKELY(stats != NULL)) {
          start = Hostinfo_SystemTimerNS();
       }
 
@@ -651,14 +656,14 @@ MXUser_DownSemaphore(MXUserSemaphore *sema)  // IN/OUT:
          }
       }
 
-      if (LIKELY((err == 0) && (acquireStats != NULL))) {
+      if (LIKELY((err == 0) && (stats != NULL))) {
          MXUserHisto *histo;
          VmTimeType value = Hostinfo_SystemTimerNS() - start;
 
-         MXUserAcquisitionSample(&acquireStats->data, TRUE,
+         MXUserAcquisitionSample(&stats->acquisitionStats, TRUE,
                                  !tryDownSuccess, value);
 
-         histo = Atomic_ReadPtr(&acquireStats->histo);
+         histo = Atomic_ReadPtr(&stats->acquisitionHisto);
 
          if (UNLIKELY(histo != NULL)) {
             MXUserHistoSample(histo, value, GetReturnAddress());
@@ -715,11 +720,9 @@ MXUser_TimedDownSemaphore(MXUserSemaphore *sema,  // IN/OUT:
    if (vmx86_stats) {
       VmTimeType start = 0;
       Bool tryDownSuccess = FALSE;
-      MXUserAcquireStats *acquireStats;
+      MXUserStats *stats = Atomic_ReadPtr(&sema->statsMem);
 
-      acquireStats = Atomic_ReadPtr(&sema->acquireStatsMem);
-
-      if (LIKELY(acquireStats != NULL)) {
+      if (LIKELY(stats != NULL)) { 
          start = Hostinfo_SystemTimerNS();
       }
 
@@ -734,14 +737,14 @@ MXUser_TimedDownSemaphore(MXUserSemaphore *sema,  // IN/OUT:
          }
       }
 
-      if (LIKELY((err == 0) && (acquireStats != NULL))) {
+      if (LIKELY((err == 0) && (stats != NULL))) {
          VmTimeType value = Hostinfo_SystemTimerNS() - start;
 
-         MXUserAcquisitionSample(&acquireStats->data, downOccurred,
+         MXUserAcquisitionSample(&stats->acquisitionStats, downOccurred,
                                  !tryDownSuccess, value);
 
          if (downOccurred) {
-            MXUserHisto *histo = Atomic_ReadPtr(&acquireStats->histo);
+            MXUserHisto *histo = Atomic_ReadPtr(&stats->acquisitionHisto);
 
             if (UNLIKELY(histo != NULL)) {
                MXUserHistoSample(histo, value, GetReturnAddress());
@@ -806,12 +809,10 @@ MXUser_TryDownSemaphore(MXUserSemaphore *sema)  // IN/OUT:
    }
 
    if (vmx86_stats) {
-      MXUserAcquireStats *acquireStats;
+      MXUserStats *stats = Atomic_ReadPtr(&sema->statsMem);
 
-      acquireStats = Atomic_ReadPtr(&sema->acquireStatsMem);
-
-      if (LIKELY(acquireStats != NULL)) {
-         MXUserAcquisitionSample(&acquireStats->data, downOccurred,
+      if (LIKELY(stats != NULL)) {
+         MXUserAcquisitionSample(&stats->acquisitionStats, downOccurred,
                                  !downOccurred, 0ULL);
       }
    }

@@ -36,15 +36,6 @@
  */
 
 /*
- * workerLib default completion lock
- *
- * Used for workerLib callers who don't provide their own lock. Held
- * around arbitrary completion callbacks so it probably makes sense to
- * be of a low rank.
- */
-#define RANK_workerLibCmplLock      RANK_libLockBase
-
-/*
  * hostDeviceInfo HAL lock
  *
  * Must be < vmhs locks since this is held around the RANK_vmhsHDILock
@@ -146,7 +137,6 @@
  *    licenseCheck < preference
  */
 
-#define RANK_vigorConnLock           (RANK_libLockBase + 0x7010)
 #define RANK_getSafeTmpDirLock       (RANK_libLockBase + 0x7020)
 #define RANK_batteryLock             (RANK_libLockBase + 0x7030)
 #define RANK_buttonLock              (RANK_libLockBase + 0x7040)

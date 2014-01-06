@@ -33,6 +33,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <sys/timeb.h>
 #include <pwd.h>
 #include <pthread.h>
 #include <sys/resource.h>
@@ -43,15 +44,7 @@
 #if defined(__FreeBSD__) || defined(__APPLE__)
 # include <sys/sysctl.h>
 #endif
-#if !defined(__APPLE__)
-#define TARGET_OS_IPHONE 0
-#endif
 #if defined(__APPLE__)
-#include <assert.h>
-#include <TargetConditionals.h>
-#if !TARGET_OS_IPHONE
-#include <CoreServices/CoreServices.h>
-#endif
 #include <mach-o/dyld.h>
 #include <mach/mach_host.h>
 #include <mach/mach_init.h>
@@ -74,8 +67,10 @@
 #if !defined(USING_AUTOCONF) || defined(HAVE_SYS_VFS_H)
 #include <sys/vfs.h>
 #endif
-#if !defined(sun) && !defined __ANDROID__ && (!defined(USING_AUTOCONF) || (defined(HAVE_SYS_IO_H) && defined(HAVE_SYS_SYSINFO_H)))
-#include <sys/io.h>
+#if !defined(sun) && (!defined(USING_AUTOCONF) || (defined(HAVE_SYS_IO_H) && defined(HAVE_SYS_SYSINFO_H)))
+# ifndef __ANDROID__
+# include <sys/io.h>
+# endif
 #include <sys/sysinfo.h>
 #ifndef HAVE_SYSINFO
 #define HAVE_SYSINFO 1
@@ -209,14 +204,6 @@ static const DistroInfo distroArray[] = {
    {"Yellow Dog",         "/etc/yellowdog-release"},
    {NULL, NULL},
 };
-
-#if defined __ANDROID__
-/*
- * Android doesn't support getloadavg() or iopl().
- */
-#define NO_GETLOADAVG
-#define NO_IOPL
-#endif
 
 
 /*
@@ -1431,7 +1418,7 @@ HostinfoGetLoadAverage(float *avg0,  // IN/OUT:
                        float *avg1,  // IN/OUT:
                        float *avg2)  // IN/OUT:
 {
-#if !defined(NO_GETLOADAVG) && (defined(__linux__) && !defined(__UCLIBC__)) || defined(__APPLE__)
+#if (defined(__linux__) && !defined(__UCLIBC__)) || defined(__APPLE__)
    double avg[3];
    int res;
 
@@ -1619,8 +1606,9 @@ HostinfoSystemTimerMach(VmTimeType *result)  // OUT
 #  define vmx86_apple 1
 
    typedef struct {
-      double  scalingFactor;
-      Bool    unity;
+      mach_timebase_info_data_t timeBase;
+      double                    scalingFactor;
+      Bool                      unity;
    } timerData;
 
    VmTimeType raw;
@@ -1636,18 +1624,17 @@ HostinfoSystemTimerMach(VmTimeType *result)  // OUT
    ptr = Atomic_ReadPtr(&atomic);
 
    if (UNLIKELY(ptr == NULL)) {
-      mach_timebase_info_data_t timeBase;
-      timerData *try = Util_SafeMalloc(sizeof *try);
+      timerData *new = Util_SafeMalloc(sizeof *new);
 
-      mach_timebase_info(&timeBase);
+      mach_timebase_info(&new->timeBase);
 
-      try->scalingFactor = ((double) timeBase.numer) /
-                           ((double) timeBase.denom);
+      new->scalingFactor = ((double) new->timeBase.numer) /
+                           ((double) new->timeBase.denom);
 
-      try->unity = ((timeBase.numer == 1) && (timeBase.denom == 1));
+      new->unity = ((new->timeBase.numer == 1) && (new->timeBase.denom == 1));
 
-      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, try)) {
-         free(try);
+      if (Atomic_ReadIfEqualWritePtr(&atomic, NULL, new)) {
+         free(new);
       }
 
       ptr = Atomic_ReadPtr(&atomic);
@@ -1894,12 +1881,7 @@ Hostinfo_ResetProcessState(const int *keepFds, // IN:
          privileges --hpreg */
       ASSERT(euid != 0 || getuid() == 0);
       Id_SetEUid(0);
-#if defined NO_IOPL
-      NOT_IMPLEMENTED();
-      errno = ENOSYS;
-#else
       err = iopl(0);
-#endif
       Id_SetEUid(euid);
       ASSERT_NOT_IMPLEMENTED(err == 0);
    }

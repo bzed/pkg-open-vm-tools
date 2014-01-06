@@ -785,7 +785,7 @@ FileLockScanDirectory(ConstUnicode lockDir,     // IN:
          /* Remove any stale locking files */
          if (FileLockMachineIDMatch(myValues->machineID,
                                     memberValues.machineID)) {
-            Unicode dispose = NULL;
+            char *dispose = NULL;
 
             if (FileLockValidExecutionID(memberValues.executionID)) {
                /* If it's mine it better still be where I put it! */
@@ -793,18 +793,16 @@ FileLockScanDirectory(ConstUnicode lockDir,     // IN:
                    ((memberValues.locationChecksum != NULL) &&
                     (strcmp(memberValues.locationChecksum,
                             locationChecksum) != 0))) {
-                  dispose = Unicode_Duplicate("lock file has been moved.");
+                  dispose = "lock file has been moved.";
                }
             } else {
-               dispose = Str_SafeAsprintf(NULL, "invalid executionID %s.",
-                                          memberValues.executionID);
+               dispose = "invalid executionID.";
             }
 
             if (dispose) {
                Log(LGPFX" %s discarding %s from %s': %s\n",
                    __FUNCTION__, UTF8(fileList[i]), UTF8(lockDir), dispose);
 
-               Unicode_Free(dispose);
                Unicode_Free(memberValues.memberName);
 
                err = FileLockRemoveLockingFile(lockDir, fileList[i]);

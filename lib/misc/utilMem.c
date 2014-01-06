@@ -31,43 +31,10 @@
 
 #include "vm_assert.h"
 
-#ifdef __APPLE__
-#include <TargetConditionals.h>
-#if !defined TARGET_OS_IPHONE
-#define TARGET_OS_IPHONE 0
-#endif
-#endif
-
-static NORETURN void UtilAllocationFailure0(void);
-static NORETURN void UtilAllocationFailure1(int bugNumber, 
-                                            const char *file, int lineno);
-
-
-static void
-UtilAllocationFailure0(void)
-{
-   Panic("Unrecoverable memory allocation failure\n");
-}
-
-
-static void
-UtilAllocationFailure1(int bugNumber, const char *file, int lineno)
-{
-   if (bugNumber == -1) {
-      Panic("Unrecoverable memory allocation failure at %s:%d\n",
-            file, lineno);
-   } else {
-      Panic("Unrecoverable memory allocation failure at %s:%d.  Bug "
-            "number: %d\n", file, lineno, bugNumber);
-   }
-}
-
-
 /*
  *-----------------------------------------------------------------------------
  *
- * UtilSafeMalloc0 --
- * UtilSafeMalloc1 --
+ * Util_SafeInternalMalloc --
  *      Helper function for malloc
  *
  * Results:
@@ -80,25 +47,21 @@ UtilAllocationFailure1(int bugNumber, const char *file, int lineno)
  */
 
 void *
-UtilSafeMalloc0(size_t size)            // IN:
+Util_SafeInternalMalloc(int bugNumber,        // IN:
+                        size_t size,          // IN:
+			const char *file,     // IN:
+                        int lineno)           // IN:
 {
    void *result = malloc(size);
-   if (result == NULL && size != 0) {
-      UtilAllocationFailure0();
-   }
-   return result;
-}
 
-
-void *
-UtilSafeMalloc1(size_t size,            // IN:
-                int bugNumber,          // IN:
-                const char *file,       // IN:
-                int lineno)             // IN:
-{
-   void *result = malloc(size);
    if (result == NULL && size != 0) {
-      UtilAllocationFailure1(bugNumber, file, lineno);
+      if (bugNumber == -1) {
+         Panic("Unrecoverable memory allocation failure at %s:%d\n",
+               file, lineno);
+      } else {
+         Panic("Unrecoverable memory allocation failure at %s:%d.  Bug "
+               "number: %d\n", file, lineno, bugNumber);
+      }
    }
    return result;
 }
@@ -107,8 +70,7 @@ UtilSafeMalloc1(size_t size,            // IN:
 /*
  *-----------------------------------------------------------------------------
  *
- * UtilSafeRealloc0 --
- * UtilSafeRealloc1 --
+ * Util_SafeInternalRealloc --
  *      Helper function for realloc
  *
  * Results:
@@ -121,27 +83,22 @@ UtilSafeMalloc1(size_t size,            // IN:
  */
 
 void *
-UtilSafeRealloc0(void *ptr,            // IN:
-                 size_t size)          // IN:
+Util_SafeInternalRealloc(int bugNumber,        // IN:
+                         void *ptr,            // IN:
+                         size_t size,          // IN:
+                         const char *file,     // IN:
+                         int lineno)           // IN:
 {
    void *result = realloc(ptr, size);
-   if (result == NULL && size != 0) {
-      UtilAllocationFailure0();
-   }
-   return result;
-}
 
-
-void *
-UtilSafeRealloc1(void *ptr,            // IN:
-                 size_t size,          // IN:
-                 int bugNumber,        // IN:
-                 const char *file,     // IN:
-                 int lineno)           // IN:
-{
-   void *result = realloc(ptr, size);
    if (result == NULL && size != 0) {
-      UtilAllocationFailure1(bugNumber, file, lineno);
+      if (bugNumber == -1) {
+         Panic("Unrecoverable memory allocation failure at %s:%d\n",
+               file, lineno);
+      } else {
+         Panic("Unrecoverable memory allocation failure at %s:%d.  Bug "
+               "number: %d\n", file, lineno, bugNumber);
+      }
    }
    return result;
 }
@@ -150,8 +107,7 @@ UtilSafeRealloc1(void *ptr,            // IN:
 /*
  *-----------------------------------------------------------------------------
  *
- * UtilSafeCalloc0 --
- * UtilSafeCalloc1 --
+ * Util_SafeInternalCalloc --
  *      Helper function for calloc
  *
  * Results:
@@ -164,27 +120,22 @@ UtilSafeRealloc1(void *ptr,            // IN:
  */
 
 void *
-UtilSafeCalloc0(size_t nmemb,         // IN:
-                size_t size)          // IN:
+Util_SafeInternalCalloc(int bugNumber,        // IN:
+                        size_t nmemb,         // IN:
+                        size_t size,          // IN:
+			const char *file,     // IN:
+                        int lineno)           // IN:
 {
    void *result = calloc(nmemb, size);
-   if (result == NULL && nmemb != 0 && size != 0) {
-      UtilAllocationFailure0();
-   }
-   return result;
-}
 
-
-void *
-UtilSafeCalloc1(size_t nmemb,         // IN:
-                size_t size,          // IN:
-                int bugNumber,        // IN:
-                const char *file,     // IN:
-                int lineno)           // IN:
-{
-   void *result = calloc(nmemb, size);
    if (result == NULL && nmemb != 0 && size != 0) {
-      UtilAllocationFailure1(bugNumber, file, lineno);
+      if (bugNumber == -1) {
+         Panic("Unrecoverable memory allocation failure at %s:%d\n",
+               file, lineno);
+      } else {
+         Panic("Unrecoverable memory allocation failure at %s:%d.  Bug "
+               "number: %d\n", file, lineno, bugNumber);
+      }
    }
    return result;
 }
@@ -193,7 +144,7 @@ UtilSafeCalloc1(size_t nmemb,         // IN:
 /*
  *-----------------------------------------------------------------------------
  *
- * Util_SafeStrdup --
+ * Util_SafeInternalStrdup --
  *      Helper function for strdup
  *
  * Results:
@@ -206,40 +157,31 @@ UtilSafeCalloc1(size_t nmemb,         // IN:
  */
 
 char *
-UtilSafeStrdup0(const char *s)        // IN:
+Util_SafeInternalStrdup(int bugNumber,        // IN:
+                        const char *s,        // IN:
+                        const char *file,     // IN:
+                        int lineno)           // IN:
 {
    char *result;
+
    if (s == NULL) {
       return NULL;
    }
+
 #if defined(_WIN32)
    if ((result = _strdup(s)) == NULL) {
 #else
    if ((result = strdup(s)) == NULL) {
 #endif
-      UtilAllocationFailure0();
+      if (bugNumber == -1) {
+         Panic("Unrecoverable memory allocation failure at %s:%d\n",
+               file, lineno);
+      } else {
+         Panic("Unrecoverable memory allocation failure at %s:%d.  Bug "
+               "number: %d\n", file, lineno, bugNumber);
+      }
    }
-   return result;
-}
 
-
-char *
-UtilSafeStrdup1(const char *s,        // IN:
-                int bugNumber,        // IN:
-                const char *file,     // IN:
-                int lineno)           // IN:
-{
-   char *result;
-   if (s == NULL) {
-      return NULL;
-   }
-#if defined(_WIN32)
-   if ((result = _strdup(s)) == NULL) {
-#else
-   if ((result = strdup(s)) == NULL) {
-#endif
-      UtilAllocationFailure1(bugNumber, file, lineno);
-   }
    return result;
 }
 
@@ -247,7 +189,7 @@ UtilSafeStrdup1(const char *s,        // IN:
 /*
  *-----------------------------------------------------------------------------
  *
- * Util_SafeStrndup --
+ * UtilSafeStrndupInternal --
  *
  *      Returns a string consisting of first n characters of 's' if 's' has
  *      length >= 'n', otherwise returns a string duplicate of 's'.
@@ -262,59 +204,44 @@ UtilSafeStrdup1(const char *s,        // IN:
  */
 
 char *
-UtilSafeStrndup0(const char *s,        // IN:
-                 size_t n)             // IN:
+Util_SafeInternalStrndup(int bugNumber,        // IN:
+                         const char *s,        // IN:
+                         size_t n,             // IN:
+                         const char *file,     // IN:
+                         int lineno)           // IN:
 {
    size_t size;
    char *copy;
    const char *null;
+   size_t newSize;
 
    if (s == NULL) {
       return NULL;
    }
 
-   null = (char *) memchr(s, '\0', n);
-   size = null ? null - s : n;
-   copy = (char *) malloc(size + 1);
+   null = memchr(s, '\0', n);
+   size = null ? null - s: n;
+   newSize = size + 1;
+   if (newSize < size) {  // Prevent integer overflow
+      copy = NULL;
+   } else {
+      copy = malloc(newSize);
+   }
 
    if (copy == NULL) {
-      UtilAllocationFailure0();
+      if (bugNumber == -1) {
+         Panic("Unrecoverable memory allocation failure at %s:%d\n",
+               file, lineno);
+      } else {
+         Panic("Unrecoverable memory allocation failure at %s:%d.  Bug "
+               "number: %d\n", file, lineno, bugNumber);
+      }
    }
 
    copy[size] = '\0';
 
    return (char *) memcpy(copy, s, size);
 }
-
-
-char *
-UtilSafeStrndup1(const char *s,        // IN:
-                 size_t n,             // IN:
-                 int bugNumber,        // IN:
-                 const char *file,     // IN:
-                 int lineno)           // IN:
-{
-   size_t size;
-   char *copy;
-   const char *null;
-
-   if (s == NULL) {
-      return NULL;
-   }
-
-   null = (char *) memchr(s, '\0', n);
-   size = null ? null - s : n;
-   copy = (char *) malloc(size + 1);
-
-   if (copy == NULL) {
-      UtilAllocationFailure1(bugNumber, file, lineno);
-   }
-
-   copy[size] = '\0';
-
-   return (char *) memcpy(copy, s, size);
-}
-
 
 void *
 Util_Memcpy(void *dest,

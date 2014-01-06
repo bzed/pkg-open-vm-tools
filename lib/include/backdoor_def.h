@@ -142,7 +142,6 @@
 #  define BDOOR_CMD_FAS_GET_PLATFORM_NAME     2
 #  define BDOOR_CMD_FAS_GET_PCIE_OSC_MASK     3
 #  define BDOOR_CMD_FAS_GET_APIC_ROUTING      4
-#  define BDOOR_CMD_FAS_GET_TABLE_SKIP        5
 #  define BDOOR_CMD_FAS_GET_SLEEP_ENABLES     6
 #define   BDOOR_CMD_SENDPSHAREHINTS          66
 #define   BDOOR_CMD_ENABLE_USB_MOUSE         67
@@ -162,10 +161,7 @@
 #  define BDOOR_CMD_EBC_GET_ORDER             1
 #define   BDOOR_CMD_GET_HW_MODEL             74 /* CPL 0 only. */
 #define   BDOOR_CMD_GET_SVGA_CAPABILITIES    75 /* CPL 0 only. */
-#define	  BDOOR_CMD_GET_FORCE_X2APIC         76 /* CPL 0 only  */
-#define   BDOOR_CMD_SET_PCI_HOLE             77 /* CPL 0 only  */
-#define   BDOOR_CMD_GET_PCI_HOLE             78 /* CPL 0 only  */
-#define   BDOOR_CMD_MAX                      79
+#define   BDOOR_CMD_MAX                      76
 
 
 /* 

@@ -39,10 +39,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="2012.05.21"
+TOOLS_VERSION="9.2.2"
 AC_INIT(
    [open-vm-tools],
-   [2012.05.21],
+   [9.2.2],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -942,8 +942,11 @@ if test "$os" = "linux"; then
 
    LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -lrt"
 
-   MODULES="$MODULES vmsync vmci vsock"
+   MODULES="$MODULES vmci vsock"
    MODULES="$MODULES vmxnet vmblock vmhgfs"
+   if test "$osVersion" -lt 300000; then
+      MODULES="$MODULES vmsync"
+   fi
    buildHgfsmounter=yes
 fi
 

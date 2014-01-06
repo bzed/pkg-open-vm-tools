@@ -74,7 +74,6 @@
  *	INCLUDE_ALLOW_VMK_MODULE
  *      INCLUDE_ALLOW_VMKDRIVERS
  *      INCLUDE_ALLOW_VMIROM
- *      INCLUDE_ALLOW_MKS
  *
  * Then include this file.
  *
@@ -115,14 +114,13 @@
 #undef INCLUDE_ALLOW_VMCORE
 
 #if defined VMX86_VMX && !defined VMCORE && \
-    !defined INCLUDE_ALLOW_VMX && !defined INCLUDE_ALLOW_USERLEVEL && \
-    !defined INCLUDE_ALLOW_MKS
+    !(defined INCLUDE_ALLOW_VMX || defined INCLUDE_ALLOW_USERLEVEL)
 #error "The surrounding include file is not allowed in the VMX."
 #endif
 #undef INCLUDE_ALLOW_VMX
 
 #if defined USERLEVEL && !defined VMX86_VMX && !defined VMCORE && \
-    !defined INCLUDE_ALLOW_USERLEVEL && !defined INCLUDE_ALLOW_MKS
+    !defined INCLUDE_ALLOW_USERLEVEL
 #error "The surrounding include file is not allowed at userlevel."
 #endif
 #undef INCLUDE_ALLOW_USERLEVEL
@@ -159,10 +157,3 @@
 #error "The surrounding include file is not allowed in vmirom."
 #endif
 #undef INCLUDE_ALLOW_VMIROM
-
-#if defined INCLUDE_ALLOW_MKS && \
-    !(defined LOCALMKS  || defined REMOTEMKS || \
-      defined SERVERMKS || defined CLIENTMKS)
-#error "The surrounding include file is not allowed outside of the MKS."
-#endif
-#undef INCLUDE_ALLOW_MKS

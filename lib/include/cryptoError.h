@@ -57,10 +57,10 @@ typedef int CryptoError;
 #define CRYPTO_ERROR_NO_CRYPTO          ((CryptoError) 11)
 #define CRYPTO_ERROR_LOCK_FAILURE       ((CryptoError) 12)
 
-const char *
+EXTERN const char *
 CryptoError_ToString(CryptoError error);
 
-const char *
+EXTERN const char *
 CryptoError_ToMsgString(CryptoError error);
 
 

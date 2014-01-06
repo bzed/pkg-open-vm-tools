@@ -145,9 +145,6 @@ Max(int a, int b)
 }
 #endif
 
-#define VMW_CLAMP(x, min, max) \
-   ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
-
 #define ROUNDUP(x,y)		(((x) + (y) - 1) / (y) * (y))
 #define ROUNDDOWN(x,y)		((x) / (y) * (y))
 #define ROUNDUPBITS(x, bits)	(((uintptr_t) (x) + MASK(bits)) & ~MASK(bits))
@@ -274,6 +271,14 @@ Max(int a, int b)
 
 #ifndef PAGES_2_MBYTES
 #define PAGES_2_MBYTES(_npages) ((_npages) >> (20 - PAGE_SHIFT))
+#endif
+
+#ifndef GBYTES_2_PAGES
+#define GBYTES_2_PAGES(_nbytes) ((_nbytes) << (30 - PAGE_SHIFT))
+#endif
+
+#ifndef PAGES_2_GBYTES
+#define PAGES_2_GBYTES(_npages) ((_npages) >> (30 - PAGE_SHIFT))
 #endif
 
 #ifndef BYTES_2_MBYTES
@@ -425,8 +430,6 @@ GetCallerFrameAddr(void)
 /* We do not have YIELD() as we do not need it yet... */
 #elif defined(_WIN32)
 #      define YIELD()		Sleep(0)
-#elif defined(VMKERNEL)
-/* We don't have a YIELD macro in the vmkernel */
 #else
 #      include <sched.h>        // For sched_yield.  Don't ask.  --Jeremy.
 #      define YIELD()		sched_yield()

@@ -26,23 +26,19 @@
 
 typedef struct
 {
-   MXUserAcquisitionStats  data;
-   Atomic_Ptr              histo;
-} MXUserAcquireStats;
+   MXUserAcquisitionStats  acquisitionStats;
+   Atomic_Ptr              acquisitionHisto;
 
-typedef struct
-{
-   VmTimeType        holdStart;
-   MXUserBasicStats  data;
-   Atomic_Ptr        histo;
-} MXUserHeldStats;
+   uint64                  holdStart;
+   MXUserBasicStats        heldStats;
+   Atomic_Ptr              heldHisto;
+} MXUserStats;
 
 struct MXUserRecLock
 {
    MXUserHeader         header;
    MXRecLock            recursiveLock;
-   Atomic_Ptr           heldStatsMem;
-   Atomic_Ptr           acquireStatsMem;
+   Atomic_Ptr           statsMem;
    Atomic_uint32        refCount;
 
    /*
@@ -80,18 +76,9 @@ static void
 MXUserStatsActionRec(MXUserHeader *header)  // IN:
 {
    MXUserRecLock *lock = (MXUserRecLock *) header;
-   MXUserHeldStats *heldStats = Atomic_ReadPtr(&lock->heldStatsMem);
-   MXUserAcquireStats *acquireStats = Atomic_ReadPtr(&lock->acquireStatsMem);
+   MXUserStats *stats = Atomic_ReadPtr(&lock->statsMem);
 
-   if (UNLIKELY(heldStats != NULL)) {
-      MXUserDumpBasicStats(&heldStats->data, header);
-
-      if (Atomic_ReadPtr(&heldStats->histo) != NULL) {
-         MXUserHistoDump(Atomic_ReadPtr(&heldStats->histo), header);
-      }
-   }
-
-   if (LIKELY(acquireStats != NULL)) {
+   if (stats) {
       Bool isHot;
       Bool doLog;
       double contentionRatio;
@@ -100,30 +87,34 @@ MXUserStatsActionRec(MXUserHeader *header)  // IN:
        * Dump the statistics for the specified lock.
        */
 
-      MXUserDumpAcquisitionStats(&acquireStats->data, header);
+      MXUserDumpAcquisitionStats(&stats->acquisitionStats, header);
 
-      if (Atomic_ReadPtr(&acquireStats->histo) != NULL) {
-         MXUserHistoDump(Atomic_ReadPtr(&acquireStats->histo), header);
+      if (Atomic_ReadPtr(&stats->acquisitionHisto) != NULL) {
+         MXUserHistoDump(Atomic_ReadPtr(&stats->acquisitionHisto), header);
+      }
+
+      MXUserDumpBasicStats(&stats->heldStats, header);
+
+      if (Atomic_ReadPtr(&stats->heldHisto) != NULL) {
+         MXUserHistoDump(Atomic_ReadPtr(&stats->heldHisto), header);
       }
 
       /*
        * Has the lock gone "hot"? If so, implement the hot actions.
        */
 
-      MXUserKitchen(&acquireStats->data, &contentionRatio, &isHot, &doLog);
+      MXUserKitchen(&stats->acquisitionStats, &contentionRatio, &isHot,
+                    &doLog);
 
-      if (UNLIKELY(isHot)) {
-         MXUserForceHisto(&acquireStats->histo,
+      if (isHot) {
+         MXUserForceHisto(&stats->acquisitionHisto,
                           MXUSER_STAT_CLASS_ACQUISITION,
                           MXUSER_DEFAULT_HISTO_MIN_VALUE_NS,
                           MXUSER_DEFAULT_HISTO_DECADES);
-
-         if (UNLIKELY(heldStats != NULL)) {
-            MXUserForceHisto(&heldStats->histo,
-                             MXUSER_STAT_CLASS_HELD,
-                             MXUSER_DEFAULT_HISTO_MIN_VALUE_NS,
-                             MXUSER_DEFAULT_HISTO_DECADES);
-         }
+         MXUserForceHisto(&stats->heldHisto,
+                          MXUSER_STAT_CLASS_HELD,
+                          MXUSER_DEFAULT_HISTO_MIN_VALUE_NS,
+                          MXUSER_DEFAULT_HISTO_DECADES);
 
          if (doLog) {
             Log("HOT LOCK (%s); contention ratio %f\n",
@@ -166,11 +157,9 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
    switch (command) {
    case MXUSER_CONTROL_ACQUISITION_HISTO: {
       if (vmx86_stats) {
-         MXUserAcquireStats *acquireStats;
+         MXUserStats *stats = Atomic_ReadPtr(&lock->statsMem);
 
-         acquireStats = Atomic_ReadPtr(&lock->acquireStatsMem);
-
-         if ((acquireStats != NULL) && (lock->vmmLock == NULL)) {
+         if ((stats != NULL) && (lock->vmmLock == NULL)) {
             va_list a;
             uint32 decades;
             uint64 minValue;
@@ -180,7 +169,7 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
             decades = va_arg(a, uint32);
             va_end(a);
 
-            MXUserForceHisto(&acquireStats->histo,
+            MXUserForceHisto(&stats->acquisitionHisto,
                              MXUSER_STAT_CLASS_ACQUISITION, minValue, decades);
 
             result = TRUE;
@@ -196,9 +185,9 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
 
    case MXUSER_CONTROL_HELD_HISTO: {
       if (vmx86_stats) {
-         MXUserHeldStats *heldStats = Atomic_ReadPtr(&lock->heldStatsMem);
+         MXUserStats *stats = Atomic_ReadPtr(&lock->statsMem);
 
-         if ((heldStats != NULL) && (lock->vmmLock == NULL)) {
+         if ((stats != NULL) && (lock->vmmLock == NULL)) {
             va_list a;
             uint32 decades;
             uint32 minValue;
@@ -208,7 +197,7 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
             decades = va_arg(a, uint32);
             va_end(a);
 
-            MXUserForceHisto(&heldStats->histo, MXUSER_STAT_CLASS_HELD,
+            MXUserForceHisto(&stats->heldHisto, MXUSER_STAT_CLASS_HELD,
                              minValue, decades);
 
             result = TRUE;
@@ -219,50 +208,24 @@ MXUser_ControlRecLock(MXUserRecLock *lock,  // IN/OUT:
          result = FALSE;
       }
 
-      break;
+      break; 
    }
 
    case MXUSER_CONTROL_ENABLE_STATS: {
       if (vmx86_stats) {
-         va_list a;
-         Bool trackHeldTimes;
-         MXUserHeldStats *heldStats;
-         MXUserAcquireStats *acquireStats;
+         MXUserStats *stats;
+         MXUserStats *before;
 
-         acquireStats = Atomic_ReadPtr(&lock->acquireStatsMem);
+         stats = Util_SafeCalloc(1, sizeof(*stats));
 
-         if (LIKELY(acquireStats == NULL)) {
-            MXUserAcquireStats *before;
+         MXUserAcquisitionStatsSetUp(&stats->acquisitionStats);
+         MXUserBasicStatsSetUp(&stats->heldStats, MXUSER_STAT_CLASS_HELD);
 
-            acquireStats = Util_SafeCalloc(1, sizeof(*acquireStats));
-            MXUserAcquisitionStatsSetUp(&acquireStats->data);
+         before = Atomic_ReadIfEqualWritePtr(&lock->statsMem, NULL,
+                                             (void *) stats);
 
-            before = Atomic_ReadIfEqualWritePtr(&lock->acquireStatsMem, NULL,
-                                                (void *) acquireStats);
-
-            if (before) {
-               free(acquireStats);
-            }
-         }
-
-         va_start(a, command);
-         trackHeldTimes = va_arg(a, int);
-         va_end(a);
-
-         heldStats = Atomic_ReadPtr(&lock->heldStatsMem);
-
-         if ((heldStats == NULL) && trackHeldTimes) {
-            MXUserHeldStats *before;
-
-            heldStats = Util_SafeCalloc(1, sizeof(*heldStats));
-            MXUserBasicStatsSetUp(&heldStats->data, MXUSER_STAT_CLASS_HELD);
-
-            before = Atomic_ReadIfEqualWritePtr(&lock->heldStatsMem, NULL,
-                                                (void *) heldStats);
-
-            if (before) {
-               free(heldStats);
-            }
+         if (before) {
+            free(stats);
          }
 
          lock->header.statsFunc = MXUserStatsActionRec;
@@ -317,7 +280,7 @@ MXUserDumpRecLock(MXUserHeader *header)  // IN:
    Warning("\treference count %u\n", Atomic_Read(&lock->refCount));
 
    if (lock->vmmLock == NULL) {
-      Warning("\tlock count %d\n", MXRecLockCount(&lock->recursiveLock));
+      Warning("\tcount %d\n", MXRecLockCount(&lock->recursiveLock));
 
       Warning("\taddress of owner data %p\n",
               &lock->recursiveLock.nativeThreadID);
@@ -352,7 +315,7 @@ MXUserCreateRecLock(const char *userName,  // IN:
                     MX_Rank rank,          // IN:
                     Bool beSilent)         // IN:
 {
-   uint32 statsMode;
+   Bool doStats;
    char *properName;
    MXUserRecLock *lock;
 
@@ -380,25 +343,17 @@ MXUserCreateRecLock(const char *userName,  // IN:
    lock->header.serialNumber = MXUserAllocSerialNumber();
    lock->header.dumpFunc = MXUserDumpRecLock;
 
-   statsMode = beSilent ? 0 : MXUserStatsMode();
+   if (beSilent) {
+      doStats = FALSE;
+   } else {
+      doStats = vmx86_stats && MXUserStatsEnabled();
+   }
 
-   switch (statsMode) {
-   case 0:
+   if (doStats) {
+      MXUser_ControlRecLock(lock, MXUSER_CONTROL_ENABLE_STATS);
+   } else {
       lock->header.statsFunc = NULL;
-      Atomic_WritePtr(&lock->acquireStatsMem, NULL);
-      Atomic_WritePtr(&lock->heldStatsMem, NULL);
-      break;
-
-   case 1:
-      MXUser_ControlRecLock(lock, MXUSER_CONTROL_ENABLE_STATS, FALSE);
-      break;
-
-   case 2:
-      MXUser_ControlRecLock(lock, MXUSER_CONTROL_ENABLE_STATS, TRUE);
-      break;
-
-   default:
-      Panic("%s: unknown stats mode: %d!\n", __FUNCTION__, statsMode);
+      Atomic_WritePtr(&lock->statsMem, NULL);
    }
 
    MXUserAddToList(&lock->header);
@@ -502,25 +457,16 @@ MXUserCondDestroyRecLock(MXUserRecLock *lock)  // IN:
          MXUserRemoveFromList(&lock->header);
 
          if (vmx86_stats) {
-            MXUserHeldStats *heldStats;
-            MXUserAcquireStats *acquireStats;
+            MXUserStats *stats = Atomic_ReadPtr(&lock->statsMem);
 
-            acquireStats = Atomic_ReadPtr(&lock->acquireStatsMem);
+            if (LIKELY(stats != NULL)) {
+               MXUserAcquisitionStatsTearDown(&stats->acquisitionStats);
+               MXUserHistoTearDown(Atomic_ReadPtr(&stats->acquisitionHisto));
 
-            if (acquireStats) {
-               MXUserAcquisitionStatsTearDown(&acquireStats->data);
-               MXUserHistoTearDown(Atomic_ReadPtr(&acquireStats->histo));
+               MXUserBasicStatsTearDown(&stats->heldStats);
+               MXUserHistoTearDown(Atomic_ReadPtr(&stats->heldHisto));
 
-               free(acquireStats);
-            }
-
-            heldStats = Atomic_ReadPtr(&lock->heldStatsMem);
-
-            if (UNLIKELY(heldStats != NULL)) {
-               MXUserBasicStatsTearDown(&heldStats->data);
-               MXUserHistoTearDown(Atomic_ReadPtr(&heldStats->histo));
-
-               free(heldStats);
+               free(stats);
             }
          }
       }
@@ -576,32 +522,25 @@ MXUser_AcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
 
       if (vmx86_stats) {
          VmTimeType value = 0;
-         MXUserAcquireStats *acquireStats;
-
-         acquireStats = Atomic_ReadPtr(&lock->acquireStatsMem);
+         MXUserStats *stats = Atomic_ReadPtr(&lock->statsMem);
 
          MXRecLockAcquire(&lock->recursiveLock,
-                          (acquireStats == NULL) ? NULL : &value);
+                          (stats == NULL) ? NULL : &value);
 
-         if (LIKELY(acquireStats != NULL)) {
+         if (LIKELY(stats != NULL)) {
             if (MXRecLockCount(&lock->recursiveLock) == 1) {
-               MXUserHeldStats *heldStats;
-               MXUserHisto *histo = Atomic_ReadPtr(&acquireStats->histo);
+               MXUserHisto *histo;
 
-               MXUserAcquisitionSample(&acquireStats->data, TRUE,
+               MXUserAcquisitionSample(&stats->acquisitionStats, TRUE,
                                        value != 0, value);
 
-               histo = Atomic_ReadPtr(&acquireStats->histo);
+               histo = Atomic_ReadPtr(&stats->acquisitionHisto);
 
                if (UNLIKELY(histo != NULL)) {
                   MXUserHistoSample(histo, value, GetReturnAddress());
                }
 
-               heldStats = Atomic_ReadPtr(&lock->heldStatsMem);
-
-               if (UNLIKELY(heldStats != NULL)) {
-                  heldStats->holdStart = Hostinfo_SystemTimerNS();
-               }
+               stats->holdStart = Hostinfo_SystemTimerNS();
             }
          }
       } else {
@@ -645,25 +584,17 @@ MXUser_ReleaseRecLock(MXUserRecLock *lock)  // IN/OUT:
       (*MXUserMX_UnlockRec)(lock->vmmLock);
    } else {
       if (vmx86_stats) {
-         MXUserHeldStats *heldStats = Atomic_ReadPtr(&lock->heldStatsMem);
+         MXUserStats *stats = Atomic_ReadPtr(&lock->statsMem);
 
-         if (LIKELY(heldStats != NULL)) {
+         if (LIKELY(stats != NULL)) {
             if (MXRecLockCount(&lock->recursiveLock) == 1) {
-               MXUserHeldStats *heldStats;
+               VmTimeType value = Hostinfo_SystemTimerNS() - stats->holdStart;
+               MXUserHisto *histo = Atomic_ReadPtr(&stats->heldHisto);
 
-               heldStats = Atomic_ReadPtr(&lock->heldStatsMem);
+               MXUserBasicStatsSample(&stats->heldStats, value);
 
-               if (UNLIKELY(heldStats != NULL)) {
-                  VmTimeType value;
-                  MXUserHisto *histo = Atomic_ReadPtr(&heldStats->histo);
-
-                  value = Hostinfo_SystemTimerNS() - heldStats->holdStart;
-
-                  MXUserBasicStatsSample(&heldStats->data, value);
-
-                  if (UNLIKELY(histo != NULL)) {
-                     MXUserHistoSample(histo, value, GetReturnAddress());
-                  }
+               if (UNLIKELY(histo != NULL)) {
+                  MXUserHistoSample(histo, value, GetReturnAddress());
                }
             }
          }
@@ -742,13 +673,11 @@ MXUser_TryAcquireRecLock(MXUserRecLock *lock)  // IN/OUT:
       }
 
       if (vmx86_stats) {
-         MXUserAcquireStats *acquireStats;
+         MXUserStats *stats = Atomic_ReadPtr(&lock->statsMem);
 
-         acquireStats = Atomic_ReadPtr(&lock->acquireStatsMem);
-
-         if (LIKELY(acquireStats != NULL)) {
-            MXUserAcquisitionSample(&acquireStats->data, success, !success,
-                                    0ULL);
+         if (LIKELY(stats != NULL)) {
+            MXUserAcquisitionSample(&stats->acquisitionStats, success,
+                                    !success, 0ULL);
          }
       }
    }
@@ -1102,8 +1031,7 @@ MXUser_BindMXMutexRec(struct MX_MutexRec *mutex,  // IN:
    lock->header.dumpFunc = NULL;
    lock->header.statsFunc = NULL;
 
-   Atomic_WritePtr(&lock->acquireStatsMem, NULL);
-   Atomic_WritePtr(&lock->heldStatsMem, NULL);
+   Atomic_WritePtr(&lock->statsMem, NULL);
    Atomic_Write(&lock->refCount, 1);
 
    lock->vmmLock = mutex;

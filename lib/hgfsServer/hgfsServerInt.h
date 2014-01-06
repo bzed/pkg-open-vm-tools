@@ -89,7 +89,7 @@
 #endif
 
 /* Value of config option to require using host timestamps */
-extern Bool alwaysUseHostTime;
+EXTERN Bool alwaysUseHostTime;
 
 /* Identifier for a local file */
 typedef struct HgfsLocalId {

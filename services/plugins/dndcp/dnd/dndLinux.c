@@ -54,14 +54,6 @@
 #ifdef sun
 #define ACCESSPERMS           (S_IRWXU | S_IRWXG | S_IRWXO)
 #endif
-#ifdef __ANDROID__
-/*
- * Android doesn't support setmntent(), endmntent() or MOUNTED.
- */
-#define NO_SETMNTENT
-#define NO_ENDMNTENT
-#define ACCESSPERMS           (S_IRWXU | S_IRWXG | S_IRWXO)
-#endif
 
 
 /*
@@ -512,11 +504,8 @@ DnD_CheckBlockFuse(int blockFd)                    // IN
    }
 
    if (size != sizeof(VMBLOCK_FUSE_READ_RESPONSE)) {
-      /*
-       * Refer to bug 817761 of casting size to size_t.
-       */
-      LOG(4, ("%s: Response too short (%"FMTSZ"u vs. %"FMTSZ"u).\n",
-              __func__, (size_t)size, sizeof(VMBLOCK_FUSE_READ_RESPONSE)));
+      LOG(4, ("%s: Response too short (%"FMTSZ"d vs. %"FMTSZ"u).\n",
+              __func__, size, sizeof(VMBLOCK_FUSE_READ_RESPONSE)));
 
       return FALSE;
    }
@@ -557,11 +546,6 @@ DnD_TryInitVmblock(const char *vmbFsName,          // IN
                    mode_t vmbDeviceMode,           // IN
                    Bool (*verifyBlock)(int fd))    // IN
 {
-#if defined NO_SETMNTENT || defined NO_ENDMNTENT
-   NOT_IMPLEMENTED();
-   errno = ENOSYS;
-   return -1;
-#else
    Bool found = FALSE;
    int blockFd = -1;
    char *realMntPoint;
@@ -625,7 +609,6 @@ DnD_TryInitVmblock(const char *vmbFsName,          // IN
 out:
    free(realMntPoint);
    return blockFd;
-#endif
 }
 
 

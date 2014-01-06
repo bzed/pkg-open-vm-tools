@@ -1,16 +1,13 @@
-2012.05.21  Dmitry Torokhov  <dtor@vmware.com>
-	This release tag contains commits up to the following id:
-	482332b8d4282df09838df5ea4c58df9cdb4faf3
+9.2.2  Dmitry Torokhov  <dtor@vmware.com>
+	Release matching the Workstation 9.0.1 release.
 
 
-2012.03.13  Dmitry Torokhov  <dtor@vmware.com>
-	This release tag contains commits up to the following id:
-	0114aabd54bf2db4556563b7149c4fbbdec3d87b
+9.2.0  Dmitry Torokhov <dtor@vmware.com>
+	Release matching the Workstation 9.0 release.
 
 
-2011.12.20  Marcelo Vanzin  <mvanzin@vmware.com>
-	This release tag contains commits up to the following id:
-	dfca5cf9d1c2335c5d001deedd9266c84956b508
+9.0.0  Dmitry Torokhov <dtor@vmware.com>
+	Release matching the vSphere 5.1 release.
 
 
 2011.11.20  Marcelo Vanzin  <mvanzin@vmware.com>

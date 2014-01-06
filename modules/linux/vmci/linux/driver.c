@@ -80,10 +80,6 @@ sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg);
 
 #define LGPFX "VMCI: "
 
-#define VMCI_DEVICE_NAME   "vmci"
-#define VMCI_MODULE_NAME   "vmci"
-
-
 /*
  *----------------------------------------------------------------------
  *
@@ -125,7 +121,7 @@ static int vmci_probe_device(struct pci_dev *pdev,
 static void vmci_remove_device(struct pci_dev* pdev);
 
 static struct pci_driver vmci_driver = {
-   .name     = VMCI_DEVICE_NAME,
+   .name     = "vmci",
    .id_table = vmci_ids,
    .probe = vmci_probe_device,
    .remove = __devexit_p(vmci_remove_device),
@@ -221,10 +217,15 @@ typedef struct VMCILinux {
 #define LINUXLOG_BUFFER_SIZE  1024
 
 typedef struct VMCILinuxState {
+   int major;
+   int minor;
    struct miscdevice misc;
+   char deviceName[VM_DEVICE_NAME_SIZE];
    char buf[LINUXLOG_BUFFER_SIZE];
    atomic_t activeContexts;
 } VMCILinuxState;
+
+static struct VMCILinuxState linuxState;
 
 static int VMCISetupNotify(VMCIContext *context, VA notifyUVA);
 static void VMCIUnsetNotifyInt(VMCIContext *context, Bool useLock);
@@ -251,30 +252,7 @@ static unsigned int LinuxDriverPoll(struct file *file, poll_table *wait);
 #define LinuxDriverUnlockIoctlPerFD(mutex) do {} while (0)
 #endif
 
-/* should be const if not for older kernels support */
-static struct file_operations vmuser_fops = {
-   .owner            = THIS_MODULE,
-   .open             = LinuxDriver_Open,
-   .release          = LinuxDriver_Close,
-   .poll             = LinuxDriverPoll,
-#ifdef HAVE_UNLOCKED_IOCTL
-   .unlocked_ioctl   = LinuxDriver_UnlockedIoctl,
-#else
-   .ioctl            = LinuxDriver_Ioctl,
-#endif
-#ifdef HAVE_COMPAT_IOCTL
-   .compat_ioctl     = LinuxDriver_UnlockedIoctl,
-#endif
-};
-
-static struct VMCILinuxState linuxState = {
-   .misc             = {
-      .name          = VMCI_DEVICE_NAME,
-      .minor         = MISC_DYNAMIC_MINOR,
-      .fops          = &vmuser_fops,
-   },
-   .activeContexts   = ATOMIC_INIT(0),
-};
+static struct file_operations vmuser_fops;
 
 
 /*
@@ -402,40 +380,65 @@ unregister_ioctl32_handlers(void)
  *-----------------------------------------------------------------------------
  */
 
-static int
+int
 vmci_host_init(void)
 {
-   int error;
+   int retval;
 
    if (VMCI_HostInit() < VMCI_SUCCESS) {
       return -ENOMEM;
    }
 
-   error = misc_register(&linuxState.misc);
-   if (error) {
-      Warning(LGPFX "Module registration error "
-              "(name=%s, major=%d, minor=%d, err=%d).\n",
-              linuxState.misc.name, MISC_MAJOR, linuxState.misc.minor,
-              error);
-      goto err_host_cleanup;
+   /*
+    * Initialize the file_operations structure. Because this code is always
+    * compiled as a module, this is fine to do it here and not in a static
+    * initializer.
+    */
+
+   memset(&vmuser_fops, 0, sizeof vmuser_fops);
+   vmuser_fops.owner = THIS_MODULE;
+   vmuser_fops.poll = LinuxDriverPoll;
+#ifdef HAVE_UNLOCKED_IOCTL
+   vmuser_fops.unlocked_ioctl = LinuxDriver_UnlockedIoctl;
+#else
+   vmuser_fops.ioctl = LinuxDriver_Ioctl;
+#endif
+#ifdef HAVE_COMPAT_IOCTL
+   vmuser_fops.compat_ioctl = LinuxDriver_UnlockedIoctl;
+#endif
+   vmuser_fops.open = LinuxDriver_Open;
+   vmuser_fops.release = LinuxDriver_Close;
+
+   sprintf(linuxState.deviceName, "vmci");
+   linuxState.major = 10;
+   linuxState.misc.minor = MISC_DYNAMIC_MINOR;
+   linuxState.misc.name = linuxState.deviceName;
+   linuxState.misc.fops = &vmuser_fops;
+   atomic_set(&linuxState.activeContexts, 0);
+
+   retval = misc_register(&linuxState.misc);
+
+   if (retval) {
+      Warning(LGPFX"Module registration error "
+              "(name=%s,major=%d,minor=%d,err=%d).\n",
+              linuxState.deviceName, -retval, linuxState.major,
+              linuxState.minor);
+      goto exit;
+   }
+   linuxState.minor = linuxState.misc.minor;
+   Log(LGPFX"Module registered (name=%s,major=%d,minor=%d).\n",
+       linuxState.deviceName, linuxState.major, linuxState.minor);
+
+   retval = register_ioctl32_handlers();
+   if (retval) {
+      misc_deregister(&linuxState.misc);
    }
 
-   error = register_ioctl32_handlers();
-   if (error) {
-      Warning(LGPFX "Failed to register ioctl32 handlers, err: %d\n", error);
-      goto err_misc_unregister;
+exit:
+   if (retval) {
+      VMCI_HostCleanup();
    }
-
-   Log(LGPFX "Module registered (name=%s, major=%d, minor=%d).\n",
-       linuxState.misc.name, MISC_MAJOR, linuxState.misc.minor);
-
-   return 0;
-
-err_misc_unregister:
-   misc_deregister(&linuxState.misc);
-err_host_cleanup:
-   VMCI_HostCleanup();
-   return error;
+   return retval;
 }
 
 
@@ -2417,25 +2420,29 @@ vmci_init(void)
       return -ENOMEM;
    }
 
-   if (!vmci_disable_guest) {
+   if (vmci_disable_guest) {
+      guestDeviceInit = 0;
+   } else {
       retval = vmci_guest_init();
       if (retval != 0) {
          Warning(LGPFX"VMCI PCI device not initialized (err=%d).\n", retval);
-      } else {
-         guestDeviceInit = TRUE;
-         if (VMCI_GuestPersonalityActive()) {
-            Log(LGPFX"Using guest personality\n");
-         }
+      }
+      guestDeviceInit = (retval == 0);
+      if (VMCI_GuestPersonalityActive()) {
+         Log(LGPFX"Using guest personality\n");
       }
    }
 
-   if (!vmci_disable_host) {
+   if (vmci_disable_host) {
+      hostDeviceInit = 0;
+   } else {
       retval = vmci_host_init();
       if (retval != 0) {
          Warning(LGPFX"Unable to initialize host personality (err=%d).\n",
                  retval);
-      } else {
-         hostDeviceInit = TRUE;
+      }
+      hostDeviceInit = (retval == 0);
+      if (hostDeviceInit) {
          Log(LGPFX"Using host personality\n");
       }
    }
@@ -2445,7 +2452,7 @@ vmci_init(void)
       return -ENODEV;
    }
 
-   Log(LGPFX"Module (name=%s) is initialized\n", VMCI_MODULE_NAME);
+   Log(LGPFX"Module (name=%s) is initialized\n", linuxState.deviceName);
 
    return 0;
 }
@@ -2480,9 +2487,10 @@ vmci_exit(void)
 
       retval = misc_deregister(&linuxState.misc);
       if (retval) {
-         Warning(LGPFX "Module %s: error unregistering\n", VMCI_MODULE_NAME);
+         Warning(LGPFX"Module %s: error unregistering\n",
+                 linuxState.deviceName);
       } else {
-         Log(LGPFX"Module %s: unloaded\n", VMCI_MODULE_NAME);
+         Log(LGPFX"Module %s: unloaded\n", linuxState.deviceName);
       }
 
       hostDeviceInit = FALSE;

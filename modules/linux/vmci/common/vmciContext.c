@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006-2012 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2011 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -49,7 +49,6 @@ static int VMCIContextFireNotification(VMCIId contextID,
 #if defined(VMKERNEL)
 static void VMCIContextReleaseGuestMemLocked(VMCIContext *context,
                                              VMCIGuestMemID gid);
-static void VMCIContextInFilterCleanup(VMCIContext *context);
 #endif
 
 /*
@@ -332,8 +331,6 @@ VMCIContext_InitContext(VMCIId cid,                   // IN
       goto error;
    }
    context->curGuestMemID = INVALID_VMCI_GUEST_MEM_ID;
-
-   context->inFilters = NULL;
 #endif
 
    /* Inititialize host-specific VMCI context. */
@@ -485,7 +482,7 @@ VMCIContextFreeContext(VMCIContext *context)  // IN
    }
 
    /*
-    * It is fine to destroy this without locking the datagramQueue, as
+    * It is fine to destroy this without locking the callQueue, as
     * this is the only thread having a reference to the context.
     */
 
@@ -504,7 +501,6 @@ VMCIContextFreeContext(VMCIContext *context)  // IN
    VMCIHandleArray_Destroy(context->pendingDoorbellArray);
    VMCI_CleanupLock(&context->lock);
 #if defined(VMKERNEL)
-   VMCIContextInFilterCleanup(context);
    VMCIMutex_Destroy(&context->guestMemMutex);
 #endif
    VMCIHost_ReleaseContext(&context->hostContext);
@@ -610,18 +606,6 @@ VMCIContext_EnqueueDatagram(VMCIId cid,        // IN: Target VM
    VMCIList_InitEntry(&dqEntry->listItem);
 
    VMCI_GrabLock(&context->lock, &flags);
-
-#if defined(VMKERNEL)
-   if (context->inFilters != NULL) {
-      if (VMCIFilterDenyDgIn(context->inFilters->filters, dg)) {
-         VMCI_ReleaseLock(&context->lock, flags);
-         VMCIContext_Release(context);
-         VMCI_FreeKernelMem(dqEntry, sizeof *dqEntry);
-         return VMCI_ERROR_NO_ACCESS;
-      }
-   }
-#endif
-
    /*
     * We put a higher limit on datagrams from the hypervisor.  If the pending
     * datagram is not from hypervisor, then we check if enqueueing it would
@@ -2009,13 +1993,6 @@ VMCIContext_NotifyDoorbell(VMCIId srcCID,                   // IN
    } else {
       VMCI_GrabLock(&dstContext->lock, &flags);
 
-#if defined(VMKERNEL)
-      if (dstContext->inFilters != NULL &&
-          VMCIFilterProtoDeny(dstContext->inFilters->filters, handle.resource,
-                              VMCI_FP_DOORBELL)) {
-         result = VMCI_ERROR_NO_ACCESS;
-      } else
-#endif // VMKERNEL
       if (!VMCIHandleArray_HasEntry(dstContext->doorbellArray, handle)) {
          result = VMCI_ERROR_NOT_FOUND;
       } else {
@@ -2293,18 +2270,21 @@ int
 VMCIContext_QueuePairCreate(VMCIContext *context, // IN: Context structure
                             VMCIHandle handle)    // IN
 {
+   VMCILockFlags flags;
    int result;
 
    if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
       return VMCI_ERROR_INVALID_ARGS;
    }
 
+   VMCI_GrabLock(&context->lock, &flags);
    if (!VMCIHandleArray_HasEntry(context->queuePairArray, handle)) {
       VMCIHandleArray_AppendEntry(&context->queuePairArray, handle);
       result = VMCI_SUCCESS;
    } else {
       result = VMCI_ERROR_DUPLICATE_ENTRY;
    }
+   VMCI_ReleaseLock(&context->lock, flags);
 
    return result;
 }
@@ -2331,13 +2311,16 @@ int
 VMCIContext_QueuePairDestroy(VMCIContext *context, // IN: Context structure
                              VMCIHandle handle)    // IN
 {
+   VMCILockFlags flags;
    VMCIHandle removedHandle;
 
    if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
       return VMCI_ERROR_INVALID_ARGS;
    }
 
+   VMCI_GrabLock(&context->lock, &flags);
    removedHandle = VMCIHandleArray_RemoveEntry(context->queuePairArray, handle);
+   VMCI_ReleaseLock(&context->lock, flags);
 
    if (VMCI_HANDLE_INVALID(removedHandle)) {
       return VMCI_ERROR_NOT_FOUND;
@@ -2368,13 +2351,16 @@ Bool
 VMCIContext_QueuePairExists(VMCIContext *context, // IN: Context structure
                             VMCIHandle handle)    // IN
 {
+   VMCILockFlags flags;
    Bool result;
 
    if (context == NULL || VMCI_HANDLE_INVALID(handle)) {
       return VMCI_ERROR_INVALID_ARGS;
    }
 
+   VMCI_GrabLock(&context->lock, &flags);
    result = VMCIHandleArray_HasEntry(context->queuePairArray, handle);
+   VMCI_ReleaseLock(&context->lock, flags);
 
    return result;
 }
@@ -2554,87 +2540,3 @@ VMCIContext_ReleaseGuestMem(VMCIContext *context, // IN: Context structure
    VMCIMutex_Release(&context->guestMemMutex);
 #endif
 }
-
-#if defined(VMKERNEL)
-
-/*
- *----------------------------------------------------------------------
- *
- * VMCIContext_FilterSet --
- *
- *      Sets an ingoing (host to guest) filter for the VMCI firewall of the
- *      given context. If a filter list already exists for the given filter
- *      entry, the old entry will be deleted. It is assumed that the list
- *      can be used as is, and that the memory backing it will be freed by the
- *      VMCI Context module once the filter is deleted.
- *
- * Results:
- *      VMCI_SUCCESS on success,
- *      VMCI_ERROR_NOT_FOUND if there is no active context linked to the cid,
- *      VMCI_ERROR_INVALID_ARGS if a non-VM cid is specified.
- *
- * Side effects:
- *      None.
- *
- *----------------------------------------------------------------------
- */
-
-int
-VMCIContext_FilterSet(VMCIId cid,                // IN
-                      VMCIFilterState *filters)  // IN
-{
-   VMCIContext *context;
-   VMCILockFlags flags;
-   VMCIFilterState *oldState;
-
-   if (!VMCI_CONTEXT_IS_VM(cid)) {
-      return VMCI_ERROR_INVALID_ARGS;
-   }
-
-   context = VMCIContext_Get(cid);
-   if (!context) {
-      return VMCI_ERROR_NOT_FOUND;
-   }
-
-   VMCI_GrabLock(&context->lock, &flags);
-
-   oldState = context->inFilters;
-   context->inFilters = filters;
-
-   VMCI_ReleaseLock(&context->lock, flags);
-   if (oldState) {
-      VMCIVMKDevFreeFilterState(oldState);
-   }
-   VMCIContext_Release(context);
-
-   return VMCI_SUCCESS;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * VMCIContextInFilterCleanup --
- *
- *      When a context is destroyed, all filters will be deleted.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- *
- *----------------------------------------------------------------------
- */
-
-static void
-VMCIContextInFilterCleanup(VMCIContext *context)
-{
-   if (context->inFilters != NULL) {
-      VMCIVMKDevFreeFilterState(context->inFilters);
-      context->inFilters = NULL;
-   }
-}
-
-#endif
-

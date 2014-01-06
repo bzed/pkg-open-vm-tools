@@ -56,7 +56,6 @@ struct MXUserHisto {
    TopOwner  ownerArray[TOPOWNERS];  // List of top owners
 };
 
-static Bool    mxUserTrackHeldTimes = FALSE;
 static char   *mxUserHistoLine = NULL;
 static uint32  mxUserMaxLineLength = 0;
 static void   *mxUserStatsContext = NULL;
@@ -905,17 +904,17 @@ MXUserForceHisto(Atomic_Ptr *histoPtr,  // IN/OUT:
    }
 }
 
+
 /*
  *-----------------------------------------------------------------------------
  *
- * MXUserStatsMode --
+ * MXUserStatsEnabled --
  *
- *      What's to be done with statistics?
+ *      Are statistics keeping enabled
  *
  * Results:
- *      0  Statstics are disabled
- *      1  Collect statistics without tracking held times
- *      2  Collect statistics with track held times
+ *      TRUE   Yes
+ *      FALSE  NO
  *
  * Side effects:
  *      None
@@ -923,14 +922,10 @@ MXUserForceHisto(Atomic_Ptr *histoPtr,  // IN/OUT:
  *-----------------------------------------------------------------------------
  */
 
-uint32
-MXUserStatsMode(void)
+Bool
+MXUserStatsEnabled(void)
 {
-   if (vmx86_stats && (mxUserStatsFunc != NULL) && (mxUserMaxLineLength > 0)) {
-      return mxUserTrackHeldTimes ? 2 : 1;
-   } else {
-      return 0;
-   }
+   return (mxUserStatsFunc != NULL) && (mxUserMaxLineLength > 0);
 }
 
 
@@ -957,7 +952,6 @@ MXUserStatsMode(void)
 void
 MXUser_SetStatsFunc(void *context,                    // IN:
                     uint32 maxLineLength,             // IN:
-                    Bool trackHeldTimes,              // IN:
                     void (*statsFunc)(void *context,  // IN:
                                       const char *fmt,
                                       va_list ap))
@@ -970,7 +964,6 @@ MXUser_SetStatsFunc(void *context,                    // IN:
    mxUserStatsContext = context;
    mxUserMaxLineLength = maxLineLength;
    mxUserStatsFunc = statsFunc;
-   mxUserTrackHeldTimes = trackHeldTimes;
 }
 
 

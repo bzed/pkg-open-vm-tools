@@ -34,6 +34,4 @@
 uint64 vSockStatsCtlPktCount[VSOCK_PACKET_TYPE_MAX];
 uint64 vSockStatsConsumeQueueHist[VSOCK_NUM_QUEUE_LEVEL_BUCKETS];
 uint64 vSockStatsProduceQueueHist[VSOCK_NUM_QUEUE_LEVEL_BUCKETS];
-Atomic_uint64 vSockStatsConsumeTotal;
-Atomic_uint64 vSockStatsProduceTotal;
 #endif
