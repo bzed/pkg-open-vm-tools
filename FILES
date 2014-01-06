@@ -1,0 +1,950 @@
+open-vm-tools-2007.09.04-56574:
+total 1572
+-rwxr-xr-x  1 mts mts     33 Sep  7 00:05 AUTHORS
+-rwxr-xr-x  1 mts mts  26425 Sep  7 00:05 COPYING
+-rwxr-xr-x  1 mts mts      0 Sep  7 00:05 ChangeLog
+-r--r--r--  1 mts mts   9416 Sep  7 00:05 INSTALL
+-rwxr-xr-x  1 mts mts   1674 Sep  7 00:05 Makefile.am
+-rw-r--r--  1 mts mts  21135 Sep  7 00:05 Makefile.in
+-rwxr-xr-x  1 mts mts      0 Sep  7 00:05 NEWS
+-rwxr-xr-x  1 mts mts   5811 Sep  7 00:05 README
+-rw-r--r--  1 mts mts 262309 Sep  7 00:05 aclocal.m4
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 autom4te.cache
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 checkvm
+-r-xr-xr-x  1 mts mts  43668 Aug 16 17:29 config.guess
+-r-xr-xr-x  1 mts mts  32151 Aug 16 17:29 config.sub
+-rwxr-xr-x  1 mts mts 863679 Sep  7 00:05 configure
+-rwxr-xr-x  1 mts mts  15835 Sep  7 00:05 configure.ac
+-r-xr-xr-x  1 mts mts  17574 Sep  7 00:05 depcomp
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 guestd
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 hgfsclient
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 hgfsmounter
+-r-xr-xr-x  1 mts mts  13184 Sep  7 00:05 install-sh
+drwxr-xr-x 47 mts mts   4096 Sep  7 00:05 lib
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 libguestlib
+-r--r--r--  1 mts mts 198422 Aug 16 17:29 ltmain.sh
+-r-xr-xr-x  1 mts mts  11135 Sep  7 00:05 missing
+drwxr-xr-x  3 mts mts   4096 Sep  7 00:05 modules
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 toolbox
+drwxr-xr-x  2 mts mts   4096 Sep  7 00:05 vmware-user
+
+open-vm-tools-2007.09.04-56574/autom4te.cache:
+total 2212
+-rw-r--r-- 1 mts mts 865566 Sep  7 00:05 output.0
+-rw-r--r-- 1 mts mts 864996 Sep  7 00:05 output.1
+-rw-r--r-- 1 mts mts  10783 Sep  7 00:05 requests
+-rw-r--r-- 1 mts mts 438317 Sep  7 00:05 traces.0
+-rw-r--r-- 1 mts mts  55428 Sep  7 00:05 traces.1
+
+open-vm-tools-2007.09.04-56574/checkvm:
+total 60
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  1001 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14376 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  7097 Sep  7 00:05 checkvm.c
+-r--r--r-- 1 mts mts  1562 Sep  7 00:05 checkvm_version.h
+
+open-vm-tools-2007.09.04-56574/guestd:
+total 352
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  3535 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 18338 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  5682 Sep  7 00:05 debugStdio.c
+-r--r--r-- 1 mts mts 37359 Sep  7 00:05 foreignVMToolsDaemon.c
+-r--r--r-- 1 mts mts  6203 Sep  7 00:05 foreignVMToolsDaemon.h
+-r--r--r-- 1 mts mts 36997 Sep  7 00:05 foreignVMToolsNetworking.c
+-r--r--r-- 1 mts mts 55140 Sep  7 00:05 foundryToolsDaemon.c
+-r--r--r-- 1 mts mts  1641 Sep  7 00:05 foundryToolsDaemon.h
+-r--r--r-- 1 mts mts  1539 Sep  7 00:05 guestd_version.h
+-r--r--r-- 1 mts mts 60381 Sep  7 00:05 main.c
+-r--r--r-- 1 mts mts  4721 Sep  7 00:05 stub.c
+-r--r--r-- 1 mts mts 53275 Sep  7 00:05 toolsDaemon.c
+-r--r--r-- 1 mts mts  3924 Sep  7 00:05 toolsDaemon.h
+
+open-vm-tools-2007.09.04-56574/hgfsclient:
+total 76
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  2107 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 15749 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 16746 Sep  7 00:05 hgfsclient.c
+-r--r--r-- 1 mts mts  1594 Sep  7 00:05 hgfsclient_version.h
+-r--r--r-- 1 mts mts  2388 Sep  7 00:05 stub.c
+
+open-vm-tools-2007.09.04-56574/hgfsmounter:
+total 84
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  1164 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14678 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 27386 Sep  7 00:05 hgfsmounter.c
+-r--r--r-- 1 mts mts  1596 Sep  7 00:05 hgfsmounter_version.h
+-r--r--r-- 1 mts mts  2103 Sep  7 00:05 stub.c
+
+open-vm-tools-2007.09.04-56574/lib:
+total 228
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  1762 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 16131 Sep  7 00:05 Makefile.in
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 SLPv2Parser
+drwxr-xr-x 3 mts mts  4096 Sep  7 00:05 atomic
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 auth
+drwxr-xr-x 3 mts mts  4096 Sep  7 00:05 backdoor
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 conf
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 deployPkg
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 dict
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 dnd
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 err
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 eventManager
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 file
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 fileUtf8
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 foundryMsg
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 guestApp
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 guestInfo
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 hgfs
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 hgfsBd
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 hgfsServer
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 hgfsServerManagerGuest
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 hgfsServerPolicyGuest
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 impersonate
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 include
+drwxr-xr-x 3 mts mts  4096 Sep  7 00:05 message
+drwxr-xr-x 3 mts mts  4096 Sep  7 00:05 misc
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 netUtil
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 panic
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 panicDefault
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 printer
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 procMgr
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 rpcIn
+drwxr-xr-x 3 mts mts  4096 Sep  7 00:05 rpcOut
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 rpcVmx
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 socketMgr
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 strUtil
+drwxr-xr-x 3 mts mts  4096 Sep  7 00:05 string
+drwxr-xr-x 3 mts mts  4096 Sep  7 00:05 sync
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 syncDriver
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 system
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 toolsLogger
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 user
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 vixTools
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 vmBackupLib
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 vmCheck
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 vmSignal
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 wiper
+
+open-vm-tools-2007.09.04-56574/lib/SLPv2Parser:
+total 68
+-r--r--r-- 1 mts mts  1125 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14774 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  7534 Sep  7 00:05 SLPv2Match.c
+-r--r--r-- 1 mts mts 18305 Sep  7 00:05 SLPv2MsgAssembler.c
+-r--r--r-- 1 mts mts 16838 Sep  7 00:05 SLPv2MsgParser.c
+
+open-vm-tools-2007.09.04-56574/lib/atomic:
+total 32
+-r--r--r-- 1 mts mts  1042 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 18402 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  1024 Sep  7 00:05 atomic.c
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 shared
+
+open-vm-tools-2007.09.04-56574/lib/atomic/shared:
+total 20
+-r--r--r-- 1 mts mts  1020 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 15424 Sep  7 00:05 Makefile.in
+
+open-vm-tools-2007.09.04-56574/lib/auth:
+total 32
+-r--r--r-- 1 mts mts  1041 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14387 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  8564 Sep  7 00:05 authPosix.c
+
+open-vm-tools-2007.09.04-56574/lib/backdoor:
+total 52
+-r--r--r-- 1 mts mts  1177 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 19100 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  6371 Sep  7 00:05 backdoor.c
+-r--r--r-- 1 mts mts  6188 Sep  7 00:05 backdoorGcc32.c
+-r--r--r-- 1 mts mts  5564 Sep  7 00:05 backdoorGcc64.c
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 shared
+
+open-vm-tools-2007.09.04-56574/lib/backdoor/shared:
+total 24
+-r--r--r-- 1 mts mts  1164 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 17977 Sep  7 00:05 Makefile.in
+
+open-vm-tools-2007.09.04-56574/lib/conf:
+total 28
+-r--r--r-- 1 mts mts  1005 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14354 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  4908 Sep  7 00:05 conf.c
+
+open-vm-tools-2007.09.04-56574/lib/deployPkg:
+total 40
+-r--r--r-- 1 mts mts  1112 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14723 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  8564 Sep  7 00:05 deployPkg.c
+-r--r--r-- 1 mts mts  3236 Sep  7 00:05 deployPkgLog.c
+-r--r--r-- 1 mts mts  3568 Sep  7 00:05 runDeployPkgPosix.c
+
+open-vm-tools-2007.09.04-56574/lib/dict:
+total 36
+-r--r--r-- 1 mts mts  1008 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14360 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 14691 Sep  7 00:05 dictll.c
+
+open-vm-tools-2007.09.04-56574/lib/dnd:
+total 56
+-r--r--r-- 1 mts mts  1038 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14450 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 17824 Sep  7 00:05 dndCommon.c
+-r--r--r-- 1 mts mts 15858 Sep  7 00:05 dndLinux.c
+
+open-vm-tools-2007.09.04-56574/lib/err:
+total 24
+-r--r--r-- 1 mts mts  1002 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14330 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  2740 Sep  7 00:05 err.c
+
+open-vm-tools-2007.09.04-56574/lib/eventManager:
+total 28
+-r--r--r-- 1 mts mts  1037 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14546 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  6955 Sep  7 00:05 eventManager.c
+
+open-vm-tools-2007.09.04-56574/lib/file:
+total 248
+-r--r--r-- 1 mts mts  1213 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14939 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 42242 Sep  7 00:05 file.c
+-r--r--r-- 1 mts mts 12797 Sep  7 00:05 fileIO.c
+-r--r--r-- 1 mts mts 44329 Sep  7 00:05 fileIOPosix.c
+-r--r--r-- 1 mts mts 24183 Sep  7 00:05 fileLockPosix.c
+-r--r--r-- 1 mts mts 41837 Sep  7 00:05 fileLockPrimitive.c
+-r--r--r-- 1 mts mts 51024 Sep  7 00:05 filePosix.c
+
+open-vm-tools-2007.09.04-56574/lib/fileUtf8:
+total 48
+-r--r--r-- 1 mts mts  1062 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14567 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  5594 Sep  7 00:05 fileUTF8.c
+-r--r--r-- 1 mts mts 16467 Sep  7 00:05 fileUTF8Linux.c
+
+open-vm-tools-2007.09.04-56574/lib/foundryMsg:
+total 100
+-r--r--r-- 1 mts mts  1183 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14933 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 21832 Sep  7 00:05 foundryMsg.c
+-r--r--r-- 1 mts mts 40531 Sep  7 00:05 foundryPropertyListCommon.c
+-r--r--r-- 1 mts mts  6266 Sep  7 00:05 foundryThreads.c
+-r--r--r-- 1 mts mts  6047 Sep  7 00:05 vixTranslateErrOpenSource.c
+
+open-vm-tools-2007.09.04-56574/lib/guestApp:
+total 72
+-r--r--r-- 1 mts mts  1062 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14567 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 43874 Sep  7 00:05 guestApp.c
+-r--r--r-- 1 mts mts  5592 Sep  7 00:05 guestAppPosix.c
+
+open-vm-tools-2007.09.04-56574/lib/guestInfo:
+total 84
+-r--r--r-- 1 mts mts  1074 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14615 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 30326 Sep  7 00:05 guestInfoPosix.c
+-r--r--r-- 1 mts mts 32174 Sep  7 00:05 guestInfoServer.c
+
+open-vm-tools-2007.09.04-56574/lib/hgfs:
+total 76
+-r--r--r-- 1 mts mts  1217 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 15038 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 12059 Sep  7 00:05 cpName.c
+-r--r--r-- 1 mts mts  5777 Sep  7 00:05 cpNameLinux.c
+-r--r--r-- 1 mts mts  2656 Sep  7 00:05 cpNameLite.c
+-r--r--r-- 1 mts mts  6261 Sep  7 00:05 cpNameUtil.c
+-r--r--r-- 1 mts mts  2147 Sep  7 00:05 cpNameUtilLinux.c
+-r--r--r-- 1 mts mts  6774 Sep  7 00:05 hgfsUtil.c
+-r--r--r-- 1 mts mts  8639 Sep  7 00:05 staticEscape.c
+
+open-vm-tools-2007.09.04-56574/lib/hgfsBd:
+total 32
+-r--r--r-- 1 mts mts  1013 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14402 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  8658 Sep  7 00:05 hgfsBd.c
+
+open-vm-tools-2007.09.04-56574/lib/hgfsServer:
+total 284
+-r--r--r-- 1 mts mts   1112 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts  14649 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 139860 Sep  7 00:05 hgfsServer.c
+-r--r--r-- 1 mts mts 117909 Sep  7 00:05 hgfsServerLinux.c
+
+open-vm-tools-2007.09.04-56574/lib/hgfsServerManagerGuest:
+total 28
+-r--r--r-- 1 mts mts  1077 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14794 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  6629 Sep  7 00:05 hgfsServerManagerGuest.c
+
+open-vm-tools-2007.09.04-56574/lib/hgfsServerPolicyGuest:
+total 36
+-r--r--r-- 1 mts mts  1073 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14770 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 13784 Sep  7 00:05 hgfsServerPolicyGuest.c
+
+open-vm-tools-2007.09.04-56574/lib/impersonate:
+total 40
+-r--r--r-- 1 mts mts  1118 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14676 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  8181 Sep  7 00:05 impersonate.c
+-r--r--r-- 1 mts mts 11870 Sep  7 00:05 impersonatePosix.c
+
+open-vm-tools-2007.09.04-56574/lib/include:
+total 1020
+-r--r--r-- 1 mts mts  1955 Sep  7 00:05 SLPv2.h
+-r--r--r-- 1 mts mts 12748 Sep  7 00:05 SLPv2Private.h
+-r--r--r-- 1 mts mts  2194 Sep  7 00:05 auth.h
+-r--r--r-- 1 mts mts  3840 Sep  7 00:05 backdoor.h
+-r--r--r-- 1 mts mts  1046 Sep  7 00:05 backdoorInt.h
+-r--r--r-- 1 mts mts  5652 Sep  7 00:05 backdoor_def.h
+-r--r--r-- 1 mts mts  1690 Sep  7 00:05 base64.h
+-r--r--r-- 1 mts mts  1872 Sep  7 00:05 bsd_output.h
+-r--r--r-- 1 mts mts  4398 Sep  7 00:05 bsd_output_int.h
+-r--r--r-- 1 mts mts   114 Sep  7 00:05 buildNumber.h
+-r--r--r-- 1 mts mts 10285 Sep  7 00:05 circList.h
+-r--r--r-- 1 mts mts  2935 Sep  7 00:05 codeset.h
+-r--r--r-- 1 mts mts  3764 Sep  7 00:05 conf.h
+-r--r--r-- 1 mts mts  4800 Sep  7 00:05 config.h
+-r--r--r-- 1 mts mts  3944 Sep  7 00:05 cpName.h
+-r--r--r-- 1 mts mts  1812 Sep  7 00:05 cpNameInt.h
+-r--r--r-- 1 mts mts  1577 Sep  7 00:05 cpNameLite.h
+-r--r--r-- 1 mts mts  1687 Sep  7 00:05 cpNameUtil.h
+-r--r--r-- 1 mts mts  3078 Sep  7 00:05 cpuid_info.h
+-r--r--r-- 1 mts mts  3418 Sep  7 00:05 cryptoError.h
+-r--r--r-- 1 mts mts  2246 Sep  7 00:05 dbllnklst.h
+-r--r--r-- 1 mts mts  1176 Sep  7 00:05 debug.h
+-r--r--r-- 1 mts mts  1104 Sep  7 00:05 deployPkg.h
+-r--r--r-- 1 mts mts  1115 Sep  7 00:05 deployPkgLog.h
+-r--r--r-- 1 mts mts  1730 Sep  7 00:05 dictll.h
+-r--r--r-- 1 mts mts  3949 Sep  7 00:05 dnd.h
+-r--r--r-- 1 mts mts  1594 Sep  7 00:05 dndInt.h
+-r--r--r-- 1 mts mts  1923 Sep  7 00:05 dynbuf.h
+-r--r--r-- 1 mts mts  1727 Sep  7 00:05 embed_version.h
+-r--r--r-- 1 mts mts  2620 Sep  7 00:05 err.h
+-r--r--r-- 1 mts mts  3673 Sep  7 00:05 escBitvector.h
+-r--r--r-- 1 mts mts  1665 Sep  7 00:05 escape.h
+-r--r--r-- 1 mts mts  1411 Sep  7 00:05 eventManager.h
+-r--r--r-- 1 mts mts  7133 Sep  7 00:05 file.h
+-r--r--r-- 1 mts mts 11703 Sep  7 00:05 fileIO.h
+-r--r--r-- 1 mts mts  4581 Sep  7 00:05 fileInt.h
+-r--r--r-- 1 mts mts  2365 Sep  7 00:05 fileLock.h
+-r--r--r-- 1 mts mts  2738 Sep  7 00:05 fileUTF8.h
+-r--r--r-- 1 mts mts  3334 Sep  7 00:05 file_extensions.h
+-r--r--r-- 1 mts mts  2117 Sep  7 00:05 foundryThreads.h
+-r--r--r-- 1 mts mts  4723 Sep  7 00:05 guestApp.h
+-r--r--r-- 1 mts mts  2282 Sep  7 00:05 guestInfo.h
+-r--r--r-- 1 mts mts  1275 Sep  7 00:05 guestInfoInt.h
+-r--r--r-- 1 mts mts  1408 Sep  7 00:05 guestInfoServer.h
+-r--r--r-- 1 mts mts  2857 Sep  7 00:05 guest_msg_def.h
+-r--r--r-- 1 mts mts  5717 Sep  7 00:05 guest_os.h
+-r--r--r-- 1 mts mts  8370 Sep  7 00:05 hgfs.h
+-r--r--r-- 1 mts mts  1464 Sep  7 00:05 hgfsBd.h
+-r--r--r-- 1 mts mts  2549 Sep  7 00:05 hgfsDevLinux.h
+-r--r--r-- 1 mts mts 27622 Sep  7 00:05 hgfsProto.h
+-r--r--r-- 1 mts mts  2062 Sep  7 00:05 hgfsServer.h
+-r--r--r-- 1 mts mts 25413 Sep  7 00:05 hgfsServerInt.h
+-r--r--r-- 1 mts mts  2202 Sep  7 00:05 hgfsServerManager.h
+-r--r--r-- 1 mts mts  2710 Sep  7 00:05 hgfsServerPolicy.h
+-r--r--r-- 1 mts mts  3228 Sep  7 00:05 hgfsUtil.h
+-r--r--r-- 1 mts mts  1274 Sep  7 00:05 hgfsVirtualDir.h
+-r--r--r-- 1 mts mts  1269 Sep  7 00:05 hostType.h
+-r--r--r-- 1 mts mts  3365 Sep  7 00:05 hostinfo.h
+-r--r--r-- 1 mts mts  1654 Sep  7 00:05 impersonate.h
+-r--r--r-- 1 mts mts  2024 Sep  7 00:05 impersonateInt.h
+-r--r--r-- 1 mts mts  4276 Sep  7 00:05 includeCheck.h
+-r--r--r-- 1 mts mts  4744 Sep  7 00:05 iovector.h
+-r--r--r-- 1 mts mts  1261 Sep  7 00:05 localconfig.h
+-r--r--r-- 1 mts mts  3905 Sep  7 00:05 log.h
+-r--r--r-- 1 mts mts  3304 Sep  7 00:05 loglevel_defs.h
+-r--r--r-- 1 mts mts  5016 Sep  7 00:05 loglevel_user.h
+-r--r--r-- 1 mts mts  3425 Sep  7 00:05 message.h
+-r--r--r-- 1 mts mts  1258 Sep  7 00:05 miscSolaris.h
+-r--r--r-- 1 mts mts  7225 Sep  7 00:05 mntinfo.h
+-r--r--r-- 1 mts mts  8281 Sep  7 00:05 msg.h
+-r--r--r-- 1 mts mts  2263 Sep  7 00:05 msgfmt.h
+-r--r--r-- 1 mts mts  1522 Sep  7 00:05 netutil.h
+-r--r--r-- 1 mts mts  5481 Sep  7 00:05 osNames.h
+-r--r--r-- 1 mts mts  2577 Sep  7 00:05 panic.h
+-r--r--r-- 1 mts mts  1866 Sep  7 00:05 preference.h
+-r--r--r-- 1 mts mts  1383 Sep  7 00:05 printer.h
+-r--r--r-- 1 mts mts  4511 Sep  7 00:05 procMgr.h
+-r--r--r-- 1 mts mts  3190 Sep  7 00:05 productState.h
+-r--r--r-- 1 mts mts  1204 Sep  7 00:05 random.h
+-r--r--r-- 1 mts mts  1152 Sep  7 00:05 removable_device.h
+-r--r--r-- 1 mts mts  2325 Sep  7 00:05 rpcin.h
+-r--r--r-- 1 mts mts  1979 Sep  7 00:05 rpcout.h
+-r--r--r-- 1 mts mts  2700 Sep  7 00:05 rpcvmx.h
+-r--r--r-- 1 mts mts  2138 Sep  7 00:05 runDeployPkgInt.h
+-r--r--r-- 1 mts mts  4927 Sep  7 00:05 safetime.h
+-r--r--r-- 1 mts mts  3359 Sep  7 00:05 socketMgr.h
+-r--r--r-- 1 mts mts  2495 Sep  7 00:05 staticEscape.h
+-r--r--r-- 1 mts mts  2363 Sep  7 00:05 stats_file.h
+-r--r--r-- 1 mts mts  3270 Sep  7 00:05 stats_user_defs.h
+-r--r--r-- 1 mts mts  9164 Sep  7 00:05 stats_user_setup.h
+-r--r--r-- 1 mts mts  6683 Sep  7 00:05 str.h
+-r--r--r-- 1 mts mts  2166 Sep  7 00:05 strutil.h
+-r--r--r-- 1 mts mts  3328 Sep  7 00:05 su.h
+-r--r--r-- 1 mts mts  1933 Sep  7 00:05 syncDriver.h
+-r--r--r-- 1 mts mts  1584 Sep  7 00:05 syncDriverIoc.h
+-r--r--r-- 1 mts mts  2240 Sep  7 00:05 syncEvent.h
+-r--r--r-- 1 mts mts  1692 Sep  7 00:05 syncMutex.h
+-r--r--r-- 1 mts mts  3390 Sep  7 00:05 syncWaitQ.h
+-r--r--r-- 1 mts mts  2613 Sep  7 00:05 system.h
+-r--r--r-- 1 mts mts  3095 Sep  7 00:05 timeutil.h
+-r--r--r-- 1 mts mts  1741 Sep  7 00:05 toolsDeployPkg.h
+-r--r--r-- 1 mts mts  2380 Sep  7 00:05 toolsLogger.h
+-r--r--r-- 1 mts mts  1518 Sep  7 00:05 toolsLoggerInt.h
+-r--r--r-- 1 mts mts 14579 Sep  7 00:05 util.h
+-r--r--r-- 1 mts mts  2953 Sep  7 00:05 util_shared.h
+-r--r--r-- 1 mts mts  1822 Sep  7 00:05 uuid.h
+-r--r--r-- 1 mts mts 33523 Sep  7 00:05 vix.h
+-r--r--r-- 1 mts mts 46767 Sep  7 00:05 vixCommands.h
+-r--r--r-- 1 mts mts 12258 Sep  7 00:05 vixOpenSource.h
+-r--r--r-- 1 mts mts  3754 Sep  7 00:05 vixTools.h
+-r--r--r-- 1 mts mts  6516 Sep  7 00:05 vmBackup.h
+-r--r--r-- 1 mts mts 14157 Sep  7 00:05 vmGuestLib.h
+-r--r--r-- 1 mts mts  1077 Sep  7 00:05 vmSessionId.h
+-r--r--r-- 1 mts mts  3962 Sep  7 00:05 vm_app.h
+-r--r--r-- 1 mts mts  9969 Sep  7 00:05 vm_assert.h
+-r--r--r-- 1 mts mts 52161 Sep  7 00:05 vm_atomic.h
+-r--r--r-- 1 mts mts 17443 Sep  7 00:05 vm_basic_asm.h
+-r--r--r-- 1 mts mts 16060 Sep  7 00:05 vm_basic_asm_x86.h
+-r--r--r-- 1 mts mts  8576 Sep  7 00:05 vm_basic_asm_x86_64.h
+-r--r--r-- 1 mts mts 11815 Sep  7 00:05 vm_basic_defs.h
+-r--r--r-- 1 mts mts 18459 Sep  7 00:05 vm_basic_types.h
+-r--r--r-- 1 mts mts  2420 Sep  7 00:05 vm_ctype.h
+-r--r--r-- 1 mts mts  2042 Sep  7 00:05 vm_legal.h
+-r--r--r-- 1 mts mts 15912 Sep  7 00:05 vm_product.h
+-r--r--r-- 1 mts mts 26053 Sep  7 00:05 vm_tools_version.h
+-r--r--r-- 1 mts mts 14623 Sep  7 00:05 vm_version.h
+-r--r--r-- 1 mts mts  3328 Sep  7 00:05 vmbackup_def.h
+-r--r--r-- 1 mts mts  4278 Sep  7 00:05 vmblock.h
+-r--r--r-- 1 mts mts  1147 Sep  7 00:05 vmcheck.h
+-r--r--r-- 1 mts mts  1145 Sep  7 00:05 vmsignal.h
+-r--r--r-- 1 mts mts  1326 Sep  7 00:05 vmstdio.h
+-r--r--r-- 1 mts mts  1906 Sep  7 00:05 vmware.h
+-r--r--r-- 1 mts mts  1334 Sep  7 00:05 vmware_pack_begin.h
+-r--r--r-- 1 mts mts  1354 Sep  7 00:05 vmware_pack_end.h
+-r--r--r-- 1 mts mts  1974 Sep  7 00:05 vmware_pack_init.h
+-r--r--r-- 1 mts mts  2773 Sep  7 00:05 wiper.h
+-r--r--r-- 1 mts mts 30778 Sep  7 00:05 x86cpuid.h
+
+open-vm-tools-2007.09.04-56574/lib/message:
+total 64
+-r--r--r-- 1 mts mts  1126 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 18663 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  8105 Sep  7 00:05 message.c
+-r--r--r-- 1 mts mts 17110 Sep  7 00:05 messageBackdoor.c
+-r--r--r-- 1 mts mts  4697 Sep  7 00:05 messageStub.c
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 shared
+
+open-vm-tools-2007.09.04-56574/lib/message/shared:
+total 24
+-r--r--r-- 1 mts mts  1113 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 17595 Sep  7 00:05 Makefile.in
+
+open-vm-tools-2007.09.04-56574/lib/misc:
+total 252
+-r--r--r-- 1 mts mts  1517 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 19833 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 15295 Sep  7 00:05 base64.c
+-r--r--r-- 1 mts mts 39484 Sep  7 00:05 codeset.c
+-r--r--r-- 1 mts mts  8113 Sep  7 00:05 dbllnklst.c
+-r--r--r-- 1 mts mts  9626 Sep  7 00:05 dynbuf.c
+-r--r--r-- 1 mts mts 13610 Sep  7 00:05 escape.c
+-r--r--r-- 1 mts mts  5933 Sep  7 00:05 hostinfo_misc.c
+-r--r--r-- 1 mts mts  8220 Sep  7 00:05 hostname.c
+-r--r--r-- 1 mts mts 17111 Sep  7 00:05 idLinux.c
+-r--r--r-- 1 mts mts 24749 Sep  7 00:05 iovector.c
+-r--r--r-- 1 mts mts 14928 Sep  7 00:05 machineID.c
+-r--r--r-- 1 mts mts  2007 Sep  7 00:05 miscSolaris.c
+-r--r--r-- 1 mts mts  3347 Sep  7 00:05 random.c
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 shared
+-r--r--r-- 1 mts mts 13573 Sep  7 00:05 timeutil.c
+-r--r--r-- 1 mts mts 13360 Sep  7 00:05 util_misc.c
+-r--r--r-- 1 mts mts  6617 Sep  7 00:05 vmstdio.c
+
+open-vm-tools-2007.09.04-56574/lib/misc/shared:
+total 36
+-r--r--r-- 1 mts mts  1552 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 29196 Sep  7 00:05 Makefile.in
+
+open-vm-tools-2007.09.04-56574/lib/netUtil:
+total 28
+-r--r--r-- 1 mts mts  1022 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14441 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  5920 Sep  7 00:05 netUtilLinux.c
+
+open-vm-tools-2007.09.04-56574/lib/panic:
+total 36
+-r--r--r-- 1 mts mts  1009 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14378 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 12938 Sep  7 00:05 panic.c
+
+open-vm-tools-2007.09.04-56574/lib/panicDefault:
+total 24
+-r--r--r-- 1 mts mts  1030 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14525 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  1481 Sep  7 00:05 panic.c
+
+open-vm-tools-2007.09.04-56574/lib/printer:
+total 32
+-r--r--r-- 1 mts mts  1017 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14426 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  9656 Sep  7 00:05 printer.c
+
+open-vm-tools-2007.09.04-56574/lib/procMgr:
+total 52
+-r--r--r-- 1 mts mts  1057 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14463 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 32514 Sep  7 00:05 procMgrPosix.c
+
+open-vm-tools-2007.09.04-56574/lib/rpcIn:
+total 40
+-r--r--r-- 1 mts mts  1009 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14378 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 16579 Sep  7 00:05 rpcin.c
+
+open-vm-tools-2007.09.04-56574/lib/rpcOut:
+total 40
+-r--r--r-- 1 mts mts  1042 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 18402 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 11567 Sep  7 00:05 rpcout.c
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 shared
+
+open-vm-tools-2007.09.04-56574/lib/rpcOut/shared:
+total 20
+-r--r--r-- 1 mts mts  1021 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 15424 Sep  7 00:05 Makefile.in
+
+open-vm-tools-2007.09.04-56574/lib/rpcVmx:
+total 28
+-r--r--r-- 1 mts mts  1013 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14402 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  7270 Sep  7 00:05 rpcvmx.c
+
+open-vm-tools-2007.09.04-56574/lib/socketMgr:
+total 64
+-r--r--r-- 1 mts mts  1025 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14474 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 41780 Sep  7 00:05 socketMgr.c
+
+open-vm-tools-2007.09.04-56574/lib/strUtil:
+total 32
+-r--r--r-- 1 mts mts  1017 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14426 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  9158 Sep  7 00:05 strutil.c
+
+open-vm-tools-2007.09.04-56574/lib/string:
+total 144
+-r--r--r-- 1 mts mts  1154 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 18662 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  6652 Sep  7 00:05 bsd_output_shared.c
+-r--r--r-- 1 mts mts 76130 Sep  7 00:05 bsd_vsnprintf.c
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 shared
+-r--r--r-- 1 mts mts 25463 Sep  7 00:05 str.c
+
+open-vm-tools-2007.09.04-56574/lib/string/shared:
+total 24
+-r--r--r-- 1 mts mts  1141 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 17596 Sep  7 00:05 Makefile.in
+
+open-vm-tools-2007.09.04-56574/lib/sync:
+total 56
+-r--r--r-- 1 mts mts  1077 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 18489 Sep  7 00:05 Makefile.in
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 shared
+-r--r--r-- 1 mts mts  5440 Sep  7 00:05 syncMutex.c
+-r--r--r-- 1 mts mts 19582 Sep  7 00:05 syncWaitQPosix.c
+
+open-vm-tools-2007.09.04-56574/lib/sync/shared:
+total 24
+-r--r--r-- 1 mts mts  1060 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 16526 Sep  7 00:05 Makefile.in
+
+open-vm-tools-2007.09.04-56574/lib/syncDriver:
+total 32
+-r--r--r-- 1 mts mts  1034 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14513 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  8837 Sep  7 00:05 syncDriverPosix.c
+
+open-vm-tools-2007.09.04-56574/lib/system:
+total 28
+-r--r--r-- 1 mts mts   995 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14417 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  7221 Sep  7 00:05 systemLinux.c
+
+open-vm-tools-2007.09.04-56574/lib/toolsLogger:
+total 36
+-r--r--r-- 1 mts mts  1028 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14507 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 15162 Sep  7 00:05 logger.c
+
+open-vm-tools-2007.09.04-56574/lib/user:
+total 124
+-r--r--r-- 1 mts mts  1138 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14699 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  9673 Sep  7 00:05 hostinfo.c
+-r--r--r-- 1 mts mts 35095 Sep  7 00:05 hostinfoPosix.c
+-r--r--r-- 1 mts mts 35921 Sep  7 00:05 util.c
+-r--r--r-- 1 mts mts 16466 Sep  7 00:05 utilPosix.c
+
+open-vm-tools-2007.09.04-56574/lib/vixTools:
+total 124
+-r--r--r-- 1 mts mts  1021 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14450 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 99369 Sep  7 00:05 vixTools.c
+
+open-vm-tools-2007.09.04-56574/lib/vmBackupLib:
+total 64
+-r--r--r-- 1 mts mts  1118 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14750 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 10197 Sep  7 00:05 scriptOps.c
+-r--r--r-- 1 mts mts 17116 Sep  7 00:05 stateMachine.c
+-r--r--r-- 1 mts mts  9056 Sep  7 00:05 syncDriverOps.c
+
+open-vm-tools-2007.09.04-56574/lib/vmCheck:
+total 28
+-r--r--r-- 1 mts mts  1017 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14426 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  5030 Sep  7 00:05 vmcheck.c
+
+open-vm-tools-2007.09.04-56574/lib/vmSignal:
+total 24
+-r--r--r-- 1 mts mts  1021 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14450 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  2955 Sep  7 00:05 vmsignal.c
+
+open-vm-tools-2007.09.04-56574/lib/wiper:
+total 44
+-r--r--r-- 1 mts mts  1014 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 14393 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 24424 Sep  7 00:05 wiperPosix.c
+
+open-vm-tools-2007.09.04-56574/libguestlib:
+total 100
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  1841 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 16979 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  1403 Sep  7 00:05 stubs.c
+-r--r--r-- 1 mts mts 26208 Sep  7 00:05 vmGuestLib.c
+-r--r--r-- 1 mts mts  4218 Sep  7 00:05 vmGuestLibInt.h
+-r--r--r-- 1 mts mts  2429 Sep  7 00:05 vmGuestLibPanic.c
+-r--r--r-- 1 mts mts  1565 Sep  7 00:05 vmguestlib_version.h
+
+open-vm-tools-2007.09.04-56574/modules:
+total 4
+drwxr-xr-x 6 mts mts 4096 Sep  7 00:05 linux
+
+open-vm-tools-2007.09.04-56574/modules/linux:
+total 16
+drwxr-xr-x 5 mts mts 4096 Sep  7 00:05 vmblock
+drwxr-xr-x 3 mts mts 4096 Sep  7 00:05 vmhgfs
+drwxr-xr-x 3 mts mts 4096 Sep  7 00:05 vmmemctl
+drwxr-xr-x 3 mts mts 4096 Sep  7 00:05 vmxnet
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmblock:
+total 52
+-r--r--r-- 1 mts mts 17987 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  3289 Sep  7 00:05 Makefile
+-r--r--r-- 1 mts mts  2488 Sep  7 00:05 Makefile.kernel
+-r--r--r-- 1 mts mts  4156 Sep  7 00:05 Makefile.normal
+-r--r--r-- 1 mts mts   504 Sep  7 00:05 README
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 autoconf
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 include
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 linux
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmblock/autoconf:
+total 32
+-r--r--r-- 1 mts mts 1678 Sep  7 00:05 cachecreate.c
+-r--r--r-- 1 mts mts 1269 Sep  7 00:05 epoll.c
+-r--r--r-- 1 mts mts 1718 Sep  7 00:05 filldir1.c
+-r--r--r-- 1 mts mts 1212 Sep  7 00:05 geninclude.c
+-r--r--r-- 1 mts mts 1604 Sep  7 00:05 getsb1.c
+-r--r--r-- 1 mts mts 1147 Sep  7 00:05 setnice.c
+-r--r--r-- 1 mts mts 1267 Sep  7 00:05 skas1.c
+-r--r--r-- 1 mts mts 1471 Sep  7 00:05 statfs1.c
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmblock/include:
+total 164
+-r--r--r-- 1 mts mts  6096 Sep  7 00:05 compat_completion.h
+-r--r--r-- 1 mts mts  1883 Sep  7 00:05 compat_file.h
+-r--r--r-- 1 mts mts  9637 Sep  7 00:05 compat_fs.h
+-r--r--r-- 1 mts mts  1265 Sep  7 00:05 compat_init.h
+-r--r--r-- 1 mts mts  2447 Sep  7 00:05 compat_kernel.h
+-r--r--r-- 1 mts mts  1658 Sep  7 00:05 compat_list.h
+-r--r--r-- 1 mts mts  4239 Sep  7 00:05 compat_mm.h
+-r--r--r-- 1 mts mts  2302 Sep  7 00:05 compat_module.h
+-r--r--r-- 1 mts mts  1578 Sep  7 00:05 compat_namei.h
+-r--r--r-- 1 mts mts  2491 Sep  7 00:05 compat_page.h
+-r--r--r-- 1 mts mts  8907 Sep  7 00:05 compat_sched.h
+-r--r--r-- 1 mts mts  1464 Sep  7 00:05 compat_semaphore.h
+-r--r--r-- 1 mts mts  1958 Sep  7 00:05 compat_slab.h
+-r--r--r-- 1 mts mts  2446 Sep  7 00:05 compat_spinlock.h
+-r--r--r-- 1 mts mts  1230 Sep  7 00:05 compat_statfs.h
+-r--r--r-- 1 mts mts  1915 Sep  7 00:05 compat_string.h
+-r--r--r-- 1 mts mts  3130 Sep  7 00:05 compat_uaccess.h
+-r--r--r-- 1 mts mts  3193 Sep  7 00:05 compat_version.h
+-r--r--r-- 1 mts mts  5442 Sep  7 00:05 compat_wait.h
+-r--r--r-- 1 mts mts  1965 Sep  7 00:05 driver-config.h
+-r--r--r-- 1 mts mts     0 Sep  7 00:05 includeCheck.h
+-r--r--r-- 1 mts mts  9959 Sep  7 00:05 vm_assert.h
+-r--r--r-- 1 mts mts 11805 Sep  7 00:05 vm_basic_defs.h
+-r--r--r-- 1 mts mts 18449 Sep  7 00:05 vm_basic_types.h
+-r--r--r-- 1 mts mts  4268 Sep  7 00:05 vmblock.h
+-r--r--r-- 1 mts mts  1896 Sep  7 00:05 vmware.h
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmblock/linux:
+total 136
+-r--r--r-- 1 mts mts 16444 Sep  7 00:05 block.c
+-r--r--r-- 1 mts mts  1552 Sep  7 00:05 block.h
+-r--r--r-- 1 mts mts  8902 Sep  7 00:05 control.c
+-r--r--r-- 1 mts mts  8103 Sep  7 00:05 dbllnklst.c
+-r--r--r-- 1 mts mts  2236 Sep  7 00:05 dbllnklst.h
+-r--r--r-- 1 mts mts  3705 Sep  7 00:05 dentry.c
+-r--r--r-- 1 mts mts  8097 Sep  7 00:05 file.c
+-r--r--r-- 1 mts mts 17802 Sep  7 00:05 filesystem.c
+-r--r--r-- 1 mts mts  4820 Sep  7 00:05 filesystem.h
+-r--r--r-- 1 mts mts  6802 Sep  7 00:05 inode.c
+-r--r--r-- 1 mts mts  4294 Sep  7 00:05 module.c
+-r--r--r-- 1 mts mts  4300 Sep  7 00:05 os.h
+-r--r--r-- 1 mts mts  1318 Sep  7 00:05 stubs.c
+-r--r--r-- 1 mts mts  1065 Sep  7 00:05 stubs.h
+-r--r--r-- 1 mts mts  4801 Sep  7 00:05 super.c
+-r--r--r-- 1 mts mts  3407 Sep  7 00:05 vmblockInt.h
+-r--r--r-- 1 mts mts  1208 Sep  7 00:05 vmblock_version.h
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmhgfs:
+total 852
+-r--r--r-- 1 mts mts 17987 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  3288 Sep  7 00:05 Makefile
+-r--r--r-- 1 mts mts  2601 Sep  7 00:05 Makefile.kernel
+-r--r--r-- 1 mts mts  3435 Sep  7 00:05 Makefile.normal
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 autoconf
+-r--r--r-- 1 mts mts  6361 Sep  7 00:05 backdoor.c
+-r--r--r-- 1 mts mts  3830 Sep  7 00:05 backdoor.h
+-r--r--r-- 1 mts mts  6178 Sep  7 00:05 backdoorGcc32.c
+-r--r--r-- 1 mts mts  5554 Sep  7 00:05 backdoorGcc64.c
+-r--r--r-- 1 mts mts  1036 Sep  7 00:05 backdoorInt.h
+-r--r--r-- 1 mts mts  5642 Sep  7 00:05 backdoor_def.h
+-r--r--r-- 1 mts mts  8595 Sep  7 00:05 bdhandler.c
+-r--r--r-- 1 mts mts  1171 Sep  7 00:05 bdhandler.h
+-r--r--r-- 1 mts mts  6096 Sep  7 00:05 compat_completion.h
+-r--r--r-- 1 mts mts  2060 Sep  7 00:05 compat_dcache.h
+-r--r--r-- 1 mts mts  1883 Sep  7 00:05 compat_file.h
+-r--r--r-- 1 mts mts  9637 Sep  7 00:05 compat_fs.h
+-r--r--r-- 1 mts mts  1399 Sep  7 00:05 compat_highmem.h
+-r--r--r-- 1 mts mts  2447 Sep  7 00:05 compat_kernel.h
+-r--r--r-- 1 mts mts  1658 Sep  7 00:05 compat_list.h
+-r--r--r-- 1 mts mts  4239 Sep  7 00:05 compat_mm.h
+-r--r--r-- 1 mts mts  2302 Sep  7 00:05 compat_module.h
+-r--r--r-- 1 mts mts  1578 Sep  7 00:05 compat_namei.h
+-r--r--r-- 1 mts mts  2599 Sep  7 00:05 compat_page-flags.h
+-r--r--r-- 1 mts mts  2491 Sep  7 00:05 compat_page.h
+-r--r--r-- 1 mts mts  8907 Sep  7 00:05 compat_sched.h
+-r--r--r-- 1 mts mts  1464 Sep  7 00:05 compat_semaphore.h
+-r--r--r-- 1 mts mts  1958 Sep  7 00:05 compat_slab.h
+-r--r--r-- 1 mts mts  2446 Sep  7 00:05 compat_spinlock.h
+-r--r--r-- 1 mts mts  1230 Sep  7 00:05 compat_statfs.h
+-r--r--r-- 1 mts mts  1915 Sep  7 00:05 compat_string.h
+-r--r--r-- 1 mts mts  3130 Sep  7 00:05 compat_uaccess.h
+-r--r--r-- 1 mts mts  3193 Sep  7 00:05 compat_version.h
+-r--r--r-- 1 mts mts  5442 Sep  7 00:05 compat_wait.h
+-r--r--r-- 1 mts mts 12049 Sep  7 00:05 cpName.c
+-r--r--r-- 1 mts mts  3934 Sep  7 00:05 cpName.h
+-r--r--r-- 1 mts mts  1802 Sep  7 00:05 cpNameInt.h
+-r--r--r-- 1 mts mts  5767 Sep  7 00:05 cpNameLinux.c
+-r--r--r-- 1 mts mts  2646 Sep  7 00:05 cpNameLite.c
+-r--r--r-- 1 mts mts  1567 Sep  7 00:05 cpNameLite.h
+-r--r--r-- 1 mts mts  2236 Sep  7 00:05 dbllnklst.h
+-r--r--r-- 1 mts mts  3116 Sep  7 00:05 dentry.c
+-r--r--r-- 1 mts mts 22883 Sep  7 00:05 dir.c
+-r--r--r-- 1 mts mts  1965 Sep  7 00:05 driver-config.h
+-r--r--r-- 1 mts mts  3663 Sep  7 00:05 escBitvector.h
+-r--r--r-- 1 mts mts 33039 Sep  7 00:05 file.c
+-r--r--r-- 1 mts mts 20100 Sep  7 00:05 filesystem.c
+-r--r--r-- 1 mts mts  1237 Sep  7 00:05 filesystem.h
+-r--r--r-- 1 mts mts 49549 Sep  7 00:05 fsutil.c
+-r--r--r-- 1 mts mts  3734 Sep  7 00:05 fsutil.h
+-r--r--r-- 1 mts mts  2847 Sep  7 00:05 guest_msg_def.h
+-r--r--r-- 1 mts mts  8360 Sep  7 00:05 hgfs.h
+-r--r--r-- 1 mts mts  8648 Sep  7 00:05 hgfsBd.c
+-r--r--r-- 1 mts mts  1454 Sep  7 00:05 hgfsBd.h
+-r--r--r-- 1 mts mts  2539 Sep  7 00:05 hgfsDevLinux.h
+-r--r--r-- 1 mts mts 27612 Sep  7 00:05 hgfsProto.h
+-r--r--r-- 1 mts mts  6764 Sep  7 00:05 hgfsUtil.c
+-r--r--r-- 1 mts mts  3218 Sep  7 00:05 hgfsUtil.h
+-r--r--r-- 1 mts mts  4266 Sep  7 00:05 includeCheck.h
+-r--r--r-- 1 mts mts 52587 Sep  7 00:05 inode.c
+-r--r--r-- 1 mts mts  1322 Sep  7 00:05 inode.h
+-r--r--r-- 1 mts mts  2963 Sep  7 00:05 kernelStubs.h
+-r--r--r-- 1 mts mts 19428 Sep  7 00:05 kernelStubsLinux.c
+-r--r--r-- 1 mts mts  5308 Sep  7 00:05 link.c
+-r--r--r-- 1 mts mts  8095 Sep  7 00:05 message.c
+-r--r--r-- 1 mts mts  3415 Sep  7 00:05 message.h
+-r--r--r-- 1 mts mts 17100 Sep  7 00:05 messageBackdoor.c
+-r--r--r-- 1 mts mts  2681 Sep  7 00:05 module.c
+-r--r--r-- 1 mts mts  8384 Sep  7 00:05 module.h
+-r--r--r-- 1 mts mts 22545 Sep  7 00:05 page.c
+-r--r--r-- 1 mts mts  6539 Sep  7 00:05 request.c
+-r--r--r-- 1 mts mts  3694 Sep  7 00:05 request.h
+-r--r--r-- 1 mts mts 11557 Sep  7 00:05 rpcout.c
+-r--r--r-- 1 mts mts  1969 Sep  7 00:05 rpcout.h
+-r--r--r-- 1 mts mts  8629 Sep  7 00:05 staticEscape.c
+-r--r--r-- 1 mts mts  2485 Sep  7 00:05 staticEscape.h
+-r--r--r-- 1 mts mts  1989 Sep  7 00:05 stubs.c
+-r--r--r-- 1 mts mts 10703 Sep  7 00:05 super.c
+-r--r--r-- 1 mts mts  9959 Sep  7 00:05 vm_assert.h
+-r--r--r-- 1 mts mts 17433 Sep  7 00:05 vm_basic_asm.h
+-r--r--r-- 1 mts mts 16050 Sep  7 00:05 vm_basic_asm_x86.h
+-r--r--r-- 1 mts mts  8566 Sep  7 00:05 vm_basic_asm_x86_64.h
+-r--r--r-- 1 mts mts 11805 Sep  7 00:05 vm_basic_defs.h
+-r--r--r-- 1 mts mts 18449 Sep  7 00:05 vm_basic_types.h
+-r--r--r-- 1 mts mts  1200 Sep  7 00:05 vmhgfs_version.h
+-r--r--r-- 1 mts mts  1896 Sep  7 00:05 vmware.h
+-r--r--r-- 1 mts mts  1324 Sep  7 00:05 vmware_pack_begin.h
+-r--r--r-- 1 mts mts  1344 Sep  7 00:05 vmware_pack_end.h
+-r--r--r-- 1 mts mts  1964 Sep  7 00:05 vmware_pack_init.h
+-r--r--r-- 1 mts mts 30768 Sep  7 00:05 x86cpuid.h
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmhgfs/autoconf:
+total 32
+-r--r--r-- 1 mts mts 1678 Sep  7 00:05 cachecreate.c
+-r--r--r-- 1 mts mts 1269 Sep  7 00:05 epoll.c
+-r--r--r-- 1 mts mts 1212 Sep  7 00:05 geninclude.c
+-r--r--r-- 1 mts mts 1604 Sep  7 00:05 getsb1.c
+-r--r--r-- 1 mts mts 1481 Sep  7 00:05 inode1.c
+-r--r--r-- 1 mts mts 1353 Sep  7 00:05 maxbytes.c
+-r--r--r-- 1 mts mts 1147 Sep  7 00:05 setnice.c
+-r--r--r-- 1 mts mts 1471 Sep  7 00:05 statfs1.c
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmmemctl:
+total 264
+-r--r--r-- 1 mts mts 17987 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  3290 Sep  7 00:05 Makefile
+-r--r--r-- 1 mts mts  2110 Sep  7 00:05 Makefile.kernel
+-r--r--r-- 1 mts mts  2874 Sep  7 00:05 Makefile.normal
+-r--r--r-- 1 mts mts   453 Sep  7 00:05 README
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 autoconf
+-r--r--r-- 1 mts mts  3830 Sep  7 00:05 backdoor.h
+-r--r--r-- 1 mts mts  6178 Sep  7 00:05 backdoorGcc32.c
+-r--r--r-- 1 mts mts  5554 Sep  7 00:05 backdoorGcc64.c
+-r--r--r-- 1 mts mts  1036 Sep  7 00:05 backdoorInt.h
+-r--r--r-- 1 mts mts  1342 Sep  7 00:05 backdoor_balloon.h
+-r--r--r-- 1 mts mts  2626 Sep  7 00:05 balloon_def.h
+-r--r--r-- 1 mts mts  6096 Sep  7 00:05 compat_completion.h
+-r--r--r-- 1 mts mts  1883 Sep  7 00:05 compat_file.h
+-r--r--r-- 1 mts mts  2447 Sep  7 00:05 compat_kernel.h
+-r--r--r-- 1 mts mts  1658 Sep  7 00:05 compat_list.h
+-r--r--r-- 1 mts mts  4239 Sep  7 00:05 compat_mm.h
+-r--r--r-- 1 mts mts  2302 Sep  7 00:05 compat_module.h
+-r--r--r-- 1 mts mts  2491 Sep  7 00:05 compat_page.h
+-r--r--r-- 1 mts mts  8907 Sep  7 00:05 compat_sched.h
+-r--r--r-- 1 mts mts  1464 Sep  7 00:05 compat_semaphore.h
+-r--r--r-- 1 mts mts  2446 Sep  7 00:05 compat_spinlock.h
+-r--r--r-- 1 mts mts  3193 Sep  7 00:05 compat_version.h
+-r--r--r-- 1 mts mts  5442 Sep  7 00:05 compat_wait.h
+-r--r--r-- 1 mts mts  1965 Sep  7 00:05 driver-config.h
+-r--r--r-- 1 mts mts  4266 Sep  7 00:05 includeCheck.h
+-r--r--r-- 1 mts mts 14047 Sep  7 00:05 os.c
+-r--r--r-- 1 mts mts  2411 Sep  7 00:05 os.h
+-r--r--r-- 1 mts mts  9959 Sep  7 00:05 vm_assert.h
+-r--r--r-- 1 mts mts 11805 Sep  7 00:05 vm_basic_defs.h
+-r--r--r-- 1 mts mts 18449 Sep  7 00:05 vm_basic_types.h
+-r--r--r-- 1 mts mts 37442 Sep  7 00:05 vmballoon.c
+-r--r--r-- 1 mts mts  2052 Sep  7 00:05 vmballoon.h
+-r--r--r-- 1 mts mts  1225 Sep  7 00:05 vmmemctl_version.h
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmmemctl/autoconf:
+total 12
+-r--r--r-- 1 mts mts 1269 Sep  7 00:05 epoll.c
+-r--r--r-- 1 mts mts 1212 Sep  7 00:05 geninclude.c
+-r--r--r-- 1 mts mts 1147 Sep  7 00:05 setnice.c
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmxnet:
+total 296
+-r--r--r-- 1 mts mts 17987 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  3288 Sep  7 00:05 Makefile
+-r--r--r-- 1 mts mts  1690 Sep  7 00:05 Makefile.kernel
+-r--r--r-- 1 mts mts  2683 Sep  7 00:05 Makefile.normal
+-r--r--r-- 1 mts mts   460 Sep  7 00:05 README
+drwxr-xr-x 2 mts mts  4096 Sep  7 00:05 autoconf
+-r--r--r-- 1 mts mts  1742 Sep  7 00:05 compat_ethtool.h
+-r--r--r-- 1 mts mts  1265 Sep  7 00:05 compat_init.h
+-r--r--r-- 1 mts mts  1708 Sep  7 00:05 compat_interrupt.h
+-r--r--r-- 1 mts mts  1346 Sep  7 00:05 compat_ioport.h
+-r--r--r-- 1 mts mts  2302 Sep  7 00:05 compat_module.h
+-r--r--r-- 1 mts mts  3743 Sep  7 00:05 compat_netdevice.h
+-r--r--r-- 1 mts mts 12229 Sep  7 00:05 compat_pci.h
+-r--r--r-- 1 mts mts  4114 Sep  7 00:05 compat_skbuff.h
+-r--r--r-- 1 mts mts  1958 Sep  7 00:05 compat_slab.h
+-r--r--r-- 1 mts mts  2446 Sep  7 00:05 compat_spinlock.h
+-r--r--r-- 1 mts mts  3193 Sep  7 00:05 compat_version.h
+-r--r--r-- 1 mts mts  1965 Sep  7 00:05 driver-config.h
+-r--r--r-- 1 mts mts  4266 Sep  7 00:05 includeCheck.h
+-r--r--r-- 1 mts mts  2401 Sep  7 00:05 net.h
+-r--r--r-- 1 mts mts  3292 Sep  7 00:05 net_dist.h
+-r--r--r-- 1 mts mts  2244 Sep  7 00:05 net_sg.h
+-r--r--r-- 1 mts mts  4218 Sep  7 00:05 return_status.h
+-r--r--r-- 1 mts mts 18449 Sep  7 00:05 vm_basic_types.h
+-r--r--r-- 1 mts mts  6808 Sep  7 00:05 vm_device_version.h
+-r--r--r-- 1 mts mts 28193 Sep  7 00:05 vmkapi_status.h
+-r--r--r-- 1 mts mts  2858 Sep  7 00:05 vmkapi_types.h
+-r--r--r-- 1 mts mts  2739 Sep  7 00:05 vmnet_def.h
+-r--r--r-- 1 mts mts 65023 Sep  7 00:05 vmxnet.c
+-r--r--r-- 1 mts mts 14506 Sep  7 00:05 vmxnet2_def.h
+-r--r--r-- 1 mts mts  5470 Sep  7 00:05 vmxnetInt.h
+-r--r--r-- 1 mts mts  6686 Sep  7 00:05 vmxnet_def.h
+-r--r--r-- 1 mts mts  1200 Sep  7 00:05 vmxnet_version.h
+
+open-vm-tools-2007.09.04-56574/modules/linux/vmxnet/autoconf:
+total 8
+-r--r--r-- 1 mts mts 1212 Sep  7 00:05 geninclude.c
+-r--r--r-- 1 mts mts 1408 Sep  7 00:05 skblin.c
+
+open-vm-tools-2007.09.04-56574/toolbox:
+total 176
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  2569 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 16910 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts  2696 Sep  7 00:05 bigIcon.xpm
+-r--r--r-- 1 mts mts  5682 Sep  7 00:05 debugStdio.c
+-r--r--r-- 1 mts mts   458 Sep  7 00:05 smallIcon.xpm
+-r--r--r-- 1 mts mts  4721 Sep  7 00:05 stub.c
+-r--r--r-- 1 mts mts 29606 Sep  7 00:05 toolbox-gtk.c
+-r--r--r-- 1 mts mts  6130 Sep  7 00:05 toolboxAbout.c
+-r--r--r-- 1 mts mts  7109 Sep  7 00:05 toolboxDevices.c
+-r--r--r-- 1 mts mts  2859 Sep  7 00:05 toolboxInt.h
+-r--r--r-- 1 mts mts  3922 Sep  7 00:05 toolboxOptions.c
+-r--r--r-- 1 mts mts 24484 Sep  7 00:05 toolboxScripts.c
+-r--r--r-- 1 mts mts 14852 Sep  7 00:05 toolboxShrink.c
+-r--r--r-- 1 mts mts  1575 Sep  7 00:05 toolboxgtk_version.h
+
+open-vm-tools-2007.09.04-56574/vmware-user:
+total 452
+-r--r--r-- 1 mts mts 26425 Sep  7 00:05 COPYING
+-r--r--r-- 1 mts mts  3866 Sep  7 00:05 Makefile.am
+-rw-r--r-- 1 mts mts 18610 Sep  7 00:05 Makefile.in
+-r--r--r-- 1 mts mts 63370 Sep  7 00:05 copyPaste.c
+-r--r--r-- 1 mts mts  5682 Sep  7 00:05 debugStdio.c
+-r--r--r-- 1 mts mts 83267 Sep  7 00:05 dnd.c
+-r--r--r-- 1 mts mts 37359 Sep  7 00:05 foreignVMToolsDaemon.c
+-r--r--r-- 1 mts mts  6203 Sep  7 00:05 foreignVMToolsDaemon.h
+-r--r--r-- 1 mts mts 36997 Sep  7 00:05 foreignVMToolsNetworking.c
+-r--r--r-- 1 mts mts 55140 Sep  7 00:05 foundryToolsDaemon.c
+-r--r--r-- 1 mts mts  1641 Sep  7 00:05 foundryToolsDaemon.h
+-r--r--r-- 1 mts mts  7478 Sep  7 00:05 libvmwarectrl.c
+-r--r--r-- 1 mts mts  2031 Sep  7 00:05 libvmwarectrl.h
+-r--r--r-- 1 mts mts  5892 Sep  7 00:05 pointer.c
+-r--r--r-- 1 mts mts 14267 Sep  7 00:05 resolution.c
+-r--r--r-- 1 mts mts  4721 Sep  7 00:05 stub.c
+-r--r--r-- 1 mts mts 24058 Sep  7 00:05 vmware-user.c
+-r--r--r-- 1 mts mts  1868 Sep  7 00:05 vmwarectrl.h
+-r--r--r-- 1 mts mts  3636 Sep  7 00:05 vmwarectrlproto.h
+-r--r--r-- 1 mts mts  2881 Sep  7 00:05 vmwareuserInt.h
+-r--r--r-- 1 mts mts  1582 Sep  7 00:05 vmwareuser_version.h

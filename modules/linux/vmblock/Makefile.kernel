@@ -1,0 +1,64 @@
+#!/usr/bin/make -f
+#############################################################
+# Copyright 2006 VMware, Inc.  All rights reserved. 
+#############################################################
+####
+#### This program is free software; you can redistribute it and/or modify it
+#### under the terms of the GNU General Public License as published by the
+#### Free Software Foundation version 2 and no later version.
+####
+#### This program is distributed in the hope that it will be useful, but
+#### WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#### or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+#### for more details.
+####
+#### You should have received a copy of the GNU General Public License along
+#### with this program; if not, write to the Free Software Foundation, Inc.,
+#### 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+
+####
+####  VMware vmblock Makefile to be distributed externally
+####
+####
+
+vm_check_build = $(shell if $(CC) $(CPPFLAGS) $(CFLAGS) $(CFLAGS_KERNEL) \
+	$(EXTRA_CFLAGS) -Iinclude2/asm/mach-default \
+	-DKBUILD_BASENAME=\"$(DRIVER)\" \
+	-Werror -S -o /dev/null -xc $(1) \
+	> /dev/null 2>&1; then echo "$(2)"; else echo "$(3)"; fi)
+
+CC_WARNINGS := -Wall -Wstrict-prototypes
+
+CC_OPTS := $(GLOBAL_DEFS) $(CC_WARNINGS)
+
+CC_OPTS += -DVMW_USING_KBUILD
+
+ifdef VMX86_DEVEL
+CC_OPTS += -DVMX86_DEVEL
+endif
+ifdef VMX86_DEBUG
+CC_OPTS += -DVMX86_DEBUG
+endif
+
+INCLUDE := -I$(SRCROOT)/include
+
+EXTRA_CFLAGS := $(CC_OPTS) $(INCLUDE)
+
+EXTRA_CFLAGS += $(call vm_check_build, $(SRCROOT)/autoconf/setnice.c, -DVMW_HAVE_SET_USER_NICE, )
+EXTRA_CFLAGS += $(call vm_check_build, $(SRCROOT)/autoconf/epoll.c,   -DVMW_HAVE_EPOLL, )
+EXTRA_CFLAGS += $(call vm_check_build, $(SRCROOT)/autoconf/skas1.c,   -DVMW_SKAS_MMAP, )
+EXTRA_CFLAGS += $(call vm_check_build, $(SRCROOT)/autoconf/cachecreate.c, -DVMW_KMEMCR_HAS_DTOR, )
+
+# Note: These tests are inverted.
+EXTRA_CFLAGS += $(call vm_check_build, $(SRCROOT)/autoconf/getsb1.c, ,   -DVMW_GETSB_2618)
+EXTRA_CFLAGS += $(call vm_check_build, $(SRCROOT)/autoconf/statfs1.c, ,  -DVMW_STATFS_2618)
+EXTRA_CFLAGS += $(call vm_check_build, $(SRCROOT)/autoconf/filldir1.c, , -DVMW_FILLDIR_2618)
+
+obj-m += $(DRIVER).o
+
+$(DRIVER)-y := $(subst $(SRCROOT)/, , $(patsubst %.c, %.o, $(wildcard $(SRCROOT)/linux/*.c)))
+
+clean:
+	rm -rf $(wildcard $(DRIVER).mod.c $(DRIVER).ko .tmp_versions \
+	Module.symvers Modules.symvers \
+	$(foreach dir,./ linux/,$(addprefix $(dir),.*.cmd .*.o.flags *.o)))
