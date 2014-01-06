@@ -70,7 +70,7 @@
 #define VM_SYSTEM_HAS_GETGRNAM_R 1
 #endif
 
-# if defined(__FreeBSD__) && BSD_VERSION >= 53
+# if defined(__FreeBSD__) && __FreeBSD_version >= 503000
 #  include <syslimits.h>  // PATH_MAX
 # else
 #  include <limits.h>  // PATH_MAX
@@ -2981,7 +2981,7 @@ Posix_Printf(ConstUnicode format,
    if (!PosixConvertToCurrent(output, &outCurr)) {
       return -1;
    }
-   numChars = printf(outCurr);
+   numChars = printf("%s", outCurr);
 
    free(output);
    free(outCurr);
