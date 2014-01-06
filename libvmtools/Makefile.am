@@ -18,6 +18,7 @@
 lib_LTLIBRARIES = libvmtools.la
 
 libvmtools_la_LIBADD =
+libvmtools_la_LIBADD += ../lib/lock/libLock.la
 libvmtools_la_LIBADD += ../lib/backdoor/libBackdoor.la
 libvmtools_la_LIBADD += ../lib/conf/libConf.la
 libvmtools_la_LIBADD += ../lib/dict/libDict.la
@@ -62,6 +63,7 @@ libvmtools_la_SOURCES += sysLogger.c
 libvmtools_la_SOURCES += vmtools.c
 libvmtools_la_SOURCES += vmtoolsConfig.c
 libvmtools_la_SOURCES += vmtoolsLog.c
+libvmtools_la_SOURCES += vmxLogger.c
 
 # Recompile the rpcIn library with GLIB support.
 libvmtools_la_SOURCES += $(top_srcdir)/lib/rpcIn/rpcin.c

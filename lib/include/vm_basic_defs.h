@@ -195,6 +195,14 @@ Max(int a, int b)
 
 
 /*
+ * Wide versions of string constants.
+ */
+
+#define WSTR_(X)     L ## X
+#define WSTR(X)      WSTR_(X)
+
+
+/*
  * Page operations
  *
  * It has been suggested that these definitions belong elsewhere
@@ -327,38 +335,25 @@ void *_ReturnAddress(void);
 #ifdef __GNUC__
 #ifndef sun
 
-/*
- * Get the frame pointer. We use this assembly hack instead of
- * __builtin_frame_address() due to a bug introduced in gcc 4.1.1
- */
 static INLINE_SINGLE_CALLER uintptr_t
 GetFrameAddr(void)
 {
    uintptr_t bp;
-#if    __GNUC__ < 4 \
-    || (__GNUC__ == 4 && __GNUC_MINOR__ == 0) \
-    || (__GNUC__ == 4 && __GNUC_MINOR__ == 2 && __GNUC_PATCHLEVEL__ == 1)
+#if  !(__GNUC__ == 4 && (__GNUC_MINOR__ == 0 || __GNUC_MINOR__ == 1))
    bp = (uintptr_t)__builtin_frame_address(0);
-#elif __GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ <= 3
-#  if defined(VMM) || defined(VM_X86_64)
-     __asm__ __volatile__("movq %%rbp, %0\n" : "=g" (bp));
-#  else
-     __asm__ __volatile__("movl %%ebp, %0\n" : "=g" (bp));
-#  endif
 #else
-   __asm__ __volatile__(
-#ifdef __linux__
-      ".print \"This newer version of GCC may or may not have the "
-               "__builtin_frame_address bug.  Need to update this. "
-               "See bug 147638.\"\n"
-      ".abort"
-#else /* MacOS */
-      ".abort \"This newer version of GCC may or may not have the "
-               "__builtin_frame_address bug.  Need to update this. "
-               "See bug 147638.\"\n"
-#endif
-      : "=g" (bp)
-   );
+   /*
+    * We use this assembly hack due to a bug discovered in gcc 4.1.1.
+    * The bug was fixed in 4.2.0; assume it originated with 4.0.
+    * PR147638, PR554369.
+    */
+     __asm__ __volatile__(
+#  if defined(VM_X86_64)
+                          "movq %%rbp, %0\n"
+#  else
+                          "movl %%ebp, %0\n"
+#  endif
+                          : "=g" (bp));
 #endif
    return bp;
 }
@@ -653,13 +648,33 @@ typedef int pid_t;
  */
 
 #define RANK_UNRANKED            0
-#define RANK_LEAF                0xFFFFFFFE
+#define RANK_LEAF                0xFF000000
 #define RANK_INVALID             0xFFFFFFFF
 
 /*
- * VMX/VMM/device lock rank space is from 1 to 200. See
- * vmx/public/mutexRank.h.
+ * VMX/VMM/device lock rank space is at the bottom, from 1 to
+ * RANK_VMX_LEAF. See vmx/public/mutexRank.h for definitions.
  */
+
+/*
+ * bora/lib lock rank space is from RANK_libLockBase on up to
+ * RANK_LEAF.
+ */
+#define RANK_libLockBase         0xF0000000
+
+/*
+ * bora/lib/allocTrack is a special case. It hooks malloc/free and the
+ * like, and thus can basically sneak in underneath anyone. To that end
+ * allocTrack uses unranked, native locks internally to avoid any
+ * complications.
+ */
+
+/*
+ * For situations where we need to create locks on behalf of
+ * third-party code, but we don't know what ranking scheme, if any,
+ * that code uses.  For now, the only usage is in bora/lib/ssl.
+ */
+#define RANK_THIRDPARTY          RANK_UNRANKED
 
 /*
  * Use to initialize cbSize for this structure to preserve < Vista

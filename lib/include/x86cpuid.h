@@ -298,7 +298,7 @@ FLAGDEFA(  1, ECX, INTEL,  22,  1, MOVBE,               YES, TRUE,  MOVBE)     \
 FLAGDEFA(  1, ECX, COMMON, 23,  1, POPCNT,              YES, TRUE,  POPCNT)    \
 FLAGDEF(   1, ECX, INTEL,  24,  1, ULE,                 NO,  TRUE)             \
 FLAGDEFA(  1, ECX, INTEL,  25,  1, AES,                 YES, TRUE, AES)        \
-FLAGDEF(   1, ECX, INTEL,  26,  1, XSAVE,               NO,  FALSE)            \
+FLAGDEFA(  1, ECX, INTEL,  26,  1, XSAVE,               NO,  FALSE, XSAVE)     \
 FLAGDEF(   1, ECX, INTEL,  27,  1, OSXSAVE,             NO,  TRUE)             \
 FLAGDEFA(  1, ECX, INTEL,  28,  1, AVX,                 NO,  TRUE,  AVX)       \
 FLAGDEFA(  1, ECX, COMMON, 31,  1, HYPERVISOR,          ANY, FALSE, HYPERVISOR)\
@@ -437,6 +437,7 @@ FLAGDEF(  81, ECX, AMD,    10,  1, IBS,                 NO,  FALSE)            \
 FLAGDEF(  81, ECX, AMD,    11,  1, SSE5,                NO,  TRUE)             \
 FLAGDEF(  81, ECX, AMD,    12,  1, SKINIT,              NO,  FALSE)            \
 FLAGDEF(  81, ECX, AMD,    13,  1, WATCHDOG,            NO,  FALSE)            \
+FLAGDEF(  81, ECX, AMD,    19,  1, NODEID,              NO,  FALSE)            \
 FLAGDEF(  81, EDX, AMD,     0,  1, FPU,                 YES, TRUE)             \
 FLAGDEF(  81, EDX, AMD,     1,  1, VME,                 YES, FALSE)            \
 FLAGDEF(  81, EDX, AMD,     2,  1, DBGE,                YES, FALSE)            \

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,25 +17,19 @@
  *********************************************************/
 
 /*
- * vmciHostKernelAPI.h --
+ * vmciKernelAPI.h --
  *
- *    Kernel API exported from the VMCI host driver.
+ *    Kernel API exported from the VMCI host and guest drivers.
  */
 
-#ifndef __VMCI_HOSTKERNELAPI_H__
-#define __VMCI_HOSTKERNELAPI_H__
+#ifndef __VMCI_KERNELAPI_H__
+#define __VMCI_KERNELAPI_H__
 
 #define INCLUDE_ALLOW_MODULE
-#define INCLUDE_ALLOW_VMMON
-#define INCLUDE_ALLOW_VMCORE
 #define INCLUDE_ALLOW_VMK_MODULE
 #define INCLUDE_ALLOW_VMKERNEL
-#define INCLUDE_ALLOW_DISTRIBUTE
 #include "includeCheck.h"
 
-
-/* VMCI host kernel API version number. */
-#define VMCI_HOST_KERNEL_API_VERSION  1
 
 /* Macros to operate on the driver version number. */
 #define VMCI_MAJOR_VERSION(v)       (((v) >> 16) & 0xffff)
@@ -44,24 +38,14 @@
 #include "vmci_defs.h"
 #include "vmci_call_defs.h"
 
-#include "vmciQueue.h"
-
 
 /* PUBLIC: VMCI Device Usage API. */
 
-#if defined(_WIN32)
 Bool VMCI_DeviceGet(void);
 void VMCI_DeviceRelease(void);
-#else // _WIN32
-#  define VMCI_DeviceGet() TRUE
-#  define VMCI_DeviceRelease()
-#endif // _WIN32
 
 /* PUBLIC: VMCI Datagram API. */
 
-int VMCIHost_DatagramCreateHnd(VMCIId resourceID, uint32 flags,
-                               VMCIDatagramRecvCB recvCB, void *clientData,
-                               VMCIHandle *outHandle);
 int VMCIDatagram_CreateHnd(VMCIId resourceID, uint32 flags,
                            VMCIDatagramRecvCB recvCB, void *clientData,
                            VMCIHandle *outHandle);
@@ -74,12 +58,12 @@ int VMCIDatagram_Send(VMCIDatagram *msg);
 
 /* VMCI Utility API. */
 
-#if defined(VMKERNEL)
+VMCIId VMCI_GetContextID(void);
+uint32 VMCI_Version(void);
 int VMCI_ContextID2HostVmID(VMCIId contextID, void *hostVmID,
                             size_t hostVmIDLen);
-#endif
 
-/* VMCI Event API  */
+/* VMCI Event API. */
 
 typedef void (*VMCI_EventCB)(VMCIId subID, VMCI_EventData *ed,
 			     void *clientData);
@@ -91,6 +75,10 @@ int VMCIEvent_Unsubscribe(VMCIId subID);
 /* VMCI Context API */
 
 VMCIPrivilegeFlags VMCIContext_GetPrivFlags(VMCIId contextID);
+
+/* VMCI Discovery Service API. */
+
+int VMCIDs_Lookup(const char *name, VMCIHandle *out);
 
 /* VMCI Doorbell API. */
 
@@ -105,5 +93,62 @@ int VMCIDoorbell_Destroy(VMCIHandle handle);
 int VMCIDoorbell_Notify(VMCIHandle handle,
                         VMCIPrivilegeFlags privFlags);
 
-#endif /* !__VMCI_HOSTKERNELAPI_H__ */
+/* VMCI Queue Pair API. */
 
+typedef struct VMCIQPair VMCIQPair;
+
+int VMCIQPair_Alloc(VMCIQPair **qpair,
+                    VMCIHandle *handle,
+                    uint64 produceQSize,
+                    uint64 consumeQSize,
+                    VMCIId peer,
+                    uint32 flags,
+                    VMCIPrivilegeFlags privFlags);
+
+void VMCIQPair_Detach(VMCIQPair **qpair);
+
+void VMCIQPair_Init(VMCIQPair *qpair);
+void VMCIQPair_GetProduceIndexes(const VMCIQPair *qpair,
+                                 uint64 *producerTail,
+                                 uint64 *consumerHead);
+void VMCIQPair_GetConsumeIndexes(const VMCIQPair *qpair,
+                                 uint64 *consumerTail,
+                                 uint64 *producerHead);
+int64 VMCIQPair_ProduceFreeSpace(const VMCIQPair *qpair);
+int64 VMCIQPair_ProduceBufReady(const VMCIQPair *qpair);
+int64 VMCIQPair_ConsumeFreeSpace(const VMCIQPair *qpair);
+int64 VMCIQPair_ConsumeBufReady(const VMCIQPair *qpair);
+ssize_t VMCIQPair_Enqueue(VMCIQPair *qpair,
+                          const void *buf,
+                          size_t bufSize,
+                          int mode);
+ssize_t VMCIQPair_Dequeue(VMCIQPair *qpair,
+                          void *buf,
+                          size_t bufSize,
+                          int mode);
+ssize_t VMCIQPair_Peek(VMCIQPair *qpair,
+                       void *buf,
+                       size_t bufSize,
+                       int mode);
+
+#if defined (SOLARIS) || (defined(__APPLE__) && !defined (VMX86_TOOLS)) || \
+    (defined(__linux__) && defined(__KERNEL__))
+/*
+ * Environments that support struct iovec
+ */
+
+ssize_t VMCIQPair_EnqueueV(VMCIQPair *qpair,
+                           void *iov,
+                           size_t iovSize,
+                           int mode);
+ssize_t VMCIQPair_DequeueV(VMCIQPair *qpair,
+                           void *iov,
+                           size_t iovSize,
+                           int mode);
+ssize_t VMCIQPair_PeekV(VMCIQPair *qpair,
+                        void *iov,
+                        size_t iovSize,
+                        int mode);
+#endif /* Systems that support struct iovec */
+
+#endif /* !__VMCI_KERNELAPI_H__ */

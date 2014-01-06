@@ -119,6 +119,7 @@ enum {
    VIX_E_VM_HOST_DISCONNECTED                   = 34,
    VIX_E_AUTHENTICATION_FAIL                    = 35,
    VIX_E_HOST_CONNECTION_LOST                   = 36,
+   VIX_E_DUPLICATE_NAME                         = 41,
 
    /* Handle Errors */
    VIX_E_INVALID_HANDLE                         = 1000,
@@ -184,6 +185,7 @@ enum {
    VIX_E_READ_ONLY_PROPERTY                     = 6002,
    VIX_E_MISSING_REQUIRED_PROPERTY              = 6003,
    VIX_E_INVALID_SERIALIZED_DATA                = 6004,
+   VIX_E_PROPERTY_TYPE_MISMATCH                 = 6005,
 
    /* Completion Errors */
    VIX_E_BAD_VM_INDEX                           = 8000,
@@ -266,6 +268,9 @@ enum {
    VIX_E_DISK_NOLICENSE                         = 16064,
    VIX_E_DISK_NODEVICE                          = 16065,
    VIX_E_DISK_UNSUPPORTEDDEVICE                 = 16066,
+   VIX_E_DISK_CAPACITY_MISMATCH                 = 16067,
+   VIX_E_DISK_PARENT_NOTALLOWED                 = 16068,
+   VIX_E_DISK_ATTACH_ROOTLINK                   = 16069,
 
    /* Crypto Library Errors */
    VIX_E_CRYPTO_UNKNOWN_ALGORITHM               = 17000,

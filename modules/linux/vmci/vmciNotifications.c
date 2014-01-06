@@ -32,12 +32,14 @@
 #include "vmci_kernel_if.h"
 #include "vm_basic_types.h"
 #include "vm_assert.h"
-#include "vmciGuestKernelAPI.h"
+#include "vmciKernelAPI.h"
 #include "vmci_defs.h"
 #include "vmci_call_defs.h"
 #include "vmciInt.h"
 #include "vmciUtil.h"
 #include "circList.h"
+
+#if !defined(SOLARIS) && !defined(__APPLE__)
 
 /*
  * The VMCI Notify hash table provides two mappings:
@@ -1041,4 +1043,50 @@ VMCIDoorbell_Notify(VMCIHandle handle,             // IN
 
 #if defined(__linux__)
 EXPORT_SYMBOL(VMCIDoorbell_Notify);
+#endif
+
+#else // defined(SOLARIS) || defined(__APPLE__)
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VMCIDoorbell_Create/VMCIDoorbell_Destroy/VMCIDoorbell_Notify --
+ *
+ *      The doorbell functions have yet to be implemented for Solaris
+ *      and Mac OS X guest drivers.
+ *
+ * Results:
+ *      VMCI_ERROR_UNAVAILABLE.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+VMCIDoorbell_Create(VMCIHandle *handle,            // IN
+                    uint32 flags,                  // IN
+                    VMCIPrivilegeFlags privFlags,  // IN
+                    VMCICallback notifyCB,         // IN
+                    void *clientData)              // IN
+{
+   return VMCI_ERROR_UNAVAILABLE;
+}
+
+
+int
+VMCIDoorbell_Destroy(VMCIHandle handle)  // IN
+{
+   return VMCI_ERROR_UNAVAILABLE;
+}
+
+
+int
+VMCIDoorbell_Notify(VMCIHandle handle,             // IN
+                    VMCIPrivilegeFlags privFlags)  // IN
+{
+   return VMCI_ERROR_UNAVAILABLE;
+}
+
 #endif
