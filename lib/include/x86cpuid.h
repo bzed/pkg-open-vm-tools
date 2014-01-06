@@ -344,7 +344,7 @@ FLAG(   1,  0, EDX, COMMON, 17,  1, PSE36,                         YES, FALSE) \
 FLAG(   1,  0, EDX, INTEL,  18,  1, PSN,                           YES, FALSE) \
 FLAG(   1,  0, EDX, COMMON, 19,  1, CLFSH,                         YES, TRUE)  \
 FLAG(   1,  0, EDX, INTEL,  21,  1, DS,                            YES, FALSE) \
-FLAG(   1,  0, EDX, INTEL,  22,  1, ACPI,                          YES, FALSE) \
+FLAG(   1,  0, EDX, INTEL,  22,  1, ACPI,                          ANY, FALSE) \
 FLAG(   1,  0, EDX, COMMON, 23,  1, MMX,                           YES, TRUE)  \
 FLAG(   1,  0, EDX, COMMON, 24,  1, FXSR,                          YES, TRUE)  \
 FLAG(   1,  0, EDX, COMMON, 25,  1, SSE,                           YES, TRUE)  \
@@ -454,6 +454,10 @@ FIELD( 80,  0, EAX, COMMON,  0, 32, NUM_EXT_LEVELS,                NA,  FALSE) \
 FIELD( 80,  0, EBX, AMD,     0, 32, LEAF80_VENDOR1,                NA,  FALSE) \
 FIELD( 80,  0, ECX, AMD,     0, 32, LEAF80_VENDOR3,                NA,  FALSE) \
 FIELD( 80,  0, EDX, AMD,     0, 32, LEAF80_VENDOR2,                NA,  FALSE)
+
+#define CPUID_81_ECX_17
+#define CPUID_81_ECX_21
+
                                                         
 /*    LEVEL, SUB-LEVEL, REG, VENDOR, POS, SIZE, NAME,        MON SUPP, CPL3 */
 #define CPUID_FIELD_DATA_LEVEL_81                                              \
@@ -483,7 +487,9 @@ FLAG(  81,  0, ECX, AMD,    12,  1, SKINIT,                        NO,  FALSE) \
 FLAG(  81,  0, ECX, AMD,    13,  1, WATCHDOG,                      NO,  FALSE) \
 FLAG(  81,  0, ECX, AMD,    15,  1, LWP,                           NO,  FALSE) \
 FLAG(  81,  0, ECX, AMD,    16,  1, FMA4,                          YES, TRUE)  \
+CPUID_81_ECX_17 \
 FLAG(  81,  0, ECX, AMD,    19,  1, NODEID_MSR,                    NO,  FALSE) \
+CPUID_81_ECX_21 \
 FLAG(  81,  0, ECX, AMD,    22,  1, TOPOLOGY,                      NO,  FALSE) \
 FLAG(  81,  0, EDX, AMD,     0,  1, LEAF81_FPU,                    YES, TRUE)  \
 FLAG(  81,  0, EDX, AMD,     1,  1, LEAF81_VME,                    YES, FALSE) \
@@ -932,7 +938,13 @@ CPUIDCheck(uint32 eaxIn, uint32 eaxInCheck,
 #define CPUID_MODEL_PIII_0A    10
 
 /* AMD model information */
-#define CPUID_MODEL_BARCELONA_02 0x02 // Barcelona (both Opteron & Phenom kind)
+#define CPUID_MODEL_BARCELONA_02      0x02 // Barcelona (Opteron & Phenom)
+#define CPUID_MODEL_SHANGHAI_04       0x04 // Shanghai RB
+#define CPUID_MODEL_SHANGHAI_05       0x05 // Shanghai BL
+#define CPUID_MODEL_SHANGHAI_06       0x06 // Shanghai DA
+#define CPUID_MODEL_ISTANBUL_MAGNY_08 0x08 // Istanbul (6 core) & Magny-cours (12) HY
+#define CPUID_MODEL_ISTANBUL_MAGNY_09 0x09 // HY - G34 package
+#define CPUID_MODEL_PHAROAH_HOUND_0A  0x0A // Pharoah Hound
 
 /* VIA model information */
 #define CPUID_MODEL_NANO       15     // Isaiah
@@ -1089,6 +1101,43 @@ CPUID_UARCH_IS_SANDYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
 
 
 static INLINE Bool
+CPUID_UARCH_IS_ATOM(uint32 v) // IN: %eax from CPUID with %eax=1.
+{
+   /* Assumes the CPU manufacturer is Intel. */
+   uint32 effectiveModel = CPUID_EFFECTIVE_MODEL(v);
+
+   return CPUID_FAMILY_IS_P6(v) &&
+          effectiveModel == CPUID_MODEL_ATOM_1C;
+}
+
+
+static INLINE Bool
+CPUID_MODEL_IS_WESTMERE(uint32 v) // IN: %eax from CPUID with %eax=1.
+{
+   /* Assumes the CPU manufacturer is Intel. */
+   uint32 effectiveModel = CPUID_EFFECTIVE_MODEL(v);
+
+   return CPUID_FAMILY_IS_P6(v) &&
+          (effectiveModel == CPUID_MODEL_NEHALEM_25 || // Clarkdale
+           effectiveModel == CPUID_MODEL_NEHALEM_2C);  // Westmere-EP
+}
+
+
+static INLINE Bool
+CPUID_MODEL_IS_SANDYBRIDGE(uint32 v) // IN: %eax from CPUID with %eax=1.
+{
+   /* Assumes the CPU manufacturer is Intel. */
+   uint32 effectiveModel = CPUID_EFFECTIVE_MODEL(v);
+
+   return CPUID_FAMILY_IS_P6(v) &&
+          (effectiveModel == CPUID_MODEL_SANDYBRIDGE_2A ||
+           effectiveModel == CPUID_MODEL_SANDYBRIDGE_2D);
+}
+
+
+
+
+static INLINE Bool
 CPUID_FAMILY_IS_K7(uint32 eax)
 {
    return CPUID_EFFECTIVE_FAMILY(eax) == CPUID_FAMILY_K7;
@@ -1116,6 +1165,12 @@ CPUID_FAMILY_IS_K8L(uint32 eax)
 {
    return CPUID_EFFECTIVE_FAMILY(eax) == CPUID_FAMILY_K8L ||
           CPUID_EFFECTIVE_FAMILY(eax) == CPUID_FAMILY_LLANO;
+}
+
+static INLINE Bool
+CPUID_FAMILY_IS_LLANO(uint32 eax)
+{
+   return CPUID_EFFECTIVE_FAMILY(eax) == CPUID_FAMILY_LLANO;
 }
 
 static INLINE Bool
@@ -1158,6 +1213,45 @@ CPUID_MODEL_IS_BARCELONA(uint32 v) // IN: %eax from CPUID with %eax=1.
    return CPUID_EFFECTIVE_FAMILY(v) == CPUID_FAMILY_K8L &&
           CPUID_EFFECTIVE_MODEL(v)  == CPUID_MODEL_BARCELONA_02;
 }
+
+
+static INLINE Bool
+CPUID_MODEL_IS_SHANGHAI(uint32 v) // IN: %eax from CPUID with %eax=1.
+{
+   /* Assumes the CPU manufacturer is AMD. */
+   return CPUID_EFFECTIVE_FAMILY(v) == CPUID_FAMILY_K8L &&
+          (CPUID_MODEL_SHANGHAI_04  <= CPUID_EFFECTIVE_MODEL(v) && 
+           CPUID_EFFECTIVE_MODEL(v) <= CPUID_MODEL_SHANGHAI_06);
+}
+
+
+static INLINE Bool
+CPUID_MODEL_IS_ISTANBUL_MAGNY(uint32 v) // IN: %eax from CPUID with %eax=1.
+{
+   /* Assumes the CPU manufacturer is AMD. */
+   return CPUID_EFFECTIVE_FAMILY(v) == CPUID_FAMILY_K8L &&
+          (CPUID_MODEL_ISTANBUL_MAGNY_08 <= CPUID_EFFECTIVE_MODEL(v) &&
+           CPUID_EFFECTIVE_MODEL(v)      <= CPUID_MODEL_ISTANBUL_MAGNY_09);
+}
+
+
+static INLINE Bool
+CPUID_MODEL_IS_PHAROAH_HOUND(uint32 v) // IN: %eax from CPUID with %eax=1.
+{
+   /* Assumes the CPU manufacturer is AMD. */
+   return CPUID_EFFECTIVE_FAMILY(v) == CPUID_FAMILY_K8L &&
+          CPUID_EFFECTIVE_MODEL(v)  == CPUID_MODEL_PHAROAH_HOUND_0A;
+}
+
+
+static INLINE Bool
+CPUID_MODEL_IS_BULLDOZER(uint32 eax)
+{
+   /* Bulldozer is models 0x00 - 0x0f of family 0x15. */
+   return CPUID_EFFECTIVE_FAMILY(eax) == CPUID_FAMILY_BULLDOZER && 
+          CPUID_EFFECTIVE_MODEL(eax) < 0x10;
+}
+
 
 
 #define CPUID_TYPE_PRIMARY     0
@@ -1273,7 +1367,8 @@ CPUID_IsHypervisorLevel(uint32 level)
 
 static INLINE Bool
 CPUID_LevelUsesEcx(uint32 level) {
-   return level == 4 || level == 7 || level == 0xb || level == 0xd;
+   return level == 4 || level == 7 || level == 0xb || level == 0xd ||
+          level == 0x8000001d;
 }
 
 /*

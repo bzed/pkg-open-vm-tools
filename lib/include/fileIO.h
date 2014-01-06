@@ -148,6 +148,10 @@ typedef enum {
  */
 #define FILEIO_OPEN_MULTIWRITER_LOCK     (1 << 14)
 /*
+ * Flag the file to be cached by the vBlob caching layer
+ */
+#define FILEIO_OPEN_USE_AIO_CACHE        (1 << 15)
+/*
  * Valid only for MacOS. It eventually results into O_EXLOCK flag passed to open
  * system call.
  *
@@ -290,6 +294,12 @@ FileIOResult FileIO_Write(FileIODescriptor *file,
                           size_t requested,
                           size_t *actual);
 
+FileIOResult FileIO_AtomicTempFile(FileIODescriptor *fileFD,
+                                   FileIODescriptor *tempFD);
+
+Bool FileIO_AtomicExchangeFiles(FileIODescriptor *newFD,
+                                FileIODescriptor *currFD);
+
 #if !defined(VMX86_TOOLS) || !defined(__FreeBSD__)
 
 FileIOResult FileIO_Readv(FileIODescriptor *fd,
@@ -349,6 +359,8 @@ FileIOResult FileIO_GetAllocSizeByPath(ConstUnicode pathName,
 int64   FileIO_GetSizeByPath(ConstUnicode pathName);
 
 Bool    FileIO_Close(FileIODescriptor *file);
+
+Bool    FileIO_CloseAndUnlink(FileIODescriptor *file);
 
 uint32  FileIO_GetFlags(FileIODescriptor *file);
 

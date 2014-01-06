@@ -141,6 +141,7 @@
 #  define BDOOR_CMD_FAS_GET_TABLE_DATA        1
 #  define BDOOR_CMD_FAS_GET_PLATFORM_NAME     2
 #  define BDOOR_CMD_FAS_GET_PCIE_OSC_MASK     3
+#  define BDOOR_CMD_FAS_GET_APIC_ROUTING      4
 #define   BDOOR_CMD_SENDPSHAREHINTS          66
 #define   BDOOR_CMD_ENABLE_USB_MOUSE         67
 #define   BDOOR_CMD_GET_VCPU_INFO            68
@@ -154,7 +155,9 @@
 #  define BDOOR_CMD_FE_INSUFFICIENT_MEM       0
 #  define BDOOR_CMD_FE_EXCEPTION              1
 #define   BDOOR_CMD_VMK_INFO                 72
-#define   BDOOR_CMD_MAX                      73
+#define   BDOOR_CMD_EFI_BOOT_CONFIG          73 /* CPL 0 only. */
+#  define BDOOR_CMD_EBC_CSM_ENABLED           0
+#define   BDOOR_CMD_MAX                      74
 
 
 /* 
