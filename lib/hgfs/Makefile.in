@@ -67,7 +67,7 @@ libHgfs_a_LIBADD =
 am_libHgfs_a_OBJECTS = cpName.$(OBJEXT) cpNameLite.$(OBJEXT) \
 	cpNameLinux.$(OBJEXT) cpNameUtil.$(OBJEXT) \
 	cpNameUtilLinux.$(OBJEXT) hgfsUtil.$(OBJEXT) \
-	staticEscape.$(OBJEXT)
+	hgfsEscape.$(OBJEXT)
 libHgfs_a_OBJECTS = $(am_libHgfs_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -240,7 +240,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LIBRARIES = libHgfs.a
 libHgfs_a_SOURCES = cpName.c cpNameLite.c cpNameLinux.c cpNameUtil.c \
-	cpNameUtilLinux.c hgfsUtil.c staticEscape.c
+	cpNameUtilLinux.c hgfsUtil.c hgfsEscape.c
 all: all-am
 
 .SUFFIXES:
@@ -293,8 +293,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cpNameLite.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cpNameUtil.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cpNameUtilLinux.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsEscape.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hgfsUtil.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/staticEscape.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
