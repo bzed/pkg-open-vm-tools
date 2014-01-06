@@ -96,6 +96,13 @@ typedef enum VMCIIntrType {
 #define VMCI_MAX_GUEST_QP_MEMORY (128 * 1024 * 1024)
 
 /*
+ * Queues with pre-mapped data pages must be small, so that we don't pin
+ * too much kernel memory (especially on vmkernel).  We limit a queuepair to
+ * 32 KB, or 16 KB per queue for symmetrical pairs.
+ */
+#define VMCI_MAX_PINNED_QP_MEMORY (32 * 1024)
+
+/*
  * We have a fixed set of resource IDs available in the VMX.
  * This allows us to have a very simple implementation since we statically
  * know how many will create datagram handles. If a new caller arrives and
@@ -122,14 +129,20 @@ typedef uint32 VMCI_Resource;
 #define VMCI_EVENT_UNSUBSCRIBE    9
 #define VMCI_QUEUEPAIR_ALLOC      10
 #define VMCI_QUEUEPAIR_DETACH     11
-
 /*
  * VMCI_VSOCK_VMX_LOOKUP was assigned to 12 for Fusion 3.0/3.1,
  * WS 7.0/7.1 and ESX 4.1
  */
 #define VMCI_HGFS_TRANSPORT       13
 #define VMCI_UNITY_PBRPC_REGISTER 14
-#define VMCI_RESOURCE_MAX         15
+/*
+ * The next two resources are for RPC calls from guest Tools, to replace the
+ * backdoor calls we used previously.  Privileged is for admin/root RPCs,
+ * unprivileged is for RPCs from any user.
+ */
+#define VMCI_RPC_PRIVILEGED       15
+#define VMCI_RPC_UNPRIVILEGED     16
+#define VMCI_RESOURCE_MAX         17
 
 /* VMCI Ids. */
 typedef uint32 VMCIId;
