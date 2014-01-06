@@ -464,7 +464,7 @@ File_Cwd(ConstUnicode drive)  // IN:
    if (getcwd(buffer, FILE_MAXPATH) == NULL) {
       Msg_Append(MSGID(filePosix.getcwd)
                  "Unable to retrieve the current working directory: %s. "
-                 "Please check if the directory has been deleted or "
+                 "Check if the directory has been deleted or "
                  "unmounted.\n",
                  Msg_ErrString());
       Warning(LGPFX" %s: getcwd() failed: %s\n", __FUNCTION__,
@@ -1293,7 +1293,67 @@ done:
    }
    return ret;
 }
-#endif
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_GetVMFSMountInfo --
+ *
+ *      Acquire the FS mount point info such as fsType, major version,
+ *      local mount point (/vmfs/volumes/xyz), and for NFS,
+ *      remote IP and remote mount point for a given file.     
+ *
+ * Results:
+ *      Integer return value and allocated data
+ *
+ * Side effects:
+ *      Only implemented on ESX. Will fail on other platforms. 
+ *      remoteIP and remoteMountPoint are only populated for files on NFS.   
+ *
+ *----------------------------------------------------------------------
+ */
+
+int 
+File_GetVMFSMountInfo(ConstUnicode pathName,
+                     char **fsType,
+                     uint32 *version,
+                     char **remoteIP,
+                     char **remoteMountPoint,
+                     char **localMountPoint)
+{
+   int ret;
+   int len;
+   FS_PartitionListResult *fsAttrs;
+
+   *localMountPoint = File_GetUniqueFileSystemID(pathName);
+
+   if (*localMountPoint == NULL) {
+      return -1;
+   }
+
+   // Get file IP and mount point
+   ret = File_GetVMFSAttributes(pathName, &fsAttrs);  
+   if (ret >= 0 && fsAttrs) { 
+      *version = fsAttrs->versionNumber;
+      *fsType = Util_SafeStrdup(fsAttrs->fsType);
+ 
+      if (strncmp(fsAttrs->fsType, "NFS", sizeof("NFS")) == 0) {
+         len = strlen(fsAttrs->logicalDevice);
+         *remoteIP = Util_SafeMalloc(len);
+         *remoteMountPoint = Util_SafeMalloc(len);
+         sscanf(fsAttrs->logicalDevice, "%s %s", *remoteIP, *remoteMountPoint);
+      } else {
+         *remoteIP = NULL;
+         *remoteMountPoint = NULL;   
+      }  
+   }
+
+   free(fsAttrs);
+   return ret;
+}
+
+#endif 
 
 
 /*
@@ -2039,8 +2099,9 @@ FilePosixCreateTestFileSize(ConstUnicode dirName, // IN: directory to create lar
  *
  *      Check if the given file is on a VMFS supports such a file size
  *
- *      In the case of VMFS3/4, the largest supported file size is
+ *      In the case of VMFS3, the largest supported file size is
  *         256 * 1024 * B bytes
+ *      VMFS5 supports larger file sizes.
  *
  *      where B represents the blocksize in bytes
  *
@@ -2080,11 +2141,12 @@ File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
    }
 
    if (strcmp(fsType, "VMFS") == 0) {
-      if (version >= 3) {
-         /* Get ready for VMFS4 and perform sanity check on version */
-         ASSERT(version == 3 || version == 4);
-
+      if (version == 3) {
          maxFileSize = (VMFS3CONST * (uint64) blockSize * 1024);
+      } else {
+         /* Get ready for 64 TB on VMFS5 and perform sanity check on version */
+         ASSERT(version == 5);
+         maxFileSize = (uint64) 0x400000000000ULL;
       }
 
       if (fileSize <= maxFileSize && maxFileSize != -1) {
