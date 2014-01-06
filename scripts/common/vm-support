@@ -61,6 +61,9 @@ VMSUPPORT_ERROR=10
 #	vm-support collection not supported
 VMSUPPORT_UNKNOWN=100
 
+#internal state machine state for update
+update=0
+
 #	Updates the VM with the current state
 
 function UpdateState {
@@ -176,7 +179,6 @@ function runcmd {
 	fi
 }
 
-update = 0
 
 # Parse args
 for option in $@
@@ -270,7 +272,7 @@ addtar "/var/run/vmware-*"
 # Add /proc with some exceptions.  stdout redirected to /dev/null.  Some files
 # come and go and confuse find.  Just send whatever works and don't scare user.
 
-for procfile in `find /proc -type f 2>/dev/null| egrep -v kcore\|kmsg\|acpi\|/proc/$$`
+for procfile in `find /proc -type f 2>/dev/null| egrep -v kcore\|kmsg\|acpi\|pagemap\|/proc/$$`
 do
 	addtar "$procfile"
 done

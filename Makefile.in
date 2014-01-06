@@ -54,7 +54,8 @@ host_triplet = @host@
 @HAVE_X11_TRUE@am__append_1 = $(X11_SUBDIRS)
 @BUILD_HGFSMOUNTER_TRUE@am__append_2 = hgfsmounter
 @HAVE_FUSE_TRUE@am__append_3 = vmblock-fuse
-@WITH_KERNEL_MODULES_TRUE@am__append_4 = modules
+@ENABLE_TESTS_TRUE@am__append_4 = tests
+@WITH_KERNEL_MODULES_TRUE@am__append_5 = modules
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/configure AUTHORS COPYING \
@@ -113,6 +114,8 @@ COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CUNIT_CPPFLAGS = @CUNIT_CPPFLAGS@
+CUNIT_LIBS = @CUNIT_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -165,14 +168,7 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
-LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
-LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
-LIB_LOCK_CPPFLAGS = @LIB_LOCK_CPPFLAGS@
-LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
-LIB_NOTHREAD_CPPFLAGS = @LIB_NOTHREAD_CPPFLAGS@
-LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
-LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -297,7 +293,7 @@ ACLOCAL_AMFLAGS = -I m4
 X11_SUBDIRS = vmware-user vmware-user-suid-wrapper
 SUBDIRS = lib libvmtools $(am__append_1) hgfsclient $(am__append_2) \
 	checkvm libguestlib rpctool scripts services toolbox \
-	$(am__append_3) xferlogs tests $(am__append_4) docs
+	$(am__append_3) xferlogs $(am__append_4) $(am__append_5) docs
 all: all-recursive
 
 .SUFFIXES:

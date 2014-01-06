@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998-2003 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -17,37 +17,33 @@
  *********************************************************/
 
 /*
+ * hostinfoInt.h --
  *
- * vcpuid.h --
- *
- *    Monitor's VCPU ID.
+ *	lib/misc Hostinfo_* private declarations.
  */
 
-#ifndef _VCPUID_H_
-#define _VCPUID_H_
-
-#define INCLUDE_ALLOW_USERLEVEL
-
-#define INCLUDE_ALLOW_MODULE
-#define INCLUDE_ALLOW_VMMON
-#define INCLUDE_ALLOW_VMKERNEL
-#define INCLUDE_ALLOW_VMK_MODULE
-#define INCLUDE_ALLOW_DISTRIBUTE
-#define INCLUDE_ALLOW_VMCORE
-#include "includeCheck.h"
-
-#include "vm_basic_types.h"
+#ifndef _HOSTINFOINT_H_
+#define _HOSTINFOINT_H_
 
 
-typedef uint32 Vcpuid;			// VCPU number
-
-#define VCPUID_INVALID	(~0U)
-
-#define BOOT_VCPU_ID		0
-#define IS_BOOT_VCPUID(vcpuid)  ((vcpuid) == BOOT_VCPU_ID)
-#define IS_BOOT_VCPU()		IS_BOOT_VCPUID(CurVcpuid())
-
-#define MAX_VCPUS	32
+#define MAX_OS_NAME_LEN 64
+#define MAX_OS_FULLNAME_LEN 192
 
 
-#endif // ifndef _VCPUID_H_
+/*
+ * Global variables
+ */
+
+extern volatile Bool HostinfoOSNameCacheValid;
+extern char HostinfoCachedOSName[MAX_OS_NAME_LEN];
+extern char HostinfoCachedOSFullName[MAX_OS_FULLNAME_LEN];
+
+
+/*
+ * Global functions
+ */
+
+extern Bool HostinfoOSData(void);
+
+
+#endif // ifndef _HOSTINFOINT_H_

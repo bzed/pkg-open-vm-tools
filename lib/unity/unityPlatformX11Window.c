@@ -1235,14 +1235,37 @@ UPWindow_CheckRelevance(UnityPlatform *up,        // IN
       }
       upw->isOverrideRedirect = winAttr.override_redirect ? TRUE : FALSE;
 
+      /*
+       * More crazy tests to determine whether a window should be added to the window
+       * tracker.
+       */
+
       if (winAttr.class == InputOnly) {
+         /* This is intrinsically true. */
          isInvisible = TRUE;
-      } else if (!upw->isViewable && onCurrentDesktop) {
+      } else if (!upw->isViewable && onCurrentDesktop && !upw->clientWindow) {
+         /*
+          * Evaluate the map state.  There are reasons why we'd like to keep unmapped
+          * windows in the tracker.
+          *
+          *    1.  The window may be on another desktop.
+          *    2.  The window may be minimized.
+          *
+          * upw->clientWindow == None implies that there is no window in the hierarchy
+          * with a WM_STATE property.  No WM_STATE property means that the window can't
+          * be "minimized".
+          *
+          * I'm using these implications because it saves me from having to explicitly
+          * query for/examine WM_STATE here.
+          */
          isInvisible = TRUE;
       } else if (winAttr.width <= 1 && winAttr.height <= 1) {
          isInvisible = TRUE;
       } else if ((winAttr.x + winAttr.width) < 0
                  || (winAttr.y + winAttr.height) < 0) {
+         /*
+          * XXX This isn't clear to me.  What if winAttr.x > parent's width?
+          */
          isInvisible = TRUE;
       }
 
@@ -3446,26 +3469,7 @@ UPWindowUpdateState(UnityPlatform *up,            // IN
 
       if (valueReturned[i] == up->atoms._NET_WM_STATE_MINIMIZED
           || valueReturned[i] == up->atoms._NET_WM_STATE_HIDDEN) {
-         /*
-          * Unfortunately, the HIDDEN attribute is used by some WM's to mean
-          * "minimized" when they should really be separate.
-          */
-
-         uint32 cDesk = -1;
-         uint32 gDesk;
-
-         /*
-          * Only push minimize state for windows on the same desktop (inc. sticky
-          * windows).
-          */
-         if (UPWindowGetDesktop(up, upw, &gDesk)) {
-            cDesk = UnityX11GetCurrentDesktop(up);
-            if (cDesk == gDesk || gDesk == -1) {
-               isMinimized = TRUE;
-            }
-         } else {
-            Debug("%s: Unable to get window desktop\n", __FUNCTION__);
-         }
+         isMinimized = TRUE;
          continue;
       } else if (valueReturned[i] == up->atoms._NET_WM_STATE_MAXIMIZED_HORZ) {
          haveHorizMax = TRUE;
@@ -3511,22 +3515,37 @@ UPWindowUpdateState(UnityPlatform *up,            // IN
    if (upw->isRelevant) {
       UnityWindowInfo *info;
       uint32 newState;
+      uint32 cDesk = -1;
+      uint32 gDesk;
+
       info = UnityWindowTracker_LookupWindow(up->tracker, upw->toplevelWindow);
       ASSERT(info);
 
       newState = info->state;
-      if (isMinimized) {
-         if (! (newState & UNITY_WINDOW_STATE_MINIMIZED)) {
-            Debug("Enabling minimized attribute for window %#lx/%#lx\n",
-                  upw->toplevelWindow, upw->clientWindow);
-            newState |= UNITY_WINDOW_STATE_MINIMIZED;
+
+      /*
+       * Only push minimize state for windows on the same desktop (inc. sticky
+       * windows).
+       */
+      if (UPWindowGetDesktop(up, upw, &gDesk)) {
+         cDesk = UnityX11GetCurrentDesktop(up);
+         if (cDesk == gDesk || gDesk == -1) {
+            if (isMinimized) {
+               if (! (newState & UNITY_WINDOW_STATE_MINIMIZED)) {
+                  Debug("Enabling minimized attribute for window %#lx/%#lx\n",
+                        upw->toplevelWindow, upw->clientWindow);
+                  newState |= UNITY_WINDOW_STATE_MINIMIZED;
+               }
+            } else {
+               if ((newState & UNITY_WINDOW_STATE_MINIMIZED)) {
+                  Debug("Disabling minimized attribute for window %#lx/%#lx\n",
+                        upw->toplevelWindow, upw->clientWindow);
+                  newState &= ~UNITY_WINDOW_STATE_MINIMIZED;
+               }
+            }
          }
       } else {
-         if ((newState & UNITY_WINDOW_STATE_MINIMIZED)) {
-            Debug("Disabling minimized attribute for window %#lx/%#lx\n",
-                  upw->toplevelWindow, upw->clientWindow);
-            newState &= ~UNITY_WINDOW_STATE_MINIMIZED;
-         }
+         Debug("%s: Unable to get window desktop\n", __FUNCTION__);
       }
 
       if (newState != info->state) {

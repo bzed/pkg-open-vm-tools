@@ -39,10 +39,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="2009.12.16"
+TOOLS_VERSION="2010.01.19"
 AC_INIT(
    [open-vm-tools],
-   [2009.12.16],
+   [2010.01.19],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -202,6 +202,14 @@ AC_ARG_ENABLE(
       [disables generation of API documentation; by default, docs are built if doxygen is available.]),
    [enable_docs="$enableval"],
    [enable_docs="yes"])
+
+AC_ARG_ENABLE(
+   tests,
+   AS_HELP_STRING(
+      [--disable-tests],
+      [disable compilation of test code.]),
+   [enable_tests="$enableval"],
+   [enable_tests="auto"])
 
 # If we're not going to use Gtk 2.0, disable Unity.
 if test "$with_gtk2" != "yes"; then
@@ -378,10 +386,7 @@ if test "$os" = "linux"; then
       [with_pam=yes])
 
    if test "$with_pam" = "yes"; then
-      if test -z "$CUSTOM_PAM_CPPFLAGS"; then
-         # Assume PAM headers are in /usr/include by default.
-         CUSTOM_PAM_CPPFLAGS="-I/usr/include"
-      fi
+      AC_VMW_DEFAULT_FLAGS([PAM])
       AC_VMW_CHECK_LIB([pam],
                        [PAM],
                        [],
@@ -394,6 +399,28 @@ if test "$os" = "linux"; then
    fi
 fi
 
+#
+# Check for CUnit and disable test code if not available.
+#
+if test "$enable_tests" = "auto" -o "$enable_tests" = "yes"; then
+   AC_VMW_DEFAULT_FLAGS([CUNIT])
+   AC_VMW_CHECK_LIB([cunit],
+                    [CUNIT],
+                    [],
+                    [],
+                    [],
+                    [CUnit/CUnit.h],
+                    [CU_initialize_registry],
+                    [have_cunit=yes],
+                    [have_cunit=no])
+   if test "$have_cunit" = "no"; then
+      if test "$enable_tests" = "yes"; then
+         AC_VMW_LIB_ERROR([CUNIT], [cunit])
+      else
+         AC_MSG_WARN([CUnit not found, tests won't be compiled.])
+      fi
+   fi
+fi
 
 # If the user explicitly disables X11, then don't try to detect the X-related libraries
 if test "$have_x" = "disabled"; then
@@ -482,11 +509,7 @@ else
            # Note that we look for uriFreeQueryListA because it's a relatively
            # new symbol that our code needs (it isn't present in the uriparser
            # that shipped with Ubuntu Hardy).
-           if test -z "$CUSTOM_URIPARSER_CPPFLAGS"; then
-              # XXX: No pkg-config and no uriparser-config means we need to
-              # hard-code a sensible default.
-              CUSTOM_URIPARSER_CPPFLAGS="-I/usr/include/uriparser"
-           fi
+           AC_VMW_DEFAULT_FLAGS([URIPARSER], [uriparser])
            AC_VMW_CHECK_LIB([uriparser],
                             [URIPARSER],
                             [],
@@ -510,11 +533,7 @@ else
 
            # Check for the zlib library and headers. Like uriparser, there
            # isn't a pkg-config or zlib-config file.
-           if test -z "$CUSTOM_ZLIB_CPPFLAGS"; then
-              # XXX: No pkg-config and no zlib-config means we need to
-              # hard-code a sensible default.
-              CUSTOM_ZLIB_CPPFLAGS="-I/usr/include"
-           fi
+           AC_VMW_DEFAULT_FLAGS([ZLIB])
            AC_VMW_CHECK_LIB([z],
                             [ZLIB],
                             [],
@@ -576,13 +595,6 @@ AC_CHECK_LIB(
    [HAVE_CRYPT="yes"],
    [AC_MSG_ERROR(
       [libcrypt not found. Please install the libc/libcrypt devel package(s).])])
-
-AC_CHECK_LIB(
-   [notify],
-   [notify_init],
-   [HAVE_NOTIFY="yes"
-    VMWARE_USER_LDADD="$VMWARE_USER_LDADD -lnotify"],
-   [AC_MSG_WARN([libnotify not found; notification disabled])])
 
 AC_CHECK_FUNCS(
    dlopen,
@@ -830,21 +842,6 @@ AC_C_VOLATILE
 ### Specific features and OS/arch flags / actions
 ###
 
-# Check to see if SYS_setuid32 is defined. If SYS_setuid32 is unknown, we will
-# certainly error out.
-if test "$os$userSpaceBitness" = "linux32"; then
-   AC_MSG_CHECKING([for SYS_setuid32])
-   AC_TRY_COMPILE(
-      [#include <sys/syscall.h>
-       #include <unistd.h>],
-      [
-         syscall(SYS_setuid32, 1);
-      ],
-      [HAVE_SYS_SETUID="yes"],
-      [HAVE_SYS_SETUID="no"])
-   AC_MSG_RESULT($HAVE_SYS_SETUID)
-fi
-
 # Newer iconv (from glibc 2.2 and later on Linux) takes a char ** as the second
 # argument. Here, we test for the older form and expect a compiler warning/error
 # if the newer form is defined (because, in that case, we would be attempting to
@@ -986,7 +983,7 @@ if test "$os" = "linux"; then
    CPPFLAGS="$CPPFLAGS -D_SVID_SOURCE"
 
    MODULES="$MODULES vmmemctl vmsync vmci vsock"
-   MODULES="$MODULES vmxnet vmxnet3 pvscsi"
+   MODULES="$MODULES vmxnet pvscsi"
    MODULES="$MODULES vmblock vmhgfs"
    buildHgfsmounter=yes
 fi
@@ -1040,18 +1037,15 @@ if test "$os" = "solaris"; then
       CPPFLAGS="$CPPFLAGS -DSOL11"
    fi
 
-   # Choose which modules to compile
+   MODULES="$MODULES vmxnet vmmemctl"
+
+   # HGFS and vmblock need Solaris 10 at least.
    if test "$osVersion" -ge 510000; then
       MODULES="$MODULES vmhgfs vmblock"
    fi
 
-   # We build vmxnet and vmballoon on Solaris 9 and 10
-   if test "$osVersion" -lt 511000 -a "$osVersion" -ge 509000; then
-      MODULES="$MODULES vmxnet vmmemctl"
-   fi
-
-   # Vmxnet3 is built on Solaris 10 only and only if GLDv3 is installed
-   if test "$osVersion" -eq 510000; then
+   # vmxnet3 is built on Solaris 10 / 11 only if GLDv3 is installed.
+   if test "$osVersion" -gt 510000; then
       AC_CHECK_HEADER(
          [sys/mac.h],
          [MODULES="$MODULES vmxnet3"],
@@ -1076,6 +1070,7 @@ AM_CONDITIONAL(HAVE_X11, test "$have_x" = "yes")
 AM_CONDITIONAL(HAVE_ICU, test "$with_icu" = "yes")
 AM_CONDITIONAL(WITH_KERNEL_MODULES, test "$with_kernel_modules" = "yes")
 AM_CONDITIONAL(ENABLE_UNITY, test "$enable_unity" = "yes")
+AM_CONDITIONAL(ENABLE_TESTS, test "$have_cunit" = "yes")
 AM_CONDITIONAL(WITH_ROOT_PRIVILEGES, test "$with_root_privileges" = "yes")
 AM_CONDITIONAL(HAVE_DOXYGEN, test "$have_doxygen" = "yes")
 AM_CONDITIONAL(HAVE_FUSE, test "$have_fuse" = "yes")
@@ -1096,33 +1091,26 @@ if test "$enable_multimon" = "no"; then
    AC_DEFINE([NO_MULTIMON], 1, [Define to 1 if building without multimon support.])
 fi
 
-if test "$os$userSpaceBitness" = "linux64" || test "$HAVE_SYS_SETUID" = "yes"; then
-   LIB_MISC_CPPFLAGS="$LIB_MISC_CPPFLAGS -DGLIBC_VERSION_21"
-fi
+if test "$os" = "linux"; then
+   if test "$HAVE_LSEEK" = "yes"; then
+      CPPFLAGS="$CPPFLAGS -DGLIBC_VERSION_21"
+   fi
 
-if test "$HAVE_NEW_ICONV" = "yes"; then
-   LIB_MISC_CPPFLAGS="$LIB_MISC_CPPFLAGS -DGLIBC_VERSION_22"
-fi
+   if test "$HAVE_NEW_ICONV" = "yes"; then
+      CPPFLAGS="$CPPFLAGS -DGLIBC_VERSION_22"
+   fi
 
-if test "$HAVE_LSEEK" = "yes"; then
-   LIB_FILE_CPPFLAGS="$LIB_FILE_CPPFLAGS -DGLIBC_VERSION_21"
-   LIB_HGFS_SERVER_CPPFLAGS="$LIB_HGFS_SERVER_CPPFLAGS -DGLIBC_VERSION_21"
-fi
-
-if test "$HAVE_SETRESUID" = "yes"; then
-   LIB_PROC_MGR_CPPFLAGS="$LIB_PROC_MGR_CPPFLAGS -DGLIBC_VERSION_23"
+   if test "$HAVE_SETRESUID" = "yes"; then
+      CPPFLAGS="$CPPFLAGS -DGLIBC_VERSION_23"
+   fi
 fi
 
 LIB_AUTH_CPPFLAGS="$LIB_AUTH_CPPFLAGS $PAM_CPPFLAGS"
 if test "$HAVE_CRYPT" = "yes"; then
-   LIB_AUTH_CPPFLAGS="$LIB_AUTH_CPPFLAGS -DGLIBC_VERSION_22"
    LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -lcrypt"
    VIX_LIBADD="$VIX_LIBADD -lcrypt"
 fi
 
-if test "$HAVE_WCHAR_H" = "yes"; then
-   LIB_STRING_CPPFLAGS="$LIB_STRING_CPPFLAGS -DGLIBC_VERSION_22"
-fi
 
 LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD $THREAD_LIB"
 VIX_LIBADD="$VIX_LIBADD $THREAD_LIB"
@@ -1179,14 +1167,7 @@ fi
 ### Lib substs
 
 AC_SUBST([LIB_AUTH_CPPFLAGS])
-AC_SUBST([LIB_FILE_CPPFLAGS])
-AC_SUBST([LIB_HGFS_SERVER_CPPFLAGS])
 AC_SUBST([LIB_IMPERSONATE_CPPFLAGS])
-AC_SUBST([LIB_LOCK_CPPFLAGS])
-AC_SUBST([LIB_MISC_CPPFLAGS])
-AC_SUBST([LIB_NOTHREAD_CPPFLAGS])
-AC_SUBST([LIB_PROC_MGR_CPPFLAGS])
-AC_SUBST([LIB_STRING_CPPFLAGS])
 AC_SUBST([LIB_USER_CPPFLAGS])
 AC_SUBST([LIBVMTOOLS_LIBADD])
 
@@ -1227,11 +1208,9 @@ AC_CONFIG_FILES([                      \
    lib/hgfsServerPolicyGuest/Makefile  \
    lib/image/Makefile                  \
    lib/impersonate/Makefile            \
-   lib/lock/Makefile                   \
    lib/message/Makefile                \
    lib/misc/Makefile                   \
    lib/netUtil/Makefile                \
-   lib/nothread/Makefile               \
    lib/panic/Makefile                  \
    lib/panicDefault/Makefile           \
    lib/printer/Makefile                \

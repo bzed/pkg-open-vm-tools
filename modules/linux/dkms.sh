@@ -28,12 +28,12 @@ then
    echo "   src:  root of unpacked open-vm-tools package"
    echo "   dst:  where to create the dkms tree"
    echo
-   echo "The script will create an 'open-vm-tools' module with version 2009.12.16."
+   echo "The script will create an 'open-vm-tools' module with version 2010.01.19."
    exit 1
 fi
 
 src=$1
-dst=$2/open-vm-tools-2009.12.16
+dst=$2/open-vm-tools-2010.01.19
 
 SHARED_HEADERS="backdoor_def.h"
 SHARED_HEADERS="$SHARED_HEADERS backdoor_types.h"
@@ -63,7 +63,7 @@ rm -rf $dst
 mkdir -p $dst
 cp -f `dirname $0`/dkms.conf $dst
 
-for m in pvscsi vmblock vmci vmhgfs vmmemctl vmsync vmxnet vmxnet3 vsock
+for m in pvscsi vmblock vmci vmhgfs vmmemctl vmsync vmxnet vsock
 do
    mdst="$dst/$m"
 
@@ -115,8 +115,8 @@ do
       cp -f $src/lib/include/syncDriverIoc.h $mdst
    fi
 
-   # Shared vmxnet / vmxnet3 headers.
-   if test $m = vmxnet -o $m = vmxnet3
+   # Shared vmxnet headers.
+   if test $m = vmxnet
    then
       cp -f $src/modules/shared/vmxnet/* $mdst/shared
    fi

@@ -134,6 +134,8 @@ COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CUNIT_CPPFLAGS = @CUNIT_CPPFLAGS@
+CUNIT_LIBS = @CUNIT_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -186,14 +188,7 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBVMTOOLS_LIBADD = @LIBVMTOOLS_LIBADD@
 LIB_AUTH_CPPFLAGS = @LIB_AUTH_CPPFLAGS@
-LIB_FILE_CPPFLAGS = @LIB_FILE_CPPFLAGS@
-LIB_HGFS_SERVER_CPPFLAGS = @LIB_HGFS_SERVER_CPPFLAGS@
 LIB_IMPERSONATE_CPPFLAGS = @LIB_IMPERSONATE_CPPFLAGS@
-LIB_LOCK_CPPFLAGS = @LIB_LOCK_CPPFLAGS@
-LIB_MISC_CPPFLAGS = @LIB_MISC_CPPFLAGS@
-LIB_NOTHREAD_CPPFLAGS = @LIB_NOTHREAD_CPPFLAGS@
-LIB_PROC_MGR_CPPFLAGS = @LIB_PROC_MGR_CPPFLAGS@
-LIB_STRING_CPPFLAGS = @LIB_STRING_CPPFLAGS@
 LIB_USER_CPPFLAGS = @LIB_USER_CPPFLAGS@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -321,7 +316,6 @@ COMMON = ../lib/conf/libConf.la ../lib/eventManager/libEventManager.la \
 	../lib/wiper/libWiper.la ../lib/err/libErr.la \
 	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
 	../lib/message/libMessage.la ../lib/unicode/libUnicode.la \
-	../lib/lock/libLock.la ../lib/nothread/libNothread.la \
 	../lib/misc/libMisc.la ../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la
 @HAVE_X11_TRUE@AM_CFLAGS = @GTK_CPPFLAGS@
