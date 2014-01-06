@@ -56,17 +56,18 @@ bin_PROGRAMS = vmware-user$(EXEEXT)
 @ENABLE_UNITY_TRUE@am__append_4 = ../lib/unity/libUnity.la \
 @ENABLE_UNITY_TRUE@	../lib/unityWindowTracker/libUnityWindowTracker.la
 @ENABLE_UNITY_FALSE@am__append_5 = ../lib/unityStub/libUnityStub.la
-@ENABLE_UNITY_TRUE@am__append_6 = ../lib/appUtil/libAppUtil.la \
+@HAVE_GTKMM_TRUE@am__append_6 = ../lib/dndGuest/libDndGuest.la
+@ENABLE_UNITY_TRUE@am__append_7 = ../lib/appUtil/libAppUtil.la \
 @ENABLE_UNITY_TRUE@	../lib/image/libImage.la \
 @ENABLE_UNITY_TRUE@	../lib/raster/libRaster.la \
 @ENABLE_UNITY_TRUE@	../lib/region/libRegion.la
-@LINUX_TRUE@am__append_7 = -lgcc_s
-@HAVE_GTKMM_TRUE@am__append_8 = @GTKMM_LIBS@
-@ENABLE_UNITY_TRUE@am__append_9 = @URIPARSER_LIBS@ @LIBPNG_LIBS@ \
+@LINUX_TRUE@am__append_8 = -lgcc_s
+@HAVE_GTKMM_TRUE@am__append_9 = @GTKMM_LIBS@
+@ENABLE_UNITY_TRUE@am__append_10 = @URIPARSER_LIBS@ @LIBPNG_LIBS@ \
 @ENABLE_UNITY_TRUE@	@ZLIB_LIBS@ $(am__empty)
-@HAVE_GTKMM_TRUE@am__append_10 = copyPasteUI.cpp
-@HAVE_GTKMM_TRUE@am__append_11 = dndUI.cpp dragDetWnd.cpp
-@HAVE_GTKMM_TRUE@am__append_12 = stringxx/string.cc
+@HAVE_GTKMM_TRUE@am__append_11 = copyPasteUI.cpp
+@HAVE_GTKMM_TRUE@am__append_12 = dndUI.cpp dragDetWnd.cpp
+@HAVE_GTKMM_TRUE@am__append_13 = stringxx/string.cc
 subdir = vmware-user
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in COPYING
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -117,14 +118,14 @@ vmware_user_DEPENDENCIES = ../lib/conf/libConf.la \
 	../lib/netUtil/libNetUtil.la ../lib/guestRpc/libGuestRpc.la \
 	../lib/err/libErr.la ../lib/foundryMsg/libFoundryMsg.la \
 	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
-	../lib/dndGuest/libDndGuest.la ../lib/dnd/libDnd.la \
+	$(am__append_6) ../lib/dnd/libDnd.la \
 	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
 	../lib/message/libMessage.la ../lib/unicode/libUnicode.la \
 	../lib/auth/libAuth.la ../lib/misc/libMisc.la \
 	../lib/procMgr/libProcMgr.la \
 	../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_6) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
+	$(am__append_7) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -363,20 +364,20 @@ vmware_user_LDADD = ../lib/conf/libConf.la \
 	../lib/netUtil/libNetUtil.la ../lib/guestRpc/libGuestRpc.la \
 	../lib/err/libErr.la ../lib/foundryMsg/libFoundryMsg.la \
 	../lib/backdoor/libBackdoor.la ../lib/dict/libDict.la \
-	../lib/dndGuest/libDndGuest.la ../lib/dnd/libDnd.la \
+	$(am__append_6) ../lib/dnd/libDnd.la \
 	../lib/dynxdr/libDynxdr.la ../lib/hgfs/libHgfs.la \
 	../lib/message/libMessage.la ../lib/unicode/libUnicode.la \
 	../lib/auth/libAuth.la ../lib/misc/libMisc.la \
 	../lib/procMgr/libProcMgr.la \
 	../lib/panicDefault/libPanicDefault.la \
 	../lib/panic/libPanic.la ../lib/stubs/libStubs.la \
-	$(am__append_6) -lcrypt -lstdc++ $(am__append_7) @GTK_LIBS@ \
-	$(am__append_8) @VMWARE_USER_LDADD@ @COMMON_XLIBS@ @ICU_LIBS@ \
-	$(am__append_9)
-vmware_user_SOURCES = copyPaste.c $(am__append_10) \
-	copyPasteDnDWrapper.cpp debugStdio.c dnd.c $(am__append_11) \
+	$(am__append_7) -lcrypt -lstdc++ $(am__append_8) @GTK_LIBS@ \
+	$(am__append_9) @VMWARE_USER_LDADD@ @COMMON_XLIBS@ @ICU_LIBS@ \
+	$(am__append_10)
+vmware_user_SOURCES = copyPaste.c $(am__append_11) \
+	copyPasteDnDWrapper.cpp debugStdio.c dnd.c $(am__append_12) \
 	$(top_srcdir)/services/plugins/vix/foundryToolsDaemon.c \
-	notify.c pointer.c $(am__append_12) vmware-user.cpp
+	notify.c pointer.c $(am__append_13) vmware-user.cpp
 all: all-am
 
 .SUFFIXES:
