@@ -62,12 +62,8 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libGuestInfo_la_LIBADD =
-am_libGuestInfo_la_OBJECTS = guestInfo.lo guestInfoServer.lo \
-	guestInfoPosix.lo guestInfoPerfMonLinux.lo
+am_libGuestInfo_la_OBJECTS = guestInfo.lo guestInfoPosix.lo
 libGuestInfo_la_OBJECTS = $(am_libGuestInfo_la_OBJECTS)
-libGuestInfoCS_la_LIBADD =
-am_libGuestInfoCS_la_OBJECTS = guestInfo.lo guestInfoPosix.lo
-libGuestInfoCS_la_OBJECTS = $(am_libGuestInfoCS_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -80,8 +76,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libGuestInfo_la_SOURCES) $(libGuestInfoCS_la_SOURCES)
-DIST_SOURCES = $(libGuestInfo_la_SOURCES) $(libGuestInfoCS_la_SOURCES)
+SOURCES = $(libGuestInfo_la_SOURCES)
+DIST_SOURCES = $(libGuestInfo_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -107,6 +103,7 @@ DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DNET_CPPFLAGS = @DNET_CPPFLAGS@
 DNET_LIBS = @DNET_LIBS@
+DOT = @DOT@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -130,7 +127,7 @@ GTKMM_CPPFLAGS = @GTKMM_CPPFLAGS@
 GTKMM_LIBS = @GTKMM_LIBS@
 GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDADD = @GUESTD_LDADD@
+HAVE_DOT = @HAVE_DOT@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 ICU_CPPFLAGS = @ICU_CPPFLAGS@
 ICU_LIBS = @ICU_LIBS@
@@ -163,6 +160,8 @@ MKDIR_P = @MKDIR_P@
 MODULES = @MODULES@
 MODULES_DIR = @MODULES_DIR@
 MODULES_OS = @MODULES_OS@
+MSCGEN = @MSCGEN@
+MSCGEN_DIR = @MSCGEN_DIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
@@ -187,6 +186,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
 VERSION = @VERSION@
@@ -231,6 +231,7 @@ docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 have_cxx = @have_cxx@
+have_doxygen = @have_doxygen@
 have_genmarshal = @have_genmarshal@
 host = @host@
 host_alias = @host_alias@
@@ -260,10 +261,8 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-noinst_LTLIBRARIES = libGuestInfo.la libGuestInfoCS.la
-libGuestInfo_la_SOURCES = guestInfo.c guestInfoServer.c \
-	guestInfoPosix.c guestInfoPerfMonLinux.c
-libGuestInfoCS_la_SOURCES = guestInfo.c guestInfoPosix.c
+noinst_LTLIBRARIES = libGuestInfo.la
+libGuestInfo_la_SOURCES = guestInfo.c guestInfoPosix.c
 AM_CFLAGS = $(DNET_CPPFLAGS)
 all: all-am
 
@@ -309,8 +308,6 @@ clean-noinstLTLIBRARIES:
 	done
 libGuestInfo.la: $(libGuestInfo_la_OBJECTS) $(libGuestInfo_la_DEPENDENCIES) 
 	$(LINK)  $(libGuestInfo_la_OBJECTS) $(libGuestInfo_la_LIBADD) $(LIBS)
-libGuestInfoCS.la: $(libGuestInfoCS_la_OBJECTS) $(libGuestInfoCS_la_DEPENDENCIES) 
-	$(LINK)  $(libGuestInfoCS_la_OBJECTS) $(libGuestInfoCS_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -319,9 +316,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/guestInfo.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/guestInfoPerfMonLinux.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/guestInfoPosix.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/guestInfoServer.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

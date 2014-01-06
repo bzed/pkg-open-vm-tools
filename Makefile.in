@@ -85,10 +85,9 @@ RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = lib libvmtools guestd vmware-user \
-	vmware-user-suid-wrapper hgfsclient hgfsmounter checkvm \
-	libguestlib rpctool scripts services toolbox vmblock-fuse \
-	xferlogs tests modules
+DIST_SUBDIRS = lib libvmtools vmware-user vmware-user-suid-wrapper \
+	hgfsclient hgfsmounter checkvm libguestlib rpctool scripts \
+	services toolbox vmblock-fuse xferlogs tests modules docs
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -122,6 +121,7 @@ DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DNET_CPPFLAGS = @DNET_CPPFLAGS@
 DNET_LIBS = @DNET_LIBS@
+DOT = @DOT@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -145,7 +145,7 @@ GTKMM_CPPFLAGS = @GTKMM_CPPFLAGS@
 GTKMM_LIBS = @GTKMM_LIBS@
 GTK_CPPFLAGS = @GTK_CPPFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUESTD_LDADD = @GUESTD_LDADD@
+HAVE_DOT = @HAVE_DOT@
 HAVE_PKG_CONFIG = @HAVE_PKG_CONFIG@
 ICU_CPPFLAGS = @ICU_CPPFLAGS@
 ICU_LIBS = @ICU_LIBS@
@@ -178,6 +178,8 @@ MKDIR_P = @MKDIR_P@
 MODULES = @MODULES@
 MODULES_DIR = @MODULES_DIR@
 MODULES_OS = @MODULES_OS@
+MSCGEN = @MSCGEN@
+MSCGEN_DIR = @MSCGEN_DIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
@@ -202,6 +204,7 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 SYSDIR = @SYSDIR@
 TARGET_OS = @TARGET_OS@
+TOOLS_VERSION = @TOOLS_VERSION@
 URIPARSER_CPPFLAGS = @URIPARSER_CPPFLAGS@
 URIPARSER_LIBS = @URIPARSER_LIBS@
 VERSION = @VERSION@
@@ -246,6 +249,7 @@ docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 have_cxx = @have_cxx@
+have_doxygen = @have_doxygen@
 have_genmarshal = @have_genmarshal@
 host = @host@
 host_alias = @host_alias@
@@ -282,9 +286,9 @@ ACLOCAL_AMFLAGS = -I m4
 
 # These subdirectories require X, and may be disabled using --without-x
 X11_SUBDIRS = vmware-user vmware-user-suid-wrapper
-SUBDIRS = lib libvmtools guestd $(am__append_1) hgfsclient \
-	$(am__append_2) checkvm libguestlib rpctool scripts services \
-	toolbox $(am__append_3) xferlogs tests $(am__append_4)
+SUBDIRS = lib libvmtools $(am__append_1) hgfsclient $(am__append_2) \
+	checkvm libguestlib rpctool scripts services toolbox \
+	$(am__append_3) xferlogs tests $(am__append_4) docs
 all: all-recursive
 
 .SUFFIXES:
