@@ -62,8 +62,7 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libUser_la_LIBADD =
-am_libUser_la_OBJECTS = hostinfo.lo hostinfoPosix2.lo util.lo \
-	utilPosix.lo
+am_libUser_la_OBJECTS = util.lo utilPosix.lo
 libUser_la_OBJECTS = $(am_libUser_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -92,6 +91,7 @@ AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+COMMON_PLUGIN_INSTALLDIR = @COMMON_PLUGIN_INSTALLDIR@
 COMMON_XLIBS = @COMMON_XLIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
@@ -269,7 +269,7 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libUser.la
-libUser_la_SOURCES = hostinfo.c hostinfoPosix2.c util.c utilPosix.c
+libUser_la_SOURCES = util.c utilPosix.c
 AM_CFLAGS = @LIB_USER_CPPFLAGS@
 all: all-am
 
@@ -322,8 +322,6 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostinfo.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostinfoPosix2.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/utilPosix.Plo@am__quote@
 

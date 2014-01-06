@@ -32,7 +32,6 @@ extern "C" {
 #include <string.h>
 
 #include "vmware.h"
-#include "vm_app.h"
 #include "vm_version.h"
 #include "vm_tools_version.h"
 #include "guestApp.h"
@@ -50,6 +49,7 @@ extern "C" {
 #include "codeset.h"
 #include "productState.h"
 #include "posix.h"
+#include "vmware/guestrpc/tclodefs.h"
 
 #include "hgfs.h"
 #include "cpName.h"
@@ -1786,34 +1786,6 @@ GuestApp_RpcSendOneCPName(char const *cmd,  // IN: RPCI command
 
    free(rpcMessage);
    return TRUE;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * GuestApp_ControlRecord --
- *
- *    Start or stop recording process, flagged by command. 
- *    Command definition is in statelogger_backdoor_def.h.
- *
- * Results:
- *    TRUE on success and FALSE on failure.
- *
- * Side effects:
- *    Host VMware product starts or stops recording this vm.
- *
- *-----------------------------------------------------------------------------
- */
-
-Bool
-GuestApp_ControlRecord(int32 command) // IN: flag of starting or stopping recording
-{
-   Backdoor_proto bp;
-   bp.in.size = command;
-   bp.in.cx.halfs.low = BDOOR_CMD_STATELOGGER;
-   Backdoor(&bp);
-   return (bp.out.ax.halfs.low == 1);
 }
 
 #ifdef __cplusplus

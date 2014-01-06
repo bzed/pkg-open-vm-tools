@@ -156,7 +156,7 @@ static int enable_shm[VMXNET3_SHM_MAX_DEVICES + 1] =
    { [0 ... VMXNET3_SHM_MAX_DEVICES] = -1 };
 static char *shm_disclaimer = NULL;
 static int correct_shm_disclaimer;
-#define VMXNET3_SHM_DISCLAIMER "IReallyWantThisModeIAmAVMSafePartner"
+#define VMXNET3_SHM_DISCLAIMER "IReallyWantThisModeIAmAVMwarePartner"
 
 /*
  *----------------------------------------------------------------------------
@@ -1023,17 +1023,17 @@ vmxnet3_tq_xmit(struct sk_buff *skb,
                tq->stats.drop_too_many_frags++;
                goto drop_pkt;
             }
-         }
+         } else {
+            /* non-tso pkts must not use more than VMXNET3_MAX_TXD_PER_PKT entries */
+            if (compat_skb_linearize(skb) != 0) {
+               tq->stats.drop_too_many_frags++;
+               goto drop_pkt;
+            }
+            tq->stats.linearized++;
 
-         /* non-tso pkts must not use more than VMXNET3_MAX_TXD_PER_PKT entries */
-         if (compat_skb_linearize(skb) != 0) {
-            tq->stats.drop_too_many_frags++;
-            goto drop_pkt;
+            /* recalculate the # of descriptors to use */
+            count = VMXNET3_TXD_NEEDED(vmxnet3_skb_headlen(adapter, skb)) + 1;
          }
-         tq->stats.linearized++;
-
-         /* recalculate the # of descriptors to use */
-         count = VMXNET3_TXD_NEEDED(vmxnet3_skb_headlen(adapter, skb)) + 1;
       }
    }
 
@@ -4484,6 +4484,8 @@ vmxnet3_suspend(struct pci_dev *pdev, pm_message_t state)
    }
 
    vmxnet3_disable_all_intrs(adapter);
+   vmxnet3_free_irqs(adapter);
+   vmxnet3_free_intr_resources(adapter);
    netif_device_detach(netdev);
    netif_stop_queue(netdev);
 
@@ -4614,6 +4616,8 @@ vmxnet3_resume(struct pci_dev *pdev)
    pci_enable_wake(pdev, PCI_D0, 0);
 
    VMXNET3_WRITE_BAR1_REG(adapter, VMXNET3_REG_CMD, VMXNET3_CMD_UPDATE_PMCFG);
+   vmxnet3_alloc_intr_resources(adapter);
+   vmxnet3_request_irqs(adapter);
    vmxnet3_enable_all_intrs(adapter);
 
    return 0;

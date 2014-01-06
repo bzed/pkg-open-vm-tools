@@ -27,7 +27,6 @@
 #include <string.h>
 
 #include "vmware.h"
-#include "vm_app.h"
 #include "debug.h"
 #include "rpcout.h"
 #include "str.h"
@@ -38,10 +37,24 @@
 #include "vmtools.h"
 #include "vmtoolsApp.h"
 #include "xdrutil.h"
+#include "vmware/guestrpc/tclodefs.h"
+
+/*
+ * The maximum number of capabilities we can set.
+ *
+ * See ResolutionSetCapabilities().
+ */
+#define RESOLUTION_SET_CAPABILITIES_MAX 5
 
 /*
  * Internal global variables
  */
+
+/**
+ * The name of the RPC channel we're using, e.g. TOOLS_DAEMON_NAME. Used by
+ * ResolutionSet_SetServerCapability() to determine which capability to set.
+ */
+static const char *rpcChannelName = NULL;
 
 /**
  * Describes current state of the library.
@@ -54,10 +67,11 @@ ResolutionInfoType resolutionInfo;
 
 static Bool ResolutionResolutionSetCB(RpcInData *data);
 static Bool ResolutionDisplayTopologySetCB(RpcInData *data);
+static void ResolutionSetServerCapability(unsigned int value);
 
 #if defined(RESOLUTION_WIN32)
 static Bool ResolutionDisplayTopologyModesSetCB(RpcInData *data);
-void ResolutionSetSessionChangeCB(gpointer src, ToolsAppCtx *ctx, DWORD code, DWORD sessionID);
+static Bool ResolutionChangeHost3DAvailabilityHintCB(RpcInData *data);
 #endif
 
 /*
@@ -110,29 +124,6 @@ ResolutionCleanup(void)
 }
 
 
-#if defined(RESOLUTION_WIN32)
-/**
- *
- * Handle WTS session state changes sent from Win32 SCM.
- *
- * @param[in] src unused src object
- * @param[in] ctx unused tools app context
- * @param[in] code state change code
- * @param[in] session ID
- */
-
-static void
-ResolutionSetSessionChangeCB(gpointer src,
-                             ToolsAppCtx *ctx,
-                             DWORD code,
-                             DWORD sessionID)
-{
-   Debug("%s: enter code %d sessionID %d\n", __FUNCTION__, code, sessionID);
-   ResolutionSetSessionChange(code, sessionID);
-}
-#endif
-
-
 /**
  *
  * Handler for TCLO 'Resolution_Set'.
@@ -159,12 +150,6 @@ ResolutionResolutionSetCB(RpcInData *data)
       return RPCIN_SETRETVALS(data, "Invalid guest state: resolution set not initialized", FALSE);
    }
 
-   if (!resInfo->canSetResolution) {
-      Debug("%s: FAIL! Request for resolution set but res set is not enabled\n",
-            __FUNCTION__);
-      return RPCIN_SETRETVALS(data, "Invalid guest state: resolution set not enabled", FALSE);
-   }
-
    /* parse the width and height */
    if (!StrUtil_GetNextUintToken(&width, &index, data->args, " ")) {
       goto invalid_arguments;
@@ -181,6 +166,41 @@ invalid_arguments:
 
 
 #if defined(RESOLUTION_WIN32)
+/**
+ *
+ * Handler for TCLO 'ChangeHost3DAvailabilityHint'.
+ *
+ * Routine unmarshals RPC arguments and passes over to back-end for handling.
+ *
+ * @param[in] data RPC data
+ * @return TRUE if we can reply, FALSE otherwise.
+ */
+
+static Bool
+ResolutionChangeHost3DAvailabilityHintCB(RpcInData *data)
+{
+   unsigned int set;
+   Bool success = FALSE;
+   unsigned int index = 0;
+
+   Debug("%s: enter\n", __FUNCTION__);
+
+   if (!StrUtil_GetNextUintToken(&set, &index, data->args, " ")) {
+      Debug("%s: invalid arguments\n", __FUNCTION__);
+      return RPCIN_SETRETVALS(data,
+                              "Invalid arguments. Expected \"set\"",
+                              FALSE);
+   }
+
+   success = ResolutionChangeHost3DAvailabilityHint(set?TRUE:FALSE);
+
+   RPCIN_SETRETVALS(data, success ? "" : "ResolutionChangeHost3DAvailabilityHint failed", success);
+
+   Debug("%s: leave\n", __FUNCTION__);
+   return success;
+}
+
+
 /**
  *
  * Handler for TCLO 'DisplayTopologyModes_Set'.
@@ -294,13 +314,6 @@ ResolutionDisplayTopologySetCB(RpcInData *data)
       goto out;
    }
 
-   if (!resInfo->canSetTopology) {
-      Debug("%s: FAIL! Request for topology set but topology set not enabled\n",
-            __FUNCTION__);
-      RPCIN_SETRETVALS(data, "Invalid guest state: topology set not enabled", FALSE);
-      goto out;
-   }
-
    /*
     * The argument string will look something like:
     *   <count> [ , <x> <y> <w> <h> ] * count.
@@ -370,40 +383,26 @@ ResolutionSetShutdown(gpointer src,
 
 
 /**
- * Sends the resolution_server capability to the VMX.
+ * Sends the tools.capability.resolution_server RPC to the VMX.
  *
- * @param[in]  src      The source object.
- * @param[in]  ctx      The app context.
- * @param[in]  plugin   Plugin registration data.
- * @param[in]  set      Whether setting or unsetting the capability.
- *
- * @return NULL. The function sends the capability directly.
+ * @param[in]  value    The value to send for the capability bit.
  */
-
-static void
-ResolutionServerCapReg(ToolsAppCtx *ctx,
-                       gint set)
+void
+ResolutionSetServerCapability(unsigned int value)
 {
-   gchar *msg;
-   const char *appName = NULL;
-
-   if (strcmp(ctx->name, VMTOOLS_GUEST_SERVICE) == 0) {
-      appName = TOOLS_DAEMON_NAME;
-   } else if (strcmp(ctx->name, VMTOOLS_USER_SERVICE) == 0) {
-      appName = TOOLS_DND_NAME;
-   } else {
-      NOT_REACHED();
+   if (!rpcChannelName) {
+      g_debug("Channel name is null, RPC not sent.\n");
+      return;
    }
 
-   msg = g_strdup_printf("tools.capability.resolution_server %s %d",
-                         appName,
-                         set);
-
-   if (ctx->rpc && !RpcChannel_Send(ctx->rpc, msg, strlen(msg) + 1, NULL, NULL)) {
-      g_warning("Setting resolution_server capability failed!\n");
+   if (!RpcOut_sendOne(NULL,
+                       NULL,
+                       "tools.capability.resolution_server %s %d",
+                       rpcChannelName,
+                       value)) {
+      g_warning("%s: Unable to set tools.capability.resolution_server\n",
+                __FUNCTION__);
    }
-
-   g_free(msg);
 }
 
 
@@ -425,48 +424,92 @@ ResolutionSetCapabilities(gpointer src,
                           gboolean set,
                           gpointer data)
 {
-   enum {
-      RES_SET_IDX              = 0,
-      DPY_TOPO_SET_IDX         = 1,
-      DPY_GLOBAL_OFFSET_IDX    = 2,
-      DPY_TOPO_MODES_SET_IDX   = 3
-   };
+   /* The array of capabilities to return to the tools service. */
+   ToolsAppCapability capabilityArray[RESOLUTION_SET_CAPABILITIES_MAX];
 
-   ToolsAppCapability caps[] = {
-      { TOOLS_CAP_OLD, "resolution_set", 0, 0 },
-      { TOOLS_CAP_OLD, "display_topology_set", 0, 0 },
-      { TOOLS_CAP_OLD, "display_global_offset", 0, 0 },
-      { TOOLS_CAP_NEW, NULL, CAP_SET_TOPO_MODES, 0 }
-   };
+   /* The next unused entry in the capabilities array. */
+   unsigned int capabilityCount = 0;
 
    ResolutionInfoType *resInfo = &resolutionInfo;
-   int resServerCap = 0;
 
-Debug("%s: enter\n", __FUNCTION__);
-   if (set) {
-      if (!resInfo->initialized) {
-         return FALSE;
-      }
+   Debug("%s: enter\n", __FUNCTION__);
 
-      if (resInfo->canSetResolution) {
-         caps[RES_SET_IDX].value = 1;
-         resServerCap = 1;
-      }
-
-      if (resInfo->canSetTopology) {
-
-         caps[DPY_TOPO_SET_IDX].value = 2;
-         caps[DPY_GLOBAL_OFFSET_IDX].value = 1;
-#if defined(RESOLUTION_WIN32)
-Debug("%s: setting DPY_TOPO_MODES_SET_IDX to 1\n", __FUNCTION__);
-         caps[DPY_TOPO_MODES_SET_IDX].value = 1;
-#endif
-      }
+   if (!resInfo->initialized) {
+      return FALSE;
    }
 
-   ResolutionServerCapReg(ctx, resServerCap);
+   /*
+    * If we can set the guest resolution, add the resolution_set capability to
+    * our array.
+    */
+   if (resInfo->canSetResolution) {
+      capabilityArray[capabilityCount].type  = TOOLS_CAP_OLD;
+      capabilityArray[capabilityCount].name  = "resolution_set";
+      capabilityArray[capabilityCount].index = 0;
+      capabilityArray[capabilityCount].value = set ? 1 : 0;
+      capabilityCount++;
 
-   return VMTools_WrapArray(caps, sizeof *caps, ARRAYSIZE(caps));
+      /*
+       * Send the resolution_server RPC to the VMX.
+       *
+       * XXX: We need to send this ourselves, instead of including it in the
+       *      capability array, because the resolution_server RPC includes the
+       *      name of the RPC channel that the VMX should use when sending
+       *      resolution set RPCs as an argument.
+       */
+      ResolutionSetServerCapability(set ? 1 : 0);
+   }
+
+   /*
+    * If we can set the guest topology, add the display_topology_set and
+    * display_global_offset capabilities to our array.
+    */
+   if (resInfo->canSetTopology) {
+      /*
+       * XXX: We use a value of '2' here because, for historical reasons, the
+       *      Workstation/Fusion UI will treat a value of 1 for this capability
+       *      as unsupported. See bug 149541.
+       */
+      capabilityArray[capabilityCount].type  = TOOLS_CAP_OLD;
+      capabilityArray[capabilityCount].name  = "display_topology_set";
+      capabilityArray[capabilityCount].index = 0;
+      capabilityArray[capabilityCount].value = set ? 2 : 0;
+      capabilityCount++;
+
+      capabilityArray[capabilityCount].type  = TOOLS_CAP_OLD;
+      capabilityArray[capabilityCount].name  = "display_global_offset";
+      capabilityArray[capabilityCount].index = 0;
+      capabilityArray[capabilityCount].value = set ? 1 : 0;
+      capabilityCount++;
+   }
+
+#if defined(RESOLUTION_WIN32)
+   /*
+    * XXX: I believe we can always handle these RPCs from the service, even on
+    *      Vista, so we always set the capabilities here, regardless of the
+    *      value of resInfo->canSetTopology.
+    */
+   Debug("%s: setting DPY_TOPO_MODES_SET_IDX to %u\n", __FUNCTION__,
+         set ? 1 : 0);
+
+   capabilityArray[capabilityCount].type  = TOOLS_CAP_NEW;
+   capabilityArray[capabilityCount].name  = NULL;
+   capabilityArray[capabilityCount].index = CAP_SET_TOPO_MODES;
+   capabilityArray[capabilityCount].value = set ? 1 : 0;
+   capabilityCount++;
+
+   capabilityArray[capabilityCount].type  = TOOLS_CAP_NEW;
+   capabilityArray[capabilityCount].name  = NULL;
+   capabilityArray[capabilityCount].index = CAP_CHANGE_HOST_3D_AVAILABILITY_HINT;
+   capabilityArray[capabilityCount].value = set ? 1 : 0;
+   capabilityCount++;
+#endif
+
+   ASSERT(capabilityCount <= RESOLUTION_SET_CAPABILITIES_MAX);
+
+   return VMTools_WrapArray(capabilityArray,
+                            sizeof *capabilityArray,
+                            capabilityCount);
 }
 
 
@@ -481,6 +524,15 @@ Debug("%s: setting DPY_TOPO_MODES_SET_IDX to 1\n", __FUNCTION__);
 TOOLS_MODULE_EXPORT ToolsPluginData *
 ToolsOnLoad(ToolsAppCtx *ctx)
 {
+   RpcChannelCallback rpcs[] = {
+      { "Resolution_Set",               &ResolutionResolutionSetCB },
+      { "DisplayTopology_Set",          &ResolutionDisplayTopologySetCB },
+#if defined(RESOLUTION_WIN32)
+      { "DisplayTopologyModes_Set",     &ResolutionDisplayTopologyModesSetCB },
+      { "ChangeHost3DAvailabilityHint", &ResolutionChangeHost3DAvailabilityHintCB }
+#endif
+   };
+
    InitHandle handle;
 
    static ToolsPluginData regData = {
@@ -491,17 +543,27 @@ ToolsOnLoad(ToolsAppCtx *ctx)
 
    ToolsPluginSignalCb sigs[] = {
       { TOOLS_CORE_SIG_CAPABILITIES, ResolutionSetCapabilities, &regData },
-#if defined(RESOLUTION_WIN32)
-      { TOOLS_CORE_SIG_SESSION_CHANGE, ResolutionSetSessionChangeCB, &regData },
-#endif
       { TOOLS_CORE_SIG_SHUTDOWN, ResolutionSetShutdown, &regData }
    };
+
    ToolsAppReg regs[] = {
       { TOOLS_APP_GUESTRPC, NULL },
       { TOOLS_APP_SIGNALS, VMTools_WrapArray(sigs, sizeof *sigs, ARRAYSIZE(sigs)) }
    };
 
    ResolutionInfoType *resInfo = &resolutionInfo;
+
+   /*
+    * Save the RPC channel name from the ToolsAppCtx so that we can use it later
+    * in calls to ResolutionSetServerCapability().
+    */
+   if (strcmp(ctx->name, VMTOOLS_GUEST_SERVICE) == 0) {
+      rpcChannelName = TOOLS_DAEMON_NAME;
+   } else if (strcmp(ctx->name, VMTOOLS_USER_SERVICE) == 0) {
+      rpcChannelName = TOOLS_DND_NAME;
+   } else {
+      NOT_REACHED();
+   }
 
    resInfo->initialized = FALSE;
 
@@ -512,36 +574,7 @@ ToolsOnLoad(ToolsAppCtx *ctx)
 
    ResolutionInit(handle);
 
-   /*
-    * Add one or both of the callbacks based on capabilities.
-    */
-   if (resInfo->canSetResolution || resInfo->canSetTopology) {
-      int index = 0;
-      RpcChannelCallback rpcs[3];
-
-      memset(rpcs, '\0', sizeof rpcs);
-
-      if (resInfo->canSetResolution) {
-         rpcs[index].name = "Resolution_Set";
-         rpcs[index].callback = ResolutionResolutionSetCB;
-         index++;
-      }
-
-      if (resInfo->canSetTopology) {
-         rpcs[index].name = "DisplayTopology_Set";
-         rpcs[index].callback = ResolutionDisplayTopologySetCB;
-         index++;
-#if defined(RESOLUTION_WIN32)
-         rpcs[index].name = "DisplayTopologyModes_Set";
-         rpcs[index].callback = ResolutionDisplayTopologyModesSetCB;
-         index++;
-#endif
-      }
-
-      regs[0].data = VMTools_WrapArray(rpcs, sizeof *rpcs, index);
-      regData.regs = VMTools_WrapArray(regs, sizeof *regs, ARRAYSIZE(regs));
-   }
-
-
+   regs[0].data = VMTools_WrapArray(rpcs, sizeof *rpcs, ARRAYSIZE(rpcs));
+   regData.regs = VMTools_WrapArray(regs, sizeof *regs, ARRAYSIZE(regs));
    return &regData;
 }

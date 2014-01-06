@@ -88,6 +88,8 @@ VixError Vix_TranslateCryptoError(CryptoError cryptoError);
 VixError Vix_TranslateCOMError(HRESULT comError);
 #endif
 
+#endif // VIX_HIDE_BORA_DEPENDENCIES
+
 /*
  * This defines additional error codes.
  * The public error codes are defined in vix.h
@@ -100,10 +102,6 @@ enum {
    VIX_E_REG_INCORRECT_VALUE_TYPE                  = 25000
    /* WARNING. Do not exceed 2**16 */
 };
-
-#endif // VIX_HIDE_BORA_DEPENDENCIES
-
-
 
 /*
  *-----------------------------------------------------------------------------
@@ -338,6 +336,9 @@ VixError VixPropertyList_SetPtr(VixPropertyListImpl *propList,
                                 int propertyID,
                                 void *value);
 
+int VixPropertyList_NumItems(VixPropertyListImpl *propList);
+
+Bool VixPropertyList_Empty(VixPropertyListImpl *propList);
 
 
 #endif   // VIX_HIDE_FROM_JAVA
@@ -383,7 +384,6 @@ enum {
  */
 enum {
    VIX_FILESYSTEMS_SHOW_ALL     = 0x000,
-   VIX_FILESYSTEMS_HIDE_NETWORK = 0x001,
 };
 
 

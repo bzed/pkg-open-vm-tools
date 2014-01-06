@@ -1,8 +1,17 @@
+open-vm-tools 2009.10.15 changes:
+	* The HGFS module got some performance enhancements.
+
+	* Minor enhancements to vmtoolsd and the logging system.
+
+	* Fix for a few issues reported on the sourceforge bug tracker.
+
+	* Lots of code refactoring, and a few bug fixes.
+
 open-vm-tools 2009.09.18 changes:
 	* Mostly bug fixes and minor enhancements.
 
 	* The pvscsi code was re-factored in preparation for upstreaming. The
-	driver has been sent to the LKML for inclusing in the main Linux tree,
+	driver has been sent to the LKML for inclusion in the main Linux tree,
 	and might be removed from open-vm-tools once it's accepted.
 
 open-vm-tools 2009.08.24 changes:

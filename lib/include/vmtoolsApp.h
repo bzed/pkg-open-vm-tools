@@ -34,8 +34,8 @@
 #  include <windows.h>
 #  include <objbase.h>
 #endif
-#include "guestCaps.h"
 #include "rpcChannel.h"
+#include "vmware/guestrpc/capabilities.h"
 
 /**
  * Error reporting macro. Call this if the app encounters an error
@@ -80,6 +80,15 @@
  *         elements should be of type ToolsAppCapability.
  */
 #define TOOLS_CORE_SIG_CAPABILITIES "tcs_capabilities"
+
+/**
+ * Signal sent when the config file is reloaded.
+ *
+ * @param[in]  src      The source object.
+ * @param[in]  ctx      ToolsAppCtx *: The application context.
+ * @param[in]  data     Client data.
+ */
+#define TOOLS_CORE_SIG_CONF_RELOAD "tcs_conf_reload"
 
 /**
  * Signal sent when the service receives a request to dump its internal
@@ -177,6 +186,8 @@ typedef struct ToolsAppCtx {
 #else
    /** The FD to access the VMware blocking fs. -1 if no FD available. */
    int               blockFD;
+   /** The native environment (without any VMware modifications). */
+   const char      **envp;
 #endif
    /**
     * A GObject instance shared among all plugins. The object itself doesn't
