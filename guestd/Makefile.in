@@ -93,8 +93,7 @@ guestd_DEPENDENCIES = ../lib/atomic/libAtomic.a \
 	../lib/wiper/libWiper.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
 	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
-	../lib/foundryMsg/libFoundryMsg.a \
-	../lib/fileUtf8/libFileUtf8.a ../lib/auth/libAuth.a \
+	../lib/foundryMsg/libFoundryMsg.a ../lib/auth/libAuth.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a \
 	$(am__DEPENDENCIES_1)
 guestd_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
@@ -276,8 +275,7 @@ guestd_LDADD = ../lib/atomic/libAtomic.a ../lib/backdoor/libBackdoor.a \
 	../lib/wiper/libWiper.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
 	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
-	../lib/foundryMsg/libFoundryMsg.a \
-	../lib/fileUtf8/libFileUtf8.a ../lib/auth/libAuth.a \
+	../lib/foundryMsg/libFoundryMsg.a ../lib/auth/libAuth.a \
 	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a \
 	$(HGFS_BD)
 @SOLARIS_FALSE@HGFS_BD = 

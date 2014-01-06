@@ -28,7 +28,7 @@
 #define INCLUDE_ALLOW_USERLEVEL
 #include "includeCheck.h"
 #include "fileLock.h"
-#include "unicodeBase.h"
+#include "unicodeTypes.h"
 
 #if defined __linux__
 /*

@@ -24,7 +24,7 @@
 
 AC_INIT(
    [open-vm-tools],
-   [2008.01.23-74039],
+   [2008.02.13-77928],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -593,8 +593,8 @@ AC_CONFIG_FILES([                      \
    lib/err/Makefile                    \
    lib/eventManager/Makefile           \
    lib/file/Makefile                   \
-   lib/fileUtf8/Makefile               \
    lib/foundryMsg/Makefile             \
+   lib/ghIntegrationStub/Makefile      \
    lib/guestApp/Makefile               \
    lib/guestInfo/Makefile              \
    lib/hgfs/Makefile                   \
@@ -628,6 +628,7 @@ AC_CONFIG_FILES([                      \
    lib/system/Makefile                 \
    lib/toolsLogger/Makefile            \
    lib/unicode/Makefile                \
+   lib/unityStub/Makefile              \
    lib/user/Makefile                   \
    lib/vixTools/Makefile               \
    lib/vmBackupLib/Makefile            \

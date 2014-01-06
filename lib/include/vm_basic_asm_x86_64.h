@@ -89,9 +89,24 @@ FXSAVE_ES1(uint8 *save)
 }
 
 static INLINE void 
+FXSAVE_COMPAT_ES1(uint8 *save)
+{
+   asm ("fxsave %0  \n"
+        : "=m" (*save));
+}
+
+static INLINE void 
 FXRSTOR_ES1(const uint8 *load)
 {
    asm ("fxrstorq %0 \n"
+        :
+        : "m" (*load));
+}
+
+static INLINE void 
+FXRSTOR_COMPAT_ES1(const uint8 *load)
+{
+   asm ("fxrstor %0 \n"
         :
         : "m" (*load));
 }

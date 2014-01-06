@@ -27,6 +27,8 @@
 
 #define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMCORE
+#define INCLUDE_ALLOW_VMKERNEL
+#define INCLUDE_ALLOW_VMNIXMOD
 #include "includeCheck.h"
 
 #ifdef __cplusplus
@@ -34,6 +36,8 @@ extern "C" {
 #endif
 
 #include <stdlib.h>
+#include <errno.h>
+#include "util.h"
 #include "unicodeTypes.h"
 
 /*
@@ -185,6 +189,47 @@ void Unicode_Free(Unicode str);
 const char *Unicode_GetUTF8(ConstUnicode str);
 const utf16_t *Unicode_GetUTF16(ConstUnicode str);
 
+static INLINE const char *
+UTF8(ConstUnicode str)
+{
+   const char *result;
+
+   int errP = errno;
+#if defined(_WIN32)
+   DWORD errW = GetLastError();
+#endif
+
+   result = Unicode_GetUTF8(str);
+
+#if defined(_WIN32)
+   SetLastError(errW);
+#endif
+   errno = errP;
+
+   return result;
+}
+
+static INLINE const utf16_t *
+UTF16(ConstUnicode str)
+{
+   const utf16_t *result;
+
+   int errP = errno;
+#if defined(_WIN32)
+   DWORD errW = GetLastError();
+#endif
+
+   result = Unicode_GetUTF16(str);
+
+#if defined(_WIN32)
+   SetLastError(errW);
+#endif
+
+   errno = errP;
+
+   return result;
+}
+
 /*
  * Gets the number of UTF-16 code units in the NUL-terminated UTF-16 array.
  */
@@ -257,9 +302,8 @@ ssize_t Unicode_CopyBytes(ConstUnicode str,
  *            UTF-16 NUL is "\0\0"; UTF-32 NUL is "\0\0\0\0".
  *
  * Results:
- *      Pointer to the dynamically allocated memory or NULL on failure.
- *
- *      Caller is responsible to free the memory allocated by this routine.
+ *      Pointer to the dynamically allocated memory. The caller is
+ *      responsible to free the memory allocated by this routine.
  *
  * Side effects:
  *      None
@@ -272,17 +316,15 @@ Unicode_GetAllocBytes(ConstUnicode str,        // IN:
                       StringEncoding encoding) // IN:
 {
    void *memory;
+   ssize_t result;
 
    size_t length = Unicode_BytesRequired(str, encoding);
 
-   memory = malloc(length);
+   memory = Util_SafeMalloc(length);
 
-   if (memory != NULL) {
-      if (Unicode_CopyBytes(str, memory, length, encoding) == -1) {
-         free(memory);
-         memory = NULL;
-      }
-   }
+   result = Unicode_CopyBytes(str, memory, length, encoding);
+
+   ASSERT_NOT_IMPLEMENTED(result != -1);
 
    return memory;
 }
@@ -324,6 +366,25 @@ Unicode_GetAllocUTF16(ConstUnicode str)  // IN:
  */
 ConstUnicode Unicode_GetStatic(const char *asciiBytes,
                                Bool unescape);
+
+
+/*
+ * XXX Helper macros for win32 Unicode string transition stage.
+ *     Those macros should be removed after we turn on SUPPORT_UNICODE.
+ *     We need to call free() when !SUPPORT_UNICODE because Unicode_GetAllocUTF16()
+ *     creates a new copy of 's' in UTF-16. But when SUPPORT_UNICODE, Unicode_GetUTF16()
+ *     just returns a const representation of the string 's'.
+ */
+
+#if defined(_WIN32)
+   #if defined(SUPPORT_UNICODE)
+      #define UNICODE_GET_UTF16(s)     Unicode_GetUTF16(s)
+      #define UNICODE_RELEASE_UTF16(s)
+   #else
+      #define UNICODE_GET_UTF16(s)     Unicode_GetAllocUTF16(s)
+      #define UNICODE_RELEASE_UTF16(s) free((utf16_t *)s)
+   #endif
+#endif
 
 #ifdef __cplusplus
 }

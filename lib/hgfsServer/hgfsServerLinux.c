@@ -1130,8 +1130,12 @@ HgfsGetattrResolveAlias(char const *fileName,       // IN:  Input filename
               "error %lu\n", osStatus));
       goto exit;      
    }
-   osStatus = FSResolveAliasFile(&fileRef, FALSE, &targetIsFolder,
-                                 &wasAliased);
+   /*
+    * If alias points to an unmounted volume, the volume needs to be explicitly
+    * mounted on the host. Mount flag kResolveAliasFileNoUI serves the purpose.
+    */
+   osStatus = FSResolveAliasFileWithMountFlags(&fileRef, FALSE, &targetIsFolder,
+                                               &wasAliased, kResolveAliasFileNoUI);
    if (osStatus != noErr) {
       LOG(4, ("HgfsGetattrResolveAlias: could not resolve reference: error "
               "%lu\n", osStatus));
@@ -3676,6 +3680,9 @@ HgfsServerQueryVolume(char const *packetIn, // IN: incoming packet
    Bool firstShare = TRUE;
    Bool success;
    HgfsNameStatus nameStatus;
+   size_t failed = 0;
+   size_t shares = 0;
+   HgfsInternalStatus firstErr = 0;
 
    request = (HgfsRequestQueryVolume *)packetIn;
    ASSERT(request);
@@ -3760,8 +3767,20 @@ HgfsServerQueryVolume(char const *packetIn, // IN: incoming packet
             free(dent);
             continue;
          }
+
+         /*
+          * The above check ignores '.' and '..' so we do not include them in
+          * the share count here.
+          */
+         shares++;
          
-         /* Check permission on the share and get the share path. */
+         /*
+          * Check permission on the share and get the share path.  It is not
+          * fatal if these do not succeed.  Instead we ignore the failures
+          * (apart from logging them) until we have processed all shares.  Only
+          * then do we check if there were any failures; if all shares failed
+          * to process then we bail out with an error code.
+          */
          nameStatus = HgfsServerPolicy_GetSharePath(dent->d_name,
                                                     length,
                                                     HGFS_OPEN_MODE_READ_ONLY,
@@ -3771,16 +3790,22 @@ HgfsServerQueryVolume(char const *packetIn, // IN: incoming packet
          if (nameStatus != HGFS_NAME_STATUS_COMPLETE) {
             LOG(4, ("HgfsServerQueryVolume: No such share or access "
                     "denied\n"));
-            HgfsRemoveSearch(handle);
-            return HgfsConvertFromNameStatus(nameStatus);
+            if (0 == firstErr) {
+               firstErr = HgfsConvertFromNameStatus(nameStatus);
+            }
+            failed++;
+            continue;
          }
          
          if (!HgfsServerStatFs(sharePath, sharePathLen,
                                &freeBytes, &totalBytes)) {
             LOG(4, ("HgfsServerQueryVolume: error getting volume "
                     "information\n"));
-            HgfsRemoveSearch(handle);
-            return EIO;
+            if (0 == firstErr) {
+               firstErr = EIO;
+            }
+            failed++;
+            continue;
          }
          
          /*
@@ -3807,6 +3832,13 @@ HgfsServerQueryVolume(char const *packetIn, // IN: incoming packet
       }
       if (!HgfsRemoveSearch(handle)) {
          LOG(4, ("HgfsServerQueryVolume: could not close search on base\n"));
+      }
+      if (shares == failed) {
+         /*
+          * We failed to query any of the shares.  We return the error from the
+          * first share failure.
+          */
+         return firstErr;
       }
       break;
    case HGFS_NAME_STATUS_COMPLETE:

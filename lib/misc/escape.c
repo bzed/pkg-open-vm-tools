@@ -121,7 +121,7 @@ Escape_DoString(const char *escStr,    // IN
          /* We must escape that byte --hpreg */
 
          escSeq[0] = Dec2Hex[ubyte >> 4];
-	 escSeq[1] = Dec2Hex[ubyte & 0xF];
+    escSeq[1] = Dec2Hex[ubyte & 0xF];
          if (   DynBuf_Append(&b, &buf[startUnescaped],
                    index - startUnescaped) == FALSE
              || DynBuf_Append(&b, escStr, escStrLen) == FALSE
@@ -151,6 +151,38 @@ nem:
    DynBuf_Destroy(&b);
 
    return NULL;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Escape_Do --
+ *
+ *    Escape a buffer
+ *
+ * Results:
+ *    The escaped, allocated, NUL terminated buffer on success. If not NULL,
+ *     '*sizeOut' contains the size of the buffer (excluding the NUL
+ *     terminator)
+ *    NULL on failure (not enough memory)
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void *
+Escape_Do(char escByte,          // IN
+          int const *bytesToEsc, // IN
+          void const *bufIn,     // IN
+          size_t sizeIn,         // IN
+          size_t *sizeOut)       // OUT
+{
+   const char escStr[] = { escByte, '\0' };
+
+   return Escape_DoString(escStr, bytesToEsc, bufIn, sizeIn, sizeOut);
 }
 
 

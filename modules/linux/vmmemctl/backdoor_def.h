@@ -109,7 +109,8 @@
 #define BDOOR_CMD_CHECKFORCEBIOSSETUP	48
 #define BDOOR_CMD_LAZYTIMEREMULATION    49
 #define BDOOR_CMD_BIOSBBS               50
-#define BDOOR_CMD_MAX                   51
+#define BDOOR_CMD_VASSERT               51
+#define BDOOR_CMD_MAX                   52
 
 /* 
  * IMPORTANT NOTE: When modifying the behavior of an existing backdoor command,
@@ -123,7 +124,8 @@
 #define BDOORHB_PORT 0x5659
 
 #define BDOORHB_CMD_MESSAGE 0
-#define BDOORHB_CMD_MAX 1
+#define BDOORHB_CMD_VASSERT 1
+#define BDOORHB_CMD_MAX 2
 
 /*
  * There is another backdoor which allows access to certain TSC-related

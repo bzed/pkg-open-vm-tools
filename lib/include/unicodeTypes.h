@@ -27,16 +27,19 @@
 
 #define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMCORE
+#define INCLUDE_ALLOW_VMKERNEL
+#define INCLUDE_ALLOW_VMNIXMOD
 #include "includeCheck.h"
 
 #include "vm_basic_types.h"
 
-#ifdef SUPPORT_UNICODE
+#if defined(SUPPORT_UNICODE)
 /*
  * When Unicode support is turned on, the types become opaque containers.
  */
-typedef void * Unicode;
-typedef const void * ConstUnicode;
+typedef struct UnicodeImpl UnicodeImpl;
+typedef UnicodeImpl * Unicode;
+typedef const UnicodeImpl * ConstUnicode;
 #else
 /*
  * As a short-term development tactic to prevent code churn while the
@@ -49,18 +52,12 @@ typedef const char * ConstUnicode;
 
 typedef ssize_t UnicodeIndex;
 
-#ifdef _WIN32
-#include <windows.h>
 /*
- * To ensure we interoperate with Win32 APIs (possibly C++
- * name-mangled) that use WCHAR, this typedef is used for
- * Unicode_AllocWithUTF16() and Unicode_GetUTF16().
- *
- * WCHAR can either be unsigned short or the intrinsic type wchar_t,
- * depending on if _NATIVE_WCHAR_T_DEFINED is set.  It's always
- * exactly 16 bits wide.
+ * include windows.h or other appropriate include files before this one
  */
-typedef WCHAR utf16_t;
+
+#if defined(_WIN32) && defined(_NATIVE_WCHAR_T_DEFINED)
+typedef wchar_t utf16_t;
 #else
 typedef uint16 utf16_t;
 #endif

@@ -36,9 +36,6 @@ void GuestInfoMemset(void * mem, int value, unsigned int size);
 Bool GuestInfoGetDiskInfo(PDiskInfo di);
 Bool GuestInfoGetOSName(unsigned int outBufFullLen, unsigned int outBufLen, 
                         char *osNameFull, char *osName);
-
-
-
-
+int GuestInfo_GetSystemBitness(void);
 
 #endif

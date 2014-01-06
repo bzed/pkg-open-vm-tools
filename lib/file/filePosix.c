@@ -56,11 +56,11 @@
 #include "msg.h"
 #include "util.h"
 #include "str.h"
+#include "util.h"
 #include "timeutil.h"
 #include "dynbuf.h"
 #include "localconfig.h"
 
-#include "unicodeBase.h"
 #include "unicodeOperations.h"
 
 #if !defined(__FreeBSD__) && !defined(sun)
@@ -119,13 +119,9 @@ FileRemoveDirectory(ConstUnicode pathName)  // IN:
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-   if (path == NULL) {
-      err = ENOMEM;
-   } else {
-      err = (rmdir(path) == -1) ? errno : 0;
+   err = (rmdir(path) == -1) ? errno : 0;
 
-      free(path);
-   }
+   free(path);
 
    return err;
 }
@@ -163,11 +159,7 @@ FileRename(ConstUnicode oldName,  // IN:
    newPath = Unicode_GetAllocBytes(newName, STRING_ENCODING_DEFAULT);
    oldPath = Unicode_GetAllocBytes(oldName, STRING_ENCODING_DEFAULT);
 
-   if ((newPath == NULL) || (oldPath == NULL)) {
-      err = ENOMEM;
-   } else {
-      err = (rename(oldPath, newPath) == -1) ? errno : 0;
-   }
+   err = (rename(oldPath, newPath) == -1) ? errno : 0;
 
    free(newPath);
    free(oldPath);
@@ -206,10 +198,6 @@ FileDeletion(ConstUnicode pathName,   // IN:
    }
 
    primaryPath = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (primaryPath == NULL) {
-      return ENOMEM;
-   }
 
    if (handleLink) {
       struct stat statbuf;
@@ -299,22 +287,10 @@ int
 FileAttributes(ConstUnicode pathName,  // IN:
                FileData *fileData)     // OUT:
 {
-   char *path;
-   struct stat statbuf;
+   int err;
+   PosixStatStruct statbuf;
 
-   int err = 0;
-
-   if (pathName == NULL) {
-      return EFAULT;
-   }
-
-   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (path == NULL) {
-      return ENOMEM;
-   }
-
-   if (stat(path, &statbuf) == -1) {
+   if (FileIO_PosixStat(pathName, &statbuf) == -1) {
       err = errno;
    } else {
       if (fileData != NULL) {
@@ -357,8 +333,6 @@ FileAttributes(ConstUnicode pathName,  // IN:
       err = 0;
    }
 
-   free(path);
-
    return err;
 }
 
@@ -383,11 +357,11 @@ FileAttributes(ConstUnicode pathName,  // IN:
 
 #if !defined(__FreeBSD__) && !defined(sun)
 Bool
-File_IsRemote(const char *fileName) // IN: File name
+File_IsRemote(ConstUnicode pathName)  // IN: Path name
 {
    struct statfs sfbuf;
 
-#ifdef VMX86_SERVER
+#if defined(VMX86_SERVER)
    /*
     * On ESX, statfs() will always return VMFS_MAGIC for files on VMFS so this
     * function is only correct for files on COS, otherwise it always returns
@@ -403,8 +377,9 @@ File_IsRemote(const char *fileName) // IN: File name
    }
 #endif
 
-   if (statfs(fileName, &sfbuf) == -1) {
-      Log("%s: statfs(%s) failed: %s\n", __func__, fileName, Msg_ErrString());
+   if (FileIO_PosixStatfs(pathName, &sfbuf) == -1) {
+      Log(LGPFX" %s: statfs(%s) failed: %s\n", __func__, UTF8(pathName),
+          strerror(errno));
       return TRUE;
    }
 #if defined(__APPLE__)
@@ -441,26 +416,10 @@ File_IsRemote(const char *fileName) // IN: File name
 Bool
 File_IsSymLink(ConstUnicode pathName)  // IN:
 {
-   char *path;
    struct stat statbuf;
 
-   int err = 0;
-
-   if (pathName == NULL) {
-      return FALSE;
-   }
-
-   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (path == NULL) {
-      return FALSE;
-   }
-
-   err = (lstat(path, &statbuf) == -1) ? errno : 0;
-
-   free(path);
-
-   return (err == 0) && S_ISLNK(statbuf.st_mode);
+   return (FileIO_PosixLstat(pathName, &statbuf) == 0) &&
+           S_ISLNK(statbuf.st_mode);
 }
 
 
@@ -482,13 +441,14 @@ File_IsSymLink(ConstUnicode pathName)  // IN:
  *----------------------------------------------------------------------
  */
 
-char *
-File_Cwd(const char *drive)     // IN
+Unicode
+File_Cwd(ConstUnicode drive)  // IN:
 {
    char buffer[FILE_MAXPATH];
 
-   if ((drive != NULL) && (drive[0] != '\0')) {
-      Warning("Drive letter %s on Linux?\n", drive);
+   if ((drive != NULL) && !Unicode_IsEmpty(drive)) {
+      Warning(LGPFX" %s: Drive letter %s on Linux?\n", __FUNCTION__,
+              UTF8(drive));
    }
 
    if (getcwd(buffer, FILE_MAXPATH) == NULL) {
@@ -497,12 +457,12 @@ File_Cwd(const char *drive)     // IN
                  "Please check if the directory has been deleted or "
                  "unmounted.\n",
                  Msg_ErrString());
-      Warning("%s:%d getcwd() failed: %s\n",
-              __FILE__, __LINE__, Msg_ErrString());
+      Warning(LGPFX" %s: getcwd() failed: %s\n", __FUNCTION__,
+              Msg_ErrString());
       return NULL;
    };
 
-   return Util_SafeStrdup(buffer);
+   return Unicode_Alloc(buffer, STRING_ENCODING_DEFAULT);
 }
 
 
@@ -511,31 +471,40 @@ File_Cwd(const char *drive)     // IN
  *
  * FileStripFwdSlashes --
  *
- *      Strips off extraneous forward slashes ("/") from the pathnames.
+ *      Returns a new string with the extraneous forward slashes ("/") removed.
  *
  * Results:
- *      Stripped off path over-written in the supplied argument.
+ *      As documented.
  *
  * Side effects:
- *      Argument over-written.
+ *      None
  *
  *----------------------------------------------------------------------
  */
 
-static void
-FileStripFwdSlashes(char *path)		// IN/OUT
+static Unicode
+FileStripFwdSlashes(ConstUnicode pathName)  // IN:
 {
-   char *cptr = path;
-   char *ptr = path;
-   char *prev = path;
+   char *ptr;
+   char *path;
+   char *cptr;
+   char *prev;
+   Unicode result;
 
-   if (!path) {
-      return;
+   ASSERT(pathName);
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_UTF8);
+   if (path == NULL) {
+      return NULL;
    }
 
+   ptr = path;
+   cptr = path;
+   prev = NULL;
+
    /*
-    * Copy over if not DIRSEPC. If yes, copy over only if 
-    * previous character was not DIRSEPC.
+    * Copy over if not DIRSEPC. If yes, copy over only if previous
+    * character was not DIRSEPC.
     */
    while (*ptr != '\0') {
       if (*ptr == DIRSEPC) {
@@ -550,6 +519,12 @@ FileStripFwdSlashes(char *path)		// IN/OUT
    }
 
    *cptr = '\0';
+
+   result = Unicode_AllocWithUTF8(path);
+
+   free(path);
+
+   return result;
 }
 
 
@@ -570,51 +545,50 @@ FileStripFwdSlashes(char *path)		// IN/OUT
  *----------------------------------------------------------------------
  */
 
-char *
-File_FullPath(const char *fileName)     // IN
+Unicode
+File_FullPath(ConstUnicode pathName)  // IN:
 {
-   char *cwd;
-   char *ret;
-   char buffer[FILE_MAXPATH];
-   char rpath[FILE_MAXPATH];
+   Unicode cwd;
+   Unicode ret;
+   Unicode temp;
 
-   if ((fileName != NULL) && (fileName[0] == '/')) {
+   if ((pathName != NULL) && File_IsFullPath(pathName)) {
       cwd = NULL;
    } else {
       cwd = File_Cwd(NULL);
       if (cwd == NULL) {
-         ret = NULL;
-         goto end;
+         return NULL;
       }
    }
 
-   if ((fileName == NULL) || (fileName[0] == '\0')) {
-      ret = cwd;
-   } else if (fileName[0] == '/') {
-      ret = (char *) fileName;
+   if ((pathName == NULL) || Unicode_IsEmpty(pathName)) {
+      temp = Unicode_Duplicate(cwd);
+   } else if (File_IsFullPath(pathName)) {
+      temp = Unicode_Duplicate(pathName);
    } else {
-      char *p;
-      int n;
+      char *str;
+      Unicode path;
+      char rpath[FILE_MAXPATH];
 
-      n = Str_Snprintf(buffer, FILE_MAXPATH, "%s/%s", cwd, fileName);
-      if (n < 0) {
-         Warning("%s: Couldn't snprintf\n", __func__);
-         ret = NULL;
-         goto end;
+      path = Unicode_Join(cwd, U(DIRSEPS), pathName, NULL);
+
+      str = Unicode_GetAllocBytes(path, STRING_ENCODING_DEFAULT);
+
+      if (realpath(str, rpath) == NULL) {
+         temp = path;
+      } else {
+         temp = Unicode_Alloc(rpath, STRING_ENCODING_DEFAULT);
+	 Unicode_Free(path);
       }
 
-      p = realpath(buffer, rpath);
-
-      ret = (p == NULL) ? buffer : rpath;
+      free(str);
    }
 
-   ret = Util_SafeStrdup(ret);
+   ret = FileStripFwdSlashes(temp);
 
-end:
-   FileStripFwdSlashes(ret);
-   if (cwd != NULL) {
-      free(cwd);
-   }
+   Unicode_Free(temp);
+   Unicode_Free(cwd);
+
    return ret;
 }
 
@@ -638,12 +612,9 @@ end:
 Bool
 File_IsFullPath(ConstUnicode pathName)  // IN:
 {
-   if (pathName == NULL) {
-      return FALSE;
-   }
-
    /* start with a slash? */
-   return Unicode_StartsWith(pathName, U(DIRSEPS));
+   return (pathName == NULL) ? FALSE :
+                               Unicode_StartsWith(pathName, U(DIRSEPS));
 }
 
 
@@ -672,34 +643,18 @@ File_GetTimes(ConstUnicode pathName,      // IN:
               VmTimeType *writeTime,      // OUT: Windows NT time format
               VmTimeType *attrChangeTime) // OUT: Windows NT time format
 {
-   int err;
-   char *path;
    struct stat statBuf;
 
-   if (pathName == NULL) {
-      return FALSE;
-   }
-
    ASSERT(createTime && accessTime && writeTime && attrChangeTime);
-
-   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (path == NULL) {
-      return FALSE;
-   }
 
    *createTime     = -1;
    *accessTime     = -1;
    *writeTime      = -1;
    *attrChangeTime = -1;
 
-   err = (lstat(path, &statBuf) == -1) ? errno : 0;
-
-   free(path);
-
-   if (err != 0) {
-// XXX unicode "string" in message
-      Log(LGPFX" error stating file \"%s\": %s\n", pathName, strerror(err));
+   if (FileIO_PosixLstat(pathName, &statBuf) == -1) {
+      Log(LGPFX" %s: error stating file \"%s\": %s\n", __FUNCTION__,
+          UTF8(pathName), strerror(errno));
       return FALSE;
    }
 
@@ -820,15 +775,11 @@ File_SetTimes(ConstUnicode pathName,      // IN:
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-   if (path == NULL) {
-      return FALSE;
-   }
-
    err = (lstat(path, &statBuf) == -1) ? errno : 0;
 
    if (err != 0) {
-// XXX unicode "string" in message
-      Log(LGPFX" error stating file \"%s\": %s\n", pathName, strerror(err));
+      Log(LGPFX" %s: error stating file \"%s\": %s\n", __FUNCTION__,
+          UTF8(pathName), strerror(err));
       free(path);
       return FALSE;
    }
@@ -864,8 +815,8 @@ File_SetTimes(ConstUnicode pathName,      // IN:
    free(path);
 
    if (err != 0) {
-// XXX unicode "string" in message
-      Log(LGPFX" utimes error on file \"%s\": %s\n", pathName, strerror(err));
+      Log(LGPFX" %s: utimes error on file \"%s\": %s\n", __FUNCTION__,
+          UTF8(pathName), strerror(err));
       return FALSE;
    }
 
@@ -901,25 +852,29 @@ File_SetTimes(ConstUnicode pathName,      // IN:
  */
 
 static Bool
-FilePosixGetParent(char const *canPath) // IN/OUT: Canonical file path
+FilePosixGetParent(Unicode *canPath)  // IN/OUT: Canonical file path
 {
-   char *ptr;
+   Unicode pathName;
+   Unicode baseName;
 
-   ASSERT(canPath[0] == DIRSEPC);
-   ptr = strrchr(canPath, DIRSEPC);
-   ASSERT(ptr);
-   if (ptr != canPath) {
-      // "/foo/bar" -> "/foo"
-   } else {
-      // "/foo" -> "/"
-      ptr++;
+   ASSERT(File_IsFullPath(*canPath));
 
-      if (*ptr == '\0') {
-         // "/" -> "/"
-         return TRUE;
-      }
+   if (Unicode_Compare(*canPath, U(DIRSEPS)) == 0) {
+      return TRUE;
    }
-   *ptr = '\0';
+ 
+   File_GetPathName(*canPath, &pathName, &baseName);
+
+   Unicode_Free(baseName);
+   Unicode_Free(*canPath);
+
+   if (Unicode_IsEmpty(pathName)) {
+      /* empty string which denotes "/" */
+      Unicode_Free(pathName);
+      *canPath = Unicode_Duplicate(U("/")); 
+   } else {
+      *canPath = pathName;
+   }
 
    return FALSE;
 }
@@ -942,28 +897,29 @@ FilePosixGetParent(char const *canPath) // IN/OUT: Canonical file path
  */
 
 static Bool
-FileGetStats(const char *fullPath,      // IN 
-             struct statfs *pstatfsbuf) // OUT
+FileGetStats(ConstUnicode pathName,      // IN:
+             struct statfs *pstatfsbuf)  // OUT:
 {
    Bool retval = TRUE;
-   char *dupPath = NULL;
+   Unicode dupPath = NULL;
 
-   while (statfs(dupPath? dupPath : fullPath, pstatfsbuf) == -1) {
+   while (FileIO_PosixStatfs(dupPath ? dupPath : pathName,
+                             pstatfsbuf) == -1) {
       if (errno != ENOENT) {
          retval = FALSE;
-         goto out;
+         break;
       }
 
-      if (!dupPath) {
+      if (dupPath == NULL) {
          /* Dup fullPath, so as not to modify input parameters */
-         dupPath = Util_SafeStrdup(fullPath);
+         dupPath = Unicode_Duplicate(pathName);
       }
 
-      FilePosixGetParent(dupPath);
+      FilePosixGetParent(&dupPath);
    }
    
-out:
-   free(dupPath);
+   Unicode_Free(dupPath);
+
    return retval;
 }
 
@@ -986,59 +942,63 @@ out:
  */
 
 uint64
-File_GetFreeSpace(const char *fileName) // IN: File name
+File_GetFreeSpace(ConstUnicode pathName)  // IN: File name
 {
-   char *fullPath;
    uint64 ret;
+   Unicode fullPath;
    struct statfs statfsbuf;
 
-   fullPath = File_FullPath(fileName);
+   fullPath = File_FullPath(pathName);
    if (fullPath == NULL) {
       ret = -1;
       goto end;
    }
    
-  if (!FileGetStats(fullPath, &statfsbuf)) {
+   if (!FileGetStats(fullPath, &statfsbuf)) {
       Warning("%s: Couldn't statfs\n", __func__);
       ret = -1;
       goto end;
    }
-  ret = (uint64)statfsbuf.f_bavail * statfsbuf.f_bsize;
-#ifdef VMX86_SERVER
+
+   ret = (uint64)statfsbuf.f_bavail * statfsbuf.f_bsize;
+
+#if defined(VMX86_SERVER)
    // The following test is never true on VMvisor but we do not care as
    // this is only intended for callers going through vmkfs. Direct callers
    // as we are always get the right answer from statfs above.
    if (statfsbuf.f_type == VMFS_MAGIC_NUMBER) {
       int fd;
       FS_FreeSpaceArgs args = { 0 };
-      char *directory = NULL;
+      Unicode directory = NULL;
 
       File_SplitName(fullPath, NULL, &directory, NULL);
       /* Must use an ioctl() to get free space for a VMFS file. */
       ret = -1;
-      fd = open(directory, O_RDONLY);
+      fd = FileIO_PosixOpen(directory, O_RDONLY, 0);
       if (fd == -1) {
-         Warning("%s: open of %s failed with: %s\n", __func__, directory,
-                 Msg_ErrString());
+         Warning(LGPFX" %s: open of %s failed with: %s\n", __func__,
+                 UTF8(directory), Msg_ErrString());
       } else {
 	 if (ioctl(fd, IOCTLCMD_VMFS_GET_FREE_SPACE, &args) == -1) {
-            Warning("%s: ioctl on %s failed with: %s\n", __func__,
-                    fullPath, Msg_ErrString());
+            Warning(LGPFX" %s: ioctl on %s failed with: %s\n", __func__,
+                    UTF8(fullPath), Msg_ErrString());
 	 } else {
 	    ret = args.bytesFree;
          }
 	 close(fd);
       }
-      free(directory);
+
+      Unicode_Free(directory);
    }
 #endif
 
 end:
-   free(fullPath);
+   Unicode_Free(fullPath);
+
    return ret;
 }
 
-#ifdef VMX86_SERVER
+#if defined(VMX86_SERVER)
 
 /*
  *----------------------------------------------------------------------
@@ -1058,36 +1018,36 @@ end:
  */
 
 static int
-File_GetVMFSAttributes(const char *fileName,             // IN: File to test
-                       FS_PartitionListResult **fsAttrs) // IN/OUT: VMFS Info
+File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File to test
+                       FS_PartitionListResult **fsAttrs)  // IN/OUT: VMFS Info
 {
-   int ret = -1;
    int fd;
-   char *pathname = File_FullPath(fileName);
-   char *parentPath;
+   int ret;
+   Unicode fullPath;
 
-   File_SplitName(pathname, NULL, &parentPath, NULL);
+   Unicode parentPath = NULL;
 
-   if (parentPath == NULL) {
-      Log(LGPFX "%s: Error acquiring parent path name\n", __func__);
-      free(pathname);
-      return -1;
+   fullPath = File_FullPath(pathName);
+   if (fullPath == NULL) {
+      ret = -1;
+      goto bail;
    }
 
-   if (!File_OnVMFS(fileName)) {
-      Log(LGPFX "%s: File %s not on VMFS volume\n", __func__, fileName);
-      free(pathname);
-      free(parentPath);
-      return -1;
+   File_SplitName(fullPath, NULL, &parentPath, NULL);
+
+   if (!File_OnVMFS(pathName)) {
+      Log(LGPFX" %s: File %s not on VMFS volume\n", __func__,
+          UTF8(pathName));
+      ret = -1;
+      goto bail;
    }
 
    *fsAttrs = Util_SafeMalloc(FS_PARTITION_ARR_SIZE(FS_PLIST_DEF_MAX_PARTITIONS));
 
    if (*fsAttrs == NULL) {
-      Log(LGPFX "%s: failed to allocate memory\n", __func__);
-      free(pathname);
-      free(parentPath);
-      return -1;
+      Log(LGPFX" %s: failed to allocate memory\n", __func__);
+      ret = -1;
+      goto bail;
    }
 
    memset(*fsAttrs, 0, FS_PARTITION_ARR_SIZE(FS_PLIST_DEF_MAX_PARTITIONS));
@@ -1095,25 +1055,26 @@ File_GetVMFSAttributes(const char *fileName,             // IN: File to test
    (*fsAttrs)->ioctlAttr.maxPartitions = FS_PLIST_DEF_MAX_PARTITIONS;
    (*fsAttrs)->ioctlAttr.getAttrSpec = FS_ATTR_SPEC_BASIC;
 
-   fd = open(parentPath, O_RDONLY);
-   if (fd < 0) {
-      Log(LGPFX "%s: could not open %s.\n", __func__, fileName);
-      goto done;
+   fd = FileIO_PosixOpen(parentPath, O_RDONLY, 0);
+
+   if (fd == -1) {
+      Log(LGPFX" %s: could not open %s.\n", __func__, UTF8(pathName));
+      ret = -1;
+      goto bail;
    }
 
    ret = ioctl(fd, IOCTLCMD_VMFS_FS_GET_ATTR, (char *) *fsAttrs);
-   if (ret < 0) {
-      Log(LGPFX "%s: Could not get volume attributes (ret = %d)\n", __func__,
-              ret);
+
+   close(fd);
+   if (ret == -1) {
+      Log(LGPFX" %s: Could not get volume attributes (ret = %d)\n", __func__,
+          ret);
    }
 
-done:
-   if (fd) {
-      close(fd);
-   }
+bail:
+   Unicode_Free(fullPath);
+   Unicode_Free(parentPath);
 
-   free(pathname);
-   free(parentPath);   
    return ret;
 }
 
@@ -1135,15 +1096,15 @@ done:
  */
 
 static int
-File_GetVMFSVersion(const char *fileName, // IN: Filename to test
-                    uint32 *version)      // IN/OUT: version number of VMFS
+File_GetVMFSVersion(ConstUnicode pathName,  // IN: Filename to test
+                    uint32 *version)        // IN/OUT: version number of VMFS
 {
    int ret = -1;
    FS_PartitionListResult *fsAttrs = NULL;
 
-   ret = File_GetVMFSAttributes(fileName, &fsAttrs);
+   ret = File_GetVMFSAttributes(pathName, &fsAttrs);
    if (ret < 0) {
-      Log(LGPFX "%s: File_GetVMFSAttributes failed\n", __func__);
+      Log(LGPFX" %s: File_GetVMFSAttributes failed\n", __func__);
       goto done;
    }
 
@@ -1174,15 +1135,15 @@ done:
  */
 
 static int
-File_GetVMFSBlockSize(const char *fileName, // IN: File name to test
-                      uint32 *blockSize)    // IN/OUT: VMFS block size
+File_GetVMFSBlockSize(ConstUnicode pathName,  // IN: File name to test
+                      uint32 *blockSize)      // IN/OUT: VMFS block size
 {
    int ret = -1;
    FS_PartitionListResult *fsAttrs = NULL;
 
-   ret = File_GetVMFSAttributes(fileName, &fsAttrs);
+   ret = File_GetVMFSAttributes(pathName, &fsAttrs);
    if (ret < 0) {
-      Log(LGPFX "%s: File_GetVMFSAttributes failed\n", __func__);
+      Log(LGPFX" %s: File_GetVMFSAttributes failed\n", __func__);
       goto done;
    }
 
@@ -1213,15 +1174,15 @@ done:
  */
 
 static int
-File_GetVMFSfsType(const char *fileName, // IN: File name to test
-                   char **fsType)        // IN/OUT: VMFS fsType
+File_GetVMFSfsType(ConstUnicode pathName,  // IN: File name to test
+                   char **fsType)          // IN/OUT: VMFS fsType
 {
    int ret = -1;
    FS_PartitionListResult *fsAttrs = NULL;
 
-   ret = File_GetVMFSAttributes(fileName, &fsAttrs);
+   ret = File_GetVMFSAttributes(pathName, &fsAttrs);
    if (ret < 0) {
-      Log(LGPFX "%s: File_GetVMFSAttributes failed\n", __func__);
+      Log(LGPFX" %s: File_GetVMFSAttributes failed\n", __func__);
       goto done;
    }
 
@@ -1255,10 +1216,9 @@ done:
  */
 
 Bool
-File_OnVMFS(const char *fileName)
+File_OnVMFS(ConstUnicode pathName)
 {
-#ifdef VMX86_SERVER
-   char *fullPath;
+#if defined(VMX86_SERVER)
    Bool ret;
    struct statfs statfsbuf;
 
@@ -1272,24 +1232,32 @@ File_OnVMFS(const char *fileName)
     * exists.  If file doesn't exist, then get the full path and do a
     * FileGetStats() to check each of the parent directories.
     */
-   if (statfs(fileName, &statfsbuf) == -1) {
-      fullPath = File_FullPath(fileName);
+
+   if (FileIO_PosixStatfs(pathName, &statfsbuf) == -1) {
+      int err;
+      Unicode fullPath;
+
+      fullPath = File_FullPath(pathName);
       if (fullPath == NULL) {
 	 ret = FALSE;
 	 goto end;
       }
    
-      if (!FileGetStats(fullPath, &statfsbuf)) {
-	 Warning("%s: Couldn't statfs\n", __FUNCTION__);
+      err = FileGetStats(fullPath, &statfsbuf);
+
+      Unicode_Free(fullPath);
+
+      if (err == -1) {
+	 Warning(LGPFX" %s: Couldn't statfs\n", __FUNCTION__);
 	 ret = FALSE;
-	 free(fullPath);
 	 goto end;
       }
-      free(fullPath);
    }
+
    ret = (statfsbuf.f_type == VMFS_MAGIC_NUMBER);
 
 end:
+
    return ret;
 #else
    return FALSE;
@@ -1314,20 +1282,20 @@ end:
  */
 
 uint64
-File_GetCapacity(const char *fileName) // IN: File name
+File_GetCapacity(ConstUnicode pathName)  // IN: Path name
 {
-   char *fullPath;
    uint64 ret;
+   Unicode fullPath;
    struct statfs statfsbuf;
 
-   fullPath = File_FullPath(fileName);
+   fullPath = File_FullPath(pathName);
    if (fullPath == NULL) {
       ret = -1;
       goto end;
    }
    
    if (!FileGetStats(fullPath, &statfsbuf)) {
-      Warning("%s: Couldn't statfs\n", __func__);
+      Warning(LGPFX" %s: Couldn't statfs\n", __func__);
       ret = -1;
       goto end;
    }
@@ -1335,7 +1303,7 @@ File_GetCapacity(const char *fileName) // IN: File name
    ret = (uint64)statfsbuf.f_blocks * statfsbuf.f_bsize;
 
 end:
-   free(fullPath);
+   Unicode_Free(fullPath);
    return ret;
 }
 
@@ -1366,10 +1334,10 @@ end:
  *-----------------------------------------------------------------------------
  */
 
-char * 
+char *
 File_GetUniqueFileSystemID(char const *path) // IN: File path
 {
-#ifdef VMX86_SERVER
+#if defined(VMX86_SERVER)
    char canPath[FILE_MAXPATH];
 
    realpath(path, canPath);
@@ -1521,11 +1489,13 @@ retry:
 
    // Find the nearest ancestor of 'canPath' that is a mount point.
    for (;;) {
+      char *x;
       Bool bind;
       char *ptr;
 
       ptr = FilePosixLookupMountPoint(canPath, &bind);
       if (ptr) {
+
          if (bind) {
             /*
              * 'canPath' is a mount point mounted with --[r]bind. This is the
@@ -1582,7 +1552,7 @@ retry:
              */
             retries++;
             if (retries > 10) {
-               Warning("%s: The --[r]bind mount count exceeds %u. Giving "
+               Warning(LGPFX" %s: The --[r]bind mount count exceeds %u. Giving "
                        "up.\n", __func__, 10);
                return NULL;
             }
@@ -1593,7 +1563,12 @@ retry:
          return ptr;
       }
 
-      failed = FilePosixGetParent(canPath);
+// XXX temporary work-around until this function is Unicoded.
+      x = Util_SafeStrdup(canPath);
+      failed = FilePosixGetParent(&x);
+      Str_Strcpy(canPath, x, sizeof canPath);
+      free(x);
+
       /*
        * Prevent an infinite loop in case FilePosixLookupMountPoint() even
        * fails on "/".
@@ -1690,30 +1665,38 @@ FilePosixNearestExistingAncestor(char const *path) // IN: File path
  */
 
 Bool
-File_IsSameFile(const char *path1, // IN
-                const char *path2) // IN
+File_IsSameFile(ConstUnicode path1,  // IN:
+                ConstUnicode path2)  // IN:
 {
-   struct stat st1;
-   struct stat st2;
+   PosixStatStruct st1;
+   PosixStatStruct st2;
    struct statfs stfs1;
    struct statfs stfs2;
 
    ASSERT(path1);
    ASSERT(path2);
 
-#ifdef VMX86_SERVER
+#if defined(VMX86_SERVER)
    {
+      char *p1;
+      char *p2;
       char *fs1;
       char *fs2;
       char realpath1[FILE_MAXPATH];
       char realpath2[FILE_MAXPATH];
 
-      fs1 = realpath(path1, realpath1);
-      fs2 = realpath(path2, realpath2);
+      p1 = Unicode_GetAllocBytes(path1, STRING_ENCODING_DEFAULT);
+      p2 = Unicode_GetAllocBytes(path2, STRING_ENCODING_DEFAULT);
+
+      fs1 = realpath(p1, realpath1);
+      fs2 = realpath(p2, realpath2);
+
+      free(p1);
+      free(p2);
 
       /*
-       * ESX doesn't have real inodes for VMFS disks in User Worlds. So only way
-       * to check if a file is the same is using real path.  So said Satyam.
+       * ESX doesn't have real inodes for VMFS disks in User Worlds. So only
+       * way to check if a file is the same is using real path. So said Satyam.
        */
 
       if (fs1 &&
@@ -1731,15 +1714,15 @@ File_IsSameFile(const char *path1, // IN
     * First take care of the easy checks.  If the paths are identical, or if
     * the inode numbers don't match, we're done.
     */
-   if (strcmp(path1, path2) == 0) {
+   if (Unicode_Compare(path1, path2) == 0) {
       return TRUE;
    }
 
-   if (stat(path1, &st1) == -1) {
+   if (FileIO_PosixStat(path1, &st1) == -1) {
       return FALSE;
    }
 
-   if (stat(path2, &st2) == -1) {
+   if (FileIO_PosixStat(path2, &st2) == -1) {
       return FALSE;
    }
 
@@ -1747,11 +1730,11 @@ File_IsSameFile(const char *path1, // IN
       return FALSE;
    }
 
-   if (statfs(path1, &stfs1) != 0) {
+   if (FileIO_PosixStatfs(path1, &stfs1) != 0) {
       return FALSE;
    }
 
-   if (statfs(path2, &stfs2) != 0) {
+   if (FileIO_PosixStatfs(path2, &stfs2) != 0) {
       return FALSE;
    }
 
@@ -1760,7 +1743,8 @@ File_IsSameFile(const char *path1, // IN
       return st1.st_dev == st2.st_dev;
    }
 #else
-   if ((stfs1.f_type != NFS_SUPER_MAGIC) && (stfs2.f_type != NFS_SUPER_MAGIC)) {
+   if ((stfs1.f_type != NFS_SUPER_MAGIC) &&
+       (stfs2.f_type != NFS_SUPER_MAGIC)) {
       return st1.st_dev == st2.st_dev;
    }
 #endif
@@ -1829,13 +1813,6 @@ File_Replace(ConstUnicode oldName,  // IN: old file
    newPath = Unicode_GetAllocBytes(newName, STRING_ENCODING_DEFAULT);
    oldPath = Unicode_GetAllocBytes(oldName, STRING_ENCODING_DEFAULT);
 
-   if ((oldPath == NULL) || (newPath == NULL)) {
-      status = FALSE;
-      goto bail;
-   }
-
-   /* UNICODE: path names added to Msg_Append... */
-
    if ((stat(oldPath, &st) == 0) && (chmod(newPath, st.st_mode) == -1)) {
       Msg_Append(MSGID(filePosix.replaceChmodFailed)
                  "Failed to duplicate file permissions from "
@@ -1888,10 +1865,7 @@ static Bool
 FileIsVMFS(ConstUnicode pathName)  // IN: file name to test
 {
 #if defined(linux)
-   char *path;
-   struct statfs statbuf;
-
-   int err = 0;
+   struct statfs statfsbuf;
 
 #if defined(VMX86_SERVER)
    // XXX See Vmfs_IsVMFSFile. Same caveat about fs exclusion.
@@ -1900,22 +1874,8 @@ FileIsVMFS(ConstUnicode pathName)  // IN: file name to test
    }
 #endif
 
-   if (pathName == NULL) {
-      return FALSE;
-   }
-
-   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (path == NULL) {
-      return FALSE;
-   }
-
-   err = (statfs(path, &statbuf) == -1) ? errno : 0;
-
-   free(path);
-
-   if (err == 0) {
-      return statbuf.f_type == VMFS_SUPER_MAGIC;
+   if (FileIO_PosixStatfs(pathName, &statfsbuf) == 0) {
+      return statfsbuf.f_type == VMFS_SUPER_MAGIC;
    }
 
 #endif
@@ -1945,27 +1905,32 @@ FileIsVMFS(ConstUnicode pathName)  // IN: file name to test
  */
 
 static Bool
-FilePosixCreateTestFileSize(const char *dirName,  // IN: directory to create large file
-                            uint64      fileSize) // IN: test file size
+FilePosixCreateTestFileSize(ConstUnicode dirName, // IN: directory to create large file
+                            uint64 fileSize)      // IN: test file size
 {
-   FileIODescriptor fd;
-   char pathname[FILE_MAXPATH];
    Bool retVal;
-   char *tmpFileName;
    int posixFD;
+   Unicode temp;
+   Unicode path;
+   FileIODescriptor fd;
 
-   Str_Sprintf(pathname, sizeof pathname, "%s/.vmBigFileTest", dirName);
-   posixFD = File_MakeTemp(pathname, &tmpFileName);
+   temp = Unicode_Append(dirName, U("/.vmBigFileTest"));
+   posixFD = File_MakeTemp(temp, &path);
+   Unicode_Free(temp);
+
    if (posixFD == -1) {
       return FALSE;
    }
    
    fd = FileIO_CreateFDPosix(posixFD, O_RDWR);
+
    retVal = FileIO_SupportsFileSize(&fd, fileSize);
    /* Eventually perform destructive tests here... */
+
    FileIO_Close(&fd);
-   File_Unlink(tmpFileName);
-   free(tmpFileName);
+   File_Unlink(path);
+   Unicode_Free(path);
+
    return retVal;
 }
 
@@ -1996,28 +1961,26 @@ FilePosixCreateTestFileSize(const char *dirName,  // IN: directory to create lar
  */
 
 static Bool
-File_VMFSSupportsFileSize(const char *fileName, // IN
-                          uint64      fileSize) // IN
+File_VMFSSupportsFileSize(ConstUnicode pathName,  // IN:
+                          uint64 fileSize)        // IN:
 {
-#ifdef VMX86_SERVER
+#if defined(VMX86_SERVER)
    uint32 version = -1;
    uint32 blockSize = -1;
    uint64 maxFileSize = -1;
    Bool supported;
-   char *pathName;
-   char *parentPath;
    char *fsType = NULL;
 
-   if (File_GetVMFSVersion(fileName, &version) < 0) {
-      Log(LGPFX "%s: File_GetVMFSVersion Failed\n", __func__);
+   if (File_GetVMFSVersion(pathName, &version) < 0) {
+      Log(LGPFX" %s: File_GetVMFSVersion Failed\n", __func__);
       return FALSE;
    }
-   if (File_GetVMFSBlockSize(fileName, &blockSize) < 0) {
-      Log(LGPFX "%s: File_GetVMFSBlockSize Failed\n", __func__);
+   if (File_GetVMFSBlockSize(pathName, &blockSize) < 0) {
+      Log(LGPFX" %s: File_GetVMFSBlockSize Failed\n", __func__);
       return FALSE;
    }
-   if (File_GetVMFSfsType(fileName, &fsType) < 0) {
-      Log(LGPFX "%s: File_GetVMFSfsType Failed\n", __func__);
+   if (File_GetVMFSfsType(pathName, &fsType) < 0) {
+      Log(LGPFX" %s: File_GetVMFSfsType Failed\n", __func__);
       return FALSE;
    }
 
@@ -2035,39 +1998,37 @@ File_VMFSSupportsFileSize(const char *fileName, // IN
          free(fsType);
          return TRUE;
       } else {
-         Log(LGPFX "Requested file size (%"FMT64"d) larger than maximum "
-             "supported filesystem file size (%"FMT64"d)\n",
+         Log(LGPFX" %s: Requested file size (%"FMT64"d) larger than maximum "
+             "supported filesystem file size (%"FMT64"d)\n", __FUNCTION__,
              fileSize, maxFileSize);
          free(fsType);
          return FALSE;
       }
-
    } else {
-      pathName = File_FullPath(fileName);
-      if (pathName == NULL) {
-         Log(LGPFX "%s: Error acquiring full path\n", __func__);
+      Unicode fullPath;
+      Unicode parentPath;
+
+      fullPath = File_FullPath(pathName);
+
+      if (fullPath == NULL) {
+         Log(LGPFX" %s: Error acquiring full path\n", __func__);
          free(fsType);
          return FALSE;
       }
 
-      File_SplitName(pathName, NULL, &parentPath, NULL);
-      if (parentPath == NULL) {
-         Log(LGPFX "%s: Error acquiring parent path name\n", __func__);
-         free(fsType);
-         free(pathName);
-         return FALSE;
-      }
+      File_GetPathName(fullPath, &parentPath, NULL);
 
       supported = FilePosixCreateTestFileSize(parentPath, fileSize);
       
       free(fsType);
-      free(pathName);
-      free(parentPath);
+      Unicode_Free(fullPath);
+      Unicode_Free(parentPath);
+
       return supported;
    }
    
 #endif
-   Log(LGPFX "%s did not execute properly\n", __func__);
+   Log(LGPFX" %s: did not execute properly\n", __func__);
    return FALSE; /* happy compiler */
 }
 
@@ -2089,13 +2050,13 @@ File_VMFSSupportsFileSize(const char *fileName, // IN
  */
 
 Bool
-File_SupportsFileSize(const char *filePath, // IN
-                      uint64      fileSize) // IN
+File_SupportsFileSize(ConstUnicode pathName,  // IN:
+                      uint64 fileSize)        // IN:
 {
+   Unicode fullPath;
+
    Bool supported = FALSE;
-   char *p;
-   char *pathname;
-   char *parentPath = NULL;
+   Unicode parentPath = NULL;
 
    /* All supported filesystems can hold at least 2GB - 1 files. */
    if (fileSize <= 0x7FFFFFFF) {
@@ -2109,9 +2070,9 @@ File_SupportsFileSize(const char *filePath, // IN
     * a vmdk created in (setting filePath only to the disk name, not the entire
     * path.
     */
-   pathname = File_FullPath(filePath);
-   if (pathname == NULL) {
-      Log(LGPFX "%s: Error acquiring full path\n", __func__);
+   fullPath = File_FullPath(pathName);
+   if (fullPath == NULL) {
+      Log(LGPFX" %s: Error acquiring full path\n", __func__);
       goto out;
    }
 
@@ -2119,55 +2080,39 @@ File_SupportsFileSize(const char *filePath, // IN
     * We then truncate the name to point to the parent directory of the file
     * created so we can get accurate results from FileIsVMFS.
     */
-   File_SplitName(pathname, NULL, &parentPath, NULL);
-   if (parentPath == NULL) {
-      Log(LGPFX "%s: Error acquiring parent path name\n", __func__);
-      goto out;
-   }
+   File_SplitName(fullPath, NULL, &parentPath, NULL);
 
    /* 
     * We know that VMFS supports large files - But they have limitations
     * See function File_VMFSSupportsFileSize() - PR 146965
     */
    if (FileIsVMFS(parentPath)) {
-      supported = File_VMFSSupportsFileSize(filePath, fileSize);
+      supported = File_VMFSSupportsFileSize(pathName, fileSize);
       goto out;
    }
 
-   if (File_IsFile(filePath)) {
-      FileIODescriptor fd;
+   if (File_IsFile(pathName)) {
       FileIOResult res;
+      FileIODescriptor fd;
 
       FileIO_Invalidate(&fd);
-      res = FileIO_Open(&fd, filePath, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
-      if (res == FILEIO_SUCCESS) {
+      res = FileIO_Open(&fd, pathName, FILEIO_OPEN_ACCESS_READ, FILEIO_OPEN);
+      if (FileIO_IsSuccess(res)) {
          supported = FileIO_SupportsFileSize(&fd, fileSize);
          FileIO_Close(&fd);
          goto out;
       }
    }
 
-   p = strrchr(pathname, '/');
-   if (p == NULL) {
-      free(pathname);
-      pathname = File_Cwd(NULL);
-
-      if (pathname == NULL) {
-         goto out;
-      }
-   } else {
-      *p = '\0';
-   }
-
    /*
-    * On unknown filesystems create temporary file and use it to test.
+    * On unknown filesystems create temporary file and use it as a test.
     */
    supported = FilePosixCreateTestFileSize(parentPath, fileSize);
 
 out:
-   
-   free(pathname);
-   free(parentPath);
+   Unicode_Free(fullPath);
+   Unicode_Free(parentPath);
+
    return supported;
 }
 
@@ -2201,13 +2146,9 @@ FileCreateDirectory(ConstUnicode pathName)  // IN:
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-   if (path == NULL) {
-      err = ENOMEM;
-   } else {
-      err = (mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO) == -1) ? errno : 0;
+   err = (mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO) == -1) ? errno : 0;
 
-      free(path);
-   }
+   free(path);
 
    return err;
 }
@@ -2225,28 +2166,35 @@ FileCreateDirectory(ConstUnicode pathName)  // IN:
  *
  * Side effects:
  *      If ids is provided and the function succeeds, memory is allocated
- *      and must be freed.  Array of strings and array itself must be
+ *      and must be freed.  Each unicode and the array itself must be
  *      freed.
  *
  *----------------------------------------------------------------------
  */
 
 int
-File_ListDirectory(char const *pathName,     // IN
-                   char ***ids)              // OUT: relative paths
+File_ListDirectory(ConstUnicode pathName,  // IN:
+                   Unicode **ids)          // OUT: relative paths
 {
    int err;
    DIR *dir;
    DynBuf b;
-   int count = 0;
+   int count;
+   char *path;
 
    if (pathName == NULL) {
       errno = EFAULT;
       return -1;
    }
 
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
    errno = 0;
-   dir = opendir(pathName);
+   dir = opendir(path);
+
+   err = errno;
+   free(path);
+   errno = err;
 
    if (dir == (DIR *) NULL) {
       // errno is accessible, in the future, for more detail
@@ -2254,6 +2202,7 @@ File_ListDirectory(char const *pathName,     // IN
    }
 
    DynBuf_Init(&b);
+   count = 0;
 
    while (TRUE) {
       struct dirent *entry;
@@ -2267,13 +2216,14 @@ File_ListDirectory(char const *pathName,     // IN
       }
 
       /* Strip out undesirable paths.  No one ever cares about these. */
-      if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
+      if ((strcmp(entry->d_name, ".") == 0) ||
+          (strcmp(entry->d_name, "..") == 0)) {
          continue;
       }
 
       /* Don't create the file list if we aren't providing it to the caller. */
       if (ids) {
-         char *id = Util_SafeStrdup(entry->d_name);
+         Unicode id = Unicode_Alloc(entry->d_name, STRING_ENCODING_DEFAULT);
          DynBuf_Append(&b, &id, sizeof(&id));
       }
 
@@ -2500,7 +2450,7 @@ FileIsGroupsMember(gid_t gid)
 
       res = getgroups(nr_members, members);
       if (res == -1) {
-	 Warning("%s: Couldn't getgroups\n", __FUNCTION__);
+	 Warning(LGPFX" %s: Couldn't getgroups\n", __FUNCTION__);
 	 ret = FALSE;
 	 goto end;
       }
@@ -2512,7 +2462,7 @@ FileIsGroupsMember(gid_t gid)
       /* Was bug 17760 --hpreg */
       new = realloc(members, res * sizeof *members);
       if (new == NULL) {
-	 Warning("%s: Couldn't realloc\n", __FUNCTION__);
+	 Warning(LGPFX" %s: Couldn't realloc\n", __FUNCTION__);
 	 ret = FALSE;
 	 goto end;
       }
@@ -2555,6 +2505,7 @@ end:
 Bool
 File_MakeCfgFileExecutable(ConstUnicode pathName)
 {
+   int err;
    char *path;
    Bool result;
 
@@ -2565,22 +2516,15 @@ File_MakeCfgFileExecutable(ConstUnicode pathName)
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-   if (path == NULL) {
-      errno = ENOMEM;
-      result = FALSE;
-   } else {
-      int err;
+   result = chmod(path,
+                  S_IRUSR | S_IWUSR | S_IXUSR |  // rwx by user
+                  S_IRGRP | S_IXGRP |            // rx by group
+                  S_IROTH | S_IXOTH              // rx by others
+                 ) == 0;
 
-      result = chmod(path,
-                     S_IRUSR | S_IWUSR | S_IXUSR |  // rwx by user
-                     S_IRGRP | S_IXGRP |            // rx by group
-                     S_IROTH | S_IXOTH              // rx by others
-                    ) == 0;
-
-      err = errno;
-      free(path);
-      errno = err;
-   }
+   err = errno;
+   free(path);
+   errno = err;
 
    return result;
 }

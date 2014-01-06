@@ -69,6 +69,7 @@ vmware_user_OBJECTS = $(am_vmware_user_OBJECTS)
 vmware_user_DEPENDENCIES = ../lib/atomic/libAtomic.a \
 	../lib/conf/libConf.a ../lib/dnd/libDnd.a \
 	../lib/eventManager/libEventManager.a ../lib/file/libFile.a \
+	../lib/ghIntegrationStub/libghIntegrationStub.a \
 	../lib/guestApp/libGuestApp.a ../lib/guestInfo/libGuestInfo.a \
 	../lib/hgfsServer/libHgfsServer.a \
 	../lib/hgfsServerManagerGuest/libHgfsServerManagerGuest.a \
@@ -80,16 +81,15 @@ vmware_user_DEPENDENCIES = ../lib/atomic/libAtomic.a \
 	../lib/socketMgr/libSocketMgr.a ../lib/strUtil/libStrUtil.a \
 	../lib/string/libString.a ../lib/sync/libSync.a \
 	../lib/syncDriver/libSyncDriver.a ../lib/system/libSystem.a \
-	../lib/user/libUser.a ../lib/vixTools/libVixTools.a \
-	../lib/vmCheck/libVmCheck.a ../lib/vmSignal/libVmSignal.a \
-	../lib/wiper/libWiper.a ../lib/err/libErr.a \
-	../lib/foundryMsg/libFoundryMsg.a \
+	../lib/unityStub/libunityStub.a ../lib/user/libUser.a \
+	../lib/vixTools/libVixTools.a ../lib/vmCheck/libVmCheck.a \
+	../lib/vmSignal/libVmSignal.a ../lib/wiper/libWiper.a \
+	../lib/err/libErr.a ../lib/foundryMsg/libFoundryMsg.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
 	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
-	../lib/fileUtf8/libFileUtf8.a ../lib/procMgr/libProcMgr.a \
-	../lib/auth/libAuth.a ../lib/panicDefault/libPanicDefault.a \
-	../lib/panic/libPanic.a
+	../lib/procMgr/libProcMgr.a ../lib/auth/libAuth.a \
+	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
 vmware_user_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(vmware_user_LDFLAGS) $(LDFLAGS) -o $@
@@ -249,8 +249,9 @@ AM_CFLAGS = @GTK_CFLAGS@ @COMMON_CFLAGS@ @VMWARE_USER_CFLAGS@
 # the alphabetical order so their symbols are properly resolved.
 vmware_user_LDADD = ../lib/atomic/libAtomic.a ../lib/conf/libConf.a \
 	../lib/dnd/libDnd.a ../lib/eventManager/libEventManager.a \
-	../lib/file/libFile.a ../lib/guestApp/libGuestApp.a \
-	../lib/guestInfo/libGuestInfo.a \
+	../lib/file/libFile.a \
+	../lib/ghIntegrationStub/libghIntegrationStub.a \
+	../lib/guestApp/libGuestApp.a ../lib/guestInfo/libGuestInfo.a \
 	../lib/hgfsServer/libHgfsServer.a \
 	../lib/hgfsServerManagerGuest/libHgfsServerManagerGuest.a \
 	../lib/hgfsServerPolicyGuest/libHgfsServerPolicyGuest.a \
@@ -261,16 +262,15 @@ vmware_user_LDADD = ../lib/atomic/libAtomic.a ../lib/conf/libConf.a \
 	../lib/socketMgr/libSocketMgr.a ../lib/strUtil/libStrUtil.a \
 	../lib/string/libString.a ../lib/sync/libSync.a \
 	../lib/syncDriver/libSyncDriver.a ../lib/system/libSystem.a \
-	../lib/user/libUser.a ../lib/vixTools/libVixTools.a \
-	../lib/vmCheck/libVmCheck.a ../lib/vmSignal/libVmSignal.a \
-	../lib/wiper/libWiper.a ../lib/err/libErr.a \
-	../lib/foundryMsg/libFoundryMsg.a \
+	../lib/unityStub/libunityStub.a ../lib/user/libUser.a \
+	../lib/vixTools/libVixTools.a ../lib/vmCheck/libVmCheck.a \
+	../lib/vmSignal/libVmSignal.a ../lib/wiper/libWiper.a \
+	../lib/err/libErr.a ../lib/foundryMsg/libFoundryMsg.a \
 	../lib/backdoor/libBackdoor.a ../lib/dict/libDict.a \
 	../lib/hgfs/libHgfs.a ../lib/message/libMessage.a \
 	../lib/unicode/libUnicode.a ../lib/misc/libMisc.a \
-	../lib/fileUtf8/libFileUtf8.a ../lib/procMgr/libProcMgr.a \
-	../lib/auth/libAuth.a ../lib/panicDefault/libPanicDefault.a \
-	../lib/panic/libPanic.a
+	../lib/procMgr/libProcMgr.a ../lib/auth/libAuth.a \
+	../lib/panicDefault/libPanicDefault.a ../lib/panic/libPanic.a
 vmware_user_LDFLAGS = -lcrypt @GTK_LIBS@ @VMWARE_USER_LDFLAGS@ \
 	@COMMON_XLIBS@ $(am__empty)
 vmware_user_SOURCES = copyPaste.c debugStdio.c dnd.c \

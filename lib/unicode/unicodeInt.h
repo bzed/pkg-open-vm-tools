@@ -41,6 +41,7 @@ Unicode UnicodeAllocStatic(const char *asciiBytes,
 void UnicodePinIndices(ConstUnicode str,
                        UnicodeIndex *strStart,
                        UnicodeIndex *strLength);
+utf16_t UnicodeSimpleCaseFold(utf16_t codeUnit);
 
 #ifdef __cplusplus
 }

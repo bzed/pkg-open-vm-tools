@@ -1,3 +1,150 @@
+2008-02-13  Adar Dembo  <adar@vmware.com>
+	* Resync with internal trunk (2008.02.12).
+
+	* configure.ac, lib/unityStub/*, lib/ghIntegrationStub/*,
+	lib/Makefile.am, vmware-user/Makefile.am, vmware-user/vmware-user.c:
+	Added lib/unityStub and lib/ghIntegrationStub. Unity and guest-host
+	integration features for X11 guests are on the way.
+	
+	* configure.ac, guestd/Makefile.am, lib/fileUtf8/*,
+	lib/vixTools/vixTools.c, vmare-user/Makefile.am: lib/file is now fully
+	internationalized. Removed unneeded lib/fileUtf8.
+
+	* foundryToolsDaemon.c: Fixed a leak of the sync driver handle.
+
+	* guestd/toolsDaemon.c: Send guestd's "config directory" to the VMX for
+	publishing.
+
+	* hgfsmounter/hgfsmounter.c: Port to MacOS.
+
+	* lib/dnd/*, lib/err/err.c, lib/file/*, lib/include/dnd*,
+	lib/include/file*, lib/include/unicode*, lib/include/util.h,
+	lib/unicode/*, lib/user/utilPosix.c: More Unicodification.
+
+	* lib/file/file.c, lib/include/file.h: Added File_EnsureDirectory.
+
+	* lib/foundryMsg/foundryMsg.c, lib/guestInfo/guestInfoServer.c,
+	lib/misc/codeset.c, lib/misc/vmstdio.c,
+	lib/SLPv2Parser/SLPv2MsgAssembler.c, lib/user/util.c: Removed some
+	unneeded casts.
+
+	* lib/foundryMsg/foundryThreads.c, lib/include/foundryThreads.h: Added
+	FoundryThreads_Free.
+
+	* lib/guestInfo/*, lib/include/guest_os.h, lib/include/guestInfo.h:
+	Refactored GetSystemBitness. Removed osNames.h.
+
+	* lib/hgfsServer/hgfsServerLinux.c: Modified MacOS alias resolution code
+	so as not to mount volumes. Made HGFS query volume code more resilient
+	to failures.
+
+	* lib/include/backdoor_def.h: Added commands for VAssert.
+
+	* lib/include/escape.h, lib/misc/escape.c: Escape_Do is no longer
+	declared inline.
+
+	* lib/include/hashTable.h, lib/misc/hashTable.c, lib/misc/Makefile.am,
+	lib/misc/shared/Makefile.am: Renamed from hash.[ch].
+
+	* lib/include/iovector.h, lib/include/vm_basic_types.h: Added
+	SectorType definition.
+
+	* lib/include/loglevel_user.h: Added additional log levels.
+
+	* lib/include/msgfmt.h: Modified for use in VMKERNEL. Added
+	MsgFmt_GetArgswithBuf.
+
+	* lib/include/msg.h: Added Msg_AppendVob for ESX.
+
+	* lib/include/stats_user*: Modified some preprocessing steps. Added
+	SETUP_WANT_GETVAL to retrieve named stat counter values.
+
+	* lib/include/str.h: Modified behavior Str_* family of functions for
+	Windows.
+
+	* lib/include/strutil.h, lib/strUtil/strutil.c: Removed Split, Grep,
+	GrepFd, and GrepFree. Added EndsWith and DecimalStrToUint.
+
+	* lib/include/syncWaitQ.h, lib/sync/*: Modified SyncWaitQ_Add and
+	SyncWaitQ_Remove to use PollDevHandle fd types instead of int fd types.
+
+	* lib/include/timeutil.h, lib/misc/timeutil.c: Added
+	TimeUtil_GetLocalWindowsTimeZoneIndex and some helper functions.
+
+	* lib/include/util.h, lib/user/utilPosix.c: Added Util_BumpNoFds.
+
+	* lib/include/vixCommands.h: Added commands for device hotplug and
+	remote debugging.
+
+	* lib/include/vix.h, lib/include/vixOpenSource.h: Added some new errors
+	and properties. Added more VM manipulation functions.
+
+	* lib/include/vm_atomic.h: Comment cleanup and added VMKERNEL-specific
+	calls for fencing.
+	
+	* lib/include/vm_basic_asm_x86_64.h: Added inline routines to save and
+	restore ES1.
+
+	* lib/include/vm_basic_types.h: Added some types and cleaned up a bit.
+
+	* lib/include/vm_legal.h: Updated COPYRIGHT_YEARS.
+
+	* lib/include/vm_product.h: Added hostd service name.
+
+	* lib/include/x86cpuid.h: Cleaned up the file and added some definitions
+	for Penryn processors.
+
+	* lib/misc/codeset.c: Added new UTF-16 --> UTF-8 conversion routine.
+
+	* lib/misc/util_misc.c, lib/user/util.c: Moved Util_GetCurrentThreadId
+	and friends to util_misc.c.
+
+	* lib/procMgr/procMgrPosix.c: Cleaned up some code and reworked
+	asynchronous process execution so as to properly track the grandchild's
+	pid instead of the child's pid.
+
+	* lib/string/bsd*: Reorganized BSD formatter.
+
+	* lib/string/str.c: Updated unit tests. Added some Windows corner case
+	behavior for Str_Vsnwprintf.
+
+	* lib/strUtil/strutil.c: Fixed some corner cases in existing functions
+	that call strtoul.
+
+	* lib/vixTools/vixTools.c: Changed signature of VixToolsImpersonateUser.
+	Changed error code handling in a few places.
+
+	* modules/freebsd/vmhgfs/*: Refactored a lot of code so that it can be
+	safely reused within the MacOS vmhgfs module.
+
+	* modules/*/*/kernelStubs*: Removed dead System_Uptime function.
+
+	* modules/linux/*/compat_wait.h: Reworked VMW_HAVE_EPOLL macro. Added
+	waitqueue helper macros for older kernels.
+
+	* modules/linux/vmhgfs/file.c, modules/linux/vmhgfs/fsutil.*,
+	modules/linux/vmhgfs/inode.c: Added HgfsSetUidGid function and used it
+	to preserve uid/gid after creating a directory.
+
+	* modules/linux/vmhgfs/vmhgfs_version.h: Bumped driver version.
+
+	* modules/linux/vmsync/compat_workqueue.h: Basic implementation of
+	work queues and delayed work queues (using taskqueues and timers) for
+	older kernels.
+
+	* modules/linux/vmsync/sync.c: Modified internal state to use new
+	compatible work queue implementation.
+
+	* modules/linux/vmxnet/compat_ioport.h,
+	modules/linux/vmxnet/compat_netdevice.h,
+	modules/linux/vmxnet/compat_pci.h,
+	modules/linux/vmxnet/compat_skbuff.h,
+	modules/linux/vmxnet/vmxnetInt.h: Added and refactored
+	compatibility macros for use in vmxnet3 and vmci sockets modules.
+
+	* modules/linux/vmxnet/vmxnet.c: Hide some kernel functions behind
+	compatibility macros.
+
 2008-01-23  Adar Dembo  <adar@vmware.com>
 
 	* Resync with internal trunk (2008.01.08).

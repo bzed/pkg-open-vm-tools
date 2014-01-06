@@ -60,7 +60,7 @@
 #include "guestInfoInt.h"
 #include "debug.h"
 #include "str.h"
-#include "osNames.h"
+#include "guest_os.h"
 #include "guestApp.h"
 #include "guestInfo.h"
 
@@ -134,8 +134,6 @@ DistroInfo distroArray[] = {
    {"Yellow Dog", "/etc/yellowdog-release"},
    {NULL, NULL},
 };
-
-static int GetSystemBitness(void);
 
 
 
@@ -881,7 +879,7 @@ GuestInfoGetOSName(unsigned int outBufFullLen,      // IN: length of osNameFull 
       }
    }
 
-   if (GetSystemBitness() == 64) {
+   if (GuestInfo_GetSystemBitness() == 64) {
       if (strlen(osName) + sizeof STR_OS_64BIT_SUFFIX > outBufLen) {
          Debug("GuestInfoGetOSName: Error: buffer too small\n");
          return FALSE;
@@ -905,7 +903,7 @@ GuestInfoGetOSName(unsigned int outBufFullLen,      // IN: length of osNameFull 
 /*
  *----------------------------------------------------------------------------
  *
- * GetSystemBitness --
+ * GuestInfo_GetSystemBitness --
  *
  *      Determines the operating system's bitness.
  *
@@ -919,8 +917,8 @@ GuestInfoGetOSName(unsigned int outBufFullLen,      // IN: length of osNameFull 
  *----------------------------------------------------------------------------
  */
 
-static int
-GetSystemBitness(void)
+int
+GuestInfo_GetSystemBitness(void)
 {
    char buf[MAX_ARCH_NAME_LEN] = { 0 };
 #if defined(__FreeBSD__)

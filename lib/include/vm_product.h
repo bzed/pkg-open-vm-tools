@@ -449,4 +449,10 @@
 
 #define HOST_AGENT_PRODUCT_NAME		PRODUCT_NAME " Host Agent"
 
+/* Used by bora/vim/lib/vmgina module.
+ * @todo Use this also in /bora/install/msi/InstUtil/desktop/vmInstUtil.cpp
+ *       to guarantee that the service is installed with exactly this name.
+ */
+#define HOST_AGENT_SERVICE_NAME		"VMwareHostd"
+
 #endif /* VM_PRODUCT_H */

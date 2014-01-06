@@ -42,16 +42,8 @@
 #include <ctype.h>
 
 #if !defined(_WIN32) && !defined(N_PLAT_NLM)
-#  if defined(linux)
-#    include <sys/syscall.h> // for SYS_gettid
-#  endif
 #  include <unistd.h>
 #  include <pwd.h>
-extern int vasprintf(char **ptr, const char *f, va_list arg);
-#endif
-
-#if __APPLE__
-#include <pthread.h>
 #endif
 
 #include "vmware.h"
@@ -65,14 +57,6 @@ extern int vasprintf(char **ptr, const char *f, va_list arg);
 #include "util_shared.h"
 #include "escape.h"
 #include "base64.h"
-#include "hostType.h"
-
-/*
- * ESX with userworld VMX
- */
-#if defined(VMX86_SERVER)
-#include "user_layout.h"
-#endif
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -670,101 +654,6 @@ UtilDoTildeSubst(char *user)  // IN - name of user
 
 
 #ifndef N_PLAT_NLM
-#if defined(linux)
-/*
- *-----------------------------------------------------------------------------
- *
- * gettid --
- *
- *      Retrieve unique thread identification suitable for kill or setpriority.
- *	Do not call this function directly, use Util_GetCurrentThreadId() instead.
- *
- * Results:
- *      Unique thread identification on success.
- *      (pid_t)-1 on error, errno set (when kernel does not support this call)
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-static INLINE
-pid_t gettid(void)
-{
-#if defined(SYS_gettid)
-   return (pid_t)syscall(SYS_gettid);
-#else
-   return -1;
-#endif
-}
-#endif
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * Util_GetCurrentThreadId --
- *
- *      Retrieves a unique thread identification suitable to identify a thread
- *      to kill it or change its scheduling priority.
- *
- * Results:
- *      Unique thread identification on success.
- *	ASSERTs on failure (should not happen).
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-uint32
-Util_GetCurrentThreadId(void)
-{
-#if defined(linux)
-   /*
-    * It is possible that two threads can enter gettid() path simultaneously,
-    * both eventually clearing useTid to zero. It does not matter - only
-    * problem which can happen is that useTid will be set to zero twice.
-    * And it has no impact on useTid value...
-    */
-
-   static int useTid = 1;
-   pid_t tid;
-
-   // ESX with userworld VMX
-#if defined(VMX86_SERVER)
-   if (HostType_OSIsVMK()) {
-      return User_GetTid();
-   }
-#endif
-
-   if (useTid) {
-      tid = gettid();
-      if (tid != (pid_t)-1) {
-         return tid;
-      }
-      ASSERT(errno == ENOSYS);
-      useTid = 0;
-   }
-   tid = getpid();
-   ASSERT(tid != (pid_t)-1);
-   return tid;
-#elif __FreeBSD__ || sun
-   pid_t tid;
-
-   tid = getpid();
-   ASSERT(tid != (pid_t)-1);
-   return tid;
-#elif __APPLE__
-   ASSERT_ON_COMPILE(sizeof(uint32) == sizeof(pthread_t));
-   return (uint32)pthread_self();
-#else
-   return GetCurrentThreadId();
-#endif
-}
-
 
 /*
  *----------------------------------------------------------------------
@@ -851,7 +740,7 @@ Util_ExpandString(const char *fileName)
 	 goto out;
       }
       chunks[nchunk] = cp;
-      chunkSize[nchunk] = (int) len;
+      chunkSize[nchunk] = len;
       freeChunk[nchunk] = FALSE;
       nchunk++;
       cp += len;
@@ -970,7 +859,7 @@ Util_ExpandString(const char *fileName)
 		    expand, fileName);
 	 goto out;
       }
-      chunkSize[i] = (int) strlen(expand);
+      chunkSize[i] = strlen(expand);
       freeChunk[i] = TRUE;
    }
 

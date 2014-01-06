@@ -17,7 +17,7 @@
  *********************************************************/
 
 /*
- * hash.c --
+ * hashTable.c --
  *
  *      An implementation of hashtable with no removals.
  *      For string keys.
@@ -29,7 +29,7 @@
 #include <ctype.h>
 
 #include "vmware.h"
-#include "hash.h"
+#include "hashTable.h"
 #include "dbllnklst.h"
 #include "vm_basic_asm.h"
 
@@ -41,23 +41,23 @@
  * An entry in the hashtable. Provides two client datas
  * for ease of use.
  */
-typedef struct HashEntry {
+typedef struct HashTableEntry {
    DblLnkLst_Links   l;
    const char       *keyStr;
    void             *clientData;
-} HashEntry;
+} HashTableEntry;
 
 /*
  * The hashtable structure.
  */
 struct HashTable {
-   uint32            numEntries;
-   uint32            numBits;
-   int               keyType;
-   HashFreeEntryFn   freeEntryFn;
-   DblLnkLst_Links  *buckets;
+   uint32                 numEntries;
+   uint32                 numBits;
+   int                    keyType;
+   HashTableFreeEntryFn   freeEntryFn;
+   DblLnkLst_Links       *buckets;
 
-   size_t            numElements;
+   size_t                 numElements;
 };
 
 
@@ -65,13 +65,14 @@ struct HashTable {
  * Local functions
  */
 
-static HashEntry *HashLookup(HashTable *ht, const char *keyStr, uint32 hash);
+static HashTableEntry *HashTableLookup(HashTable *ht, const char *keyStr, 
+                                       uint32 hash);
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * HashHash --
+ * HashTableComputeHash --
  *
  *      Compute hash value based on key type and hash size.
  *
@@ -85,8 +86,8 @@ static HashEntry *HashLookup(HashTable *ht, const char *keyStr, uint32 hash);
  */
 
 static INLINE uint32
-HashHash(HashTable *ht,            // IN: hash table
-         const char *s)            // IN: string to hash
+HashTableComputeHash(HashTable *ht,            // IN: hash table
+                     const char *s)            // IN: string to hash
 {
    uint32 h = 0;
 
@@ -136,10 +137,9 @@ static int
 strcasecmp(const char *s1,  // IN:
            const char *s2)  // IN:
 {
-  while (*s1 && tolower(*s1++) == tolower(*s2++))
-     ;
-
-  return tolower(*s1) - tolower(*s2);
+   while (*s1 && tolower(*s1++) == tolower(*s2++));
+   
+   return tolower(*s1) - tolower(*s2);
 }
 
 static int
@@ -165,7 +165,7 @@ ffs(uint32 bits)
 /*
  *-----------------------------------------------------------------------------
  *
- * HashEqual --
+ * HashTableEqualKeys --
  *
  *      Compare two keys based on key type
  *
@@ -179,9 +179,9 @@ ffs(uint32 bits)
  */
 
 static INLINE Bool
-HashEqual(HashTable *ht,            // IN: hash table
-          const char *key1,         // IN: key
-          const char *key2)         // IN: key
+HashTableEqualKeys(HashTable *ht,            // IN: hash table
+                   const char *key1,         // IN: key
+                   const char *key2)         // IN: key
 {
    switch (ht->keyType) {
    case HASH_STRING_KEY:
@@ -199,7 +199,7 @@ HashEqual(HashTable *ht,            // IN: hash table
 /*
  *----------------------------------------------------------------------
  *
- * Hash_Alloc --
+ * HashTable_Alloc --
  *
  *      Create a hash table.
  *
@@ -213,9 +213,9 @@ HashEqual(HashTable *ht,            // IN: hash table
  */
 
 HashTable *
-Hash_Alloc(uint32 numEntries,  // IN: must be a power of 2
-           int keyType,        // IN: whether keys are strings
-           HashFreeEntryFn fn) // IN: free entry function
+HashTable_Alloc(uint32 numEntries,       // IN: must be a power of 2
+                int keyType,             // IN: whether keys are strings
+                HashTableFreeEntryFn fn) // IN: free entry function
 {
    HashTable *ht;
    uint32 i;
@@ -232,7 +232,7 @@ Hash_Alloc(uint32 numEntries,  // IN: must be a power of 2
    ht->numEntries = numEntries;
    ht->keyType = keyType;   
    ht->freeEntryFn = fn;
-   ht->buckets = (DblLnkLst_Links *) malloc(ht->numEntries *
+   ht->buckets = (DblLnkLst_Links *) malloc(ht->numEntries * 
                                             sizeof(DblLnkLst_Links));
    ASSERT_MEM_ALLOC(ht->buckets);
 
@@ -249,7 +249,7 @@ Hash_Alloc(uint32 numEntries,  // IN: must be a power of 2
 /*
  *----------------------------------------------------------------------
  *
- * Hash_Free --
+ * HashTable_Free --
  *
  *      Free the hash table skeleton.
  *
@@ -263,11 +263,11 @@ Hash_Alloc(uint32 numEntries,  // IN: must be a power of 2
  */
 
 void
-Hash_Free(HashTable *ht) // IN/OUT
+HashTable_Free(HashTable *ht) // IN/OUT
 {
    ASSERT(ht);
 
-   Hash_Clear(ht);
+   HashTable_Clear(ht);
 
    free(ht->buckets);
    free(ht);
@@ -277,7 +277,7 @@ Hash_Free(HashTable *ht) // IN/OUT
 /*
  *----------------------------------------------------------------------
  *
- * Hash_Clear --
+ * HashTable_Clear --
  *
  *      Clear all entries a hashtable by freeing them.
  *
@@ -291,7 +291,7 @@ Hash_Free(HashTable *ht) // IN/OUT
  */
 
 void
-Hash_Clear(HashTable *ht) // IN/OUT
+HashTable_Clear(HashTable *ht) // IN/OUT
 {
    int i;
 
@@ -306,7 +306,7 @@ Hash_Clear(HashTable *ht) // IN/OUT
 
       head = &ht->buckets[i];
       for (cur = head->next; cur != head; cur = next) {
-         HashEntry *entry = DblLnkLst_Container(cur, HashEntry, l);
+         HashTableEntry *entry = DblLnkLst_Container(cur, HashTableEntry, l);
 
          ASSERT(entry);
          if (ht->freeEntryFn) {
@@ -323,12 +323,12 @@ Hash_Clear(HashTable *ht) // IN/OUT
 /*
  *----------------------------------------------------------------------
  *
- * HashLookup --
+ * HashTableLookup --
  *
  *      Core of the lookup function.
  *
  * Results:
- *      A pointer to the found HashEntry or NULL if not found
+ *      A pointer to the found HashTableEntry or NULL if not found
  *
  * Side effects:
  *	None.
@@ -336,21 +336,21 @@ Hash_Clear(HashTable *ht) // IN/OUT
  *----------------------------------------------------------------------
  */
 
-static HashEntry *
-HashLookup(HashTable *ht,      // IN
-           const char *keyStr, // IN
-           uint32 hash)        // IN
+static HashTableEntry *
+HashTableLookup(HashTable *ht,      // IN
+                const char *keyStr, // IN
+                uint32 hash)        // IN
 {
    DblLnkLst_Links *cur, *head;
 
    head = &ht->buckets[hash];
    for (cur = head->next; cur != head; cur = cur->next) {
-      HashEntry *entry;
+      HashTableEntry *entry;
 
-      entry = DblLnkLst_Container(cur, HashEntry, l);
+      entry = DblLnkLst_Container(cur, HashTableEntry, l);
       ASSERT(entry);
 
-      if (HashEqual(ht, entry->keyStr, keyStr)) {
+      if (HashTableEqualKeys(ht, entry->keyStr, keyStr)) {
          return entry;
       }
    }
@@ -362,7 +362,7 @@ HashLookup(HashTable *ht,      // IN
 /*
  *----------------------------------------------------------------------
  *
- * Hash_Lookup --
+ * HashTable_Lookup --
  *
  *      Lookup an element in a hashtable.
  *
@@ -377,14 +377,14 @@ HashLookup(HashTable *ht,      // IN
  */
 
 Bool
-Hash_Lookup(HashTable  *ht,      // IN
-            const char *keyStr,  // IN
-            void **clientData)   // OUT
+HashTable_Lookup(HashTable  *ht,      // IN
+                 const char *keyStr,  // IN
+                 void **clientData)   // OUT
 {
-   HashEntry *entry;
-   uint32 hash = HashHash(ht, keyStr);
+   HashTableEntry *entry;
+   uint32 hash = HashTableComputeHash(ht, keyStr);
 
-   entry = HashLookup(ht, keyStr, hash);
+   entry = HashTableLookup(ht, keyStr, hash);
 
    if (entry == NULL) {
       return FALSE;
@@ -401,7 +401,7 @@ Hash_Lookup(HashTable  *ht,      // IN
 /*
  *----------------------------------------------------------------------
  *
- * Hash_Delete --
+ * HashTable_Delete --
  *
  *      Delete an element from the hashtable.
  *
@@ -416,24 +416,24 @@ Hash_Lookup(HashTable  *ht,      // IN
  */
 
 Bool
-Hash_Delete(HashTable  *ht,        // IN/OUT: the hash table
-            const char *keyStr)    // IN: key for the element to remove
+HashTable_Delete(HashTable  *ht,        // IN/OUT: the hash table
+                 const char *keyStr)    // IN: key for the element to remove
 {
    DblLnkLst_Links *head, *cur, *next = NULL;
-   uint32 hash = HashHash(ht, keyStr);
+   uint32 hash = HashTableComputeHash(ht, keyStr);
 
    head = &ht->buckets[hash];
    for (cur = head->next; cur != head; cur = next) {
-      HashEntry *entry = DblLnkLst_Container(cur, HashEntry, l);
+      HashTableEntry *entry = DblLnkLst_Container(cur, HashTableEntry, l);
       ASSERT(entry);
 
       next = cur->next;
-      if (HashEqual(ht, entry->keyStr, keyStr)) {
+      if (HashTableEqualKeys(ht, entry->keyStr, keyStr)) {
          if (ht->freeEntryFn) {
             ht->freeEntryFn(entry->clientData);
          }
          DblLnkLst_Unlink1(cur);
-         free(DblLnkLst_Container(cur, HashEntry, l));
+         free(DblLnkLst_Container(cur, HashTableEntry, l));
          ht->numElements--;
          return TRUE;
       }
@@ -445,7 +445,7 @@ Hash_Delete(HashTable  *ht,        // IN/OUT: the hash table
 /*
  *----------------------------------------------------------------------
  *
- * Hash_Insert --
+ * HashTable_Insert --
  *
  *      Insert an element into the hashtable. The string key is
  *      not duplicated & thus cannot be free until there is no
@@ -461,18 +461,18 @@ Hash_Delete(HashTable  *ht,        // IN/OUT: the hash table
  */
 
 Bool
-Hash_Insert(HashTable  *ht,          // IN/OUT
-            const char *keyStr,      // IN
-            void       *clientData)  // IN
+HashTable_Insert(HashTable  *ht,          // IN/OUT
+                 const char *keyStr,      // IN
+                 void       *clientData)  // IN
 {
-   HashEntry *entry;
-   uint32 hash = HashHash(ht, keyStr);
+   HashTableEntry *entry;
+   uint32 hash = HashTableComputeHash(ht, keyStr);
 
-   if (HashLookup(ht, keyStr, hash) != NULL) {
+   if (HashTableLookup(ht, keyStr, hash) != NULL) {
       return FALSE;
    }
 
-   entry = (HashEntry *) malloc(sizeof(HashEntry));
+   entry = (HashTableEntry *) malloc(sizeof(HashTableEntry));
    ASSERT_MEM_ALLOC(entry);
    entry->keyStr = keyStr;
    entry->clientData = clientData;
@@ -487,7 +487,7 @@ Hash_Insert(HashTable  *ht,          // IN/OUT
 /*
  *----------------------------------------------------------------------
  *
- * Hash_GetNumElements --
+ * HashTable_GetNumElements --
  *
  *      Get the number of elements in the hash table.
  *
@@ -501,7 +501,7 @@ Hash_Insert(HashTable  *ht,          // IN/OUT
  */
 
 size_t
-Hash_GetNumElements(const HashTable *ht) // IN:
+HashTable_GetNumElements(const HashTable *ht) // IN:
 {
    return ht->numElements;
 }
@@ -510,7 +510,7 @@ Hash_GetNumElements(const HashTable *ht) // IN:
 /*
  *----------------------------------------------------------------------
  *
- * Hash_ToArray --
+ * HashTable_ToArray --
  *
  *      Returns an array of pointers to each clientData structure in the
  *      hash table.
@@ -526,9 +526,9 @@ Hash_GetNumElements(const HashTable *ht) // IN:
  */
 
 void
-Hash_ToArray(const HashTable *ht,  // IN
-             void ***clientDatas,  // OUT
-             size_t *size)         // OUT
+HashTable_ToArray(const HashTable *ht,  // IN
+                  void ***clientDatas,  // OUT
+                  size_t *size)         // OUT
 {
    uint32 i;
    size_t j;
@@ -538,7 +538,7 @@ Hash_ToArray(const HashTable *ht,  // IN
    ASSERT(size);
 
    *clientDatas = NULL;
-   *size = Hash_GetNumElements(ht);
+   *size = HashTable_GetNumElements(ht);
 
    if (0 == *size) {
       return;
@@ -556,7 +556,7 @@ Hash_ToArray(const HashTable *ht,  // IN
 
       head = &ht->buckets[i];
       for (cur = head->next; cur != head; cur = next) {
-         HashEntry *entry = DblLnkLst_Container(cur, HashEntry, l);
+         HashTableEntry *entry = DblLnkLst_Container(cur, HashTableEntry, l);
          ASSERT(entry);
 
          (*clientDatas)[j++] = entry->clientData;
@@ -569,7 +569,7 @@ Hash_ToArray(const HashTable *ht,  // IN
 /*
  *----------------------------------------------------------------------
  *
- * Hash_ForEach --
+ * HashTable_ForEach --
  *
  *      Walks the hashtable in an undetermined order, calling the
  *      callback function for each value until either the callback
@@ -586,9 +586,9 @@ Hash_ToArray(const HashTable *ht,  // IN
  */
 
 int
-Hash_ForEach(const HashTable *ht,      // IN
-             HashForEachCallback cb,   // IN
-             void *clientData)         // IN
+HashTable_ForEach(const HashTable *ht,           // IN
+                  HashTableForEachCallback cb,   // IN
+                  void *clientData)              // IN
 {
    int i;
 
@@ -601,7 +601,7 @@ Hash_ForEach(const HashTable *ht,      // IN
       head = &ht->buckets[i];
       for (cur = head->next; cur != head; cur = cur->next) {
          int result;
-         HashEntry *entry = DblLnkLst_Container(cur, HashEntry, l);
+         HashTableEntry *entry = DblLnkLst_Container(cur, HashTableEntry, l);
 
          ASSERT(entry);
          result = (*cb)(entry->keyStr, entry->clientData, clientData);
@@ -647,9 +647,9 @@ HashPrint(HashTable *ht) // IN
       printf("%4d: \n", i);
 
       for (cur = head->next; cur != head; cur = cur->next) {
-         HashEntry *entry;
+         HashTableEntry *entry;
 
-         entry = DblLnkLst_Container(cur, HashEntry, l);
+         entry = DblLnkLst_Container(cur, HashTableEntry, l);
          ASSERT(entry);
 
          if (ht->keyType == HASH_INT_KEY) {

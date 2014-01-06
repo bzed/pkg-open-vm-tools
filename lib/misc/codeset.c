@@ -355,10 +355,10 @@ CodeSetGenericToUtf16le(UINT codeIn,         // IN
          result = MultiByteToWideChar(codeIn,
                      flags,
                      bufIn,
-                     (int) sizeIn,
+                     sizeIn,
                      (wchar_t *)((char *)DynBuf_Get(db) + initialSize),
-                     (int) ((DynBuf_GetAllocatedSize(db) - initialSize) /
-                            sizeof(wchar_t)));
+                     (DynBuf_GetAllocatedSize(db) - initialSize) /
+                                      sizeof(wchar_t));
 
          if (0 == result) {
             error = GetLastError();   // may be ERROR_NO_UNICODE_TRANSLATION
@@ -450,9 +450,9 @@ CodeSetUtf16leToGeneric(char const *bufIn,   // IN
          result = WideCharToMultiByte(codeOut,
                      0,
                      (wchar_t const *)bufIn,
-                     (int) (sizeIn / sizeof(wchar_t)),
+                     sizeIn / sizeof(wchar_t),
                      (char *)DynBuf_Get(db) + initialSize,
-                     (int) (DynBuf_GetAllocatedSize(db) - initialSize),
+                     DynBuf_GetAllocatedSize(db) - initialSize,
                      NULL,
                      /*
                       * XXX We may need to pass that argument
@@ -1117,13 +1117,120 @@ CodeSet_Utf16leToUtf8_Db(char const *bufIn,   // IN
                          size_t sizeIn, // IN
                          DynBuf *db)          // IN
 {
-#if defined(USE_ICONV)
-   return CodeSetGenericToGeneric("UTF-16LE", bufIn, sizeIn, "UTF-8", db, CSGTG_NORMAL);
-#elif defined(_WIN32)
+#if defined(_WIN32)
    return CodeSetUtf16leToGeneric(bufIn, sizeIn, CP_UTF8, db);
 #else
-   NOT_IMPLEMENTED();
-   return FALSE;
+   const uint16 *utf16In;
+   size_t numCodeUnits;
+   size_t codeUnitIndex;
+
+   if (sizeIn % sizeof *utf16In != 0) {
+      return FALSE;
+   }
+
+   utf16In = (const uint16 *)bufIn;
+   numCodeUnits = sizeIn / 2;
+
+   for (codeUnitIndex = 0; codeUnitIndex < numCodeUnits; codeUnitIndex++) {
+      uint32 codePoint;
+      uint8 *dbBytes;
+      size_t size;
+
+      if (   utf16In[codeUnitIndex] < 0xD800
+          || utf16In[codeUnitIndex] > 0xDFFF) {
+         // Non-surrogate UTF-16 code units directly represent a code point.
+         codePoint = utf16In[codeUnitIndex];
+      } else {
+         static const uint32 SURROGATE_OFFSET =
+            (0xD800 << 10UL) + 0xDC00 - 0x10000;
+
+         uint16 surrogateLead = utf16In[codeUnitIndex];
+         uint16 surrogateTrail;
+
+         // We need one more code unit for the trailing surrogate.
+         codeUnitIndex++;
+         if (codeUnitIndex == numCodeUnits) {
+            return FALSE;
+         }
+
+         surrogateTrail = utf16In[codeUnitIndex];
+
+         // Ensure we have a lead surrogate followed by a trail surrogate.
+         if (   surrogateLead > 0xDBFF
+             || surrogateTrail < 0xDC00
+             || surrogateTrail > 0xDFFF) {
+            return FALSE;
+         }
+
+         /*
+          * To get a code point between 0x10000 and 0x10FFFF (2^16 to
+          * (2^21) - 1):
+          *
+          * 1) Ensure surrogateLead is in the range [0xD800, 0xDBFF]
+          *
+          * 2) Ensure surrogateTrail is in the range [0xDC00, 0xDFFF]
+          *
+          * 3) Mask off all but the low 10 bits of lead and shift that
+          *    left 10 bits: ((surrogateLead << 10) - (0xD800 << 10))
+          *    -> result [0, 0xFFC00]
+          *
+          * 4) Add to that the low 10 bits of trail: (surrogateTrail - 0xDC00)
+          *    -> result [0, 0xFFFFF]
+          *
+          * 5) Add to that 0x10000:
+          *    -> result [0x10000, 0x10FFFF]
+          */
+         codePoint = ((uint32)surrogateLead << 10UL) +
+            (uint32)surrogateTrail - SURROGATE_OFFSET;
+
+         ASSERT(codePoint >= 0x10000 && codePoint <= 0x10FFFF);
+      }
+
+      size = DynBuf_GetSize(db);
+
+      // We'll need at most 4 more bytes for this code point.
+      if (   DynBuf_GetAllocatedSize(db) < size + 4
+          && DynBuf_Enlarge(db, size + 4) == FALSE) {
+         return FALSE;
+      }
+
+      dbBytes = (uint8 *)DynBuf_Get(db) + size;
+
+      // Convert the code point to UTF-8.
+      if (codePoint <= 0x007F) {
+         // U+0000 - U+007F: 1 byte of UTF-8.
+         dbBytes[0] = codePoint;
+         size += 1;
+      } else if (codePoint <= 0x07FF) {
+         // U+0080 - U+07FF: 2 bytes of UTF-8.
+         dbBytes[0] = 0xC0 | (codePoint >> 6);
+         dbBytes[1] = 0x80 | (codePoint & 0x3F);
+         size += 2;
+      } else if (codePoint <= 0xFFFF) {
+         // U+0800 - U+FFFF: 3 bytes of UTF-8.
+         dbBytes[0] = 0xE0 | (codePoint >> 12);
+         dbBytes[1] = 0x80 | ((codePoint >> 6) & 0x3F);
+         dbBytes[2] = 0x80 | (codePoint & 0x3F);
+         size += 3;
+      } else {
+         /*
+          * U+10000 - U+10FFFF: 4 bytes of UTF-8.
+          *
+          * See the surrogate pair handling block above for the math
+          * that ensures we're in the range [0x10000, 0x10FFFF] here.
+          */
+         ASSERT(codePoint <= 0x10FFFF);
+         dbBytes[0] = 0xF0 | (codePoint >> 18);
+         dbBytes[1] = 0x80 | ((codePoint >> 12) & 0x3F);
+         dbBytes[2] = 0x80 | ((codePoint >> 6) & 0x3F);
+         dbBytes[3] = 0x80 | (codePoint & 0x3F);
+         size += 4;
+      }
+
+      DynBuf_SetSize(db, size);
+   }
+
+   return TRUE;
 #endif
 }
 

@@ -102,9 +102,9 @@ typedef struct SyncWaitQ {
     */
    
 #ifdef _WIN32
-   Atomic_uint32   readHandle;
+   Atomic_uint64 readHandle;
 #else 
-   Atomic_uint64   rwHandles;
+   Atomic_uint64 rwHandles;
 #   if __APPLE__
    pthread_mutex_t mutex;
 #   endif
@@ -113,8 +113,8 @@ typedef struct SyncWaitQ {
 
 Bool SyncWaitQ_Init(SyncWaitQ *that, char const *path);
 void SyncWaitQ_Destroy(SyncWaitQ *that);
-int  SyncWaitQ_Add(SyncWaitQ *that);
-Bool SyncWaitQ_Remove(SyncWaitQ *that,  int fd);
+PollDevHandle  SyncWaitQ_Add(SyncWaitQ *that);
+Bool SyncWaitQ_Remove(SyncWaitQ *that, PollDevHandle fd);
 Bool SyncWaitQ_WakeUp(SyncWaitQ *that);
 
 #endif // #infdef _SYNC_WAITQ_H_

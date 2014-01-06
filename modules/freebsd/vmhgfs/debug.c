@@ -19,12 +19,12 @@
 /*
  * debug.c --
  *
- *	Routine(s) for debugging the FreeBSD Hgfs module.
+ *	Routine(s) for debugging the FreeBSD / Mac OS Hgfs module.
  */
 
 
+#include "vm_basic_types.h"
 #include "debug.h"
-
 
 /*
  * Global functions
@@ -36,19 +36,19 @@
  *
  * HgfsDebugPrintVattr --
  *
- *    Prints the contents of an attributes structure.
+ *      Prints the contents of an attributes structure.
  *
  * Results:
- *    None.
+ *      None.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
 
 void
-HgfsDebugPrintVattr(const struct vattr *vap)
+HgfsDebugPrintVattr(const HGFS_VNODE_ATTR *vap)
 {
    DEBUG(VM_DEBUG_STRUCT, " va_type: %d\n", vap->va_type);
    DEBUG(VM_DEBUG_STRUCT, " va_mode: %o\n", vap->va_mode);
@@ -57,6 +57,13 @@ HgfsDebugPrintVattr(const struct vattr *vap)
    DEBUG(VM_DEBUG_STRUCT, " va_gid: %u\n", vap->va_gid);
    DEBUG(VM_DEBUG_STRUCT, " va_fsid: %u\n", vap->va_fsid);
    DEBUG(VM_DEBUG_STRUCT, " va_fileid: %ld\n", vap->va_fileid);
+   DEBUG(VM_DEBUG_STRUCT, " va_gen: %lu\n", vap->va_gen);
+   DEBUG(VM_DEBUG_STRUCT, " va_flags: %lx\n", vap->va_flags);
+   DEBUG(VM_DEBUG_STRUCT, " va_rdev: %u\n", vap->va_rdev);
+   DEBUG(VM_DEBUG_STRUCT, " va_filerev: %"FMT64"u\n", vap->va_filerev);
+   DEBUG(VM_DEBUG_STRUCT, " va_vaflags: %x\n", vap->va_vaflags);
+
+#if defined(__FreeBSD__)
    DEBUG(VM_DEBUG_STRUCT, " va_size: %ju\n", vap->va_size);
    DEBUG(VM_DEBUG_STRUCT, " va_blocksize: %ld\n", vap->va_blocksize);
    /*
@@ -73,10 +80,21 @@ HgfsDebugPrintVattr(const struct vattr *vap)
          (intmax_t)vap->va_birthtime.tv_sec);
    DEBUG(VM_DEBUG_STRUCT, " va_birthtime.tv_nsec: %ld\n",
          vap->va_birthtime.tv_nsec);
-   DEBUG(VM_DEBUG_STRUCT, " va_gen: %lu\n", vap->va_gen);
-   DEBUG(VM_DEBUG_STRUCT, " va_flags: %lx\n", vap->va_flags);
-   DEBUG(VM_DEBUG_STRUCT, " va_rdev: %u\n", vap->va_rdev);
    DEBUG(VM_DEBUG_STRUCT, " va_bytes: %"FMT64"u\n", vap->va_bytes);
-   DEBUG(VM_DEBUG_STRUCT, " va_filerev: %"FMT64"u\n", vap->va_filerev);
-   DEBUG(VM_DEBUG_STRUCT, " va_vaflags: %x\n", vap->va_vaflags);
+
+#elif defined(__APPLE__)
+
+   DEBUG(VM_DEBUG_STRUCT, " va_size: %ju\n", vap->va_data_size);
+   DEBUG(VM_DEBUG_STRUCT, " va_blocksize: %ld\n", vap->va_iosize);
+   /*
+    * XXX time_t is __int32_t on 32-bit architectures and __int64_t on 64-bit
+    * architectures.  Would this be better as add'l formats in vm_basic_types.h?
+    */
+   DEBUG(VM_DEBUG_STRUCT, " va_access_time.tv_sec: %jd\n", (intmax_t)vap->va_access_time.tv_sec);
+   DEBUG(VM_DEBUG_STRUCT, " va_access_time.tv_nsec: %ld\n", vap->va_access_time.tv_nsec);
+   DEBUG(VM_DEBUG_STRUCT, " va_modify_time.tv_sec: %jd\n", (intmax_t)vap->va_modify_time.tv_sec);
+   DEBUG(VM_DEBUG_STRUCT, " va_modify_time.tv_nsec: %ld\n", vap->va_modify_time.tv_nsec);
+   DEBUG(VM_DEBUG_STRUCT, " va_create_time.tv_sec: %jd\n", (intmax_t)vap->va_create_time.tv_sec);
+   DEBUG(VM_DEBUG_STRUCT, " va_create_time.tv_nsec: %ld\n", vap->va_create_time.tv_nsec);
+#endif
 }

@@ -40,6 +40,8 @@
 
 #define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMCORE
+#define INCLUDE_ALLOW_VMKERNEL
+#define INCLUDE_ALLOW_VMNIXMOD
 #include "includeCheck.h"
 
 #include "unicodeBase.h"
@@ -63,12 +65,14 @@ int Unicode_CompareRange(ConstUnicode str1,
                          UnicodeIndex str2Start,
                          UnicodeIndex str2Length,
                          Bool ignoreCase);
+
 UnicodeIndex Unicode_FindSubstrInRange(ConstUnicode str,
                                        UnicodeIndex strStart,
                                        UnicodeIndex strLength,
                                        ConstUnicode strToFind,
                                        UnicodeIndex strToFindStart,
                                        UnicodeIndex strToFindLength);
+
 UnicodeIndex Unicode_FindLastSubstrInRange(ConstUnicode str,
                                            UnicodeIndex strStart,
                                            UnicodeIndex strLength,
@@ -78,12 +82,16 @@ UnicodeIndex Unicode_FindLastSubstrInRange(ConstUnicode str,
 Unicode Unicode_Substr(ConstUnicode str,
                        UnicodeIndex start,
                        UnicodeIndex length);
+
 Unicode Unicode_ReplaceRange(ConstUnicode destination,
                              UnicodeIndex destinationStart,
                              UnicodeIndex destinationLength,
                              ConstUnicode source,
                              UnicodeIndex sourceStart,
                              UnicodeIndex sourceLength);
+
+Unicode Unicode_Join(ConstUnicode first,
+                     ...);
 
 
 /*

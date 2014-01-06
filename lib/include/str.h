@@ -162,8 +162,12 @@ int Str_MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
  *    corresponding run-time library strxxxx functions.
  *
  *    For Windows implementation, they are mapped to the generic international
- *    string function names, so that they are compiled either single-byte (ANSI),
- *    multi-byte (MBCS) or wide char (UNICODE) implementation.
+ *    string function names, so that they are compiled with multi-byte (MBCS).
+ *    The inline functions here are necessary for the type-casting. We are unable to
+ *    call those MBCS functions directly due to type mismatch.
+ *
+ *    When SUPPORT_UNICODE is on, we need to make those functionS back to ASCII version,
+ *    so that they won't screw up the UTF-8 encoding.
  *
  *    The reason for this work is to mainly take care of filename parsing
  *    involving DBCS, especially in cases where a DBCS consists of the
@@ -175,15 +179,57 @@ int Str_MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
  *----------------------------------------------------------------------
  */
 #if _WIN32
-   #define  Str_Strchr(str, c)  _tcschr(str, c)
-   #define  Str_Strrchr(str, c) _tcsrchr(str, c)
-   #define  Str_Strspn(str1, str2)  _tcsspn(str1, str2)
-   #define  Str_Strcspn(str1, str2) _tcscspn(str1, str2)
+   #ifdef SUPPORT_UNICODE
+      #define  Str_Strchr(str, c)  strchr(str, c)
+      #define  Str_Strrchr(str, c) strrchr(str, c)
+      #define  Str_Strspn(str1, str2)  strspn(str1, str2)
+      #define  Str_Strcspn(str1, str2) strcspn(str1, str2)
+      #define  Str_ToUpper(str) _strupr(str)
+      #define  Str_ToLower(str) _strlwr(str)         
+   #else
+      #include <mbstring.h>
+
+      __inline char *Str_Strchr(const char *_s1, unsigned int _c)
+      {
+         return (char *)_mbschr((const unsigned char *)_s1, _c);
+      }
+
+      __inline char *Str_Strrchr(const char *_s1, unsigned int _c)
+      {
+         return (char *)_mbsrchr((const unsigned char *)_s1, _c);
+      }
+
+      __inline size_t Str_Strspn(const char *_s1, const char *_s2)
+      {
+         return _mbsspn((const unsigned char *)_s1, (const unsigned char *)_s2);
+      }
+
+      __inline size_t Str_Strcspn(const char *_s1, const char *_s2)
+      {
+         return _mbscspn((const unsigned char *)_s1, (const unsigned char *)_s2);
+      }
+
+      __inline char *Str_ToUpper(char *_String)
+      {
+      #pragma warning(push)
+      #pragma warning(disable:4996)           
+         return (char *)_mbsupr((unsigned char *)_String);
+      #pragma warning(pop)
+      }
+
+      __inline char *Str_ToLower(char *_String)
+      {
+      #pragma warning(push)
+      #pragma warning(disable:4996)           
+         return (char *)_mbslwr((unsigned char *)_String);
+      #pragma warning(pop)
+      }
+   #endif
+
+   // To-do: These functions should be MBCS aware too when SUPPORT_UNICODE is not defined.   
    #define  Str_Strcasecmp(_s1,_s2) _stricmp((_s1),(_s2))
    #define  Str_Strncasecmp(_s1,_s2,_n) _strnicmp((_s1),(_s2),(_n))
    #define  Str_Strncmp(_s1,_s2,_n) strncmp((_s1),(_s2),(_n))
-   #define  Str_ToUpper(str) _tcsupr(str)
-   #define  Str_ToLower(str) _tcslwr(str)
 #else
    #define  Str_Strchr(str, c)  strchr(str, c)
    #define  Str_Strrchr(str, c) strrchr(str, c)

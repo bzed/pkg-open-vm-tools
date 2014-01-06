@@ -422,7 +422,7 @@ SyncWaitQ_Destroy(SyncWaitQ *that)
  *-----------------------------------------------------------------------------
  */
 
-int
+PollDevHandle
 SyncWaitQ_Add(SyncWaitQ *that) // IN
 {
    uint64 seq;
@@ -612,8 +612,8 @@ SyncWaitQ_Add(SyncWaitQ *that) // IN
  */
 
 Bool
-SyncWaitQ_Remove(SyncWaitQ *that, // Unused
-		 int handle)      // IN
+SyncWaitQ_Remove(SyncWaitQ *that,       // Unused
+		 PollDevHandle handle)  // IN
 {
    ASSERT(that);
    if (!that->initialized) {

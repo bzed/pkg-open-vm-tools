@@ -51,6 +51,8 @@
 #include "syncDriver.h"
 #include "str.h"
 #include "guestApp.h" // for ALLOW_TOOLS_IN_FOREIGN_VM
+#include "unity.h"
+#include "ghIntegration.h"
 
 #include "vm_atomic.h"
 #include "hostinfo.h"
@@ -151,6 +153,10 @@ static int const gSignals[] = {
 void VMwareUserCleanupRpc(void)
 {
    if (gRpcIn) {
+      Unity_UnregisterCaps();
+      GHI_Cleanup();
+      Unity_Cleanup();
+
       if (gHgfsServerRegistered) {
          HgfsServerManager_Unregister(gRpcIn, TOOLS_DND_NAME);
          gHgfsServerRegistered = FALSE;
@@ -323,6 +329,9 @@ VMwareUserRpcInResetCB(char const **result,     // OUT
    if (gDnDRegistered) {
       DnD_OnReset(gUserMainWidget);
    }
+   if (Unity_IsSupported()) {
+      Unity_Exit();
+   }
    return RpcIn_SetRetVals(result, resultLen, "ATR " TOOLS_DND_NAME,
                            TRUE);
 }
@@ -412,6 +421,8 @@ VMwareUserRpcInCapRegCB(char const **result,     // OUT
    if (!HgfsServerManager_CapReg(TOOLS_DND_NAME, gHgfsServerRegistered)) {
       Debug("VMwareUserRpcInCapRegCB: Failed to register HGFS server capability.\n");
    }
+
+   Unity_RegisterCaps();
 
    return RpcIn_SetRetVals(result, resultLen, "", TRUE);
 }
@@ -526,7 +537,7 @@ VMwareUserRpcInSetOptionCB(char const **result,     // OUT
 /*
  *-----------------------------------------------------------------------------
  *
- * VMwareUserXErrorHandler --
+ * VMwareUserXIOErrorHandler --
  *
  *      Handler for all X I/O errors. Xlib documentation says we should not return
  *      when handling I/O errors.
@@ -540,7 +551,7 @@ VMwareUserRpcInSetOptionCB(char const **result,     // OUT
  *-----------------------------------------------------------------------------
  */
 
-int VMwareUserXErrorHandler(Display *dpy)
+int VMwareUserXIOErrorHandler(Display *dpy)
 {
    pid_t my_pid = getpid();
 
@@ -549,11 +560,11 @@ int VMwareUserXErrorHandler(Display *dpy)
     * watching the process being run.  When it dies, it will come
     * through here, so we don't want to let it shut down the Rpc
     */
-   Debug("> VMwareUserXErrorHandler\n");
+   Debug("> VMwareUserXIOErrorHandler\n");
    if (my_pid == gParentPid) {
       VMwareUserCleanupRpc();
    } else {
-      Debug("VMwareUserXErrorHandler hit from forked() child, not cleaning Rpc\n");
+      Debug("VMwareUserXIOErrorHandler hit from forked() child, not cleaning Rpc\n");
    }
    exit(1);
    return 1;
@@ -785,6 +796,9 @@ main(int argc, char *argv[])
    EventManager_Add(gEventQueue, CONF_POLL_TIME, VMwareUserConfFileLoop,
                     &confDict);
 
+   Unity_Init(confDict, NULL);
+   GHI_Init(NULL, NULL);
+
    gRpcIn = RpcIn_Construct(gEventQueue);
    if (gRpcIn == NULL) {
       Warning("Unable to create the RpcIn object.\n\n");
@@ -801,6 +815,9 @@ main(int argc, char *argv[])
                           VMwareUserRpcInCapRegCB, NULL);
    RpcIn_RegisterCallback(gRpcIn, "Set_Option",
                           VMwareUserRpcInSetOptionCB, NULL);
+
+   Unity_InitBackdoor(gRpcIn);
+   GHI_InitBackdoor(gRpcIn);
 
 #if !defined(N_PLAT_NLM) && !defined(sun)
    {
@@ -819,7 +836,7 @@ main(int argc, char *argv[])
     */
    gTimeoutId = gtk_timeout_add(0, &EventQueuePump, NULL);
 
-   XSetIOErrorHandler(VMwareUserXErrorHandler);
+   XSetIOErrorHandler(VMwareUserXIOErrorHandler);
 
    Pointer_Register(gUserMainWidget);
 

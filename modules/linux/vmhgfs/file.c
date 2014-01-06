@@ -126,8 +126,8 @@ struct file_operations HgfsFileFileOperations = {
 };
 
 
-/* 
- * Private functions. 
+/*
+ * Private functions.
  */
 
 /*
@@ -138,7 +138,7 @@ struct file_operations HgfsFileFileOperations = {
  *    Setup the Open request, depending on the op version.
  *
  * Results:
- *    Returns zero on success, or negative error on failure. 
+ *    Returns zero on success, or negative error on failure.
  *
  * Side effects:
  *    None
@@ -146,7 +146,7 @@ struct file_operations HgfsFileFileOperations = {
  *----------------------------------------------------------------------
  */
 
-static int 
+static int
 HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
                     struct file *file,   // IN: File pointer for this open
                     HgfsReq *req)        // IN/OUT: Packet to write into
@@ -157,7 +157,7 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
    HgfsFileName *fileNameP;
    size_t requestSize;
    int result;
-   
+
    ASSERT(inode);
    ASSERT(file);
    ASSERT(req);
@@ -167,14 +167,14 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
    switch (requestHeader->op) {
    case HGFS_OP_OPEN_V2:
       requestV2 = (HgfsRequestOpenV2 *)(HGFS_REQ_PAYLOAD(req));
-      
+
       /* We'll use these later. */
       fileNameP = &requestV2->fileName;
       requestSize = sizeof *requestV2;
-      
+
       requestV2->mask = HGFS_OPEN_VALID_MODE | HGFS_OPEN_VALID_FLAGS |
-         HGFS_OPEN_VALID_SPECIAL_PERMS |  HGFS_OPEN_VALID_OWNER_PERMS | 
-         HGFS_OPEN_VALID_GROUP_PERMS | HGFS_OPEN_VALID_OTHER_PERMS | 
+         HGFS_OPEN_VALID_SPECIAL_PERMS |  HGFS_OPEN_VALID_OWNER_PERMS |
+         HGFS_OPEN_VALID_GROUP_PERMS | HGFS_OPEN_VALID_OTHER_PERMS |
          HGFS_OPEN_VALID_FILE_NAME | HGFS_OPEN_VALID_SERVER_LOCK;
 
       /* Set mode. */
@@ -207,7 +207,7 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
       break;
    case HGFS_OP_OPEN:
       request = (HgfsRequestOpen *)(HGFS_REQ_PAYLOAD(req));
-     
+
       /* We'll use these later. */
       fileNameP = &request->fileName;
       requestSize = sizeof *request;
@@ -252,7 +252,7 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
            file->f_flags, file->f_mode));
 
    /* Convert to CP name. */
-   result = CPName_ConvertTo(fileNameP->name, 
+   result = CPName_ConvertTo(fileNameP->name,
                              HGFS_PACKET_MAX - (requestSize - 1),
                              fileNameP->name);
    if (result < 0) {
@@ -275,7 +275,7 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
  *
  * HgfsUnpackOpenReply --
  *
- *    Get interesting fields out of the Open reply, depending on the op 
+ *    Get interesting fields out of the Open reply, depending on the op
  *    version.
  *
  * Results:
@@ -303,7 +303,7 @@ HgfsUnpackOpenReply(HgfsReq *req,          // IN: Packet with reply inside
 
    switch (opUsed) {
    case HGFS_OP_OPEN_V2:
-      replyV2 = (HgfsReplyOpenV2 *)(HGFS_REQ_PAYLOAD(req));            
+      replyV2 = (HgfsReplyOpenV2 *)(HGFS_REQ_PAYLOAD(req));
       replySize = sizeof *replyV2;
       *file = replyV2->file;
       *lock = replyV2->acquiredLock;
@@ -315,7 +315,7 @@ HgfsUnpackOpenReply(HgfsReq *req,          // IN: Packet with reply inside
       *lock = HGFS_LOCK_NONE;
       break;
    default:
-      
+
       /* This really shouldn't happen since we set opUsed ourselves. */
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsUnpackOpenReply: unexpected "
               "OP type encountered\n"));
@@ -483,16 +483,16 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
    requestHeader = (HgfsRequest *)(HGFS_REQ_PAYLOAD(req));
 
   retry:
-   /* 
-    * Set up pointers using the proper struct This lets us check the 
-    * version exactly once and use the pointers later. 
+   /*
+    * Set up pointers using the proper struct This lets us check the
+    * version exactly once and use the pointers later.
     */
    requestHeader->op = opUsed = atomic_read(&hgfsVersionOpen);
    requestHeader->id = req->id;
 
    result = HgfsPackOpenRequest(inode, file, req);
    if (result != 0) {
-      LOG(4, (KERN_DEBUG "VMware hgfs: HgfsOpen: error packing request\n"));  
+      LOG(4, (KERN_DEBUG "VMware hgfs: HgfsOpen: error packing request\n"));
       goto out;
    }
 
@@ -518,41 +518,51 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
                  replyFile));
 
          /*
-          * HgfsCreate faked all of the inode's attributes, so by the time 
-          * we're done in HgfsOpen, we need to make sure that the attributes 
-          * in the inode are real. The following is only necessary when 
-          * O_CREAT is set, otherwise we got here after HgfsLookup (which sent 
+          * HgfsCreate faked all of the inode's attributes, so by the time
+          * we're done in HgfsOpen, we need to make sure that the attributes
+          * in the inode are real. The following is only necessary when
+          * O_CREAT is set, otherwise we got here after HgfsLookup (which sent
           * a getattr to the server and got the real attributes).
           *
-          * In particular, we'd like to at least try and set the inode's 
-          * uid/gid to match the caller's. We don't expect this to work, 
-          * because Windows servers will ignore it, and Linux servers running 
-          * as non-root won't be able to change it, but we're forward thinking 
+          * In particular, we'd like to at least try and set the inode's
+          * uid/gid to match the caller's. We don't expect this to work,
+          * because Windows servers will ignore it, and Linux servers running
+          * as non-root won't be able to change it, but we're forward thinking
           * people.
-          * 
-          * Either way, we force a revalidate following the setattr so that 
+          *
+          * Either way, we force a revalidate following the setattr so that
           * we'll get the actual uid/gid from the server.
           */
          if (file->f_flags & O_CREAT) {
-            struct iattr setUidGid;
-            
-            setUidGid.ia_valid = ATTR_UID | ATTR_GID;
-            setUidGid.ia_uid = current->fsuid;
-            /* 
-             * XXX: How can we handle SGID from here? We would need access to 
-             * this dentry's parent inode's mode and gid.
-             *
-             * After the setattr, we desperately want a revalidate so we can
-             * get the true attributes from the server. However, the setattr
-             * may have done that for us. To prevent a spurious revalidate,
-             * reset the dentry's time before the setattr. That way, if setattr
-             * ends up revalidating the dentry, the subsequent call to 
-             * revalidate will do nothing.
+            struct dentry *dparent;
+            struct inode *iparent;
+
+            /*
+             * This is not the root of our file system so there should always
+             * be a parent.
              */
-            setUidGid.ia_gid = current->fsgid;
-            HgfsDentryAgeForce(file->f_dentry);
-            HgfsSetattr(file->f_dentry, &setUidGid);
-            HgfsRevalidate(file->f_dentry);
+            ASSERT(file->f_dentry->d_parent);
+
+            /*
+             * Here we obtain a reference on the parent to make sure it doesn't
+             * go away.  This might not be necessary, since the existence of
+             * a child (which we hold a reference to in this call) should
+             * account for a reference in the parent, but it's safe to do so.
+             * Overly cautious and safe is better than risky and broken.
+             *
+             * XXX Note that this and a handful of other hacks wouldn't be
+             * necessary if we actually created the file in our create
+             * implementation (where references and locks are properly held).
+             * We could do this if we were willing to give up support for
+             * O_EXCL on 2.4 kernels.
+             */
+            dparent = dget(file->f_dentry->d_parent);
+            iparent = dparent->d_inode;
+
+            HgfsSetUidGid(iparent, file->f_dentry,
+                          current->fsuid, current->fsgid);
+
+            dput(dparent);
          }
          break;
 
@@ -564,7 +574,7 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
             atomic_set(&hgfsVersionOpen, HGFS_OP_OPEN);
             goto retry;
          }
-         
+
          /* Fallthrough. */
       default:
          break;
@@ -581,18 +591,18 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
 out:
    HgfsFreeRequest(req);
 
-   /* 
-    * If the open failed (for any reason) and we tried to open a newly created 
-    * file, we must ensure that the next operation on this inode triggers a 
-    * revalidate to the server. This is because the file wasn't created on the 
+   /*
+    * If the open failed (for any reason) and we tried to open a newly created
+    * file, we must ensure that the next operation on this inode triggers a
+    * revalidate to the server. This is because the file wasn't created on the
     * server, yet we currently believe that it was, because we created a fake
     * inode with a hashed dentry for it in HgfsCreate. We will continue to
-    * believe this until the dentry's ttl expires, which will cause a 
+    * believe this until the dentry's ttl expires, which will cause a
     * revalidate to the server that will reveal the truth. So in order to find
-    * the truth as soon as possible, we'll reset the dentry's last revalidate 
+    * the truth as soon as possible, we'll reset the dentry's last revalidate
     * time now to force a revalidate the next time someone uses the dentry.
     *
-    * We're using our own flag to track this case because using O_CREAT isn't 
+    * We're using our own flag to track this case because using O_CREAT isn't
     * good enough: HgfsOpen will be called with O_CREAT even if the file exists
     * on the server, and if that's the case, there's no need to revalidate.
     *
@@ -614,7 +624,7 @@ out:
  * HgfsAioRead --
  *
  *    Called when the kernel initiates an asynchronous read to a file in
- *    our filesystem. Our function is just a thin wrapper around 
+ *    our filesystem. Our function is just a thin wrapper around
  *    generic_file_aio_read() that tries to validate the dentry first.
  *
  * Results:
@@ -627,7 +637,7 @@ out:
  *----------------------------------------------------------------------
  */
 
-static ssize_t 
+static ssize_t
 HgfsAioRead(struct kiocb *iocb,      // IN:  I/O control block
             const struct iovec *iov, // OUT: Array of I/O buffers
             unsigned long numSegs,   // IN:  Number of buffers
@@ -660,7 +670,7 @@ HgfsAioRead(struct kiocb *iocb,      // IN:  I/O control block
  * HgfsAioWrite --
  *
  *    Called when the kernel initiates an asynchronous write to a file in
- *    our filesystem. Our function is just a thin wrapper around 
+ *    our filesystem. Our function is just a thin wrapper around
  *    generic_file_aio_write() that tries to validate the dentry first.
  *
  *    Note that files opened with O_SYNC (or superblocks mounted with
@@ -676,7 +686,7 @@ HgfsAioRead(struct kiocb *iocb,      // IN:  I/O control block
  *----------------------------------------------------------------------
  */
 
-static ssize_t 
+static ssize_t
 HgfsAioWrite(struct kiocb *iocb,      // IN:  I/O control block
              const struct iovec *iov, // IN:  Array of I/O buffers
              unsigned long numSegs,   // IN:  Number of buffers
@@ -690,14 +700,14 @@ HgfsAioWrite(struct kiocb *iocb,      // IN:  I/O control block
    ASSERT(iov);
 
    LOG(6, (KERN_DEBUG "VMware hgfs: HgfsAioWrite: was called\n"));
-   
+
    result = HgfsRevalidate(iocb->ki_filp->f_dentry);
    if (result) {
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsAioWrite: invalid dentry\n"));
       goto out;
    }
 
-   result = generic_file_aio_write(iocb, iov, numSegs, offset);   
+   result = generic_file_aio_write(iocb, iov, numSegs, offset);
   out:
    return result;
 }
@@ -924,7 +934,7 @@ HgfsRelease(struct inode *inode,  // IN: Inode that this file points to
    handle = FILE_GET_FI_P(file)->handle;
    LOG(6, (KERN_DEBUG "VMware hgfs: HgfsRelease: close fh %u\n", handle));
 
-   /* 
+   /*
     * This may be our last open handle to an inode, so we should flush our
     * dirty pages before closing it.
     */

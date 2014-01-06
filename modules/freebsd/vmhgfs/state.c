@@ -24,17 +24,21 @@
 
 #include <sys/param.h>
 #include <sys/types.h>
-#include <sys/malloc.h>
-#include <sys/libkern.h>
 #include <sys/queue.h>
-#include <sys/lock.h>
-#include <sys/mutex.h>
+#include <sys/fcntl.h>
+
+#if defined(__FreeBSD__)
+#  include <sys/libkern.h>
+#  include <sys/malloc.h>
+#elif defined(__APPLE__)
+#  include <string.h>
+#endif
 
 #include "hgfs_kernel.h"
 #include "state.h"
 #include "debug.h"
 #include "sha1.h"
-
+#include "os.h"
 
 /*
  * Macros
@@ -50,15 +54,14 @@
  * Local functions (prototypes)
  */
 
-/* Internal version of a public function, to allow bypassing htp locking as needed */
 static int HgfsVnodeGetInt(struct vnode **vpp,
-                           struct HgfsSuperInfo *sip,
-                           struct mount *vfsp,
-                           struct vop_vector *vopp,
-                           const char *fileName,
-                           HgfsFileType fileType,
-                           HgfsFileHashTable *htp,
-                           Bool lockHtp);
+			   struct HgfsSuperInfo *sip,
+			   struct mount *vfsp,
+			   const char *fileName,
+			   HgfsFileType fileType,
+			   HgfsFileHashTable *htp,
+			   Bool lockHtp,
+			   Bool rootVnode);
 
 /* Allocation/initialization/free of open file state */
 static HgfsOpenFile *HgfsAllocOpenFile(const char *fileName, HgfsFileType fileType,
@@ -68,8 +71,7 @@ static void HgfsFreeOpenFile(HgfsOpenFile *ofp, HgfsFileHashTable *htp);
 
 /* Acquiring/releasing file state */
 static HgfsFile *HgfsGetFile(const char *fileName, HgfsFileType fileType,
-                             HgfsFileHashTable *htp,
-                             Bool lockHtp);
+			     HgfsFileHashTable *htp, Bool lockHtp);
 static void HgfsReleaseFile(HgfsFile *fp, HgfsFileHashTable *htp);
 static int HgfsInitFile(HgfsFile *fp, const char *fileName, HgfsFileType fileType);
 
@@ -82,8 +84,6 @@ static HgfsFile *HgfsFindFile(const char *fileName, HgfsFileHashTable *htp);
 static unsigned int HgfsFileNameHash(const char *fileName);
 static void HgfsNodeIdHash(const char *fileName, uint32_t fileNameLength,
                            ino_t *outHash);
-
-
 /*
  * Global functions
  */
@@ -93,19 +93,19 @@ static void HgfsNodeIdHash(const char *fileName, uint32_t fileNameLength,
  *
  * HgfsVnodeGet --
  *
- *    Creates a vnode for the provided filename.
+ *      Creates a vnode for the provided filename.
  *
- *    This will always allocate a vnode and HgfsOpenFile.  If a HgfsFile
- *    already exists for this filename then that is used, if a HgfsFile doesn't
- *    exist, one is created.
+ *      This will always allocate a vnode and HgfsOpenFile.  If a HgfsFile
+ *      already exists for this filename then that is used, if a HgfsFile doesn't
+ *      exist, one is created.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.  The new
- *    vnode is returned locked.
+ *      Returns 0 on success and a non-zero error code on failure.  The new
+ *      vnode is returned locked.
  *
  * Side effects:
- *    If the HgfsFile already exists, its reference count is incremented;
- *    otherwise a HgfsFile is created.
+ *      If the HgfsFile already exists, its reference count is incremented;
+ *      otherwise a HgfsFile is created.
  *
  *----------------------------------------------------------------------------
  */
@@ -114,12 +114,41 @@ int
 HgfsVnodeGet(struct vnode **vpp,        // OUT: Filled with address of created vnode
              HgfsSuperInfo *sip,        // IN:  Superinfo
              struct mount *vfsp,        // IN:  Filesystem structure
-             struct vop_vector *vopp,   // IN:  Vnode operations vector
              const char *fileName,      // IN:  Name of this file
              HgfsFileType fileType,     // IN:  Type of file
              HgfsFileHashTable *htp)    // IN:  File hash table
 {
-   return HgfsVnodeGetInt(vpp, sip, vfsp, vopp, fileName, fileType, htp, TRUE);
+   return HgfsVnodeGetInt(vpp, sip, vfsp, fileName, fileType, htp, TRUE, FALSE);
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsVnodeGetRoot --
+ *
+ *      Creates a root vnode. This should only be called by the VFS mount
+ *      function when the filesystem is first being mounted.
+ *
+ * Results:
+ *      Returns 0 on success and a non-zero error code on failure.  The new
+ *      vnode is returned locked on FreeBSD.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int
+HgfsVnodeGetRoot(struct vnode **vpp,      // OUT: Filled with address of created vnode
+		 HgfsSuperInfo *sip,      // IN:  Superinfo
+		 struct mount *vfsp,      // IN:  Filesystem structure
+		 const char *fileName,    // IN:  Name of this file
+		 HgfsFileType fileType,   // IN:  Type of file
+		 HgfsFileHashTable *htp)  // IN:  File hash table
+{
+   return HgfsVnodeGetInt(vpp, sip, vfsp, fileName, fileType, htp, TRUE, TRUE);
 }
 
 
@@ -128,13 +157,13 @@ HgfsVnodeGet(struct vnode **vpp,        // OUT: Filled with address of created v
  *
  * HgfsVnodePut --
  *
- *    Releases the provided vnode.
+ *      Releases the provided vnode.
  *
- *    This will always free both the vnode and its associated HgfsOpenFile.
- *    The HgfsFile's reference count is decremented and, if 0, freed.
+ *      This will free the associated vnode.
+ *      The HgfsFile's reference count is decremented and, if 0, freed.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
  *
@@ -151,9 +180,11 @@ HgfsVnodePut(struct vnode *vp,          // IN: Vnode to release
    ASSERT(vp);
    ASSERT(htp);
 
+   DEBUG(VM_DEBUG_ENTRY, "Entering HgfsVnodePut\n");
+
    /* Get our private open-file state. */
    ofp = HGFS_VP_TO_OFP(vp);
-   if (!ofp) {          // XXX Maybe ASSERT() this?
+   if (!ofp) {
       return HGFS_ERR;
    }
 
@@ -171,138 +202,42 @@ HgfsVnodePut(struct vnode *vp,          // IN: Vnode to release
 /*
  *----------------------------------------------------------------------------
  *
- * HgfsVnodeDup --
- *
- *    Duplicates the vnode and HgfsOpenFile (per-open state) of a file and
- *    increments the reference count of the underlying HgfsFile.  This function
- *    just calls HgfsVnodeGet with the right arguments.
- *
- * Results:
- *    Returns 0 on success and a non-zero error code on failure.  On success
- *    the address of the duplicated vnode is written to newVpp.
- *
- * Side effects:
- *    The HgfsFile for origVp will have an additional reference.
- *
- *----------------------------------------------------------------------------
- */
-
-int
-HgfsVnodeDup(struct vnode **newVpp,             // OUT: Given address of new vnode
-             struct vnode *origVp,              // IN:  Vnode to duplicate
-             struct HgfsSuperInfo *sip,         // IN:  Superinfo pointer
-             HgfsFileHashTable *htp)            // IN:  File hash table
-{
-   ASSERT(newVpp);
-   ASSERT(origVp);
-   ASSERT(sip);
-   ASSERT(htp);
-
-   DEBUG(VM_DEBUG_ALWAYS, "HgfsVnodeDup: duping %s\n", HGFS_VP_TO_FILENAME(origVp));
-
-   return HgfsVnodeGet(newVpp, sip, origVp->v_mount, origVp->v_op,
-                       HGFS_VP_TO_FILENAME(origVp), HGFS_VP_TO_HGFSFILETYPE(origVp),
-                       &sip->fileHashTable);
-}
-
-
-/*
- *----------------------------------------------------------------------------
- *
- * HgfsFileNameToVnode --
- *
- *    Allocates new per-open-file state if a HgfsFile for fileName exists in
- *    the provided file hash table.
- *
- * Results:
- *    Returns 0 on success or a non-zero error code on failure.  On success,
- *    vpp is filled with the address of the new per-open state.
- *
- * Side effects:
- *    The reference count of the HgfsFile for fileName is incremented if it
- *    exists.
- *
- *----------------------------------------------------------------------------
- */
-
-int
-HgfsFileNameToVnode(const char *fileName,       // IN: Name of the file to look up
-                    struct vnode **vpp,         // OUT: Address of created vnode
-                    struct HgfsSuperInfo *sip,  // IN: Superinfo pointer
-                    struct mount *vfsp,         // IN: Filesystem structure
-                    HgfsFileHashTable *htp)     // IN: File hash table
-{
-   HgfsFile *fp;
-   int retval;
-
-   ASSERT(vpp);
-   ASSERT(sip);
-   ASSERT(vfsp);
-   ASSERT(fileName);
-   ASSERT(htp);
-
-   DEBUG(VM_DEBUG_ALWAYS, "HgfsFileNameToVnode: looking for %s\n", fileName);
-
-   mtx_lock(&htp->mutex);
-
-   fp = HgfsFindFile(fileName, htp);
-   if (!fp) {
-      mtx_unlock(&htp->mutex);
-      return HGFS_ERR;
-   }
-
-   /* Guaranteed by HgfsFindFile(). */
-   ASSERT(strcmp(fileName, fp->fileName) == 0);
-
-   retval = HgfsVnodeGetInt(vpp, sip, vfsp, sip->rootVnode->v_op, fileName, fp->fileType,
-                            htp, FALSE);
-   mtx_unlock(&htp->mutex);
-
-   DEBUG(VM_DEBUG_ALWAYS, "HgfsFileNameToVnode: found %s\n", fileName);
-
-   return retval;
-}
-
-
-/*
- *----------------------------------------------------------------------------
- *
  * HgfsNodeIdGet --
  *
- *    Gets the node id for the provided file.  This will only calculate the
- *    node id again if a per-file state structure doesn't yet exist for this
- *    file.  (This situation exists on a readdir since dentries are filled in
- *    rather than creating vnodes.)
+ *      Gets the node id for the provided file.  This will only calculate the
+ *      node id again if a per-file state structure doesn't yet exist for this
+ *      file.  (This situation exists on a readdir since dentries are filled in
+ *      rather than creating vnodes.)
  *
- *    In Solaris, node ids are provided in vnodes and inode numbers are
- *    provided in dentries.  For applications to work correctly, we must make
- *    sure that the inode number of a file's dentry and the node id in a file's
- *    vnode match one another.  This poses a problem since vnodes typically do
- *    not exist when dentries need to be created, and once a dentry is created
- *    we have no reference to it since it is copied to the user and freed from
- *    kernel space.  An example of a program that breaks when these values
- *    don't match is /usr/bin/pwd.  This program first acquires the node id of
- *    "." from its vnode, then traverses backwards to ".." and looks for the
- *    dentry in that directory with the inode number matching the node id.
- *    (This is how it obtains the name of the directory it was just in.)
- *    /usr/bin/pwd repeats this until it reaches the root directory, at which
- *    point it concatenates the filenames it acquired along the way and
- *    displays them to the user.  When inode numbers don't match the node id,
- *    /usr/bin/pwd displays an error saying it cannot determine the directory.
+ *      In Solaris, node ids are provided in vnodes and inode numbers are
+ *      provided in dentries.  For applications to work correctly, we must make
+ *      sure that the inode number of a file's dentry and the node id in a file's
+ *      vnode match one another.  This poses a problem since vnodes typically do
+ *      not exist when dentries need to be created, and once a dentry is created
+ *      we have no reference to it since it is copied to the user and freed from
+ *      kernel space.  An example of a program that breaks when these values
+ *      don't match is /usr/bin/pwd.  This program first acquires the node id of
+ *      "." from its vnode, then traverses backwards to ".." and looks for the
+ *      dentry in that directory with the inode number matching the node id.
+ *      (This is how it obtains the name of the directory it was just in.)
+ *      /usr/bin/pwd repeats this until it reaches the root directory, at which
+ *      point it concatenates the filenames it acquired along the way and
+ *      displays them to the user.  When inode numbers don't match the node id,
+ *      /usr/bin/pwd displays an error saying it cannot determine the directory.
  *
- *    The Hgfs protocol does not provide us with unique identifiers for files
- *    since it must support filesystems that do not have the concept of inode
- *    numbers.  Therefore, we must maintain a mapping from filename to node id/
- *    inode numbers.  This is done in a stateless manner by calculating the
- *    SHA-1 hash of the filename.  All points in the Hgfs code that need a node
- *    id/inode number obtain it by either calling this function or directly
- *    referencing the saved node id value in the vnode, if one is available.
+ *      The Hgfs protocol does not provide us with unique identifiers for files
+ *      since it must support filesystems that do not have the concept of inode
+ *      numbers.  Therefore, we must maintain a mapping from filename to node id/
+ *      inode numbers.  This is done in a stateless manner by calculating the
+ *      SHA-1 hash of the filename.  All points in the Hgfs code that need a node
+ *      id/inode number obtain it by either calling this function or directly
+ *      referencing the saved node id value in the vnode, if one is available.
  *
  * Results:
- *    None.
+ *      None.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -319,7 +254,7 @@ HgfsNodeIdGet(HgfsFileHashTable *htp,   // IN:  File hash table
    ASSERT(fileName);
    ASSERT(outNodeId);
 
-   mtx_lock(&htp->mutex);
+   os_mutex_lock(htp->mutex);
 
    fp = HgfsFindFile(fileName, htp);
    if (fp) {
@@ -328,7 +263,7 @@ HgfsNodeIdGet(HgfsFileHashTable *htp,   // IN:  File hash table
       HgfsNodeIdHash(fileName, fileNameLength, outNodeId);
    }
 
-   mtx_unlock(&htp->mutex);
+   os_mutex_unlock(htp->mutex);
 }
 
 
@@ -337,13 +272,13 @@ HgfsNodeIdGet(HgfsFileHashTable *htp,   // IN:  File hash table
  *
  * HgfsInitFileHashTable --
  *
- *    Initializes the hash table used to track per-file state.
+ *      Initializes the hash table used to track per-file state.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -355,7 +290,7 @@ HgfsInitFileHashTable(HgfsFileHashTable *htp)   // IN: Hash table to initialize
 
    ASSERT(htp);
 
-   mtx_init(&htp->mutex, "HgfsHashChain", NULL, MTX_DEF);
+   htp->mutex = os_mutex_alloc_init("HgfsHashChain");
 
    for (i = 0; i < ARRAYSIZE(htp->hashTable); i++) {
       DblLnkLst_Init(&htp->hashTable[i]);
@@ -365,11 +300,27 @@ HgfsInitFileHashTable(HgfsFileHashTable *htp)   // IN: Hash table to initialize
 }
 
 
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsDestroyFileHashTable --
+ *
+ *      Cleanup the hash table used to track per-file state.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
 void
 HgfsDestroyFileHashTable(HgfsFileHashTable *htp)
 {
    ASSERT(htp);
-   mtx_destroy(&htp->mutex);
+   os_mutex_destroy(htp->mutex);
 }
 
 
@@ -378,19 +329,19 @@ HgfsDestroyFileHashTable(HgfsFileHashTable *htp)
  *
  * HgfsFileHashTableIsEmpty --
  *
- *    Determines whether the hash table is in an acceptable state to unmount
- *    the file system.
+ *      Determines whether the hash table is in an acceptable state to unmount
+ *      the file system.
  *
- *    Note that this is not strictly empty: if the only file in the table is
- *    the root of the filesystem and its reference count is 1, this is
- *    considered empty since this is part of the operation of unmounting the
- *    filesystem.
+ *      Note that this is not strictly empty: if the only file in the table is
+ *      the root of the filesystem and its reference count is 1, this is
+ *      considered empty since this is part of the operation of unmounting the
+ *      filesystem.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns TRUE if the hash table is empty and false otherwise.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -404,7 +355,7 @@ HgfsFileHashTableIsEmpty(HgfsSuperInfo *sip,            // IN: Superinfo
    ASSERT(sip);
    ASSERT(htp);
 
-   mtx_lock(&htp->mutex);
+   os_mutex_lock(htp->mutex);
 
    /* Traverse each bucket. */
    for (i = 0; i < ARRAYSIZE(htp->hashTable); i++) {
@@ -426,24 +377,24 @@ HgfsFileHashTableIsEmpty(HgfsSuperInfo *sip,            // IN: Superinfo
           * someone calls HgfsRoot(), we return that vnode.
           */
          if (HGFS_IS_ROOT_FILE(sip, currFile)) {
-            VI_LOCK(sip->rootVnode);
-            if (sip->rootVnode->v_usecount <= 1) {
-               VI_UNLOCK(sip->rootVnode);
+            HGFS_VP_VI_LOCK(sip->rootVnode);
+            if (!HGFS_VP_ISINUSE(sip->rootVnode, 1)) {
+               HGFS_VP_VI_UNLOCK(sip->rootVnode);
 
                /* This file is okay; skip to the next one. */
                currNode = currNode->next;
                continue;
             }
 
-            DEBUG(VM_DEBUG_FAIL, "HgfsFileHashTableIsEmpty: %s has count of %d.\n",
-                  currFile->fileName, sip->rootVnode->v_usecount);
+            DEBUG(VM_DEBUG_FAIL, "HgfsFileHashTableIsEmpty: %s is in use.\n",
+		  currFile->fileName);
 
-            VI_UNLOCK(sip->rootVnode);
+            HGFS_VP_VI_UNLOCK(sip->rootVnode);
             /* Fall through to failure case */
          }
 
          /* Fail if a file is found. */
-         mtx_unlock(&htp->mutex);
+         os_mutex_unlock(htp->mutex);
          DEBUG(VM_DEBUG_FAIL, "HgfsFileHashTableIsEmpty: %s "
                "still in use (file count=%d).\n",
                currFile->fileName, currFile->refCount);
@@ -451,7 +402,7 @@ HgfsFileHashTableIsEmpty(HgfsSuperInfo *sip,            // IN: Superinfo
       }
    }
 
-   mtx_unlock(&htp->mutex);
+   os_mutex_unlock(htp->mutex);
 
    return TRUE;
 }
@@ -462,23 +413,23 @@ HgfsFileHashTableIsEmpty(HgfsSuperInfo *sip,            // IN: Superinfo
  *
  * HgfsHandleIsSet --
  *
- *    Determines whether handle of the vnode's open file is currently set.
+ *      Determines whether one of vnode's open file handles is currently set.
  *
  * Results:
- *    Returns TRUE if the handle is set, FALSE if the handle is not set.
- *    HGFS_ERR is returned on error.
+ *      Returns TRUE if the handle is set, FALSE if the handle is not set.
+ *      HGFS_ERR is returned on error.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
 
 Bool
-HgfsHandleIsSet(struct vnode *vp)       // IN: Vnode to check handle of
+HgfsHandleIsSet(struct vnode *vp)            // IN: Vnode to check handle of
 {
    HgfsOpenFile *ofp;
-   Bool isSet;
+   Bool ret;
 
    ASSERT(vp);
 
@@ -487,11 +438,53 @@ HgfsHandleIsSet(struct vnode *vp)       // IN: Vnode to check handle of
       return HGFS_ERR;
    }
 
-   mtx_lock(&ofp->handleMutex);
-   isSet = ofp->handleIsSet;
-   mtx_unlock(&ofp->handleMutex);
+   os_mutex_lock(ofp->handleMutex);
 
-   return isSet;
+   ret = ofp->handleRefCount ? TRUE : FALSE;
+
+   os_mutex_unlock(ofp->handleMutex);
+
+   return ret;
+ }
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsHandleIncrementRefCount --
+ *
+ *      Increments the reference count of the specified handle associated with
+ *      the vnode (vp).
+ *
+ * Results:
+ *      Returns 0 on success and HGFS_ERR on error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int
+HgfsHandleIncrementRefCount(struct vnode *vp)           // IN
+{
+   int ret = 0;
+   HgfsOpenFile *ofp;
+
+   ASSERT(vp);
+
+   ofp = HGFS_VP_TO_OFP(vp);
+   if (!ofp) {
+      return HGFS_ERR;
+   }
+
+   os_mutex_lock(ofp->handleMutex);
+
+   ++ofp->handleRefCount;
+
+   os_mutex_unlock(ofp->handleMutex);
+
+   return ret;
 }
 
 
@@ -500,21 +493,24 @@ HgfsHandleIsSet(struct vnode *vp)       // IN: Vnode to check handle of
  *
  * HgfsSetOpenFileHandle --
  *
- *    Sets the open file handle for the provided vnode.
+ *      Sets the file handle for the provided vnode if it has reference count
+ *      equal to zero. The reference count of the handle must be increased when
+ *      the handle is set. This is done with HgfsHandleIsSet.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    The handle may not be set again until it is cleared.
+ *      The handle may not be set again until it is cleared.
  *
  *----------------------------------------------------------------------------
  */
 
 int
-HgfsSetOpenFileHandle(struct vnode *vp,         // IN: Vnode to set handle for
-                      HgfsHandle handle)        // IN: Value of handle
+HgfsSetOpenFileHandle(struct vnode *vp,          // IN: Vnode to set handle for
+		      HgfsHandle handle)         // IN: Value of handle
 {
+   int ret = 0;
    HgfsOpenFile *ofp;
 
    ASSERT(vp);
@@ -524,24 +520,27 @@ HgfsSetOpenFileHandle(struct vnode *vp,         // IN: Vnode to set handle for
       return HGFS_ERR;
    }
 
-   mtx_lock(&ofp->handleMutex);
+   os_mutex_lock(ofp->handleMutex);
 
-   if (ofp->handleIsSet) {
-      DEBUG(VM_DEBUG_FAIL, "**HgfsSetOpenFileHandle: handle for %s already set to %d; "
-            "cannot set to %d\n", HGFS_VP_TO_FILENAME(vp), ofp->handle, handle);
-      mtx_unlock(&ofp->handleMutex);
-      return HGFS_ERR;
+   if (ofp->handleRefCount != 0) {
+      ret = HGFS_ERR;
+      goto out;
    }
-
+   ++ofp->handleRefCount;
    ofp->handle = handle;
-   ofp->handleIsSet = TRUE;
 
    DEBUG(VM_DEBUG_STATE, "HgfsSetOpenFileHandle: set handle for %s to %d\n",
          HGFS_VP_TO_FILENAME(vp), ofp->handle);
 
-   mtx_unlock(&ofp->handleMutex);
+out:
+   os_mutex_unlock(ofp->handleMutex);
 
-   return 0;
+   if (ret) {
+      DEBUG(VM_DEBUG_FAIL, "could not set file handle for %s\n",
+	    HGFS_VP_TO_FILENAME(vp));
+   }
+
+   return ret;
 }
 
 
@@ -550,23 +549,24 @@ HgfsSetOpenFileHandle(struct vnode *vp,         // IN: Vnode to set handle for
  *
  * HgfsGetOpenFileHandle --
  *
- *    Gets the open file handle for the provided vnode.
+ *      Gets the file handle for the provided vnode.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.  On success,
- *    the value of the vnode's handle is placed in outHandle.
+ *      Returns 0 on success and a non-zero error code on failure.  On success,
+ *      the value of the vnode's handle is placed in outHandle.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
 
 int
-HgfsGetOpenFileHandle(struct vnode *vp,         // IN:  Vnode to get handle for
-                      HgfsHandle *outHandle)    // OUT: Filled with value of handle
+HgfsGetOpenFileHandle(struct vnode *vp,          // IN:  Vnode to get handle for
+		      HgfsHandle *outHandle)     // OUT: Filled with value of handle
 {
    HgfsOpenFile *ofp;
+   int ret = 0;
 
    ASSERT(vp);
    ASSERT(outHandle);
@@ -576,41 +576,98 @@ HgfsGetOpenFileHandle(struct vnode *vp,         // IN:  Vnode to get handle for
       return HGFS_ERR;
    }
 
-   mtx_lock(&ofp->handleMutex);
+   os_mutex_lock(ofp->handleMutex);
 
-   if (!ofp->handleIsSet) {
-      DEBUG(VM_DEBUG_FAIL, "**HgfsGetOpenFileHandle: handle for %s is not set.\n",
-            HGFS_VP_TO_FILENAME(vp));
-      mtx_unlock(&ofp->handleMutex);
-      return HGFS_ERR;
+   if (ofp->handleRefCount == 0) {
+      os_mutex_unlock(ofp->handleMutex);
+      ret = HGFS_ERR;
    }
 
    *outHandle = ofp->handle;
 
-   mtx_unlock(&ofp->handleMutex);
+   os_mutex_unlock(ofp->handleMutex);
 
-   return 0;
+   return ret;
 }
 
 
 /*
  *----------------------------------------------------------------------------
  *
- * HgfsClearOpenFileHandle --
+ * HgfsReleaseOpenFileHandle --
  *
- *    Clears the open file handle for the provided vnode.
+ *      Decrements the reference count of one of the handles for the provided
+ *      vnode. If the reference count becomes zero, then the handle is cleared.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    The handle may be set.
+ *      The handle may be cleared.
  *
  *----------------------------------------------------------------------------
  */
 
 int
-HgfsClearOpenFileHandle(struct vnode *vp)       // IN: Vnode to clear handle for
+HgfsReleaseOpenFileHandle(struct vnode *vp,          // IN
+			  Bool *closed)              // OUT
+{
+   int ret = 0;
+   HgfsOpenFile *ofp;
+
+   ASSERT(vp);
+
+   ofp = HGFS_VP_TO_OFP(vp);
+   if (!ofp) {
+      return HGFS_ERR;
+   }
+
+   *closed = FALSE;
+
+   os_mutex_lock(ofp->handleMutex);
+
+   /* Make sure the reference count is not going negative! */
+   ASSERT(ofp->handleRefCount > 0);
+
+   --ofp->handleRefCount;
+
+   /* If the reference count has gone to zero, clear the handle. */
+   if (ofp->handleRefCount == 0) {
+      DEBUG(VM_DEBUG_LOG, "closing directory handle\n");
+      ofp->handle = 0;
+      *closed = TRUE;
+   } else {
+      DEBUG(VM_DEBUG_LOG, "ReleaseOpenFileHandle with a refcount of: %d\n",
+	    ofp->handleRefCount);
+   }
+
+   os_mutex_unlock(ofp->handleMutex);
+
+   return ret;
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsShouldCloseOpenFileHandle --
+ *
+ *      Checks to see if the next call to HgfsReleaseOpenFileHandle will result in
+ *      the file handle being cleared.
+ *
+ * Results:
+ *      Returns TRUE if the file handle will be cleared on the next
+ *      HgfsReleaseOpenFileHandle call and FALSE otherwise.
+ *      Returns HGFS_ERR if an error was encountered.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+Bool
+HgfsShouldCloseOpenFileHandle(struct vnode *vp)  // IN: Vnode to clear handle for
 {
    HgfsOpenFile *ofp;
 
@@ -621,17 +678,16 @@ HgfsClearOpenFileHandle(struct vnode *vp)       // IN: Vnode to clear handle for
       return HGFS_ERR;
    }
 
-   mtx_lock(&ofp->handleMutex);
+   os_mutex_lock(ofp->handleMutex);
 
-   ofp->handle = 0;
-   ofp->handleIsSet = FALSE;
+   if (ofp->handleRefCount == 1) {
+      os_mutex_unlock(ofp->handleMutex);
+      return TRUE;
+   }
 
-   DEBUG(VM_DEBUG_STATE, "HgfsClearOpenFileHandle: cleared %s's handle\n",
-         HGFS_VP_TO_FILENAME(vp));
+   os_mutex_unlock(ofp->handleMutex);
 
-   mtx_unlock(&ofp->handleMutex);
-
-   return 0;
+   return FALSE;
 }
 
 
@@ -640,13 +696,13 @@ HgfsClearOpenFileHandle(struct vnode *vp)       // IN: Vnode to clear handle for
  *
  * HgfsSetOpenFileMode --
  *
- *    Sets the mode of the open file for the provided vnode.
+ *      Sets the mode of the open file for the provided vnode.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    The mode may not be set again until cleared.
+ *      The mode may not be set again until cleared.
  *
  *----------------------------------------------------------------------------
  */
@@ -664,12 +720,12 @@ HgfsSetOpenFileMode(struct vnode *vp,   // IN: Vnode to set mode for
       return HGFS_ERR;
    }
 
-   mtx_lock(&ofp->modeMutex);
+   os_mutex_lock(ofp->modeMutex);
 
    if (ofp->modeIsSet) {
       DEBUG(VM_DEBUG_FAIL, "**HgfsSetOpenFileMode: mode for %s already set to %d; "
             "cannot set to %d\n", HGFS_VP_TO_FILENAME(vp), ofp->mode, mode);
-      mtx_unlock(&ofp->modeMutex);
+      os_mutex_unlock(ofp->modeMutex);
       return HGFS_ERR;
    }
 
@@ -679,7 +735,7 @@ HgfsSetOpenFileMode(struct vnode *vp,   // IN: Vnode to set mode for
    DEBUG(VM_DEBUG_STATE, "HgfsSetOpenFileMode: set mode for %s to %d\n",
          HGFS_VP_TO_FILENAME(vp), ofp->mode);
 
-   mtx_unlock(&ofp->modeMutex);
+   os_mutex_unlock(ofp->modeMutex);
 
    return 0;
 }
@@ -690,13 +746,13 @@ HgfsSetOpenFileMode(struct vnode *vp,   // IN: Vnode to set mode for
  *
  * HgfsGetOpenFileMode --
  *
- *    Gets the mode of the open file for the provided vnode.
+ *      Gets the mode of the file for the provided vnode.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -715,16 +771,16 @@ HgfsGetOpenFileMode(struct vnode *vp,   // IN:  Vnode to get mode for
       return HGFS_ERR;
    }
 
-   mtx_lock(&ofp->modeMutex);
+   os_mutex_lock(ofp->modeMutex);
 
    if (!ofp->modeIsSet) {
-      mtx_unlock(&ofp->modeMutex);
+      os_mutex_unlock(ofp->modeMutex);
       return HGFS_ERR;
    }
 
    *outMode = ofp->mode;
 
-   mtx_unlock(&ofp->modeMutex);
+   os_mutex_unlock(ofp->modeMutex);
 
    return 0;
 }
@@ -735,13 +791,13 @@ HgfsGetOpenFileMode(struct vnode *vp,   // IN:  Vnode to get mode for
  *
  * HgfsClearOpenFileMode --
  *
- *    Clears the mode of the open file for the provided vnode.
+ *      Clears the mode of the file for the provided vnode.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    The mode may be set again.
+ *      The mode may be set again.
  *
  *----------------------------------------------------------------------------
  */
@@ -758,17 +814,173 @@ HgfsClearOpenFileMode(struct vnode *vp) // IN: Vnode to clear mode for
       return HGFS_ERR;
    }
 
-   mtx_lock(&ofp->modeMutex);
+   os_mutex_lock(ofp->modeMutex);
 
    ofp->mode = 0;
    ofp->modeIsSet = FALSE;
 
-   DEBUG(VM_DEBUG_STATE, "HgfsClearOpenFileMode: cleared %s's mode\n",
+   DEBUG(VM_DEBUG_STATE, "HgfsClearOpenOpenFileMode: cleared %s's mode\n",
          HGFS_VP_TO_FILENAME(vp));
 
-   mtx_unlock(&ofp->modeMutex);
+   os_mutex_unlock(ofp->modeMutex);
 
    return 0;
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsFileLock --
+ *
+ *      Locks the HgfsFile associated with the vnode (vp). The type specifies is
+ *      we are locking for reads or writes. We only lock the HgfsFile on OS X
+ *      because FreeBSD vnodes are locked when handed to the VFS layer and there
+ *      is a 1:1 mapping between vnodes and HgfsFile objects so no extra locking
+ *      is required.
+ *
+ * Results:
+ *      Returns 0 on success and an error code on error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int
+HgfsFileLock(struct vnode *vp,  // IN: Vnode to lock
+	     HgfsLockType type) // IN: Reader or Writer lock?
+{
+#if defined(__APPLE__)
+   HgfsOpenFile *ofp;
+
+   ASSERT(vp);
+
+   ofp = HGFS_VP_TO_OFP(vp);
+   if (!ofp) {
+      return HGFS_ERR;
+   }
+
+   return HgfsFileLockOfp(ofp, type);
+#else
+   NOT_IMPLEMENTED();
+#endif
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsFileUnlock --
+ *
+ *      Unlocks the HgfsFile associated with the vnode (vp). Results are
+ *      undefined the type of lock specified is different than the one that the
+ *      vnode was locked with originally.
+ *
+ * Results:
+ *      Returns 0 on success and an error code on error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int
+HgfsFileUnlock(struct vnode *vp,  // IN: Vnode to unlock
+	       HgfsLockType type) // IN: Reader or Writer lock?
+{
+#if defined(__APPLE__)
+   HgfsOpenFile *ofp;
+
+   ASSERT(vp);
+
+   ofp = HGFS_VP_TO_OFP(vp);
+   if (!ofp) {
+      return HGFS_ERR;
+   }
+
+   return HgfsFileUnlockOfp(ofp, type);
+#else
+   NOT_IMPLEMENTED();
+#endif
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsFileLockOfp --
+ *
+ *      Locks the HgfsFile associated with the HgfsOpenFile. This funciton should
+ *      only be called by HgfsFileLock
+ *
+ * Results:
+ *      Returns 0 on success and an error code on error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int
+HgfsFileLockOfp(HgfsOpenFile *ofp, // IN: HgfsOpenFile to lcok
+		HgfsLockType type) // IN: Reader or Writer lock?
+{
+#if defined(__APPLE__)
+   ASSERT(ofp);
+
+   if (type == HGFS_READER_LOCK) {
+      os_rw_lock_lock_shared(ofp->rwFileLock);
+   } else if (type == HGFS_WRITER_LOCK) {
+      os_rw_lock_lock_exclusive(ofp->rwFileLock);
+   } else {
+      return HGFS_ERR;
+   }
+   return 0;
+#else
+   NOT_IMPLEMENTED();
+#endif
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsFileUnlockOfp --
+ *
+ *      Unlocks the HgfsFile associated with the HgfsOpenFile. This funciton should
+ *      only be called by inactive, reclaim and the HgfsFileUnlock routine.
+ *
+ * Results:
+ *      Returns 0 on success and an error code on error.
+ *
+ * Side effects:
+ *      None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+int
+HgfsFileUnlockOfp(HgfsOpenFile *ofp, // IN: HgfsOpenFile to unlcok
+		  HgfsLockType type) // IN: Reader or Writer lock?
+{
+#if defined(__APPLE__)
+   ASSERT(ofp);
+
+   if (type == HGFS_READER_LOCK) {
+      os_rw_lock_unlock_shared(ofp->rwFileLock);
+   } else if (type == HGFS_WRITER_LOCK) {
+      os_rw_lock_unlock_exclusive(ofp->rwFileLock);
+   } else {
+      return HGFS_ERR;
+   }
+   return 0;
+#else
+   NOT_IMPLEMENTED();
+#endif
 }
 
 
@@ -783,31 +995,32 @@ HgfsClearOpenFileMode(struct vnode *vp) // IN: Vnode to clear mode for
  *
  * HgfsVnodeGetInt --
  *
- *    Creates a vnode for the provided filename.
+ *      Creates a vnode for the provided filename.
  *
- *    This will always allocate a vnode and HgfsOpenFile.  If a HgfsFile
- *    already exists for this filename then that is used, if a HgfsFile doesn't
- *    exist, one is created.
+ *      This will always allocate a vnode and HgfsOpenFile.  If a HgfsFile
+ *      already exists for this filename then that is used, if a HgfsFile doesn't
+ *      exist, one is created.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.  The new
- *    vnode is returned locked.
+ *      Returns 0 on success and a non-zero error code on failure.  The new
+ *      vnode is returned locked.
  *
  * Side effects:
- *    If the HgfsFile already exists, its reference count is incremented;
- *    otherwise a HgfsFile is created.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
+
+#if defined(__FreeBSD__)
 static int
-HgfsVnodeGetInt(struct vnode **vpp,        // OUT: Filled with address of created vnode
-                HgfsSuperInfo *sip,        // IN:  Superinfo
-                struct mount *vfsp,        // IN:  Filesystem structure
-                struct vop_vector *vopp,   // IN:  Vnode operations vector
-                const char *fileName,      // IN:  Name of this file
-                HgfsFileType fileType,     // IN:  Type of file
-                HgfsFileHashTable *htp,    // IN:  File hash table
-                Bool lockHtp)              // IN:  Whether to lock the file hash table
+HgfsVnodeGetInt(struct vnode **vpp,        // OUT:  Filled with address of created vnode
+                HgfsSuperInfo *sip,        // IN:   Superinfo
+                struct mount *vfsp,        // IN:   Filesystem structure
+                const char *fileName,      // IN:   Name of this file
+                HgfsFileType fileType,     // IN:   Tyoe of file
+                HgfsFileHashTable *htp,    // IN:   File hash
+                Bool lockHtp,              // IN:   Whether to lock the file hash table
+		Bool rootVnode)            // IN:   Is this a root vnode?
 {
    struct vnode *vp;
    int ret = 0;
@@ -833,7 +1046,7 @@ HgfsVnodeGetInt(struct vnode **vpp,        // OUT: Filled with address of create
     * be one; the reference count in our HgfsFile takes on the role of the
     * vnode reference count.
     */
-   if ((ret = getnewvnode(HGFS_FS_NAME, vfsp, vopp, &vp)) != 0) {
+   if ((ret = getnewvnode(HGFS_FS_NAME, vfsp, &HgfsVnodeOps, &vp)) != 0) {
       return ret;
    }
 
@@ -873,6 +1086,11 @@ HgfsVnodeGetInt(struct vnode **vpp,        // OUT: Filled with address of create
       goto vnode_error;
    }
 
+   /* If this is going to be the root vnode, we have to mark it as such. */
+   if (rootVnode) {
+      vp->v_vflag |= VV_ROOT;
+   }
+
    /* Fill in the provided address with the new vnode. */
    *vpp = vp;
 
@@ -885,6 +1103,110 @@ vnode_error:
    return ret;
 }
 
+#elif defined(__APPLE__)
+static int
+HgfsVnodeGetInt(struct vnode **vpp,        // OUT
+		HgfsSuperInfo *sip,        // IN
+		struct mount *vfsp,        // IN
+		const char *fileName,      // IN
+		HgfsFileType fileType,     // IN
+		HgfsFileHashTable *htp,    // IN
+		Bool lockHtp,              // IN
+		Bool rootVnode)            // IN
+{
+   ASSERT(vpp);
+   ASSERT(sip);
+   ASSERT(vfsp);
+   ASSERT(fileName);
+   ASSERT(htp);
+
+   struct vnode *vp;
+   struct vnode_fsparam params;
+   int ret = 0;
+
+   params.vnfs_mp         = vfsp;
+   params.vnfs_str        = NULL;
+   params.vnfs_dvp        = NULL;
+   params.vnfs_fsnode     = NULL;
+   params.vnfs_vops       = HgfsVnodeOps;
+   params.vnfs_marksystem = FALSE;
+   params.vnfs_rdev       = 0;
+   params.vnfs_filesize   = 0;
+   params.vnfs_cnp        = NULL;
+   /* Do not let OS X cache vnodes for us. */
+   params.vnfs_flags      = VNFS_NOCACHE | VNFS_CANTCACHE;
+
+   if (rootVnode) {
+      params.vnfs_markroot = TRUE;
+   } else {
+      params.vnfs_markroot   = FALSE;
+   }
+
+   /*
+    * Now we'll initialize the vnode.  We need to set the file type, vnode
+    * operations, flags, filesystem pointer, reference count, and device.
+    * After that we'll create our private structures and hang them from the
+    * vnode's v_data pointer.
+    */
+   switch (fileType) {
+   case HGFS_FILE_TYPE_REGULAR:
+      params.vnfs_vtype = VREG;
+      break;
+
+   case HGFS_FILE_TYPE_DIRECTORY:
+      params.vnfs_vtype = VDIR;
+      break;
+
+   default:
+      /* Hgfs only supports directories and regular files */
+      goto vnode_error;
+   }
+
+   /*
+    * We now allocate our private open file structure.  This will correctly
+    * initialize the per-open-file state, as well as locate (or create if
+    * necessary) the per-file state.
+    */
+
+   HgfsOpenFile *ofp = HgfsAllocOpenFile(fileName, fileType, htp, lockHtp);
+
+   params.vnfs_fsnode = (void *)ofp;
+   if (params.vnfs_fsnode == NULL) {
+      ret = ENOMEM;
+      goto vnode_error;
+   }
+
+
+   ret = vnode_create(VNCREATE_FLAVOR, sizeof(params), &params, &vp);
+   ofp->vnodep = vp;
+
+   /* Get a soft FS reference to the vnode. This tells the system that the vnode
+    * has data associated with it. It is considered a weak reference though, in that
+    * it does not prevent the system from reusing the vnode.
+    */
+   vnode_addfsref(vp);
+
+   if (ret != 0) {
+      DEBUG(VM_DEBUG_FAIL, "Failed to create vnode");
+      ret = EINVAL;
+      goto vnode_error;
+   }
+
+   /* Fill in the provided address with the new vnode. */
+   *vpp = vp;
+
+   /* Return success */
+   return 0;
+
+   /* Cleanup points for errors. */
+vnode_error:
+   vnode_put(vp);
+   return ret;
+}
+#else
+   NOT_IMPLEMENTED();
+#endif
+
 /* Allocation/initialization/free of open file state */
 
 
@@ -893,14 +1215,14 @@ vnode_error:
  *
  * HgfsAllocOpenFile --
  *
- *    Allocates and initializes an open file structure.  Also finds or, if
- *    necessary, creates the underlying HgfsFile per-file state.
+ *      Allocates and initializes an open file structure.  Also finds or, if
+ *      necessary, creates the underlying HgfsFile per-file state.
  *
  * Results:
- *    Returns a pointer to the open file on success, NULL on error.
+ *      Returns a pointer to the open file on success, NULL on error.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -919,24 +1241,27 @@ HgfsAllocOpenFile(const char *fileName,         // IN: Name of file
    /*
     * We allocate and initialize our open-file state.
     */
-   ofp = (HgfsOpenFile *)malloc(sizeof *ofp, M_HGFS, M_ZERO|M_WAITOK);
-
-   /* Manually set these since the public functions need the lock. */
-   ofp->handle = 0;
-   ofp->handleIsSet = FALSE;
+   ofp = os_malloc(sizeof *ofp, M_ZERO | M_WAITOK);
 
    ofp->mode = 0;
    ofp->modeIsSet = FALSE;
 
-   mtx_init(&ofp->handleMutex, "hgfs_ofp", NULL, MTX_DEF);
-   mtx_init(&ofp->modeMutex, "hgfs_ofp_mode", NULL, MTX_DEF);
+#if defined(__APPLE__)
+   ofp->rwFileLock = os_rw_lock_alloc_init("hgfs_rw_file_lock");
+#endif
+
+   ofp->handleRefCount = 0;
+   ofp->handle = 0;
+
+   ofp->handleMutex = os_mutex_alloc_init("hgfs_mtx_handle");
+   ofp->modeMutex = os_mutex_alloc_init("hgfs_mtx_mode");
 
    /*
     * Now we get a reference to the underlying per-file state.
     */
    ofp->hgfsFile = HgfsGetFile(fileName, fileType, htp, lockHtp);
    if (!ofp->hgfsFile) {
-      free(ofp, M_HGFS);
+      os_free(ofp, sizeof *ofp);
       return NULL;
    }
 
@@ -949,13 +1274,13 @@ HgfsAllocOpenFile(const char *fileName,         // IN: Name of file
  *
  * HgfsFreeOpenFile --
  *
- *    Frees the provided open file.
+ *      Frees the provided open file.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -968,109 +1293,109 @@ HgfsFreeOpenFile(HgfsOpenFile *ofp,             // IN: Open file to free
    ASSERT(htp);
 
    /*
-    * First we release our reference to the underlying per-file state.
-    */
+   * First we release our reference to the underlying per-file state.
+   */
    HgfsReleaseFile(ofp->hgfsFile, htp);
 
    /*
     * Then we destroy anything initialized and free the open file.
     */
-   mtx_destroy(&ofp->handleMutex);
-   mtx_destroy(&ofp->modeMutex);
+#if defined(__APPLE__)
+   os_rw_lock_destroy(ofp->rwFileLock);
+#endif
+   os_mutex_destroy(ofp->handleMutex);
+   os_mutex_destroy(ofp->modeMutex);
 
-   free(ofp, M_HGFS);
+   os_free(ofp, sizeof *ofp);
 }
 
 
 /* Acquiring/releasing file state */
 
+ /*
+  *----------------------------------------------------------------------------
+  *
+  * HgfsGetFile --
+  *
+  *      Gets the file for the provided filename.
+  *
+  * Results:
+  *      Returns a pointer to the file on success, NULL on error.
+  *
+  * Side effects:
+  *      None.
+  *
+  *----------------------------------------------------------------------------
+  */
 
-/*
- *----------------------------------------------------------------------------
- *
- * HgfsGetFile --
- *
- *    Gets the file for the provided filename.
- *
- *    If no file structure exists for this filename, one is created and added
- *    to the hash table.
- *
- * Results:
- *    Returns a pointer to the file on success, NULL on error.
- *
- * Side effects:
- *    None.
- *
- *----------------------------------------------------------------------------
- */
+ static HgfsFile *
+ HgfsGetFile(const char *fileName,       // IN: Filename to get file for
+	     HgfsFileType fileType,      // IN: Type of file
+	     HgfsFileHashTable *htp,     // IN: Hash table to look in
+	     Bool lockHtp)               // IN: Whether to lock the hash table
+ {
+    HgfsFile *fp;
+    int err;
 
-static HgfsFile *
-HgfsGetFile(const char *fileName,       // IN: Filename to get file for
-            HgfsFileType fileType,      // IN: Type of file
-            HgfsFileHashTable *htp,     // IN: Hash table to look in
-            Bool lockHtp)               // IN: Whether to lock the hash table
-{
-   HgfsFile *fp;
-   int err;
-
-   ASSERT(fileName);
-   ASSERT(htp);
+    ASSERT(fileName);
+    ASSERT(htp);
 
    /*
     * We try to find the file in the hash table.  If it exists we increment its
     * reference count and return it.
     */
    if (lockHtp) {
-      mtx_lock(&htp->mutex);
+      os_mutex_lock(htp->mutex);
    }
 
    fp = HgfsFindFile(fileName, htp);
    if (fp) {
       /* Signify our reference to this file. */
-      mtx_lock(&fp->mutex);
+      os_mutex_lock(fp->mutex);
       fp->refCount++;
-      mtx_unlock(&fp->mutex);
+      os_mutex_unlock(fp->mutex);
 
       if (lockHtp) {
-         mtx_unlock(&htp->mutex);
+         os_mutex_unlock(htp->mutex);
       }
 
       return fp;
    }
 
-   DEBUG(VM_DEBUG_ALWAYS, "HgfsGetFile: allocated HgfsFile for %s.\n", fileName);
+    /*
+     * If it doesn't exist we create one, initialize it, and add it to the hash
+     * table.  (M_NOWAIT set because sleeping while holding a lock is
+     * forbidden.)
+     */
+    fp = os_malloc(sizeof *fp, M_ZERO | M_NOWAIT);
 
-   /*
-    * If it doesn't exist we create one, initialize it, and add it to the hash
-    * table.  (M_NOWAIT set because sleeping while holding a lock is
-    * forbidden.)
-    */
-   fp = (HgfsFile *)malloc(sizeof *fp, M_HGFS, M_ZERO|M_NOWAIT);
-   if (!fp) {
-      /* fp is NULL already */
-      goto out;
-   }
+    if (!fp) {
+       /* fp is NULL already */
+       goto out;
+    }
 
-   err = HgfsInitFile(fp, fileName, fileType);
-   if (err) {
-      free(fp, M_HGFS);
-      fp = NULL;
-      goto out;
-   }
+    DEBUG(VM_DEBUG_INFO, "HgfsGetFile: allocated HgfsFile for %s.\n", fileName);
+
+    err = HgfsInitFile(fp, fileName, fileType);
+    if (err) {
+       os_free(fp, sizeof(*fp));
+       fp = NULL;
+       goto out;
+    }
 
    /*
     * This is guaranteed to not add a duplicate since we checked above and have
     * held the lock until now.
     */
-   HgfsAddFile(fp, htp);
+    HgfsAddFile(fp, htp);
 
-out:
-   if (lockHtp) {
-      mtx_unlock(&htp->mutex);
-   }
-   DEBUG(VM_DEBUG_DONE, "HgfsGetFile: done\n");
-   return fp;
-}
+ out:
+    if (lockHtp) {
+       os_mutex_unlock(htp->mutex);
+    }
+    DEBUG(VM_DEBUG_DONE, "HgfsGetFile: done\n");
+    return fp;
+ }
 
 
 /*
@@ -1078,15 +1403,15 @@ out:
  *
  * HgfsReleaseFile --
  *
- *    Releases a reference to the provided file.  If the reference count of
- *    this file becomes zero, the file structure is removed from the hash table
- *    and freed.
+ *      Releases a reference to the provided file.  If the reference count of
+ *      this file becomes zero, the file structure is removed from the hash table
+ *      and freed.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -1102,27 +1427,26 @@ HgfsReleaseFile(HgfsFile *fp,           // IN: File to release
     * Decrement this file's reference count.  If it becomes zero, then we
     * remove it from the hash table and free it.
     */
-   mtx_lock(&fp->mutex);
+   os_mutex_lock(fp->mutex);
 
    if ( !(--fp->refCount) ) {
-      mtx_unlock(&fp->mutex);
+      os_mutex_unlock(fp->mutex);
 
       /* Remove file from hash table, then clean up. */
       HgfsRemoveFile(fp, htp);
 
-      DEBUG(VM_DEBUG_ALWAYS, "HgfsReleaseFile: freeing HgfsFile for %s.\n",
+      DEBUG(VM_DEBUG_INFO, "HgfsReleaseFile: freeing HgfsFile for %s.\n",
             fp->fileName);
 
-      sx_destroy(&fp->rwlock);
-      mtx_destroy(&fp->mutex);
-      free(fp, M_HGFS);
+      os_mutex_destroy(fp->mutex);
+      os_free(fp, sizeof *fp);
       return;
    }
 
-   DEBUG(VM_DEBUG_ALWAYS, "HgfsReleaseFile: %s has %d references.\n",
+   DEBUG(VM_DEBUG_INFO, "HgfsReleaseFile: %s has %d references.\n",
          fp->fileName, fp->refCount);
 
-   mtx_unlock(&fp->mutex);
+   os_mutex_unlock(fp->mutex);
 }
 
 
@@ -1134,16 +1458,16 @@ HgfsReleaseFile(HgfsFile *fp,           // IN: File to release
  *
  * HgfsInitFile --
  *
- *    Initializes a file structure.
+ *      Initializes a file structure.
  *
- *    This sets the filename of the file and initializes other structure
- *    elements.
+ *      This sets the filename of the file and initializes other structure
+ *      elements.
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -1161,6 +1485,11 @@ HgfsInitFile(HgfsFile *fp,              // IN: File to initialize
    /* Make sure the filename will fit. */
    len = strlen(fileName);
    if (len > sizeof fp->fileName - 1) {
+      return HGFS_ERR;
+   }
+
+   fp->mutex = os_mutex_alloc_init("hgfs_file_mutex_lock");
+   if (!fp->mutex) {
       return HGFS_ERR;
    }
 
@@ -1183,13 +1512,6 @@ HgfsInitFile(HgfsFile *fp,              // IN: File to initialize
     */
    HgfsNodeIdHash(fp->fileName, fp->fileNameLength, &fp->nodeId);
 
-   /*
-    * The reader/write lock is for the rwlock/rwunlock vnode entry points and
-    * the mutex is to protect the reference count on this structure.
-    */
-   sx_init(&fp->rwlock, "hgfs_file_sx");
-   mtx_init(&fp->mutex, "hgfs_file_mtx", NULL, MTX_DEF);
-
    /* The caller is the single reference. */
    fp->refCount = 1;
 
@@ -1205,18 +1527,18 @@ HgfsInitFile(HgfsFile *fp,              // IN: File to initialize
  *
  * HgfsAddFile --
  *
- *    Adds the file to the hash table.
+ *      Adds the file to the hash table.
  *
- *    This function must be called with the hash table lock held.  This is done
- *    so adding the file in the hash table can be made with any other
- *    operations (such as previously finding out that this file wasn't in the
- *    hash table).
+ *      This function must be called with the hash table lock held.  This is done
+ *      so adding the file in the hash table can be made with any other
+ *      operations (such as previously finding out that this file wasn't in the
+ *      hash table).
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -1242,18 +1564,18 @@ HgfsAddFile(HgfsFile *fp,               // IN: File to add
  *
  * HgfsRemoveFile --
  *
- *    Removes file from the hash table.
+ *      Removes file from the hash table.
  *
- *    Note that unlike the other two hash functions, this one performs its own
- *    locking since the removal doesn't need to be atomic with other
- *    operations.  (This could change in the future if the functions that use
- *    this one are reorganized.)
+ *      Note that unlike the other two hash functions, this one performs its own
+ *      locking since the removal doesn't need to be atomic with other
+ *      operations.  (This could change in the future if the functions that use
+ *      this one are reorganized.)
  *
  * Results:
- *    Returns 0 on success and a non-zero error code on failure.
+ *      Returns 0 on success and a non-zero error code on failure.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -1265,12 +1587,12 @@ HgfsRemoveFile(HgfsFile *fp,            // IN: File to remove
    ASSERT(fp);
    ASSERT(htp);
 
-   mtx_lock(&htp->mutex);
+   os_mutex_lock(htp->mutex);
 
    /* Take this file off its list */
    DblLnkLst_Unlink1(&fp->listNode);
 
-   mtx_unlock(&htp->mutex);
+   os_mutex_unlock(htp->mutex);
 }
 
 
@@ -1279,17 +1601,17 @@ HgfsRemoveFile(HgfsFile *fp,            // IN: File to remove
  *
  * HgfsFindFile --
  *
- *    Looks for a filename in the hash table.
+ *      Looks for a filename in the hash table.
  *
- *    This function must be called with the hash table lock held.  This is done
- *    so finding the file in the hash table and using it (after this function
- *    returns) can be atomic.
+ *      This function must be called with the hash table lock held.  This is done
+ *      so finding the file in the hash table and using it (after this function
+ *      returns) can be atomic.
  *
  * Results:
- *    Returns a pointer to the file if found, NULL otherwise.
+ *      Returns a pointer to the file if found, NULL otherwise.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -1335,15 +1657,15 @@ HgfsFindFile(const char *fileName,      // IN: Filename to look for
  *
  * HgfsFileNameHash --
  *
- *    Hashes the filename to get an index into the hash table.  This is known
- *    as the PJW string hash function and it was taken from "Mastering
- *    Algorithms in C".
+ *      Hashes the filename to get an index into the hash table.  This is known
+ *      as the PJW string hash function and it was taken from "Mastering
+ *      Algorithms in C".
  *
  * Results:
- *    Returns an index between 0 and HGFS_HT_NR_BUCKETS.
+ *      Returns an index between 0 and HGFS_HT_NR_BUCKETS.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -1376,13 +1698,13 @@ HgfsFileNameHash(const char *fileName)  // IN: Filename to hash
  *
  * HgfsNodeIdHash --
  *
- *    Hashes the provided filename to generate a node id.
+ *      Hashes the provided filename to generate a node id.
  *
  * Results:
- *    None.  The value of the hash is filled into outHash.
+ *      None.  The value of the hash is filled into outHash.
  *
  * Side effects:
- *    None.
+ *      None.
  *
  *----------------------------------------------------------------------------
  */
@@ -1451,3 +1773,4 @@ HgfsNodeIdHash(const char *fileName,    // IN:  Filename to hash
 
    return;
 }
+

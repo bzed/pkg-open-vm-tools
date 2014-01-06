@@ -84,7 +84,7 @@ SuperFgets(FILE *stream,        // IN
     * errno --hpreg
     */
    errno = 0;
-   if (fgets(buf, (int) *count, stream) == NULL) {
+   if (fgets(buf, *count, stream) == NULL) {
       if (errno) {
          return NULL;
       }

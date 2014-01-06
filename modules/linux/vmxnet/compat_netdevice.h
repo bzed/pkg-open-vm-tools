@@ -169,5 +169,71 @@ compat_alloc_netdev(int priv_size,
 #   define compat_free_netdev(dev)                free_netdev(dev)
 #endif
 
+#if defined(NETDEV_TX_OK)
+#   define COMPAT_NETDEV_TX_OK    NETDEV_TX_OK
+#   define COMPAT_NETDEV_TX_BUSY  NETDEV_TX_BUSY
+#else
+#   define COMPAT_NETDEV_TX_OK    0
+#   define COMPAT_NETDEV_TX_BUSY  1
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,3,43))
+static inline void
+compat_netif_start_queue(struct device *dev)
+{
+   clear_bit(0, &dev->tbusy);
+}
+
+static inline void
+compat_netif_stop_queue(struct device *dev)
+{
+   set_bit(0, &dev->tbusy);
+}
+
+static inline int
+compat_netif_queue_stopped(struct device *dev)
+{
+   return test_bit(0, &dev->tbusy);
+}
+
+static inline void
+compat_netif_wake_queue(struct device *dev)
+{
+   clear_bit(0, &dev->tbusy);
+   mark_bh(NET_BH);
+}
+
+static inline int
+compat_netif_running(struct device *dev)
+{
+   return dev->start == 0;
+}
+
+static inline int
+compat_netif_carrier_ok(struct device *dev)
+{
+   return 1;
+}
+
+static inline void
+compat_netif_carrier_on(struct device *dev)
+{
+}
+
+static inline void
+compat_netif_carrier_off(struct device *dev)
+{
+}
+
+#else
+#define compat_netif_start_queue(dev)   netif_start_queue(dev)
+#define compat_netif_stop_queue(dev)    netif_stop_queue(dev)
+#define compat_netif_queue_stopped(dev) netif_queue_stopped(dev)
+#define compat_netif_wake_queue(dev)    netif_wake_queue(dev)
+#define compat_netif_running(dev)       netif_running(dev)
+#define compat_netif_carrier_ok(dev)    netif_carrier_ok(dev)
+#define compat_netif_carrier_on(dev)    netif_carrier_on(dev)
+#define compat_netif_carrier_off(dev)   netif_carrier_off(dev)
+#endif
 
 #endif /* __COMPAT_NETDEVICE_H__ */

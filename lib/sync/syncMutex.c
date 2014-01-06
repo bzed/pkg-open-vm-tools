@@ -125,7 +125,7 @@ SyncMutex_Lock(SyncMutex *that) // IN
 #define RETRY_TIMEOUT_MS 5000 // Workaround for bug #23716
 #endif
    
-   int handle;
+   PollDevHandle handle;
 
    ASSERT(that);
 

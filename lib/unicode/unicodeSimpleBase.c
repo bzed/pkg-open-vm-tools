@@ -48,12 +48,12 @@
 
 #include "util.h"
 #include "codeset.h"
-#include "hash.h"
+#include "hashTable.h"
 #include "str.h"
 #include "syncMutex.h"
 #include "unicodeBase.h"
 #include "unicodeInt.h"
-
+#include "unicodeSimpleUTF16.h"
 
 // Initial number of buckets for the UTF-16 hash table.
 static const uint32 UNICODE_UTF16_STRING_TABLE_BUCKETS = 4096;
@@ -222,7 +222,7 @@ Unicode_Free(Unicode str) // IN
    SyncMutex_Lock(lck);
 
    if (UnicodeUTF16StringTable) {
-      Hash_Delete(UnicodeUTF16StringTable, utf8String);
+      HashTable_Delete(UnicodeUTF16StringTable, utf8String);
    }
 
    SyncMutex_Unlock(lck);
@@ -309,9 +309,10 @@ Unicode_GetUTF16(ConstUnicode str) // IN
        * directly, and reference count the UTF-16 representations,
        * freeing when the last reference is gone.
        */
-      UnicodeUTF16StringTable = Hash_Alloc(UNICODE_UTF16_STRING_TABLE_BUCKETS,
-                                           HASH_INT_KEY,
-                                           (HashFreeEntryFn)free);
+      UnicodeUTF16StringTable = 
+                             HashTable_Alloc(UNICODE_UTF16_STRING_TABLE_BUCKETS,
+                                             HASH_INT_KEY,
+                                             (HashTableFreeEntryFn)free);
    }
 
    /*
@@ -322,13 +323,13 @@ Unicode_GetUTF16(ConstUnicode str) // IN
     * Until we make the type opaque, we must recreate the UTF-16 cache
     * each time it's asked for.
     */
-   Hash_Delete(UnicodeUTF16StringTable, utf8Str);
+   HashTable_Delete(UnicodeUTF16StringTable, utf8Str);
 
    if (CodeSet_Utf8ToUtf16le(utf8Str,
                              strlen(utf8Str),
                              (char **)&utf16Str,
                              NULL)) {
-      Hash_Insert(UnicodeUTF16StringTable, utf8Str, utf16Str);
+      HashTable_Insert(UnicodeUTF16StringTable, utf8Str, utf16Str);
    }
 
    SyncMutex_Unlock(lck);
@@ -537,6 +538,115 @@ Unicode
 UnicodeAllocStatic(const char *asciiBytes, // IN
                    Bool unescape)          // IN
 {
-   // XXX TODO: Implement unescaping as per u_unescape() in ICU's ustring.c.
-   return (Unicode)Util_SafeStrdup(asciiBytes);
+   utf16_t *utf16;
+   // Explicitly use int8 so we don't depend on whether char is signed.
+   const int8 *byte = (const int8 *)asciiBytes;
+   size_t utf16Offset = 0;
+   Unicode result;
+
+   ASSERT(asciiBytes);
+
+   if (!unescape) {
+      DEBUG_ONLY(
+         while (*byte > 0) {
+            byte++;
+         }
+         // All input must be 7-bit US-ASCII.
+         ASSERT(*byte == 0);
+      );
+      return Util_SafeStrdup(asciiBytes);
+   }
+
+   utf16 = Util_SafeMalloc(sizeof *utf16 * (strlen(asciiBytes) + 1));
+
+   while (TRUE) {
+      size_t hexDigitsRemaining;
+      uint32 escapedCodePoint = 0;
+      Bool foundEscapedCodePoint = FALSE;
+
+      if (*byte == '\0') {
+         utf16[utf16Offset] = 0;
+         break;
+      }
+
+      // Only US-ASCII bytes are allowed as input.
+      ASSERT_NOT_IMPLEMENTED(*byte > 0);
+
+      if (*byte != '\\') {
+         utf16[utf16Offset++] = *byte;
+         byte++;
+         continue;
+      }
+
+      // Handle the backslash.
+      byte++;
+
+      if (*byte == '\0') {
+         // We'll fall out at the top of the loop.
+         continue;
+      }
+
+      ASSERT_NOT_IMPLEMENTED(*byte > 0);
+
+      switch (*byte) {
+      case 'u':
+         /*
+          * \\uABCD must have exactly four hexadecimal digits after
+          * the escape, denoting the Unicode code point U+ABCD.
+          */
+         foundEscapedCodePoint = TRUE;
+         hexDigitsRemaining = 4;
+         break;
+      case 'U':
+         /*
+          * \\U0010CDEF must have exactly eight hexadecimal digits
+          * after the escape, denoting the Unicode code point U+10CDEF.
+          */
+         foundEscapedCodePoint = TRUE;
+         hexDigitsRemaining = 8;
+         break;
+      default:
+         // Unsupported escape; treat the next byte literally.
+         hexDigitsRemaining = 0;
+         utf16[utf16Offset++] = *byte;
+         break;
+      }
+
+      byte++;
+
+      while (hexDigitsRemaining) {
+         uint8 hexValue;
+
+         if (*byte >= '0' && *byte <= '9') {
+            hexValue = *byte - '0';
+         } else if (*byte >= 'A' && *byte <= 'F') {
+            hexValue = *byte - 'A' + 0xA;
+         } else if (*byte >= 'a' && *byte <= 'f') {
+            hexValue = *byte - 'a' + 0xA;
+         } else {
+            NOT_IMPLEMENTED();
+         }
+
+         escapedCodePoint = (escapedCodePoint << 4) | hexValue;
+
+         byte++;
+         hexDigitsRemaining--;
+      }
+
+      if (foundEscapedCodePoint) {
+         ASSERT_NOT_IMPLEMENTED(escapedCodePoint <= 0x10FFFF);
+
+         if (U16_LENGTH(escapedCodePoint) == 1) {
+            utf16[utf16Offset++] = (utf16_t)escapedCodePoint;
+         } else {
+            utf16[utf16Offset++] = U16_LEAD(escapedCodePoint);
+            utf16[utf16Offset++] = U16_TRAIL(escapedCodePoint);
+         }
+      }
+   }
+
+   result = Unicode_AllocWithUTF16(utf16);
+   free(utf16);
+
+   return result;
 }

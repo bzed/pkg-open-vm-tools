@@ -9169,6 +9169,6 @@ m4trace:configure.ac:570: -1- m4_pattern_allow([^LIB_USER_CFLAGS$])
 m4trace:configure.ac:574: -1- m4_pattern_allow([^GUESTD_LDFLAGS$])
 m4trace:configure.ac:576: -1- m4_pattern_allow([^VMWARE_USER_CFLAGS$])
 m4trace:configure.ac:577: -1- m4_pattern_allow([^VMWARE_USER_LDFLAGS$])
-m4trace:configure.ac:651: -1- m4_pattern_allow([^LIB@&t@OBJS$])
-m4trace:configure.ac:651: -1- m4_pattern_allow([^LTLIBOBJS$])
-m4trace:configure.ac:651: -1- _AM_OUTPUT_DEPENDENCY_COMMANDS
+m4trace:configure.ac:652: -1- m4_pattern_allow([^LIB@&t@OBJS$])
+m4trace:configure.ac:652: -1- m4_pattern_allow([^LTLIBOBJS$])
+m4trace:configure.ac:652: -1- _AM_OUTPUT_DEPENDENCY_COMMANDS

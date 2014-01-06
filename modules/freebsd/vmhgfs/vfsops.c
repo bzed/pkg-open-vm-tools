@@ -33,6 +33,7 @@
 #include "hgfs_kernel.h"
 #include "request.h"
 #include "debug.h"
+#include "os.h"
 
 /*
  * Local functions (prototypes)
@@ -49,11 +50,6 @@ static vfs_uninit_t     HgfsVfsUninit;
 /*
  * Global data
  */
-
-/*
- * Malloc tag for statistics, debugging, etc.
- */
-MALLOC_DEFINE(M_HGFS, HGFS_FS_NAME, HGFS_FS_NAME_LONG);
 
 /*
  * Hgfs VFS operations vector
@@ -112,7 +108,8 @@ HgfsVfsMount(struct mount *mp,  // IN: structure representing the file system
    struct vnode *vp;
    int ret = 0;
    char *target;
-   int error, len;
+   int error;
+   int len;
 
    /*
     * - Examine/validate mount flags from userland.
@@ -144,30 +141,29 @@ HgfsVfsMount(struct mount *mp,  // IN: structure representing the file system
     * Allocate a new HgfsSuperInfo structure.  This is the super structure
     * maintained for each file system.  (With M_WAITOK, this call cannot fail.)
     */
-   sip = malloc(sizeof *sip, M_HGFS, M_WAITOK|M_ZERO);
+   sip = os_malloc(sizeof *sip, M_WAITOK | M_ZERO);
    mp->mnt_data = sip;
 
-   /*
-    * This doesn't allocate anything, so don't worry about cleanup in
-    * HgfsVFSUnmount.
-    */
-   HgfsInitFileHashTable(&sip->fileHashTable);
+   error = HgfsInitFileHashTable(&sip->fileHashTable);
+   if (error) {
+      goto out;
+   }
 
    /*
     * Allocate the root vnode, then record it and the file system information
     * in our superinfo.
     */
-   HgfsVnodeGet(&vp, sip, mp, &HgfsVnodeOps, "/",
-                HGFS_FILE_TYPE_DIRECTORY, &sip->fileHashTable);
+   error = HgfsVnodeGetRoot(&vp, sip, mp, "/",
+			    HGFS_FILE_TYPE_DIRECTORY, &sip->fileHashTable);
+   if (error) {
+      HgfsDestroyFileHashTable(&sip->fileHashTable);
+      goto out;
+   }
 
    sip->vfsp = mp;
    sip->rootVnode = vp;
 
-   /*
-    * Indicate that this vnode is the root vnode and, since we're finished with
-    * it, unlock it.
-    */
-   vp->v_vflag |= VV_ROOT;
+   /* We're finished with the root vnode, so unlock it. */
    VOP_UNLOCK(vp, 0, td);
 
    /*
@@ -192,7 +188,14 @@ HgfsVfsMount(struct mount *mp,  // IN: structure representing the file system
    }
    vfs_mountedfrom(mp, target);
 
-   return 0;
+   DEBUG(VM_DEBUG_LOAD, "Exit\n");
+
+  out:
+   if (error) {
+      os_free(sip, sizeof *sip);
+   }
+
+   return error;
 }
 
 
@@ -216,7 +219,8 @@ static int
 HgfsVfsUnmount(struct mount *mp, int mntflags, struct thread *td)
 {
    HgfsSuperInfo *sip;
-   int ret = 0, flags = 0;
+   int ret = 0;
+   int flags = 0;
 
    sip = (HgfsSuperInfo *)mp->mnt_data;
 
@@ -258,7 +262,9 @@ HgfsVfsUnmount(struct mount *mp, int mntflags, struct thread *td)
    HgfsKReq_FreeContainer(sip->reqs);
 
    mp->mnt_data = NULL;
-   free(sip, M_HGFS);
+   os_free(sip, sizeof *sip);
+
+   DEBUG(VM_DEBUG_LOAD, "Exit\n");
 
    return 0;
 }
@@ -344,8 +350,14 @@ HgfsVfsInit(struct vfsconf *vfsconf)
 {
    int ret = 0;
 
-   DEBUG(VM_DEBUG_LOAD, "Hgfs filesystem loaded");
+   /* Initialize the os memory allocation and thread synchronization subsystem. */
+   if ((ret = os_init()) != 0) {
+      return ret;
+   }
+
    ret = HgfsKReq_SysInit();
+
+   DEBUG(VM_DEBUG_LOAD, "Hgfs filesystem loaded");
 
    return ret;
 }
@@ -372,6 +384,8 @@ HgfsVfsUninit(struct vfsconf *vfsconf)
    int ret = 0;
 
    ret = HgfsKReq_SysFini();
+   os_cleanup();
+
    DEBUG(VM_DEBUG_LOAD, "Hgfs filesystem unloaded");
    return ret;
 }

@@ -52,13 +52,13 @@ typedef struct wait_queue wait_queue_t;
  * 2.4.20-wolk4.0s.
  */
 
-#if VMW_HAVE_EPOLL // {
+#ifdef VMW_HAVE_EPOLL // {
 #define compat_poll_wqueues struct poll_wqueues
 #else // } {
 #define compat_poll_wqueues poll_table
 #endif // }
 
-#if VMW_HAVE_EPOLL // {
+#ifdef VMW_HAVE_EPOLL // {
 
 /* If prototype does not match, build will abort here */
 extern void poll_initwait(compat_poll_wqueues *);
@@ -189,6 +189,37 @@ do {									\
       __wait_event_timeout(wq, condition, __ret);                       \
    __ret;								\
 })
+#endif
+
+/*
+ * DEFINE_WAIT() and friends were added in 2.5.39 and backported to 2.4.28.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 28) || \
+   (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0) && \
+    LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 39))
+# define COMPAT_DEFINE_WAIT(_wait)                              \
+   DECLARE_WAITQUEUE(_wait, current)
+# define compat_init_prepare_to_wait(_sleep, _wait, _state)     \
+   do {                                                         \
+      __set_current_state(_state);                              \
+      add_wait_queue(_sleep, _wait);                            \
+   } while (0)
+# define compat_cont_prepare_to_wait(_sleep, _wait, _state)     \
+   set_current_state(_state)
+# define compat_finish_wait(_sleep, _wait, _state)              \
+   do {                                                         \
+      __set_current_state(_state);                              \
+      remove_wait_queue(_sleep, _wait);                         \
+   } while (0)
+#else
+# define COMPAT_DEFINE_WAIT(_wait)                              \
+   DEFINE_WAIT(_wait)
+# define compat_init_prepare_to_wait(_sleep, _wait, _state)     \
+   prepare_to_wait(_sleep, _wait, _state)
+# define compat_cont_prepare_to_wait(_sleep, _wait, _state)     \
+   prepare_to_wait(_sleep, _wait, _state)
+# define compat_finish_wait(_sleep, _wait, _state)              \
+   finish_wait(_sleep, _wait)
 #endif
 
 #endif /* __COMPAT_WAIT_H__ */

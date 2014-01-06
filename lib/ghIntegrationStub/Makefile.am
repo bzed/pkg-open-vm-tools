@@ -1,5 +1,5 @@
 ################################################################################
-### Copyright 2007 VMware, Inc.  All rights reserved.
+### Copyright 2008 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -15,11 +15,11 @@
 ### Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ################################################################################
 
-noinst_LIBRARIES = libFileUtf8.a
+noinst_LIBRARIES = libghIntegrationStub.a
 
-libFileUtf8_a_SOURCES =
-libFileUtf8_a_SOURCES += fileUTF8.c
-libFileUtf8_a_SOURCES += fileUTF8Linux.c
+libghIntegrationStub_a_SOURCES =
+libghIntegrationStub_a_SOURCES += ghIntegrationStub.c
 
 AM_CFLAGS =
 AM_CFLAGS += @COMMON_CFLAGS@
+AM_CFLAGS += @LIB_FILE_CFLAGS@

@@ -58,7 +58,6 @@
 #include "strutil.h"
 #include "str.h"
 #include "file.h"
-#include "fileUTF8.h"
 #include "err.h"
 #include "hostinfo.h"
 #include "guest_os.h"
@@ -153,8 +152,8 @@ static VixError VixToolsGetTempFile(const char *tag,
 
 static void VixToolsFreeRunProgramState(VixToolsRunProgramState *asyncState);
 
-static Bool VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,
-                                    void **userToken);
+static VixError VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,
+                                        void **userToken);
 
 static const char *scriptFileBaseName = "vixScript";
 
@@ -338,11 +337,11 @@ VixTools_RunProgram(VixCommandRequestHeader *requestMsg, // IN
    // runProgramRequest->runProgramOptions;
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    err = VixToolsRunProgramImpl(requestName,
@@ -438,7 +437,7 @@ VixToolsRunProgramImpl(char *requestName,      // IN
     *
     */
 
-   programExists = FileUTF8_Exists(startProgramFileName);
+   programExists = File_Exists(startProgramFileName);
    programIsExecutable = 
       (FileIO_Access(startProgramFileName, FILEIO_ACCESS_EXEC) == 
                                                        FILEIO_SUCCESS);
@@ -607,17 +606,24 @@ VixToolsMonitorAsyncProc(void *clientData) // IN
    return TRUE;
 
 done:
+   
+   /*
+    * We need to always check the exit code, even if there is no need to
+    * report it. On POSIX systems, ProcMgr_GetExitCode() does things like
+    * call waitpid() to clean up the child process.
+    */
+   result = ProcMgr_GetExitCode(asyncState->procState, &exitCode);
+   pid = ProcMgr_GetPid(asyncState->procState);
+   if (0 != result) {
+      exitCode = -1;
+   }
+   
    /*
     * We may just be running to clean up after running a script, with the
     * results already reported.
     */
    if ((NULL != reportProgramDoneProc)
        && !(asyncState->runProgramOptions & VIX_RUNPROGRAM_RETURN_IMMEDIATELY)) {
-      result = ProcMgr_GetExitCode(asyncState->procState, &exitCode);
-      pid = ProcMgr_GetPid(asyncState->procState);
-      if (0 != result) {
-         exitCode = -1;
-      }    
       (*reportProgramDoneProc)(asyncState->requestName, 
                                err,
                                exitCode,
@@ -695,6 +701,8 @@ VixTools_GetToolsPropertiesImpl(GuestApp_Dict **confDictRef,      // IN
    char osName[MAX_VALUE_LEN];
    Bool foundHostName;
    char *tempDir = NULL;
+   int wordSize = 32;
+
 
    VixPropertyList_Initialize(&propList);
    
@@ -729,6 +737,10 @@ VixTools_GetToolsPropertiesImpl(GuestApp_Dict **confDictRef,      // IN
       osNameFull[0] = 0;
       osName[0] = 0;
    }
+   wordSize = GuestInfo_GetSystemBitness();
+   if (wordSize <= 0) {
+      wordSize = 32;
+   }
 
    /*
     * TODO: Something with this.
@@ -749,6 +761,12 @@ VixTools_GetToolsPropertiesImpl(GuestApp_Dict **confDictRef,      // IN
    err = VixPropertyList_SetString(&propList,
                                    VIX_PROPERTY_GUEST_OS_VERSION,
                                    osNameFull);
+   if (VIX_OK != err) {
+      goto abort;
+   }
+   err = VixPropertyList_SetString(&propList,
+                                   VIX_PROPERTY_GUEST_OS_VERSION_SHORT,
+                                   osName);
    if (VIX_OK != err) {
       goto abort;
    }
@@ -824,6 +842,12 @@ VixTools_GetToolsPropertiesImpl(GuestApp_Dict **confDictRef,      // IN
    err = VixPropertyList_SetString(&propList,
                                    VIX_PROPERTY_VM_GUEST_TEMP_DIR_PROPERTY,
                                    tempDir);
+   if (VIX_OK != err) {
+      goto abort;
+   }
+   err = VixPropertyList_SetInteger(&propList,
+                                    VIX_PROPERTY_GUEST_TOOLS_WORD_SIZE,
+                                    wordSize);
    if (VIX_OK != err) {
       goto abort;
    }
@@ -1027,11 +1051,11 @@ VixToolsReadRegistry(VixCommandRequestHeader *requestMsg,  // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    if (VIX_PROPERTYTYPE_INTEGER == registryRequest->expectedRegistryKeyType) {
@@ -1117,11 +1141,11 @@ VixToolsWriteRegistry(VixCommandRequestHeader *requestMsg) // IN
    registryData = registryPathName + registryRequest->registryKeyLength + 1;
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    if (VIX_PROPERTYTYPE_INTEGER == registryRequest->expectedRegistryKeyType) {
@@ -1198,11 +1222,11 @@ VixToolsDeleteObject(VixCommandRequestHeader *requestMsg)  // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    ///////////////////////////////////////////
@@ -1210,19 +1234,19 @@ VixToolsDeleteObject(VixCommandRequestHeader *requestMsg)  // IN
       /*
        * if pathName is an invalid symbolic link, we still want to delete it.
        */
-      if (FALSE == FileUTF8_IsSymLink(pathName)) {
-         if (!(FileUTF8_Exists(pathName))) {      
+      if (FALSE == File_IsSymLink(pathName)) {
+         if (!(File_Exists(pathName))) {      
             err = VIX_E_FILE_NOT_FOUND;
             goto abort;
          }
 
-         if (!(FileUTF8_IsFile(pathName))) {
+         if (!(File_IsFile(pathName))) {
             err = VIX_E_NOT_A_FILE;
             goto abort;
          }
       }
 
-      resultInt = FileUTF8_UnlinkIfExists(pathName);
+      resultInt = File_UnlinkIfExists(pathName);
       if (0 != resultInt) {
          err = FoundryToolsDaemon_TranslateSystemErr();
       }
@@ -1235,34 +1259,34 @@ VixToolsDeleteObject(VixCommandRequestHeader *requestMsg)  // IN
 #endif
    ///////////////////////////////////////////
    } else if (VIX_COMMAND_DELETE_GUEST_DIRECTORY == requestMsg->opCode) {
-      resultBool = FileUTF8_Exists(pathName);
+      resultBool = File_Exists(pathName);
       if (!resultBool) {
          err = VIX_E_FILE_NOT_FOUND;
          goto abort;
       }
-      resultBool = FileUTF8_IsDirectory(pathName);
+      resultBool = File_IsDirectory(pathName);
       if (!resultBool) {
          err = VIX_E_NOT_A_DIRECTORY;
          goto abort;
       }
-      success = FileUTF8_DeleteDirectoryTree(pathName);
+      success = File_DeleteDirectoryTree(pathName);
       if (!success) {
          err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
       }
    ///////////////////////////////////////////
    } else if (VIX_COMMAND_DELETE_GUEST_EMPTY_DIRECTORY == requestMsg->opCode) {
-      resultBool = FileUTF8_Exists(pathName);
+      resultBool = File_Exists(pathName);
       if (!resultBool) {
          err = VIX_E_FILE_NOT_FOUND;
          goto abort;
       }
-      resultBool = FileUTF8_IsDirectory(pathName);
+      resultBool = File_IsDirectory(pathName);
       if (!resultBool) {
          err = VIX_E_NOT_A_DIRECTORY;
          goto abort;
       }
-      success = FileUTF8_DeleteEmptyDirectory(pathName);
+      success = File_DeleteEmptyDirectory(pathName);
       if (!success) {
          err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
@@ -1324,11 +1348,11 @@ VixToolsObjectExists(VixCommandRequestHeader *requestMsg,  // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    /*
@@ -1336,7 +1360,7 @@ VixToolsObjectExists(VixCommandRequestHeader *requestMsg,  // IN
     */
    ///////////////////////////////////////////
    if (VIX_COMMAND_GUEST_FILE_EXISTS == requestMsg->opCode) {
-      resultBool = FileUTF8_IsFile(pathName);
+      resultBool = File_IsFile(pathName);
       if (resultBool) {
          resultInt = 1;
       } else {
@@ -1352,7 +1376,7 @@ VixToolsObjectExists(VixCommandRequestHeader *requestMsg,  // IN
 #endif
    ///////////////////////////////////////////
    } else if (VIX_COMMAND_DIRECTORY_EXISTS == requestMsg->opCode) {
-      resultBool = FileUTF8_IsDirectory(pathName);
+      resultBool = File_IsDirectory(pathName);
       if (resultBool) {
          resultInt = 1;
       } else {
@@ -1407,11 +1431,11 @@ VixToolsOpenUrl(VixCommandRequestHeader *requestMsg) // IN
    url = ((char *) openUrlRequest) + sizeof(*openUrlRequest);
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    /* Actually open the URL. */
@@ -1462,11 +1486,11 @@ VixToolsCreateTempFile(VixCommandRequestHeader *requestMsg,   // IN
    makeTempFileRequest = (VixMsgCreateTempFileRequest *) requestMsg;
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    err = VixToolsGetTempFile("vmware", userToken, &filePathName, &fd);
@@ -1529,11 +1553,11 @@ VixToolsReadVariable(VixCommandRequestHeader *requestMsg,   // IN
    valueName = ((char *) readRequest) + sizeof(*readRequest);
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    switch (readRequest->variableType) {
@@ -1602,11 +1626,11 @@ VixToolsWriteVariable(VixCommandRequestHeader *requestMsg)   // IN
    value = valueName + writeRequest->nameLength + 1;
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    switch (writeRequest->variableType) {
@@ -1688,11 +1712,11 @@ VixToolsMoveFile(VixCommandRequestHeader *requestMsg)        // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    /*
@@ -1736,15 +1760,15 @@ VixToolsMoveFile(VixCommandRequestHeader *requestMsg)        // IN
    }
 
    /*
-    * pre-check the dest arg -- FileUTF8_Rename() will return
+    * pre-check the dest arg -- File_Rename() will return
     * diff err codes depending on OS, so catch it up front (bug 133165)
     */
-   if (FileUTF8_IsDirectory(destFilePathName)) {
+   if (File_IsDirectory(destFilePathName)) {
       err = VIX_E_ALREADY_EXISTS;
       goto abort;
    }
 
-   success = FileUTF8_Rename(srcFilePathName, destFilePathName);
+   success = File_Rename(srcFilePathName, destFilePathName);
    if (!success) {
       err = FoundryToolsDaemon_TranslateSystemErr();
       goto abort;
@@ -1793,11 +1817,11 @@ VixToolsListProcesses(VixCommandRequestHeader *requestMsg, // IN
    *destPtr = 0;
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    procList = ProcMgr_ListProcesses();
@@ -1867,11 +1891,11 @@ VixToolsKillProcess(VixCommandRequestHeader *requestMsg) // IN
    VixCommandKillProcessRequest *killProcessRequest;
    
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    killProcessRequest = (VixCommandKillProcessRequest *) requestMsg;
@@ -1922,19 +1946,19 @@ VixToolsCreateDirectory(VixCommandRequestHeader *requestMsg)  // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
-   if (FileUTF8_Exists(dirPathName)) {
+   if (File_Exists(dirPathName)) {
       err = VIX_E_FILE_ALREADY_EXISTS;
       goto abort;
    }
 
-   if (!(FileUTF8_CreateDirectoryHierarchy(dirPathName))) {
+   if (!(File_CreateDirectoryHierarchy(dirPathName))) {
       err = FoundryToolsDaemon_TranslateSystemErr();
       goto abort;
    }
@@ -2015,19 +2039,19 @@ VixToolsListDirectory(VixCommandRequestHeader *requestMsg,    // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
-   if (!(FileUTF8_IsDirectory(dirPathName))) {
+   if (!(File_IsDirectory(dirPathName))) {
       err = VIX_E_NOT_A_DIRECTORY;
       goto abort;
    }
 
-   numFiles = FileUTF8_ListDirectory(dirPathName, &fileNameList);
+   numFiles = File_ListDirectory(dirPathName, &fileNameList);
    if (numFiles < 0) {
       err = FoundryToolsDaemon_TranslateSystemErr();
       goto abort;
@@ -2165,14 +2189,14 @@ VixToolsGetFileInfo(VixCommandRequestHeader *requestMsg,    // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
-   if (!(FileUTF8_Exists(filePathName))) {
+   if (!(File_Exists(filePathName))) {
       err = VIX_E_FILE_NOT_FOUND;
       goto abort;
    }
@@ -2237,10 +2261,10 @@ VixToolsPrintFileInfo(char *filePathName,     // IN
    int32 fileProperties = 0;
 
    modTime = File_GetModTime(filePathName);
-   if (FileUTF8_IsDirectory(filePathName)) {
+   if (File_IsDirectory(filePathName)) {
       fileProperties |= VIX_FILE_ATTRIBUTES_DIRECTORY;
    } else {
-      if (FileUTF8_IsSymLink(filePathName)) {
+      if (File_IsSymLink(filePathName)) {
          fileProperties |= VIX_FILE_ATTRIBUTES_SYMLINK;
       }
       fileSize = File_GetSize(filePathName);
@@ -2280,11 +2304,11 @@ VixToolsCheckUserAccount(VixCommandRequestHeader *requestMsg) // IN
    void *userToken = NULL;
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
 abort:
@@ -2350,11 +2374,11 @@ VixToolsRunScript(VixCommandRequestHeader *requestMsg,  // IN
    script = propertiesString + scriptRequest->propertiesLength + 1;
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
 if (0 == *interpreterName) {
@@ -2367,7 +2391,7 @@ if (0 == *interpreterName) {
    }
    
    if (*interpreterName) {
-      programExists = FileUTF8_Exists(interpreterName);
+      programExists = File_Exists(interpreterName);
 
       /*
        * TODO: replace FileIO_Access with something more UTF8/forward-
@@ -2602,10 +2626,11 @@ abort:
  *-----------------------------------------------------------------------------
  */
 
-Bool
+VixError
 VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
                         void **userToken)                      // OUT
 {
+   VixError err = VIX_OK;
    Bool success = FALSE;
    char *credentialField;
    VixCommandNamePassword *namePasswordStruct;
@@ -2621,9 +2646,26 @@ VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
                                          requestMsg->userCredentialType,
                                          credentialField, 
                                          userToken);
+   if (!success) {
+      err = VIX_E_GUEST_USER_PERMISSIONS;
+      /*
+       * Windows does not allow you to login with an empty password. Only
+       * the console allows this login, which means the console does not
+       * call the simple public LogonUser api.
+       *
+       * See the description for ERROR_ACCOUNT_RESTRICTION.
+       * For example, the error codes are described here:
+       *      http://support.microsoft.com/kb/155012
+       */
+#ifdef _WIN32
+      if (namePasswordStruct->passwordLength <= 0) {
+         err = VIX_E_EMPTY_PASSWORD_NOT_ALLOWED_IN_GUEST;
+      }
+#endif
+   } // if (!success)
 
-   return(success);
-}
+   return(err);
+} // VixToolsImpersonateUser
 
    
 /*
@@ -2850,7 +2892,7 @@ VixToolsFreeRunProgramState(VixToolsRunProgramState *asyncState) // IN
    }
 
    if (NULL != asyncState->tempScriptFilePath) {
-      FileUTF8_UnlinkIfExists(asyncState->tempScriptFilePath);
+      File_UnlinkIfExists(asyncState->tempScriptFilePath);
    }
    if (NULL != asyncState->procState) {
       ProcMgr_Free(asyncState->procState);
@@ -2916,11 +2958,11 @@ VixToolsGetTempFile(const char *tag,   // IN
       /* 
        * Don't give up if VixToolsGetUserTmpDir() failed. It might just
        * have failed to load DLLs, so we might be running on Win 9x.
-       * Just fall through to use the old fashioned FileUTF8_MakeTemp().
+       * Just fall through to use the old fashioned File_MakeTemp().
        */
 
       if (VIX_SUCCEEDED(err)) {
-         fd = FileUTF8_MakeTempEx(tempDirPath, tag, &tempFilePath);
+         fd = File_MakeTempEx(tempDirPath, tag, &tempFilePath);
          if (fd < 0) {
             err = FoundryToolsDaemon_TranslateSystemErr();
             goto abort;
@@ -2938,7 +2980,7 @@ VixToolsGetTempFile(const char *tag,   // IN
     * dependencies on code that won't run on win9x.
     */
    if (NULL == tempFilePath) {
-      fd = FileUTF8_MakeTemp(tag, &tempFilePath);
+      fd = File_MakeTemp(tag, &tempFilePath);
       if (fd < 0) {
          err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
@@ -3001,12 +3043,12 @@ VixToolsProcessHgfsPacket(VixCommandHgfsSendPacket *requestMsg,   // IN
    }
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser((VixCommandRequestHeader *) requestMsg,
-                                                        &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser((VixCommandRequestHeader *) requestMsg,
+                                    &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    hgfsPacket = ((char *) requestMsg) + sizeof(*requestMsg);
@@ -3174,11 +3216,11 @@ VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
    subnetMask[0] = '\0';
 
    if (thisProcessRunsAsRoot) {
-      impersonatingVMWareUser = VixToolsImpersonateUser(requestMsg, &userToken);
-      if (!impersonatingVMWareUser) {
-         err = VIX_E_GUEST_USER_PERMISSIONS;
+      err = VixToolsImpersonateUser(requestMsg, &userToken);
+      if (VIX_OK != err) {
          goto abort;
       }
+      impersonatingVMWareUser = TRUE;
    }
 
    setGuestNetworkingConfigRequest = (VixMsgSetGuestNetworkingConfigRequest *)requestMsg;
@@ -3244,6 +3286,10 @@ VixToolsSetGuestNetworkingConfig(VixCommandRequestHeader *requestMsg)    // IN
           ('\0' != subnetMask[0])) { 
          hrErr = VixToolsEnableStaticOnPrimary(ipAddr, subnetMask);
       } else {
+         /*
+          * Setting static ip, both ip and subnet mask are missing
+          */
+         err = VIX_E_MISSING_REQUIRED_PROPERTY;
          goto abort;
       }
    }

@@ -32,6 +32,7 @@
 #include "fileLock.h"
 #include "fileInt.h"
 #include "msg.h"
+#include "unicodeOperations.h"
 
 /*
  *----------------------------------------------------------------------
@@ -260,12 +261,12 @@ FileIO_Lock(FileIODescriptor *file, // IN/OUT:
                                       &err);
 
       if (file->lockToken == NULL) {
-         // Describe the lock not acquired situation in detail
+         /* Describe the lock not acquired situation in detail */
          Warning(LGPFX" %s on '%s' failed: %s\n",
-                 __FUNCTION__, file->fileName,
+                 __FUNCTION__, UTF8(file->fileName),
                  (err == 0) ? "Lock timed out" : strerror(err));
 
-         // Return a serious failure status if the locking code did
+         /* Return a serious failure status if the locking code did */
          ret = (err == 0) ? FILEIO_LOCK_FAILED : FILEIO_ERROR;
       }
    }
@@ -309,7 +310,7 @@ FileIO_Unlock(FileIODescriptor *file)     // IN/OUT:
 
       if (err != 0) {
          Warning(LGPFX" %s on '%s' failed: %s\n",
-                 __FUNCTION__, file->fileName, strerror(err));
+                 __FUNCTION__, UTF8(file->fileName), strerror(err));
 
          ret = FILEIO_ERROR;
       }
@@ -397,9 +398,8 @@ FileIO_StatsLog(FileIODescriptor *fd)  // IN:
       return;
    }
 
-// XXX unicode "string" in message
    Log("FILEIOSTATS | \"%s\" %d %d %d %d %d %d %d %d %d %d %d %d %d %d %"FMT64"d %"FMT64"d\n",
-       fd->fileName ? fd->fileName : "",
+       fd->fileName ? UTF8(fd->fileName) : "",
        fd->readIn, fd->readDirect, fd->writeIn, fd->writeDirect,
        fd->readvIn, fd->readvDirect, fd->writevIn, fd->writevDirect,
        fd->preadvIn, fd->preadDirect, fd->pwritevIn, fd->pwriteDirect,

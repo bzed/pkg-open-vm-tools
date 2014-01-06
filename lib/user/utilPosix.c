@@ -28,6 +28,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
@@ -52,6 +54,8 @@
 #include "hostinfo.h"
 #include "syncMutex.h"
 #include "escape.h"
+#include "unicodeOperations.h"
+#include "err.h"
 
 
 /* For Util_GetProcessName() */
@@ -81,6 +85,109 @@
 
 
 #if !__FreeBSD__ && !sun
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Util_BumpNoFds --
+ *
+ *      Bump the number of file descriptor this process can open to 2048. On
+ *      failure sets *cur to the number of fds we can currently open, and sets
+ *      *wanted to what we want.
+ *
+ * Results:
+ *      0 on success, errno from the failing call to setrlimit(2) otherwise.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+int
+Util_BumpNoFds(uint32 *cur,     // OUT
+               uint32 *wanted)  // OUT
+{
+   struct rlimit lim;
+   int err;
+
+   /*
+    * Check for minimum file descriptor limit. The number 2048 is
+    * somewhat arbitrary. Trying to do multiple snapshots of a split
+    * disk can rapidly consume descriptors however, so we ought to
+    * have a large number. This is only pushing back the problem of
+    * course. Ideally we'd have a fully scalable solution.
+    */
+
+   static const rlim_t fdsDesired = 2048;
+
+   err = getrlimit(RLIMIT_NOFILE, &lim);
+   ASSERT_NOT_IMPLEMENTED(err >= 0);
+
+   if (cur) {
+      *cur = lim.rlim_cur;
+   }
+   if (wanted) {
+      *wanted = fdsDesired;
+   }
+
+   if (lim.rlim_cur != RLIM_INFINITY && lim.rlim_cur < fdsDesired) {
+      Bool needSuperUser;
+
+      /*
+       * First attempt to raise limit ourselves.
+       * If that fails, complain and make user do it.
+       */
+      rlim_t curFdLimit = lim.rlim_cur;
+      rlim_t maxFdLimit = lim.rlim_max;
+
+      lim.rlim_cur = fdsDesired;
+
+      /*
+       * rlim_max may need to be increased as well.
+       */
+
+      needSuperUser = lim.rlim_max != RLIM_INFINITY && lim.rlim_max < fdsDesired;
+
+      if (needSuperUser) {
+	 lim.rlim_max = fdsDesired;
+      } else { 
+         err = setrlimit(RLIMIT_NOFILE, &lim) < 0 ? errno : 0;
+      }
+
+      /*
+       * Set euid to root for the FD limit increase. Note we don't need root
+       * unless rlim_max is being increased.  Revert to non-root immediately
+       * after.
+       */
+
+      if (err == EPERM || needSuperUser) {
+         Bool wasSuper = IsSuperUser();
+         SuperUser(TRUE);
+         err = setrlimit(RLIMIT_NOFILE, &lim) < 0 ? errno : 0;
+         SuperUser(wasSuper);
+      }
+
+      /*
+       * If everything else failed, simply try using rlim_max. That might be
+       * enough..
+       */
+
+      if (err != 0) {
+         lim.rlim_cur = maxFdLimit;
+         lim.rlim_max = maxFdLimit;
+         err = setrlimit(RLIMIT_NOFILE, &lim) < 0 ? errno : 0;
+         ASSERT_NOT_TESTED(err == 0);
+      }
+
+      if (err != 0) {
+         Log("UTIL: Failed to set number of fds at %u, was %u: %s (%d)\n",
+             (uint32)fdsDesired, (uint32)curFdLimit, Err_Errno2String(err), err); 
+      }
+   }
+   return err;
+}
+
 
 /*
  *-----------------------------------------------------------------------------
@@ -168,38 +275,26 @@ UtilGetUserName(uid_t uid) // IN
  */
 
 int
-Util_MakeSafeTemp(const char *tag,  // IN (OPT)
-                  char **presult)   // OUT
+Util_MakeSafeTemp(ConstUnicode tag,  // IN (OPT):
+                  Unicode *presult)  // OUT:
 {
-   char *dir = NULL, *fileName = NULL;
    int fd = -1;
+   Unicode dir = NULL;
+   Unicode fileName = NULL;
 
    *presult = NULL;
 
    if (tag && File_IsFullPath(tag)) {
-      char *lastSlash;
-
-      dir = Util_SafeStrdup(tag);
-      lastSlash = Str_Strrchr(dir, DIRSEPC);
-      ASSERT(lastSlash);
-
-      fileName = Util_SafeStrdup(lastSlash + 1);
-      *lastSlash = 0;
+      File_GetPathName(tag, &dir, &fileName);
    } else {
       dir = Util_GetSafeTmpDir(TRUE);
-
-      if (!dir) {
-         goto exit;
-      }
-
-      fileName = Util_SafeStrdup(tag ? tag : "vmware");
+      fileName = Unicode_Duplicate(tag ? tag : U("vmware"));
    }
 
    fd = File_MakeTempEx(dir, fileName, presult);
 
-  exit:
-   free(dir);
-   free(fileName);
+   Unicode_Free(dir);
+   Unicode_Free(fileName);
 
    return fd;
 }

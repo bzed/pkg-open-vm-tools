@@ -44,6 +44,7 @@
 
 #define LOGLEVEL_MODULE dnd
 #include "loglevel_user.h"
+#include "unicodeOperations.h"
 
 
 #define DND_ROOTDIR_PERMS     (S_IRWXU | S_IRWXG | S_IRWXO)
@@ -70,16 +71,32 @@
  */
 
 Bool
-DnD_DeleteStagingFiles(const char *fileList, // IN:
-                       Bool onReboot)        // IN: unused
+DnD_DeleteStagingFiles(ConstUnicode fileList,  // IN:
+                       Bool onReboot)          // IN: unused
 {
-   char* fileName;
-   unsigned int index = 0;
    Bool ret = TRUE;
+   UnicodeIndex start = 0;
 
    ASSERT(fileList);
 
-   while ((fileName = StrUtil_GetNextToken(&index, fileList, "|")) != NULL) {
+   /*
+    * The list of files is composed of a concatination of path names, each
+    * ending with '|' character. Select each one and delete it.
+    */
+
+   while (TRUE) {
+      Unicode fileName;
+      UnicodeIndex index;
+
+      index = Unicode_FindSubstrInRange(fileList, start, -1,
+                                        U("|"), 0, 1);
+
+      if (index == UNICODE_INDEX_NOT_FOUND) {
+         break;
+      } else {
+         fileName = Unicode_Substr(fileList, start, index - start);
+      }
+
       if (File_IsFile(fileName)) {
          File_Unlink(fileName);
       } else if (File_IsDirectory(fileName)) {
@@ -87,7 +104,10 @@ DnD_DeleteStagingFiles(const char *fileList, // IN:
       } else {
          ret = FALSE;
       }
-      free(fileName);
+
+      Unicode_Free(fileName);
+
+      start = index + 1;
    }
 
    return ret;
@@ -110,11 +130,10 @@ DnD_DeleteStagingFiles(const char *fileList, // IN:
  *-----------------------------------------------------------------------------
  */
 
-const char *
+ConstUnicode
 DnD_GetFileRoot(void)
 {
-   static char fileRoot[DND_MAX_PATH] = "/tmp/VMwareDnD/";
-   return fileRoot;
+   return U("/tmp/VMwareDnD/");
 }
 
 
@@ -518,11 +537,11 @@ DnD_RemoveBlock(int blockFd,                    // IN
  */
 
 Bool
-DnDRootDirUsable(const char *dir) // IN
+DnDRootDirUsable(ConstUnicode pathName)  // IN:
 {
-   struct stat buf;
+   PosixStatStruct buf;
 
-   if (stat(dir, &buf) < 0) {
+   if (FileIO_PosixStat(pathName, &buf) < 0) {
       return FALSE;
    }
 
@@ -551,9 +570,9 @@ DnDRootDirUsable(const char *dir) // IN
  */
 
 Bool
-DnDSetPermissionsOnRootDir(const char *dir)  // IN
+DnDSetPermissionsOnRootDir(ConstUnicode pathName)  // IN:
 {
-   return chmod(dir, S_ISVTX | DND_ROOTDIR_PERMS) == 0;
+   return FileIO_PosixChmod(pathName, S_ISVTX | DND_ROOTDIR_PERMS) == 0;
 }
 
 
@@ -576,11 +595,11 @@ DnDSetPermissionsOnRootDir(const char *dir)  // IN
  */
 
 Bool
-DnDStagingDirectoryUsable(const char *dir)  // IN
+DnDStagingDirectoryUsable(ConstUnicode pathName)  // IN:
 {
-   struct stat buf;
+   PosixStatStruct buf;
 
-   if (stat(dir, &buf) < 0) {
+   if (FileIO_PosixStat(pathName, &buf) < 0) {
       return FALSE;
    }
 
@@ -605,7 +624,7 @@ DnDStagingDirectoryUsable(const char *dir)  // IN
  */
 
 Bool
-DnDSetPermissionsOnStagingDir(const char *dir)  // IN
+DnDSetPermissionsOnStagingDir(ConstUnicode pathName)  // IN:
 {
-   return chmod(dir, DND_STAGINGDIR_PERMS) == 0;
+   return FileIO_PosixChmod(pathName, DND_STAGINGDIR_PERMS) == 0;
 }

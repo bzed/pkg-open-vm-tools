@@ -35,6 +35,7 @@
 
 #include "includeCheck.h"
 #include "vm_basic_types.h"
+#include "unicodeTypes.h"
 
 /* Error value returned when data contains illegal characters */
 #define DND_ILLEGAL_CHARACTERS  "data contains illegal characters"
@@ -109,7 +110,7 @@ EXTERN char *DnD_UriListGetNextFile(char const *uriList,
 /*
  * Shared functions
  */
-const char *DnD_GetFileRoot(void);
+ConstUnicode DnD_GetFileRoot(void);
 char *DnD_CreateStagingDirectory(void);
 Bool DnD_DeleteStagingFiles(const char *fileList, Bool onReboot);
 Bool DnD_DataContainsIllegalCharacters(const char *data,

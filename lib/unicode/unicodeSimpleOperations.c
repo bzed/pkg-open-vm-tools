@@ -106,7 +106,6 @@ Unicode_CompareRange(ConstUnicode str1,       // IN
    }
 
    /*
-    * XXX TODO: Need to case-fold the strings if ignoreCase is set.
     * XXX TODO: Need to normalize the incoming strings to NFC or NFD.
     */
    substr1UTF16 = Unicode_GetUTF16(substr1);
@@ -121,10 +120,26 @@ Unicode_CompareRange(ConstUnicode str1,       // IN
 
    /*
     * TODO: This is the naive string search algorithm, which is
+    * O(n * m).  We can do better with KMP or Boyer-Moore if this
+    * proves to be a bottleneck.
     */
    while (TRUE) {
       codeUnit1 = *(substr1UTF16 + i);
       codeUnit2 = *(substr2UTF16 + i);
+
+      /*
+       * TODO: Simple case folding doesn't handle the situation where
+       * more than one code unit is needed to store the result of the
+       * case folding.
+       *
+       * This means that German "straBe" (where B = sharp S, U+00DF)
+       * will not match "STRASSE", even though the two strings are the
+       * same.
+       */
+      if (ignoreCase) {
+         codeUnit1 = UnicodeSimpleCaseFold(codeUnit1);
+         codeUnit2 = UnicodeSimpleCaseFold(codeUnit2);
+      }
 
       if (codeUnit1 != codeUnit2) {
          break;
@@ -454,4 +469,53 @@ Unicode_ReplaceRange(ConstUnicode destination,       // IN
    result[resultLength] = '\0';
 
    return (Unicode)result;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * Unicode_Join --
+ *
+ *      Allocates and returns a new string containing the 'first' followed by
+ *      all the unicode strings specified as optional arguments (which must
+ *      be of type ConstUnicode). Appending ceases when a NULL pointer is
+ *      detected.
+ * 
+ * Results:
+ *      The newly-allocated string.  Caller must free with Unicode_Free.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Unicode
+Unicode_Join(ConstUnicode first,  // IN:
+             ...)                 // IN
+{
+   va_list args;
+   Unicode result;
+   ConstUnicode cur;
+
+   if (first == NULL) {
+      return NULL;
+   }
+
+   result = Unicode_Duplicate(first);
+
+   va_start(args, first);
+
+   while ((cur = va_arg(args, ConstUnicode)) != NULL) {
+      Unicode temp;
+
+      temp = Unicode_Append(result, cur);
+      Unicode_Free(result);
+      result = temp;
+   }
+
+   va_end(args);
+
+   return result;
 }

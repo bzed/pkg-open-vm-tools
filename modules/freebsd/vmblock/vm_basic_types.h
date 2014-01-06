@@ -393,6 +393,12 @@ typedef uint32     MPN;
 #endif
 
 /*
+ * This type should be used for variables that contain sector
+ * position/quantity.
+ */
+typedef uint64 SectorType;
+
+/*
  * Linear address
  */
 
@@ -446,6 +452,7 @@ typedef uint64 MPN64;
 typedef VA32 UserVA32;
 typedef VA64 UserVA64;
 typedef UserVA32 UserVAConst; /* Userspace ptr to data that we may only read. */
+typedef UserVA64 UserVA64Const; /* Used by 64-bit syscalls until conversion is finished. */
 #ifdef VMKERNEL
 typedef UserVA32 UserVA;
 #else
@@ -459,10 +466,10 @@ typedef void * UserVA;
  * for any region other than buserror.
  */
 #define PHYSMEM_MAX_PPN ((PPN)0xffffffff)
-#define MAX_PPN     ((PPN)0x0fffffff)   /* Maximal observable PPN value. */
-#define INVALID_PPN ((PPN)-1)
+#define MAX_PPN         ((PPN)0x1fffffff)   /* Maximal observable PPN value. */
+#define INVALID_PPN     ((PPN)0xffffffff)
 
-#define INVALID_BPN  ((BPN) 0x3fffffff) /* BPNs don't use the high two bits. */
+#define INVALID_BPN  ((BPN) 0x1fffffff)
 
 #define INVALID_MPN  ((MPN)-1)
 #define MEMREF_MPN   ((MPN)-2)

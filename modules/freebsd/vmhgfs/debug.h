@@ -26,10 +26,20 @@
 #define _DEBUG_H_
 
 #include <sys/param.h>
-#include <sys/types.h>          // for log(9)
-#include <sys/systm.h>          // for log(9)
-#include <sys/vnode.h>          // for struct vattr
-#include <sys/syslog.h>         // for log(9), LOG_* macros
+
+#if defined(__FreeBSD__)
+#  include <sys/types.h>          // for log(9)
+#  include <sys/systm.h>          // for log(9)
+#  include <sys/syslog.h>         // for log(9), LOG_* macros
+#elif defined(__APPLE__)
+#  include <kern/debug.h>         // for panic
+#endif
+
+#include <sys/vnode.h>            // for struct vattr
+
+#if defined(VMX86_DEVEL)
+#  include <pexpert/pexpert.h>    // for kprintf
+#endif
 
 #include "hgfs_kernel.h"
 
@@ -64,17 +74,25 @@
 #define VM_DEBUG_ALL            (~0)
 
 #if defined(VMX86_DEVEL)
-#define VM_DEBUG_LEV    (VM_DEBUG_ALWAYS | VM_DEBUG_FAIL)
+#  define VM_DEBUG_LEV (VM_DEBUG_ALWAYS | VM_DEBUG_FAIL)
 #endif
 
 #ifdef VM_DEBUG_LEV
-#define DEBUG(type, fmt, ...)                                           \
-             ((type & VM_DEBUG_LEV) ?                                   \
-              (log(LOG_NOTICE, "%s:%u: " fmt,                           \
-                   __func__, __LINE__, ##__VA_ARGS__))                  \
-              : 0)
+#  if defined(__FreeBSD__)
+#    define DEBUG(type, fmt, ...)                                         \
+               ((type & VM_DEBUG_LEV) ?                                   \
+                (log(LOG_NOTICE, "%s:%u: " fmt,                           \
+                     __func__, __LINE__, ##__VA_ARGS__))                  \
+                : 0)
+#  elif defined(__APPLE__)
+#    define DEBUG(type, fmt, ...)                             \
+                 ((type & VM_DEBUG_LEV) ?                     \
+                  (kprintf("%s:%u: " fmt,                     \
+                       __func__, __LINE__, ##__VA_ARGS__))    \
+                  : 0)
+#  endif
 #else
-#define DEBUG(type, ...)
+#  define DEBUG(type, ...)
 #endif
 
 
@@ -82,6 +100,6 @@
  * Global functions
  */
 
-void HgfsDebugPrintVattr(const struct vattr *vap);
+void HgfsDebugPrintVattr(const HGFS_VNODE_ATTR *vap);
 
 #endif // _DEBUG_H_

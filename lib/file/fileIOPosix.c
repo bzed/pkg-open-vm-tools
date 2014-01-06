@@ -59,6 +59,15 @@
 #include <sys/mount.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
+#else
+#if defined(__FreeBSD__)
+#include <sys/param.h>
+#include <sys/mount.h>
+#else
+#if !defined(N_PLAT_NLM)
+#include <sys/statfs.h>
+#endif
+#endif
 #endif
 
 /* Check for non-matching prototypes */
@@ -72,7 +81,6 @@
 #include "iovector.h"
 #include "stats_file.h"
 
-#include "unicodeBase.h"
 #include "unicodeOperations.h"
 
 #if defined(__APPLE__)
@@ -350,6 +358,7 @@ PosixOpen(ConstUnicode pathName,  // IN:
           int mode)               // IN:
 {
    int fd;
+   int err;
    char *path;
 
    if (pathName == NULL) {
@@ -359,18 +368,11 @@ PosixOpen(ConstUnicode pathName,  // IN:
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-   if (path == NULL) {
-      fd = -1;
-      errno = ENOMEM;
-   } else {
-      int err;
+   fd = open(path, flags, (mode_t) mode);
 
-      fd = open(path, flags, (mode_t) mode);
-
-      err = errno;
-      free(path);
-      errno = err;
-   }
+   err = errno;
+   free(path);
+   errno = err;
 
    return fd;
 }
@@ -588,33 +590,18 @@ static int
 ProxyUse(ConstUnicode pathName,  // IN:
          Bool *useProxy)         // IN:
 {
-   int err;
-   char *path;
+   Unicode path;
    UnicodeIndex index;
    struct statfs sfbuf;
-   struct stat statbuf;
+   PosixStatStruct statbuf;
 
    if (pathName == NULL) {
-      return EFAULT;
+      errno = EFAULT;
+      return -1;
    }
 
-   /*
-    * If the file to be opened exists and is a symbolic link use the
-    * proxy... this is a rare case and the work to fully resolve this
-    * doesn't seem to be worth it.
-    */
-
-   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (path == NULL) {
-      return ENOMEM;
-   }
-
-   err = lstat(path, &statbuf);
-
-   free(path);
-
-   if ((err == 0) && S_ISLNK(statbuf.st_mode)) {
+   if ((FileIO_PosixLstat(pathName, &statbuf) == 0) &&
+       S_ISLNK(statbuf.st_mode)) {
       *useProxy = TRUE;
       return 0;
    }
@@ -626,7 +613,7 @@ ProxyUse(ConstUnicode pathName,  // IN:
    index = Unicode_FindLast(pathName, U("/"));
 
    if (index == UNICODE_INDEX_NOT_FOUND) {
-      path = strdup(".");
+      path = Unicode_Duplicate(U("."));
    } else {
       Unicode temp;
       Unicode testPath;
@@ -638,10 +625,6 @@ ProxyUse(ConstUnicode pathName,  // IN:
 
       Unicode_Free(temp);
       Unicode_Free(testPath);
-
-      if (path == NULL) {
-         return ENOMEM;
-      }
    }
 
    /*
@@ -649,11 +632,7 @@ ProxyUse(ConstUnicode pathName,  // IN:
     * containing filePath).
     */
 
-   err = statfs(path, &sfbuf);
-
-   free(path);
-
-   if (err == 0) {
+   if (FileIO_PosixStatfs(path, &sfbuf) == 0) {
       /*
        * The testPath exists; determine proxy usage explicitely.
        */
@@ -666,6 +645,8 @@ ProxyUse(ConstUnicode pathName,  // IN:
 
       *useProxy = TRUE;
    }
+
+   Unicode_Free(path);
 
    return 0;
 }
@@ -739,7 +720,7 @@ FileIO_PosixOpen(ConstUnicode pathName, // IN:
  *
  * FileIO_PosixCreat --
  *
- *      Create a file via POSIX creat().
+ *      Create a file via POSIX creat()
  *
  * Results:
  *      -1	Error
@@ -764,7 +745,7 @@ FileIO_PosixCreat(ConstUnicode pathName, // IN:
  *
  * FileIO_PosixFopen --
  *
- *      Open a file via POSIX fopen();
+ *      Open a file via POSIX fopen()
  *
  * Results:
  *      -1	Error
@@ -791,17 +772,183 @@ FileIO_PosixFopen(ConstUnicode pathName, // IN:
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-   if (path == NULL) {
-      errno = ENOMEM;
-      return NULL;
-   }
-
    stream = fopen(path, mode);
    err = errno;
    free(path);
    errno = err;
 
    return stream;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileIO_PosixStat --
+ *
+ *      POSIX stat()
+ *
+ * Results:
+ *      -1	Error
+ *      0	Success
+ *
+ * Side effects:
+ *      errno is set on error
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileIO_PosixStat(ConstUnicode pathName,     // IN:
+                 PosixStatStruct *statbuf)  // IN:
+{
+   int err;
+   int ret;
+   char *path;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   ret = stat(path, statbuf);
+
+   err = errno;
+   free(path);
+   errno = err;
+
+   return ret;
+}
+
+#if !defined(sun) && !defined(N_PLAT_NLM)
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileIO_PosixStatfs --
+ *
+ *      POSIX statfs()
+ *
+ * Results:
+ *      -1	Error
+ *      0	Success
+ *
+ * Side effects:
+ *      errno is set on error
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileIO_PosixStatfs(ConstUnicode pathName,     // IN:
+                   struct statfs *statfsbuf)  // IN:
+{
+   int err;
+   int ret;
+   char *path;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   ret = statfs(path, statfsbuf);
+
+   err = errno;
+   free(path);
+   errno = err;
+
+   return ret;
+}
+#endif
+
+
+#if !defined(N_PLAT_NLM)
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileIO_PosixLstat --
+ *
+ *      POSIX lstat()
+ *
+ * Results:
+ *      -1	Error
+ *      0	Success
+ *
+ * Side effects:
+ *      errno is set on error
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileIO_PosixLstat(ConstUnicode pathName,     // IN:
+                  PosixStatStruct *statbuf)  // IN:
+{
+   int err;
+   int ret;
+   char *path;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   ret = lstat(path, statbuf);
+
+   err = errno;
+   free(path);
+   errno = err;
+
+   return ret;
+}
+#endif
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FileIO_PosixChmod --
+ *
+ *      POSIX chmod()
+ *
+ * Results:
+ *      -1	Error
+ *      0	Success
+ *
+ * Side effects:
+ *      errno is set on error
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+FileIO_PosixChmod(ConstUnicode pathName,  // IN:
+                  uint32 mode)            // IN:
+{
+   int err;
+   int ret;
+   char *path;
+
+   if (pathName == NULL) {
+      errno = EFAULT;
+      return -1;
+   }
+
+   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
+
+   ret = chmod(path, (mode_t) mode);
+
+   err = errno;
+   free(path);
+   errno = err;
+
+   return ret;
 }
 
 
@@ -847,11 +994,11 @@ FileIO_Create(FileIODescriptor *file,    // OUT:
 
 #if defined(VMX86_STATS)
    {
-      char *tmp;
+      Unicode tmp;
       File_SplitName(pathName, NULL, NULL, &tmp);
       STATS_USER_INIT_MODULE_ONCE();
       file->stats = STATS_USER_INIT_INST(tmp);
-      free(tmp);
+      Unicode_Free(tmp);
    }
 #endif
 
@@ -912,9 +1059,8 @@ FileIO_Create(FileIODescriptor *file,    // OUT:
       flags |= O_DIRECT;
 #elif !defined(__APPLE__) // Mac hosts need this access flag after opening.
       access &= ~FILEIO_OPEN_UNBUFFERED;
-// XXX unicode "string" in message
       LOG_ONCE((LGPFX" %s reverting to buffered IO on %s.\n",
-                __FUNCTION__, pathName));
+                __FUNCTION__, UTF8(pathName)));
 #endif
    }
 
@@ -931,17 +1077,12 @@ FileIO_Create(FileIODescriptor *file,    // OUT:
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
 
-   if (path == NULL) {
-      fd = -1;
-      errno = ENOMEM;
-   } else {
-      fd = FileIO_PosixOpen(path, flags
+   fd = FileIO_PosixOpen(path, flags
 #if defined(linux) && !defined(N_PLAT_NLM)
-                            | ((access & FILEIO_OPEN_SYNC) ? O_SYNC : 0)
+                         | ((access & FILEIO_OPEN_SYNC) ? O_SYNC : 0)
 #endif
-                            | FileIO_OpenActions[action],
-                           mode);
-   }
+                         | FileIO_OpenActions[action],
+                        mode);
 
    error = errno;
 
@@ -1968,27 +2109,11 @@ int64
 FileIO_GetSizeByPath(ConstUnicode pathName)  // IN:
 {
    int err;
-   char *path;
-   struct stat statBuf;
+   PosixStatStruct statbuf;
 
-   if (pathName == NULL) {
-      errno = EFAULT;
-      return -1;
-   }
+   err = FileIO_PosixStat(pathName, &statbuf);
 
-   path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (path == NULL) {
-      errno = EFAULT;
-      return -1;
-   }
-
-   err = (stat(path, &statBuf) == -1) ? errno : 0;
-
-   free(path);
-   errno = err;
-
-   return (err == 0) ? statBuf.st_size : -1;
+   return (err == 0) ? statbuf.st_size : -1;
 }
 
 
@@ -2039,11 +2164,6 @@ FileIO_Access(ConstUnicode pathName,  // IN: path name to be tested
    }
 
    path = Unicode_GetAllocBytes(pathName, STRING_ENCODING_DEFAULT);
-
-   if (path == NULL) {
-      errno = ENOMEM;
-      return FILEIO_ERROR;
-   }
 
    err = (access(path, mode) == -1) ? errno : 0;
 

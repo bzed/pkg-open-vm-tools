@@ -30,7 +30,7 @@
 #include "vm_version.h"
 
 
-#define COPYRIGHT_YEARS    "1998-2007"
+#define COPYRIGHT_YEARS    "1998-2008"
 #define COPYRIGHT_STRING   "Copyright \251 " COPYRIGHT_YEARS " " COMPANY_NAME
 #define UTF8_COPYRIGHT_STRING   "Copyright \302\251 " COPYRIGHT_YEARS " " COMPANY_NAME
 #define RIGHT_RESERVED     "All rights reserved."

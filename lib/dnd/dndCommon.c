@@ -32,10 +32,12 @@
 #include "dnd.h"
 #include "file.h"
 #include "str.h"
+#include "random.h"
 #include "util.h"
 #include "cpNameUtil.h"
 #include "hgfsServerPolicy.h"
 #include "hgfsVirtualDir.h"
+#include "unicodeOperations.h"
 
 #define LOGLEVEL_MODULE dnd
 #include "loglevel_user.h"
@@ -43,7 +45,7 @@
 #define WIN_DIRSEPC     '\\'
 #define WIN_DIRSEPS     "\\"
 
-const char *DnDCreateRootStagingDirectory(void);
+static ConstUnicode DnDCreateRootStagingDirectory(void);
 Bool DnDDataContainsIllegalCharacters(const char *data,
                                       const size_t dataSize,
                                       const char *illegalChars);
@@ -79,14 +81,14 @@ Bool DnDPrependFileRoot(const char *fileRoot, const char delimiter,
  *-----------------------------------------------------------------------------
  */
 
-char *
+Unicode
 DnD_CreateStagingDirectory(void)
 {
-   const char *root;
-   char **stagingDirList;
+   ConstUnicode root;
+   Unicode *stagingDirList;
    int numStagingDirs;
    int i;
-   char *ret = NULL;
+   Unicode ret = NULL;
    Bool found = FALSE;
 
    /*
@@ -98,14 +100,6 @@ DnD_CreateStagingDirectory(void)
       return NULL;
    }
 
-   /*
-    * Now find an existing directory to use or create a new one.
-    */
-   ret = calloc(PATH_MAX, sizeof *ret);
-   if (!ret) {
-      return NULL;
-   }
-
    /* Look for an existing, empty staging directory */
    numStagingDirs = File_ListDirectory(root, &stagingDirList);
    if (numStagingDirs < 0) {
@@ -114,51 +108,59 @@ DnD_CreateStagingDirectory(void)
 
    for (i = 0; i < numStagingDirs; i++) {
       if (!found) {
-         char stagingDir[PATH_MAX];
+         Unicode stagingDir;
 
-         if (Str_Snprintf(stagingDir, sizeof stagingDir,
-                          "%s%s", root, stagingDirList[i]) == -1) {
-            continue;
-         }
+         stagingDir = Unicode_Append(root, stagingDirList[i]);
+
          if (File_IsEmptyDirectory(stagingDir) &&
              DnDStagingDirectoryUsable(stagingDir)) {
-               if (Str_Snprintf(ret, PATH_MAX,
-                                "%s%c", stagingDir, DIRSEPC) == -1) {
-                  continue;
-               }
+               ret = Unicode_Append(stagingDir, U(DIRSEPS));
                /*
                 * We can use this directory.  Make sure to continue to loop
                 * so we don't leak the remaining stagindDirList[i]s.
                 */
                found = TRUE;
          }
+
+         Unicode_Free(stagingDir);
       }
-      free(stagingDirList[i]);
+
+      Unicode_Free(stagingDirList[i]);
    }
 
    free(stagingDirList);
 
    /* Only create a directory if we didn't find one above. */
    if (!found) {
-      srand((unsigned)time(NULL));
+      void *p;
+
+      p = Random_QuickSeed((unsigned)time(NULL));
 
       for (i = 0; i < 10; i++) {
+         Unicode temp;
+         char string[16];
+
          /* Each staging directory is given a random name. */
-         if (Str_Snprintf(ret, PATH_MAX,
-                          "%s%08x%c", root, rand(), DIRSEPC) == -1) {
-            continue;
-         }
+         Unicode_Free(ret);
+         Str_Sprintf(string, sizeof string, "%08x%c", Random_Quick(p),
+                     DIRSEPC);
+         temp = Unicode_Alloc(string, STRING_ENCODING_US_ASCII);
+         ret = Unicode_Append(root, temp);
+         Unicode_Free(temp);
+
          if (File_CreateDirectory(ret) &&
              DnDSetPermissionsOnStagingDir(ret)) {
             found = TRUE;
             break;
          }
       }
+
+      free(p);
    }
 
 exit:
    if (!found && ret != NULL) {
-      free(ret);
+      Unicode_Free(ret);
       ret = NULL;
    }
 
@@ -183,10 +185,10 @@ exit:
  *----------------------------------------------------------------------------
  */
 
-const char *
+static ConstUnicode
 DnDCreateRootStagingDirectory(void)
 {
-   const char *root;
+   ConstUnicode root;
 
    /*
     * DnD_GetFileRoot() gives us a pointer to a static string, so there's no

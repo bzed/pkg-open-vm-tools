@@ -35,7 +35,8 @@
 #if defined(linux)
 #   include <mntent.h>
 #endif
-#if defined(__FreeBSD__)
+
+#if defined(__FreeBSD__) || defined(__APPLE__)
 #   include <sys/uio.h>
 #   include <sys/param.h>
 #   define MS_MANDLOCK 0
@@ -52,12 +53,24 @@
 #   define MS_JAILDEVFS MNT_JAILDEVFS
 #   define MS_MULTILABEL MNT_MULTILABEL
 #   define MS_ACLS MNT_ACLS
-#   define MS_NOATIME MNT_NOATIME
 #   define MS_NODIRATIME 0
 #   define MS_NOCLUSTERR MNT_NOCLUSTERR
 #   define MS_NOCLUSTERW MNT_NOCLUSTERW
 #   define MS_REMOUNT MNT_RELOAD
+
+#  if defined(__FreeBSD__)
+#     define MS_NOATIME MNT_NOATIME
+#  elif defined(__APPLE__)
+/*
+ *  XXX This is defined in the sys/mount.h in the OS X 10.5 Kernel.framework but not the
+ *  10.4 one. Once this is built against the newer library, this should be changed.
+ */
+#     define MS_NOATIME 0
 #endif
+
+#endif
+
+
 #include <sys/mount.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -83,8 +96,11 @@
 #include "strutil.h"
 #include "hgfsmounter_version.h"
 
-#include "embed_version.h"
-VM_EMBED_VERSION(HGFSMOUNTER_VERSION_STRING);
+/* XXX embed_version.h does not currently support Mach-O binaries (OS X). */
+#if defined(linux) || defined(__FreeBSD__)
+#  include "embed_version.h"
+   VM_EMBED_VERSION(HGFSMOUNTER_VERSION_STRING);
+#endif
 
 /*
  * Not defined in glibc 2.1.3
@@ -145,7 +161,7 @@ static void UpdateMtab(HgfsMountInfo *mountInfo,
  *-----------------------------------------------------------------------------
  */
 
-static void 
+static void
 PrintVersion(void)
 {
    printf("%s version: %s\n", thisProgramBase, HGFSMOUNTER_VERSION_STRING);
@@ -169,7 +185,7 @@ PrintVersion(void)
  *-----------------------------------------------------------------------------
  */
 
-static void 
+static void
 PrintUsage(void)
 {
    printf("Usage: %s <sharename> <dir> [-o <options>]\n", thisProgramBase);
@@ -215,7 +231,7 @@ PrintUsage(void)
  * GetPathMax
  *
  *    Helper function to get the system's maximum path length for a given
- *    path. In userspace, PATH_MAX may not be defined, and we must use 
+ *    path. In userspace, PATH_MAX may not be defined, and we must use
  *    pathconf(3) to get its value.
  *
  *    This is the realpath(3)-approved way of getting the maximum path size,
@@ -239,12 +255,12 @@ GetPathMax(const char *path) // IN: path to check
 #ifndef PATH_MAX
    long sysPathMax;
 
-   /* 
-    * pathconf(3) may return -1 if the system imposes no pathname bound, or if 
+   /*
+    * pathconf(3) may return -1 if the system imposes no pathname bound, or if
     * there was an error. In any case, we're advised by realpath(3)'s manpage
     * not to use the result of pathconf for direct allocation, as it may be too
     * large. So we declare 4096 as our upper bound, to be used when pathconf(3)
-    * returns an error, returns zero, returns a very large quantity, or when 
+    * returns an error, returns zero, returns a very large quantity, or when
     * we learn that there's no limit.
     */
    sysPathMax = pathconf(path, _PC_PATH_MAX);
@@ -348,7 +364,7 @@ ParseUid(const char *uidString, // IN:  String with uid
    ASSERT(uidString);
    ASSERT(uid);
 
-   /* 
+   /*
     * The uid can be a direct value or a username which we must first
     * translate to its numeric value.
     */
@@ -363,7 +379,7 @@ ParseUid(const char *uidString, // IN:  String with uid
       }
    } else {
       struct passwd *pw;
-      
+
       if (!(pw = getpwnam(uidString))) {
          printf("Bad user name \"%s\"\n", uidString);
       } else {
@@ -404,7 +420,7 @@ ParseGid(const char *gidString, // IN:  String with gid
    ASSERT(gidString);
    ASSERT(gid);
 
-   /* 
+   /*
     * The gid can be a direct value or a group name which we must first
     * translate to its numeric value.
     */
@@ -419,7 +435,7 @@ ParseGid(const char *gidString, // IN:  String with gid
       }
    } else {
       struct group *gr;
-      
+
       if (!(gr = getgrnam(gidString))) {
          printf("Bad group name \"%s\"\n", gidString);
       } else {
@@ -469,7 +485,7 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
    LOG("Parsing option string: %s\n", optionString);
 
    /* Loop to tokenize <keyval1>,<keyval2>,<keyval3>. */
-   while ((keyVal = StrUtil_GetNextToken(&commaIndex, 
+   while ((keyVal = StrUtil_GetNextToken(&commaIndex,
                                          optionString, ",")) != NULL) {
       /* Now tokenize <key>[=<val>]. */
       unsigned int equalsIndex = 0;
@@ -479,7 +495,7 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
          goto out;
       }
 
-      /* 
+      /*
        * Here are all our recognized option keys. Some have corresponding
        * values, others don't.
        */
@@ -488,10 +504,10 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
          if (fmaskString != NULL) {
             unsigned short fmask;
 
-            /* 
+            /*
              * The way to check for an overflow in strtol(3), according to its
              * man page.
-             */ 
+             */
             errno = 0;
             fmask = strtol(fmaskString, NULL, 8);
             free(fmaskString);
@@ -511,10 +527,10 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
          if (dmaskString != NULL) {
             unsigned short dmask;
 
-            /* 
+            /*
              * The way to check for an overflow in strtol(3), according to its
              * man page.
-             */ 
+             */
             errno = 0;
             dmask = strtol(dmaskString, NULL, 8);
             free(dmaskString);
@@ -533,7 +549,7 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
          char *uidString = StrUtil_GetNextToken(&equalsIndex, keyVal, "=");
          if (uidString != NULL) {
             uid_t uid;
-            
+
             valid = ParseUid(uidString, &uid);
             free(uidString);
             if (valid) {
@@ -551,7 +567,7 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
          char *gidString = StrUtil_GetNextToken(&equalsIndex, keyVal, "=");
          if (gidString != NULL) {
             gid_t gid;
-            
+
             valid = ParseGid(gidString, &gid);
             free(gidString);
             if (valid) {
@@ -567,7 +583,7 @@ ParseOptions(const char *optionString, // IN:  Option string to parse
          }
       } else if (strcmp(key, "ttl") == 0) {
          int32 ttl;
-         
+
          if (StrUtil_GetNextIntToken(&ttl, &equalsIndex, keyVal, "=") && ttl > 0) {
             mountInfo->ttl = ttl;
             LOG("Setting maximum attribute TTL to %u\n", ttl);
@@ -693,7 +709,7 @@ UpdateMtab(HgfsMountInfo *mountInfo,  // IN: Info to write into mtab
       }
    }
 
-   /* 
+   /*
     * Create the mtab entry to be written. We'll go ahead and try to write
     * even if we fail to allocate the mount options.
     */
@@ -708,7 +724,7 @@ UpdateMtab(HgfsMountInfo *mountInfo,  // IN: Info to write into mtab
 
       memset(mountEnt.mnt_opts, 0, MOUNT_OPTS_BUFFER_SIZE);
 
-      /* 
+      /*
        * These are typically the displayed options in /etc/mtab (note that not
        * all options are typically displayed, just those the user may find
        * interesting).
@@ -768,8 +784,8 @@ UpdateMtab(HgfsMountInfo *mountInfo,  // IN: Info to write into mtab
 #endif
 
 
-/*
- *-----------------------------------------------------------------------------
+
+/*-----------------------------------------------------------------------------
  *
  * main --
  *
@@ -802,7 +818,7 @@ main(int argc,          // IN
    size_t pathMax;
 
    thisProgram = argv[0];
-   
+
    /* Compute the base name of the program, too. */
    thisProgramBase = strrchr(thisProgram, '/');
    if (thisProgramBase != NULL) {
@@ -836,7 +852,7 @@ main(int argc,          // IN
       case 'v':
          beVerbose = TRUE;
          break;
-      case 'V':	   
+      case 'V':
          PrintVersion();
       default:
          printf("Error: unknown mount option %c\n", c);
@@ -854,11 +870,11 @@ main(int argc,          // IN
    shareName = argv[optind];
    mountPoint = argv[optind + 1];
 
-   /* 
+   /*
     * We canonicalize the mount point to avoid any discrepancies between the actual mount
     * point and the listed mount point in /etc/mtab (such discrepancies could prevent
     * umount(8) from removing the mount point from /etc/mtab).
-    */ 
+    */
    pathMax = GetPathMax(mountPoint);
    canonicalizedPath = malloc(pathMax * sizeof *canonicalizedPath);
    if (canonicalizedPath == NULL) {
@@ -867,7 +883,7 @@ main(int argc,          // IN
       goto out;
    } else if (!realpath(mountPoint, canonicalizedPath)) {
       perror("Error: cannot canonicalize mount point");
-      goto out;      
+      goto out;
    }
    mountPoint = canonicalizedPath;
 
@@ -885,16 +901,16 @@ main(int argc,          // IN
    mountInfo.ttl = HGFS_DEFAULT_TTL;
    mountInfo.shareNameHost = shareNameHost;
    mountInfo.shareNameDir = shareNameDir;
-   
-   /* 
+
+   /*
     * This'll write the rest of the options into HgfsMountInfo and possibly
-    * modify the flags. 
+    * modify the flags.
     */
    if (optionString && !ParseOptions(optionString, &mountInfo, &flags)) {
       printf("Error: could not parse options string\n");
       goto out;
    }
-   
+
    /* Do some sanity checks on our desired mount point. */
    if (stat(mountPoint, &statBuf)) {
       perror("Error: cannot stat mount point");
@@ -905,15 +921,15 @@ main(int argc,          // IN
       goto out;
    }
 
-   /* 
-    * Must be root in one flavor or another. If we're suid root, only proceed 
-    * if the user owns the mountpoint. 
+   /*
+    * Must be root in one flavor or another. If we're suid root, only proceed
+    * if the user owns the mountpoint.
     */
    if (geteuid() != 0) {
-      printf("Error: either you're not root, or %s isn't installed SUID\n", 
+      printf("Error: either you're not root, or %s isn't installed SUID\n",
              thisProgram);
       goto out;
-   } else if (getuid() != 0 && (getuid() != statBuf.st_uid || 
+   } else if (getuid() != 0 && (getuid() != statBuf.st_uid ||
                                 (statBuf.st_mode & S_IRWXU) != S_IRWXU)) {
       printf("Error: for user mounts, user must own the mount point\n");
       goto out;
@@ -933,6 +949,8 @@ main(int argc,          // IN
 
       mntRes = nmount(iov, ARRAYSIZE(iov), flags);
    }
+#elif defined(__APPLE__)
+   mntRes = mount(HGFS_NAME, mountPoint, flags, NULL);
 #endif
    if (mntRes) {
       perror("Error: cannot mount filesystem");

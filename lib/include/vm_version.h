@@ -210,7 +210,7 @@
 #define VIM_API_VERSION "2.5.0"
 #define VIPERL_VERSION "1.1.0"
 #define RCLI_VERSION "1.5.0"
-#define TOOLS_VERSION "2008.01.23"
+#define TOOLS_VERSION "2008.02.13"
 
 #ifdef VMX86_VPX
 #define VIM_API_TYPE "VirtualCenter"

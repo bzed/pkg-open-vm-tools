@@ -34,6 +34,7 @@ HEADER_DIR = /lib/modules/$(VM_UNAME)/build/include
 BUILD_DIR = $(HEADER_DIR)/..
 
 DRIVER := vmsync
+PRODUCT := @PRODUCT@
 
 # Grep program
 GREP = /bin/grep

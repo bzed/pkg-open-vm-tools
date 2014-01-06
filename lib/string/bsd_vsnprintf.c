@@ -1019,7 +1019,7 @@ bsd_vsnprintf(char **outbuf, size_t bufSize, const char *fmt0, va_list ap)
           * PR 103201
           * VisualC sscanf doesn't grok '0x', so prefix zeroes.
           */
-//         ox[1] = 'x';
+//       ox[1] = 'x';
          goto nosign;
       case 'S':
          flags |= LONGINT;
@@ -1028,6 +1028,7 @@ bsd_vsnprintf(char **outbuf, size_t bufSize, const char *fmt0, va_list ap)
          if (flags & LONGINT) {
             wchar_t *wcp;
 
+            /* Argument is wchar_t * */
             if (convbuf != NULL)
                free(convbuf);
             if ((wcp = GETARG(wchar_t *)) == NULL)
@@ -1040,8 +1041,11 @@ bsd_vsnprintf(char **outbuf, size_t bufSize, const char *fmt0, va_list ap)
                }
                cp = convbuf;
             }
-         } else if ((cp = GETARG(char *)) == NULL)
+         } else if ((cp = GETARG(char *)) == NULL) {
+            /* Argument is char * */
             cp = "(null)";
+         }
+
          if (prec >= 0) {
             /*
              * can't use strlen; can only look for the
@@ -2244,7 +2248,7 @@ Str_MsgFmtSnprintfWork(char **outbuf, size_t bufSize, const char *fmt0,
 	    }
             if (convbuf != NULL)
                free(convbuf);
-            if ((wcp = (wchar_t *) a->v.s.ptr) == NULL)
+            if ((wcp = (wchar_t *) a->v.ptr) == NULL)
                cp = "(null)";
             else {
                convbuf = __wcsconv(wcp, prec);

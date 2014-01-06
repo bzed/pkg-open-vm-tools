@@ -164,6 +164,35 @@ FoundryThreads_StopThread(FoundryWorkerThread *threadState)    // IN
    free(threadState);
 }
 
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * FoundryThreads_Free --
+ *
+ *      Destroys the thread state.
+ * 
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+FoundryThreads_Free(FoundryWorkerThread *threadState)    // IN
+{
+   if (NULL != threadState) {
+#ifdef _WIN32
+      CloseHandle(threadState->threadHandle);
+      threadState->threadHandle = NULL;
+#else
+      threadState->threadInfo = 0;
+#endif
+   }
+
+   free(threadState);
+}
 
 /*
  *-----------------------------------------------------------------------------

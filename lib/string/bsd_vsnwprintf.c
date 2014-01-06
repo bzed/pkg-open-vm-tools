@@ -67,7 +67,7 @@
 typedef struct StrBuf {
    Bool alloc;
    Bool error;
-   void *buf;
+   wchar_t *buf;
    size_t size;
    size_t index;
 } StrBuf;
@@ -101,10 +101,10 @@ __sfvwrite(StrBuf *sbuf, struct __suio *uio)
    if (sbuf->alloc) {
       size_t n = sbuf->index + uio->uio_resid + 1;	// +1 for \0
       if (n > sbuf->size) {
-	 char *p;
+	 wchar_t *p;
 	 ASSERT(sbuf->size > 0);
 	 n = ROUNDUP(n, sbuf->size);
-	 if ((p = realloc(sbuf->buf, n)) == NULL) {
+	 if ((p = realloc(sbuf->buf, n * sizeof(wchar_t))) == NULL) {
 	    sbuf->error = TRUE;
 	    return 1;
 	 }
@@ -128,8 +128,8 @@ __sfvwrite(StrBuf *sbuf, struct __suio *uio)
 	 numToWrite = siov->iov_len;
       }
 
-      memcpy(((char *)sbuf->buf) + sbuf->index, siov->iov_base,
-             numToWrite * sizeof (char));
+      memcpy(sbuf->buf + sbuf->index, siov->iov_base,
+             numToWrite * sizeof(wchar_t));
       sbuf->index += numToWrite;
    }
 
@@ -318,7 +318,7 @@ __ujtoa(uintmax_t val, wchar_t *endp, int base, int octzero,
 
 /*
  * Convert a multibyte character string argument for the %s format to a wide
- * string representation. ``prec'' specifies the maximum number of bytes
+ * string representation. ``prec'' specifies the maximum number of characters
  * to output. If ``prec'' is greater than or equal to zero, we can't assume
  * that the multibyte char. string ends in a null character.
  */
@@ -330,7 +330,7 @@ __mbsconv(char *mbsarg, int prec)
    wchar_t buf[MB_LEN_MAX];
    const char *p;
    wchar_t *convbuf;
-   size_t clen, nbytes;
+   size_t clen, n;
 
    if (mbsarg == NULL)
       return (NULL);
@@ -339,8 +339,8 @@ __mbsconv(char *mbsarg, int prec)
    if (prec < 0) {
       p = mbsarg;
       mbs = initial;
-      nbytes = mbsrtowcs(NULL, (const char **)&p, 0, &mbs);
-      if (nbytes == (size_t)-1)
+      n = mbsrtowcs(NULL, (const char **)&p, 0, &mbs);
+      if (n == (size_t)-1)
          return (NULL);
    } else {
       /*
@@ -349,34 +349,34 @@ __mbsconv(char *mbsarg, int prec)
        * scanning the string.
        */
       if (prec < 128)
-         nbytes = prec;
+         n = prec;
       else {
-         nbytes = 0;
+         n = 0;
          p = mbsarg;
 	 mbs = initial;
          for (;;) {
             clen = mbrtowc(buf, p, MB_LEN_MAX, &mbs);
             if (clen == 0 || clen == (size_t)-1 ||
                 clen == (size_t)-2 ||
-                (nbytes + sizeof(wchar_t)) > prec)
+                (n + 1) > prec)
                break;
-            nbytes += sizeof(wchar_t);
+            n += 1;
             p += clen;
          }
       }
    }
-   if ((convbuf = malloc(nbytes + sizeof(wchar_t))) == NULL)
+   if ((convbuf = malloc((n + 1) * sizeof(wchar_t))) == NULL)
       return (NULL);
 
    /* Fill the output buffer. */
    p = mbsarg;
    mbs = initial;
-   nbytes = mbsrtowcs(convbuf, (const char **)&p, nbytes, &mbs);
-   if (nbytes == (size_t)-1) {
+   n = mbsrtowcs(convbuf, (const char **)&p, n, &mbs);
+   if (n == (size_t)-1) {
       free(convbuf);
       return (NULL);
    }
-   convbuf[nbytes] = '\0';
+   convbuf[n] = L'\0';
    return (convbuf);
 }
 
@@ -447,7 +447,6 @@ bsd_vsnwprintf(wchar_t **outBuf, size_t bufSize, const wchar_t *fmt0,
     * D:        expchar holds this character; '\0' if no exponent, e.g. %f
     * F:        at least two digits for decimal, at least one digit for hex
     */
-   int isErr = 0;
    char *decimal_point;         /* locale specific decimal point */
    int signflag;                /* true if float is negative */
    union {                        /* floating point arguments %[aAeEfFgG] */
@@ -481,7 +480,6 @@ bsd_vsnwprintf(wchar_t **outBuf, size_t bufSize, const wchar_t *fmt0,
    union arg statargtable [STATIC_ARG_TBL_SIZE];
    int nextarg;                /* 1-based argument index */
    wchar_t *convbuf;        /* multibyte to wide conversion result */
-   int bufIdx = 0;          /* current location in outBuf */
 #ifndef _WIN32
    va_list orgap;
 #endif
@@ -510,8 +508,8 @@ bsd_vsnwprintf(wchar_t **outBuf, size_t bufSize, const wchar_t *fmt0,
     */
 #define   PRINT(ptr, len) {                             \
       iovp->iov_base = (ptr);                           \
-      iovp->iov_len = (len)*sizeof(wchar_t);            \
-      uio.uio_resid += (len)*sizeof(wchar_t);           \
+      iovp->iov_len = len;                              \
+      uio.uio_resid += len;                             \
       iovp++;                                           \
       if (++uio.uio_iovcnt >= NIOV) {                   \
          if (__sprint(&sbuf, &uio))                     \
@@ -1006,26 +1004,28 @@ bsd_vsnwprintf(wchar_t **outBuf, size_t bufSize, const wchar_t *fmt0,
           * PR 103201
           * VisualC sscanf doesn't grok '0x', so prefix zeroes.
           */
-//         ox[1] = 'x';
+//       ox[1] = 'x';
          goto nosign;
       case 'S':
          flags |= LONGINT;
          /*FALLTHROUGH*/
       case 's':
          if (flags & LONGINT) {
+            /* Argument is wchar_t * */
             if ((cp = GETARG(wchar_t *)) == NULL)
                cp = L"(null)";
          } else {
             char *mbp;
+            /* Argument is char * */
 
-            if (convbuf != NULL)
+            if (convbuf!= NULL)
                free(convbuf);
             if ((mbp = GETARG(char *)) == NULL)
                cp = L"(null)";
             else {
                convbuf = __mbsconv(mbp, prec);
                if (convbuf == NULL) {
-                  isErr = 1;
+                  sbuf.error = TRUE;
                   goto error;
                }
                cp = convbuf;
@@ -1236,20 +1236,32 @@ bsd_vsnwprintf(wchar_t **outBuf, size_t bufSize, const wchar_t *fmt0,
 
       /* finally, adjust ret */
       ret += prsize;
+
+      FLUSH();   /* copy out the I/O vectors */
    }
   done:
+   FLUSH();
+
+   /*
+    * Always null terminate, unless buffer is size 0.
+    */
+
+   ASSERT(!sbuf.error && ret >= 0);
+   if (sbuf.size <= 0) {
+      ASSERT(!sbuf.alloc);
+   } else {
+      ASSERT(sbuf.index < sbuf.size);
+      sbuf.buf[sbuf.index] = L'\0';
+   }
+
   error:
 #ifndef _WIN32
    va_end(orgap);
 #endif
    if (convbuf != NULL)
       free(convbuf);
-   if (bufSize > 0)
-      outBuf[bufIdx == bufSize ? bufIdx - 1 : bufIdx] = '\0';
-   if (isErr || (bufIdx == bufSize))
-      ret = -1;
-   else
-      ret = bufIdx;
+   if (sbuf.error)
+      ret = EOF;
    if ((argtable != NULL) && (argtable != statargtable))
       free (argtable);
    return (ret);

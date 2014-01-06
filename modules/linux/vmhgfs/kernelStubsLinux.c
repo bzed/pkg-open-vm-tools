@@ -19,7 +19,7 @@
 /*
  * kernelStubsLinux.c
  *
- * This file contains implementations of common userspace functions in terms 
+ * This file contains implementations of common userspace functions in terms
  * that the Linux kernel can understand.
  */
 
@@ -32,9 +32,9 @@
 
 #include "vm_assert.h"
 
-/* 
+/*
  * vsnprintf was born in 2.4.10. Fall back on vsprintf if we're
- * an older kernel. 
+ * an older kernel.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 10)
 #define vsnprintf(str, size, fmt, args) vsprintf(str, fmt, args)
@@ -66,7 +66,7 @@ Panic(const char *fmt, ...) // IN
    va_start(args, fmt);
    result = Str_Vasprintf(NULL, fmt, args);
    va_end(args);
-   
+
    if (result) {
       printk(KERN_EMERG "%s", result);
    }
@@ -102,7 +102,7 @@ Str_Strcpy(char *buf,       // OUT
    size_t len;
 
    len = strlen(src);
-   if (len >= maxSize) { 
+   if (len >= maxSize) {
       Panic("%s:%d Buffer too small 0x%x\n", __FILE__,__LINE__,
             stack[-1]);
    }
@@ -241,34 +241,12 @@ Str_Asprintf(size_t *length,       // OUT
 {
    va_list arguments;
    char *result;
-   
+
    va_start(arguments, format);
    result = Str_Vasprintf(length, format, arguments);
    va_end(arguments);
 
    return result;
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * System_Uptime --
- *
- *    Retrieves the uptime in hundredths of a second.
- *
- * Results:
- *    The uptime value. Always successful.
- *
- * Side effects:
- *    None.
- *
- *-----------------------------------------------------------------------------
- */
-uint64
-System_Uptime(void)
-{
-   return (jiffies * 100) / HZ;
 }
 
 
@@ -294,8 +272,8 @@ strdup(const char *source) // IN
 {
    char *target = NULL;
    if (source) {
-      
-      /* 
+
+      /*
        * We call our special implementation of malloc() because the users of
        * strdup() will call free(), and that'll decrement the pointer before
        * freeing it. Thus, we need to make sure that the allocated block
@@ -315,141 +293,141 @@ strdup(const char *source) // IN
 
 /*
  *----------------------------------------------------------------------------
- *                                                                            
- * malloc --                                                                  
- *                                                                            
- *      Allocate memory using kmalloc. There is no realloc                    
- *      equivalent, so we roll our own by padding each allocation with        
- *      4 (or 8 for 64 bit guests) extra bytes to store the block length.     
- *                                                                            
- * Results:                                                                   
- *      Pointer to driver heap memory, offset by 4 (or 8)                     
- *      bytes from the real block pointer.                                    
- *                                                                            
- * Side effects:                                                              
- *      None.                                                                 
- *                                                                            
+ *
+ * malloc --
+ *
+ *      Allocate memory using kmalloc. There is no realloc
+ *      equivalent, so we roll our own by padding each allocation with
+ *      4 (or 8 for 64 bit guests) extra bytes to store the block length.
+ *
+ * Results:
+ *      Pointer to driver heap memory, offset by 4 (or 8)
+ *      bytes from the real block pointer.
+ *
+ * Side effects:
+ *      None.
+ *
  *----------------------------------------------------------------------------
- */                                                                           
-                                                                              
-void *                                                                        
-malloc(size_t size) // IN                                                     
-{                                                                             
-   unsigned int *ptr;                                                         
-   ptr = kmalloc(size + sizeof(unsigned int), GFP_KERNEL);                    
-                                                                              
-   if (ptr) {                                                                 
-      *ptr++ = size;                                                          
-   }                                                                          
+ */
+
+void *
+malloc(size_t size) // IN
+{
+   size_t *ptr;
+   ptr = kmalloc(size + sizeof size, GFP_KERNEL);
+
+   if (ptr) {
+      *ptr++ = size;
+   }
    return ptr;
 }
 
-/*                                                                           
+/*
  *---------------------------------------------------------------------------
- *                                                                           
- * free --                                                                   
- *                                                                           
+ *
+ * free --
+ *
  *     Free memory allocated by a previous call to malloc, calloc or realloc.
- *                                                                           
- * Results:                                                                  
- *     None.                                                                 
- *                                                                           
- * Side effects:                                                             
- *     Calls kfree to free the real (base) pointer.                          
- *                                                                           
+ *
+ * Results:
+ *     None.
+ *
+ * Side effects:
+ *     Calls kfree to free the real (base) pointer.
+ *
  *---------------------------------------------------------------------------
- */                                                                          
+ */
 
-void                                                                          
-free(void *mem) // IN                                                         
-{                                                                             
-   if (mem) {                                                                 
-      unsigned int *dataPtr = (unsigned int *)mem;                            
-      kfree(--dataPtr);                                                       
-   }                                                                          
-}                                                                             
-                                                                              
-                                                                              
-/*                                                                            
+void
+free(void *mem) // IN
+{
+   if (mem) {
+      size_t *dataPtr = (size_t *)mem;
+      kfree(--dataPtr);
+   }
+}
+
+
+/*
  *----------------------------------------------------------------------------
- *                                                                            
- * calloc --                                                                  
- *                                                                            
- *      Malloc and zero.                                                      
- *                                                                            
- * Results:                                                                   
- *      Pointer to driver heap memory (see malloc, above).                    
- *                                                                            
- * Side effects:                                                              
- *      None.                                                                 
- *                                                                            
+ *
+ * calloc --
+ *
+ *      Malloc and zero.
+ *
+ * Results:
+ *      Pointer to driver heap memory (see malloc, above).
+ *
+ * Side effects:
+ *      None.
+ *
  *----------------------------------------------------------------------------
- */                                                                           
-                                                                              
-void *                                                                        
-calloc(size_t num, // IN                                                      
-       size_t len) // IN                                                      
-{                                                                             
-   size_t size;                                                               
-   void *ptr;                                                                 
-                                                                              
-   size = num * len;                                                          
-   ptr = malloc(size);                                                        
-   if (ptr) {                                                                 
-      memset(ptr, 0, size);                                                   
-   }                                                                          
-   return ptr;                                                                
-}                                                                             
-                                                                              
-                                                                              
-/*                                                                            
+ */
+
+void *
+calloc(size_t num, // IN
+       size_t len) // IN
+{
+   size_t size;
+   void *ptr;
+
+   size = num * len;
+   ptr = malloc(size);
+   if (ptr) {
+      memset(ptr, 0, size);
+   }
+   return ptr;
+}
+
+
+/*
  *----------------------------------------------------------------------------
- *                                                                            
- * realloc --                                                                 
- *                                                                            
- *      Since the driver heap has no realloc equivalent, we have to roll our 
- *      own. Fortunately, we can retrieve the block size of every block we 
+ *
+ * realloc --
+ *
+ *      Since the driver heap has no realloc equivalent, we have to roll our
+ *      own. Fortunately, we can retrieve the block size of every block we
  *      hand out since we stashed it at allocation time (see malloc above).
- *                                                                            
- * Results:                                                                   
- *      Pointer to memory block valid for 'newSize' bytes, or NULL if         
- *      allocation failed.                                                    
- *                                                                            
- * Side effects:                                                              
- *      Could copy memory around.                                             
- *                                                                            
+ *
+ * Results:
+ *      Pointer to memory block valid for 'newSize' bytes, or NULL if
+ *      allocation failed.
+ *
+ * Side effects:
+ *      Could copy memory around.
+ *
  *----------------------------------------------------------------------------
- */                                                                           
-                                                                              
-void *                                                                        
-realloc(void* ptr,      // IN                                                 
-        size_t newSize) // IN                                                 
-{                                                                             
-   void *newPtr;                                                              
-   unsigned int *dataPtr;                                                     
-   size_t length, lenUsed;                                                    
-                                                                              
-   dataPtr = (unsigned int *)ptr;                                             
-   length = ptr ? dataPtr[-1] : 0;                                            
-   if (newSize == 0) {                                                        
-      if (ptr) {                                                              
-         free(ptr);                                                           
-         newPtr = NULL;                                                       
-      } else {                                                                
-         newPtr = malloc(newSize);                                            
-      }                                                                       
-   } else if (newSize == length) {                                            
-      newPtr = ptr;                                                           
-   } else if ((newPtr = malloc(newSize))) {                                   
-      if (length < newSize) {                                                 
-         lenUsed = length;                                                    
-      } else {                                                                
-         lenUsed = newSize;                                                   
-      }                                                                       
-      memcpy(newPtr, ptr, lenUsed);                                           
-      free(ptr);                                                              
-   }                                                                          
-   return newPtr;                                                             
-}                  
+ */
+
+void *
+realloc(void* ptr,      // IN
+        size_t newSize) // IN
+{
+   void *newPtr;
+   size_t *dataPtr;
+   size_t length, lenUsed;
+
+   dataPtr = (size_t *)ptr;
+   length = ptr ? dataPtr[-1] : 0;
+   if (newSize == 0) {
+      if (ptr) {
+         free(ptr);
+         newPtr = NULL;
+      } else {
+         newPtr = malloc(newSize);
+      }
+   } else if (newSize == length) {
+      newPtr = ptr;
+   } else if ((newPtr = malloc(newSize))) {
+      if (length < newSize) {
+         lenUsed = length;
+      } else {
+         lenUsed = newSize;
+      }
+      memcpy(newPtr, ptr, lenUsed);
+      free(ptr);
+   }
+   return newPtr;
+}
 
 

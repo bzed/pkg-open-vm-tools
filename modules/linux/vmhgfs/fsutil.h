@@ -93,5 +93,9 @@ int HgfsGetHandle(struct inode *inode,
                   HgfsOpenMode mode,
                   HgfsHandle *handle);
 int HgfsStatusConvertToLinux(HgfsStatus hgfsStatus);
+void HgfsSetUidGid(struct inode *parent,
+                   struct dentry *dentry,
+                   uid_t uid,
+                   gid_t gid);
 
 #endif // _HGFS_DRIVER_FSUTIL_H_

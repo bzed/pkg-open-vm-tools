@@ -55,6 +55,7 @@
    LOGLEVEL_VAR(parallel), \
    LOGLEVEL_VAR(chipset), \
    LOGLEVEL_VAR(smc), \
+   LOGLEVEL_VAR(ich7m), \
    LOGLEVEL_VAR(extcfgdevice), \
    LOGLEVEL_VAR(flashram), \
    LOGLEVEL_VAR(pci), \
@@ -64,6 +65,8 @@
    LOGLEVEL_VAR(pci_ehci), \
    LOGLEVEL_VAR(ehci), \
    LOGLEVEL_VAR(usb), \
+   LOGLEVEL_VAR(vusbmouse), \
+   LOGLEVEL_VAR(vusbkeyboard), \
    LOGLEVEL_VAR(pci_1394), \
    LOGLEVEL_VAR(1394), \
    LOGLEVEL_VAR(pci_vlance), \
@@ -107,6 +110,7 @@
    LOGLEVEL_VAR(mksMouse), \
    LOGLEVEL_VAR(mksHostOps), \
    LOGLEVEL_VAR(mksGLManager), \
+   LOGLEVEL_VAR(mksGLShader), \
    \
    /* user/sound */ \
    LOGLEVEL_VAR(sound), \
@@ -167,6 +171,7 @@
    LOGLEVEL_VAR(shader), \
    LOGLEVEL_VAR(numa), \
    LOGLEVEL_VAR(machPoll), \
+   LOGLEVEL_VAR(replayVMX), \
    LOGLEVEL_VAR(vmWindowController), \
    LOGLEVEL_VAR(dui), \
    LOGLEVEL_VAR(duiMKS), \
@@ -179,6 +184,7 @@
    LOGLEVEL_VAR(cptOps), \
    LOGLEVEL_VAR(vprobeExec), \
    LOGLEVEL_VAR(vp), \
+   LOGLEVEL_VAR(devicePowerOn), \
 
 
 LOGLEVEL_EXTENSION_DECLARE(LOGLEVEL_USER);

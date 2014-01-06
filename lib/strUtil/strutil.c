@@ -230,6 +230,46 @@ StrUtil_GetNextInt64Token(int64 *out,          // OUT: The output value
 /*
  *-----------------------------------------------------------------------------
  *
+ * StrUtil_DecimalStrToUint --
+ *
+ *      Convert a string into an integer.
+ *
+ * Results:
+ *      TRUE if the conversion was successful, and 'out' contains the converted
+ *      result, and 'str' is updated to point to new place after last processed
+ *      digit.
+ *      FALSE otherwise.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+StrUtil_DecimalStrToUint(unsigned int *out, // OUT
+                         const char **str)  // IN/OUT : String to parse
+{
+   unsigned long val;
+   char *ptr;
+
+   ASSERT(out);
+   ASSERT(str);
+
+   errno = 0;
+   val = strtoul(*str, &ptr, 10);
+   if (ptr == *str || errno == ERANGE || val != (unsigned int)val) {
+      return FALSE;
+   }
+   *str = ptr;
+   *out = (unsigned int)val;
+   return TRUE;
+}
+   
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * StrUtil_StrToInt --
  *
  *      Convert a string into an integer.
@@ -250,15 +290,20 @@ StrUtil_StrToInt(int32 *out,      // OUT
                  const char *str) // IN : String to parse
 {
    char *ptr;
+   long val;
 
    ASSERT(out);
    ASSERT(str);
 
    errno = 0;
 
-   *out = (int32)strtol(str, &ptr, 0);
-   
-   return ptr[0] == '\0' && errno != ERANGE;
+   val = strtol(str, &ptr, 0);
+   *out = (int32)val;
+   /*
+    * Input must be complete, no overflow, and value read must fit into 32 bits -
+    * both signed and unsigned values are accepted.
+    */
+   return *ptr == '\0' && errno != ERANGE && (val == (int32)val || val == (uint32)val);
 }
 
 
@@ -284,15 +329,20 @@ StrUtil_StrToUint(uint32 *out,     // OUT
                   const char *str) // IN : String to parse
 {
    char *ptr;
+   unsigned long val;
 
    ASSERT(out);
    ASSERT(str);
 
    errno = 0;
 
-   *out = (uint32)strtoul(str, &ptr, 0);
-
-   return *ptr == '\0' && errno != ERANGE;
+   val = strtoul(str, &ptr, 0);
+   *out = (uint32)val;
+   /*
+    * Input must be complete, no overflow, and value read must fit into 32 bits -
+    * both signed and unsigned values are accepted.
+    */
+   return *ptr == '\0' && errno != ERANGE && (val == (uint32)val || val == (int32)val);
 }
 
 
@@ -438,7 +488,15 @@ StrUtil_FormatSizeInBytesUnlocalized(uint64 size) // IN
  *
  *      Given a buffer with one or more lines
  *      this function computes the length of the
- *      longest line in a buffer.
+ *      longest line in a buffer.  Input buffer is an array of
+ *      arbitrary bytes (including NUL character), line separator
+ *      is '\n', and is counted in line length.  Like:
+ *        "", 0     => 0
+ *        "\n", 1   => 1
+ *        "X", 1    => 1
+ *        "XX\n", 3 => 3
+ *        "X\nY", 3 => 2
+ *        "\n\n", 2 => 1
  *
  * Results:
  *      Returns the length of the longest line in the 'buf'.
@@ -462,7 +520,7 @@ StrUtil_GetLongestLineLength(const char *buf,   //IN
        next = memchr(buf, '\n', bufLength);
        if (next) {
           next++;
-          len = next - buf + 1;
+          len = next - buf;
        } else {
           len = bufLength;
        }
@@ -528,3 +586,40 @@ StrUtil_CaselessStartsWith(const char *s,      // IN
    return Str_Strncasecmp(s, prefix, strlen(prefix)) == 0;
 }
 #endif
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * StrUtil_EndsWith --
+ *
+ *      Detects if a string ends with another string.
+ *
+ * Results:
+ *      TRUE if string 'suffix' is found at the end of string 's', FALSE otherwise.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+StrUtil_EndsWith(const char *s,      // IN
+                 const char *suffix) // IN
+{
+   size_t slen;
+   size_t suffixlen;
+
+   ASSERT(s);
+   ASSERT(suffix);
+
+   slen = strlen(s);
+   suffixlen = strlen(suffix);
+
+   if (suffixlen > slen) {
+      return FALSE;
+   }
+
+   return strcmp(s + slen - suffixlen, s) == 0;
+}

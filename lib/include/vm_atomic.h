@@ -135,6 +135,10 @@ Atomic_SetFence(Bool fenceAfterLock) /* IN: TRUE to enable lfence */
                                      /*     FALSE to disable. */
 {
    AtomicUseFence = fenceAfterLock;
+#if defined(__VMKERNEL__)
+   extern void Atomic_SetFenceVMKAPI(Bool fenceAfterLock);
+   Atomic_SetFenceVMKAPI(fenceAfterLock);  
+#endif
 }
 
 /*
@@ -434,7 +438,7 @@ Atomic_ReadIfEqualWrite64(Atomic_uint64 *var, // IN
  *
  * Atomic_And --
  *
- *      Atomic read, logical AND with a value, write.
+ *      Atomic read, bitwise AND with a value, write.
  *
  * Results:
  *      None
@@ -485,7 +489,7 @@ Atomic_And(Atomic_uint32 *var, // IN
  *
  * Atomic_And64 --
  *
- *      Atomic read, logical AND with a value, write.
+ *      Atomic read, bitwise AND with a value, write.
  *
  * Results:
  *      None
@@ -523,7 +527,7 @@ Atomic_And64(Atomic_uint64 *var, // IN
  *
  * Atomic_Or --
  *
- *      Atomic read, logical OR with a value, write.
+ *      Atomic read, bitwise OR with a value, write.
  *
  * Results:
  *      None
@@ -574,7 +578,7 @@ Atomic_Or(Atomic_uint32 *var, // IN
  *
  * Atomic_Or64 --
  *
- *      Atomic read, logical OR with a value, write.
+ *      Atomic read, bitwise OR with a value, write.
  *
  * Results:
  *      None
@@ -612,7 +616,7 @@ Atomic_Or64(Atomic_uint64 *var, // IN
  *
  * Atomic_Xor --
  *
- *      Atomic read, logical XOR with a value, write.
+ *      Atomic read, bitwise XOR with a value, write.
  *
  * Results:
  *      None
@@ -663,7 +667,7 @@ Atomic_Xor(Atomic_uint32 *var, // IN
  *
  * Atomic_Xor64 --
  *
- *      Atomic read, logical XOR with a value, write.
+ *      Atomic read, bitwise XOR with a value, write.
  *
  * Results:
  *      None
@@ -1047,7 +1051,7 @@ Atomic_Dec64(Atomic_uint64 *var) // IN
  *
  * Atomic_FetchAndOr --
  *
- *      Atomic read (returned), logical OR with a value, write.
+ *      Atomic read (returned), bitwise OR with a value, write.
  *
  * Results:
  *      The value of the variable before the operation.
@@ -1077,7 +1081,7 @@ Atomic_FetchAndOr(Atomic_uint32 *var, // IN
  *
  * Atomic_FetchAndAnd --
  *
- *      Atomic read (returned), logical And with a value, write.
+ *      Atomic read (returned), bitwise And with a value, write.
  *
  * Results:
  *      The value of the variable before the operation.
@@ -1109,7 +1113,7 @@ Atomic_FetchAndAnd(Atomic_uint32 *var, // IN
  *
  * Atomic_ReadOr64 --
  *
- *      Atomic read (returned), logical OR with a value, write.
+ *      Atomic read (returned), bitwise OR with a value, write.
  *
  * Results:
  *      The value of the variable before the operation.

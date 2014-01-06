@@ -57,7 +57,7 @@
 #include "util.h"
 #include "strutil.h"
 #include "str.h"
-#include "fileUTF8.h"
+#include "file.h"
 #include "err.h"
 #include "hostinfo.h"
 #include "guest_os.h"
@@ -996,6 +996,7 @@ ToolsDaemonTcloSyncDriverFreeze(char const **result,     // OUT
          if (!SyncDriver_Thaw(gSyncDriverHandle)) {
             Debug("ToolsDaemonTcloSyncDriverFreeze: Unable to abort freeze. Oh well.\n");
          }
+         SyncDriver_CloseHandle(&gSyncDriverHandle);
          err = VIX_E_FAIL;
          sysError = SYNCDRIVERERROR;
          goto abort;
@@ -1106,16 +1107,14 @@ ToolsDaemonTcloSyncDriverThaw(char const **result,     // OUT
       err = VIX_E_GUEST_VOLUMES_NOT_FROZEN;
       sysError = SYNCDRIVERERROR;
       Debug("ToolsDaemonTcloSyncDriverThaw: No drives are frozen.\n");
-      goto abort;
-   }
-
-   if (!SyncDriver_Thaw(gSyncDriverHandle)) {
+   } else if (!SyncDriver_Thaw(gSyncDriverHandle)) {
       err = VIX_E_FAIL;
       sysError = SYNCDRIVERERROR;
       Debug("ToolsDaemonTcloSyncDriverThaw: Failed to Thaw drives\n");
    }
 
-  abort:
+   SyncDriver_CloseHandle(&gSyncDriverHandle);
+
    /*
     * All Foundry tools commands return results that start with a
     * foundry error and a guest-OS-specific error.

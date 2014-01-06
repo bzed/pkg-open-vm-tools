@@ -748,6 +748,66 @@ VixMsgHotExtendDiskRequest;
 
 /*
  * **********************************************************
+ * Hot plug CPU in a running VM.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgHotPlugCPURequest {
+   VixCommandRequestHeader header;
+   uint32                  newNumCPU;
+}
+#include "vmware_pack_end.h"
+VixMsgHotPlugCPURequest;
+
+
+/*
+ * **********************************************************
+ * Hot plug memory in a running VM.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgHotPlugMemoryRequest {
+   VixCommandRequestHeader header;
+   uint32                  newSizeMb;
+}
+#include "vmware_pack_end.h"
+VixMsgHotPlugMemoryRequest;
+
+
+/*
+ * **********************************************************
+ * Hot add device in a running VM.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgHotAddDeviceRequest {
+   VixCommandRequestHeader header;
+   int32                   deviceType;
+   int32                   devicePropsBufferSize;
+   int32                   backingType;
+   int32                   backingPropsBufferSize;
+}
+#include "vmware_pack_end.h"
+VixMsgHotAddDeviceRequest;
+
+
+/*
+ * **********************************************************
+ * Hot remove device in a running VM.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgHotRemoveDeviceRequest {
+   VixCommandRequestHeader header;
+   int32                   deviceType;
+   int32                   devicePropsBufferSize;
+}
+#include "vmware_pack_end.h"
+VixMsgHotRemoveDeviceRequest;
+
+
+/*
+ * **********************************************************
  * Create a snapshot of a running VM.
  */
 typedef
@@ -849,7 +909,7 @@ typedef
 struct VixMsgGetRecordReplayInfoResponse {
    VixCommandResponseHeader header;
    uint32                   propertyListSize;
-}     
+}
 #include "vmware_pack_end.h"
 VixMsgGetRecordReplayInfoResponse;
 
@@ -1747,6 +1807,70 @@ struct VixMsgLazyProgressEvent {
 VixMsgLazyProgressEvent;
 
 
+/*
+ *  Debugger related commands.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgAttachDebuggerRequest {
+   VixCommandRequestHeader   header;
+   
+   int32                     options;
+   uint32                    propertyListBufferSize;
+}  
+#include "vmware_pack_end.h"
+VixMsgAttachDebuggerRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgAttachDebuggerResponse {
+   VixCommandResponseHeader header;
+   uint32   propertyListBufferSize;
+} 
+#include "vmware_pack_end.h"
+VixMsgAttachDebuggerResponse;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgIssueDebuggerCommandRequest {
+   VixCommandRequestHeader   header;
+
+   int32                     options;
+   uint32                    propertyListBufferSize;
+   uint32                    debuggerBlobBufferSize;
+}
+#include "vmware_pack_end.h"
+VixMsgIssueDebuggerCommandRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgIssueDebuggerCommandResponse {
+   VixCommandResponseHeader header;
+   uint32   propertyListBufferSize;
+   uint32   debuggerBlobBufferSize;
+}
+#include "vmware_pack_end.h"
+VixMsgIssueDebuggerCommandResponse;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgDetachDebuggerRequest {
+   VixCommandRequestHeader   header;
+  
+   int32                     options;
+   uint32                    propertyListBufferSize;
+} 
+#include "vmware_pack_end.h"
+VixMsgDetachDebuggerRequest;
+
+typedef
+#include "vmware_pack_begin.h"
+struct VixMsgDetachDebuggerResponse {
+   VixCommandResponseHeader header;
+   uint32   propertyListBufferSize;
+}
+#include "vmware_pack_end.h"
+VixMsgDetachDebuggerResponse;
 
 
 /*
@@ -1918,6 +2042,18 @@ enum {
    VIX_COMMAND_WAIT_FOR_USER_ACTION_IN_GUEST    = 132,
    VIX_COMMAND_VMDB_END_TRANSACTION             = 133,
    VIX_COMMAND_VMDB_SET                         = 134,
+
+
+
+   VIX_COMMAND_LAST_NORMAL_COMMAND              = 134,
+   VIX_COMMAND_HOT_PLUG_CPU                     = 136,
+   VIX_COMMAND_HOT_PLUG_MEMORY                  = 137,
+   VIX_COMMAND_HOT_ADD_DEVICE                   = 138,
+   VIX_COMMAND_HOT_REMOVE_DEVICE                = 139,
+
+   VIX_COMMAND_DEBUGGER_ATTACH                  = 140,
+   VIX_COMMAND_DEBUGGER_DETACH                  = 141,
+   VIX_COMMAND_DEBUGGER_SEND_COMMAND            = 142,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,
