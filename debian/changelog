@@ -1,3 +1,23 @@
+open-vm-tools (2:9.4.0-1280544-1) unstable; urgency=low
+
+  * [b85cd491] Taking over the maintenance of open-vm-tools. (Closes: #717381)
+  * [ecccbddd] Adding watch file.
+  * [12cfd169] Merge tag 'upstream/9.4.0-1280544'
+    Upstream version 9.4.0-1280544
+  * [7e93ef77] Refreshing patches.
+  * [25fe744b] Adding CUSTOM_PROCPS_NAME/CFLAGS to dh_auto_configure call.
+  * [4d1081bc] Importing patches from Ubuntu.
+    As open-vm-tools should just do the right thing, we leave building
+    vmsync enabled to make backporting easier.
+    Thanks to Nate Muench <NowIWillDestroyAbydos@gmail.com>
+  * [a0fae111] Copy upstream's dkms config for dh_dkms.
+  * The new upstream release, together with the flags and new patches
+    mentioned above, makes open-vm-tools build with Kernel 3.11.
+    Thanks to: Jim Barber and Mihai Limbasan
+    Closes: #729540
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 07 Jan 2014 02:32:03 +0100
+
 open-vm-tools (2:9.2.3-1031360-7) unstable; urgency=low
 
   * QA upload
