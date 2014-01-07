@@ -1,3 +1,12 @@
+open-vm-tools (2:9.4.0-1280544-2~1.gbped8f79) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @ed8f797fbb9bb3939b412482a689c66a3b930309 **
+
+  * [242d45e4] Pick patch from upstream to build with gcc 4.8
+  * [ed8f797f] Add script to pick patches from upstream.
+
+ -- Bernd Zeimetz <bernd@bzed.de>  Tue, 07 Jan 2014 12:54:24 +0100
+
 open-vm-tools (2:9.4.0-1280544-1) unstable; urgency=low
 
   * [b85cd491] Taking over the maintenance of open-vm-tools. (Closes: #717381)
