@@ -7,3 +7,4 @@
 glib.patch
 dh_dkms_fail_workaround.patch
 1a3eb34_Fix-AssertOnCompileFailed-for-GCC-4.8-kernel-3.10
+dkms-module-location.patch

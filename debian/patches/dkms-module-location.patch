@@ -1,0 +1,17 @@
+--- a/modules/linux/dkms.conf
++++ b/modules/linux/dkms.conf
+@@ -26,9 +26,9 @@ BUILT_MODULE_LOCATION[1]="vmhgfs/"
+ BUILT_MODULE_LOCATION[2]="vmsync/"
+ BUILT_MODULE_LOCATION[3]="vmxnet/"
+ BUILT_MODULE_LOCATION[4]="vsock/"
+-DEST_MODULE_LOCATION[0]="/kernel/fs/vmblock"
+-DEST_MODULE_LOCATION[1]="/kernel/fs/vmhgfs"
+-DEST_MODULE_LOCATION[2]="/kernel/drivers/misc"
+-DEST_MODULE_LOCATION[3]="/kernel/drivers/net"
+-DEST_MODULE_LOCATION[4]="/kernel/net/vsock"
++DEST_MODULE_LOCATION[0]="/updates/dkms"
++DEST_MODULE_LOCATION[1]="/updates/dkms"
++DEST_MODULE_LOCATION[2]="/updates/dkms"
++DEST_MODULE_LOCATION[3]="/updates/dkms"
++DEST_MODULE_LOCATION[4]="/updates/dkms"
+ AUTOINSTALL="YES"
