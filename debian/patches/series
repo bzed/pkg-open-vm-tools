@@ -5,3 +5,4 @@
 0006-vmblock-fixes.patch
 0007-linux-311-vmhgfs-fix.patch
 glib.patch
+dh_dkms_fail_workaround.patch
