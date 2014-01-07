@@ -30,6 +30,8 @@ override_dh_auto_install:
 	install -D -m 0644 debian/local/open-vm-tools.kmod debian/open-vm-tools/lib/modules-load.d/open-vm-tools.conf
 	install -D -m 0755 debian/local/open-vm-tools.service debian/open-vm-tools/lib/systemd/system/open-vm-tools.service
 
+	mkdir -p debian/open-vm-tools/mnt/hgfs
+
 	# open-vm-tools-dev
 	mkdir -p debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
 	mv debian/open-vm-tools/usr/share/doc/open-vm-tools/api debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
