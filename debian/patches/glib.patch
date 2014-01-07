@@ -1,0 +1,17 @@
+Description: Fix FTBFS with glib 2.40+, g_info is now available
+Author: Dimitri John Ledkov <xnox@ubuntu.com>
+
+--- open-vm-tools-2013.09.16-1328054.orig/lib/include/vmware/tools/log.h
++++ open-vm-tools-2013.09.16-1328054/lib/include/vmware/tools/log.h
+@@ -133,9 +133,9 @@
+  *
+  *******************************************************************************
+  */
+-
++#if !defined(g_info)
+ #define g_info(fmt, ...) g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, fmt, ## __VA_ARGS__)
+-
++#endif
+ 
+ /*
+  *******************************************************************************

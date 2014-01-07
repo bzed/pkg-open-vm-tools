@@ -1,4 +1,7 @@
 0001-kvers.patch
 0002-dkms.patch
-0003-vsock-cve.patch
-0004-vmblock-vmhgfs-compat-3_10.patch
+0004-vsock-cve.patch
+0005-dkms-vmci-remove.patch
+0006-vmblock-fixes.patch
+0007-linux-311-vmhgfs-fix.patch
+glib.patch
