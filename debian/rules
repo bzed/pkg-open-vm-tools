@@ -10,7 +10,6 @@ override_dh_auto_configure:
 			--prefix=/usr \
 			--libdir=\$${prefix}/lib \
 			--without-kernel-modules \
-			CC=/usr/bin/gcc-4.7 \
 			CFLAGS="-Wno-deprecated-declarations $(CFLAGS)" \
 			CUSTOM_PROCPS_NAME=procps
 

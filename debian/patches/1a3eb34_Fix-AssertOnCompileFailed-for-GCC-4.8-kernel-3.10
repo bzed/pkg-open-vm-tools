@@ -1,0 +1,75 @@
+From 1a3eb34dd0ad5aa3e51d586cf1fcf310c1f4350e Mon Sep 17 00:00:00 2001
+From: "VMware, Inc" <>
+Date: Tue, 17 Sep 2013 20:35:40 -0700
+Subject: [PATCH] Fix AssertOnCompileFailed for GCC 4.8 (kernel 3.10+)
+
+GCC 4.8 now includes -Wunused-local-typedefs as part of -Wall.  This
+causes it to spew a gazillion warnings when compiling our modules on
+3.10+ kernels.  Because it's a typedef we can't use the (void) cast
+trick, so we need to use attributes.  This change introduces
+UNUSED_TYPE to vm_basic_types.h and uses it where appropriate to make
+the compiler happy when building our modules.
+
+Signed-off-by: Dmitry Torokhov <dtor@vmware.com>
+---
+ open-vm-tools/lib/include/vm_assert.h      | 7 ++++++-
+ open-vm-tools/lib/include/vm_atomic.h      | 5 ++++-
+ open-vm-tools/lib/include/vm_basic_types.h | 5 +++++
+ 3 files changed, 15 insertions(+), 2 deletions(-)
+
+--- a/lib/include/vm_assert.h
++++ b/lib/include/vm_assert.h
+@@ -358,12 +358,17 @@ void WarningThrottled(uint32 *count, con
+  * The implementation uses both enum and typedef because the typedef alone is
+  * insufficient; gcc allows arrays to be declared with non-constant expressions
+  * (even in typedefs, where it makes no sense).
++ *
++ * NOTE: if GCC ever changes so that it ignores unused types altogether, this
++ * assert might not fire!  We explicitly mark it as unused because GCC 4.8+
++ * uses -Wunused-local-typedefs as part of -Wall, which means the typedef will
++ * generate a warning.
+  */
+ 
+ #define ASSERT_ON_COMPILE(e) \
+    do { \
+       enum { AssertOnCompileMisused = ((e) ? 1 : -1) }; \
+-      typedef char AssertOnCompileFailed[AssertOnCompileMisused]; \
++      UNUSED_TYPE(typedef char AssertOnCompileFailed[AssertOnCompileMisused]); \
+    } while (0)
+ 
+ 
+--- a/lib/include/vm_atomic.h
++++ b/lib/include/vm_atomic.h
+@@ -2447,6 +2447,9 @@ Atomic_TestBit64(Atomic_uint64 *var, //
+  * (void *)val, we have (void *)(uintptr_t)val.
+  * The specific problem case is the Windows ddk compiler
+  * (as used by the SVGA driver).  -- edward
++ *
++ * NOTE: See the comment in vm_assert.h for why we need UNUSED_TYPE in
++ * AtomicAssertOnCompile(), and why we need to be very careful doing so.
+  */
+ 
+ #define MAKE_ATOMIC_TYPE(name, size, in, out, cast)                           \
+@@ -2460,7 +2463,7 @@ Atomic_TestBit64(Atomic_uint64 *var, //
+                                       && 8 * sizeof (out) == size             \
+                                       && 8 * sizeof (cast) == size            \
+                                          ? 1 : -1 };                          \
+-      typedef char AssertOnCompileFailed[AssertOnCompileMisused];             \
++      UNUSED_TYPE(typedef char AssertOnCompileFailed[AssertOnCompileMisused]);\
+    }                                                                          \
+                                                                               \
+                                                                               \
+--- a/lib/include/vm_basic_types.h
++++ b/lib/include/vm_basic_types.h
+@@ -806,6 +806,11 @@ typedef void * UserVA;
+ # endif
+ #endif
+ 
++#ifndef UNUSED_TYPE
++// XXX _Pragma would better but doesn't always work right now.
++#  define UNUSED_TYPE(_parm) UNUSED_PARAM(_parm)
++#endif
++
+ #ifndef UNUSED_VARIABLE
+ // XXX is there a better way?
+ #  define UNUSED_VARIABLE(_var) (void)_var
