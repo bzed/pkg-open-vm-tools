@@ -122,14 +122,3 @@
     }
  
     /*
---- a/modules/linux/vmci/linux/driver.c
-+++ b/modules/linux/vmci/linux/driver.c
-@@ -737,7 +737,7 @@ LinuxDriver_Ioctl(struct inode *inode,
-          goto init_release;
-       }
- 
--      user = current_uid();
-+      user = from_kuid(&init_user_ns, current_uid());
-       retval = VMCIContext_InitContext(initBlock.cid, initBlock.flags,
-                                        0 /* Unused */, vmciLinux->userVersion,
-                                        &user, &vmciLinux->context);
