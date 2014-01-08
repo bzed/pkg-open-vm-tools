@@ -1,0 +1,111 @@
+From e55039cb8452777c2024ce3a13cd3439f36fd554 Mon Sep 17 00:00:00 2001
+From: "VMware, Inc" <>
+Date: Tue, 17 Sep 2013 20:32:40 -0700
+Subject: [PATCH] HGFS: Fix Linux client symlinks
+
+The kernel buffer holding the symlink name was being freed incorrectly
+when it was used by the VFS layer. This resulted in corruption and
+invalid names being used when trying to lookup the symlink's target.
+
+The HgfsFollowlink should not be calling vfs_follow_link but calling
+nd_set_link to save the link target name that HGFS allocated.  To deal
+with the release of the name, HgfsPutlink has now been added which the
+VFS layer will call as needed and this function retrieves the name from
+the name structure using nd_get_link and releases the buffer. Then for
+completeness calls nd_set_link with NULL to clear it from the name
+structure.  The VFS layer internally calls vfs_follow_link after the
+HgfsFollowlink call passing the link target name from the name object
+that HGFS stored. Hence, why HGFS should not call it directly.
+
+Signed-off-by: Dmitry Torokhov <dtor@vmware.com>
+---
+ open-vm-tools/modules/linux/vmhgfs/link.c | 60 ++++++++++++++++++++++++++++---
+ 1 file changed, 55 insertions(+), 5 deletions(-)
+
+--- a/modules/linux/vmhgfs/link.c
++++ b/modules/linux/vmhgfs/link.c
+@@ -45,11 +45,20 @@ static int HgfsFollowlink(struct dentry
+ static int HgfsReadlink(struct dentry *dentry,
+                         char __user *buffer,
+                         int buflen);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 13)
++static void HgfsPutlink(struct dentry *dentry,
++                        struct nameidata *nd,
++                        void *cookie);
++#else
++static void HgfsPutlink(struct dentry *dentry,
++                        struct nameidata *nd);
++#endif
+ 
+ /* HGFS inode operations structure for symlinks. */
+ struct inode_operations HgfsLinkInodeOperations = {
+    .follow_link   = HgfsFollowlink,
+    .readlink      = HgfsReadlink,
++   .put_link      = HgfsPutlink,
+ };
+ 
+ /*
+@@ -109,12 +118,12 @@ HgfsFollowlink(struct dentry *dentry, //
+          LOG(6, (KERN_DEBUG "VMware hgfs: HgfsFollowlink: got called "
+                  "on something that wasn't a symlink\n"));
+          error = -EINVAL;
++         kfree(fileName);
+       } else {
+-         LOG(6, (KERN_DEBUG "VMware hgfs: HgfsFollowlink: calling "
+-                 "vfs_follow_link\n"));
+-         error = vfs_follow_link(nd, fileName);
++         LOG(6, (KERN_DEBUG "VMware hgfs: %s: calling nd_set_link %s\n",
++                 __func__, fileName));
++         nd_set_link(nd, fileName);
+       }
+-      kfree(fileName);
+    }
+   out:
+ 
+@@ -180,3 +189,46 @@ HgfsReadlink(struct dentry *dentry,  //
+    }
+    return error;
+ }
++
++
++/*
++ *----------------------------------------------------------------------
++ *
++ * HgfsPutlink --
++ *
++ *    Modeled after page_put_link from a 2.6.9 kernel so it'll work
++ *    across all kernel revisions we care about.
++ *
++ * Results:
++ *    None
++ *
++ * Side effects:
++ *    None
++ *
++ *----------------------------------------------------------------------
++ */
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 13)
++static void
++HgfsPutlink(struct dentry *dentry, // dentry
++            struct nameidata *nd,  // lookup name information
++            void *cookie)          // cookie
++#else
++static void
++HgfsPutlink(struct dentry *dentry, // dentry
++            struct nameidata *nd)  // lookup name information
++#endif
++{
++   char *fileName = NULL;
++
++   LOG(6, (KERN_DEBUG "VMware hgfs: %s: put for %s\n",
++           __func__, dentry->d_name.name));
++
++   fileName = nd_get_link(nd);
++   if (!IS_ERR(fileName)) {
++      LOG(6, (KERN_DEBUG "VMware hgfs: %s: putting %s\n",
++              __func__, fileName));
++      kfree(fileName);
++      nd_set_link(nd, NULL);
++   }
++}
