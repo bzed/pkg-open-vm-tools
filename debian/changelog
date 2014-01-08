@@ -1,3 +1,16 @@
+open-vm-tools (2:9.4.0-1280544-3) unstable; urgency=low
+
+  * [8b23a27d] Revert "Add /mnt/hgfs as hgfs mountpoint."
+    Although the idea from the Ubuntu people to ship the mountpoint
+    in the package is nice, lintian is rather unhappy about it.
+    This reverts commit 1e7d8645e48f601e79eb5771e05272b367fa4eb1.
+  * [46f99c30] Remove procps support for now.
+    Unfortunately the procps package in unstable is rather broken, procps
+    support will be enabled again when the new procps version managed to
+    migrate to testing.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Jan 2014 18:17:28 +0100
+
 open-vm-tools (2:9.4.0-1280544-2) unstable; urgency=low
 
   * [242d45e4] Pick patch from upstream to build with gcc 4.8
