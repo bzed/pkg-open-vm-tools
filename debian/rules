@@ -3,7 +3,7 @@
 VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:||' -e 's|-.*$$||')
 
 %:
-	dh ${@} --with autotools_dev,dkms
+	dh ${@} --with autotools_dev,dkms,autoreconf
 
 override_dh_auto_configure:
 	dh_auto_configure -- \

@@ -8,3 +8,5 @@ glib.patch
 dh_dkms_fail_workaround.patch
 1a3eb34_Fix-AssertOnCompileFailed-for-GCC-4.8-kernel-3.10
 dkms-module-location.patch
+4a527c9_HGFS-Make-Linux-client-compile-on-kernels-3.11
+530ef7f_OVT-do-not-build-vmblock-on-Linux-kernels-3.0
