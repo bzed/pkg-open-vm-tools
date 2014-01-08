@@ -1,7 +1,6 @@
 fix_debian_verison_recognition
 0001-kvers.patch
 0002-dkms.patch
-0005-dkms-vmci-remove.patch
 0006-vmblock-fixes.patch
 glib.patch
 dh_dkms_fail_workaround.patch
