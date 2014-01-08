@@ -1,3 +1,12 @@
+open-vm-tools (2:9.4.0-1280544-5) unstable; urgency=low
+
+  * [31c30832] Revert "Enable building of vmci again."
+    This reverts commit 0d55577cd3c262dbbc2bf79593d6f500f84c4170.
+    Too fast upload, sorry. vmhgfs is indeed (still) broken with
+    vmci.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Jan 2014 20:28:33 +0100
+
 open-vm-tools (2:9.4.0-1280544-4) unstable; urgency=low
 
   * [0d55577c] Enable building of vmci again.
