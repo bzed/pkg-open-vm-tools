@@ -11,3 +11,4 @@ dkms-module-location.patch
 4a527c9_HGFS-Make-Linux-client-compile-on-kernels-3.11
 530ef7f_OVT-do-not-build-vmblock-on-Linux-kernels-3.0
 dkms-do-not-build-vmsync-vmblock--remove-for-backports-to-pre-3.0
+3a9f229_Harden-HostinfoOSData-against-PATH-attacks
