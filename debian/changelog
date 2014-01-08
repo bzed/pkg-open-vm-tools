@@ -1,11 +1,29 @@
-open-vm-tools (2:9.4.0-1280544-2~1.gbped8f79) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @ed8f797fbb9bb3939b412482a689c66a3b930309 **
+open-vm-tools (2:9.4.0-1280544-2) unstable; urgency=low
 
   * [242d45e4] Pick patch from upstream to build with gcc 4.8
   * [ed8f797f] Add script to pick patches from upstream.
+  * [312be5d5] Snapshot changelog.
+  * [c125af80] Use /updates/dkms/ as location for kernel modules.
+    We don't want to mess with files shipped in kernel module packages.
+  * [f63a890c] Bumping Standards-Version, no changes needed.
+  * [1e7d8645] Add /mnt/hgfs as hgfs mountpoint.
+  * [0bcabab3] Fix add_patch script.
+  * [1d436969] Add some more patches to make dkms succeed on recent kernels.
+    Also add dh_autoreconf as we modify configure.ac
+  * [088450dd] Also apply the changs from upstream's 530ef7f for dkms.
+    vmblock should be used via fuse now, vmsync is not needed anymore.
+  * [cf44ff2f] Pick patch from upstream: Harden HostinfoOSData
+  * [21ca2b74] Pick patch from upstream: building on kfreebsd.
+  * [82123155] Use libprocps3-dev instead of libprocps0-dev.
+  * [da76a5e9] Add patch to convert kuid_t/kgid_t to uid_t/gid_t.
+    Building against kernel 3.12 should succeed now.
+  * [91e91538] Pick another fix from upstream to make vmhgfs build on 3.12
+  * [53ea11a4] Add Vcs Headers to debian/control.
+  * [d19592cc] Revert "Use libprocps3-dev instead of libprocps0-dev."
+    This reverts commit 821231554486ec7ff36cd36e89a6b0ef7c7a5552.
+    Due to procps being completely broken in unstable.
 
- -- Bernd Zeimetz <bernd@bzed.de>  Tue, 07 Jan 2014 12:54:24 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Jan 2014 16:00:44 +0100
 
 open-vm-tools (2:9.4.0-1280544-1) unstable; urgency=low
 
