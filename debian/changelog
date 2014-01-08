@@ -1,3 +1,10 @@
+open-vm-tools (2:9.4.0-1280544-4) unstable; urgency=low
+
+  * [0d55577c] Enable building of vmci again.
+    Also patch it to build with 3.12
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Jan 2014 19:41:01 +0100
+
 open-vm-tools (2:9.4.0-1280544-3) unstable; urgency=low
 
   * [8b23a27d] Revert "Add /mnt/hgfs as hgfs mountpoint."
