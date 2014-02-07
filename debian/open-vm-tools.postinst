@@ -8,6 +8,11 @@ case "${1}" in
 		then
 			update-initramfs -u
 		fi
+
+		if [ -x /sbin/udevadm ]
+		then
+			udevadm trigger
+		fi
 		;;
 
 	abort-upgrade|abort-remove|abort-deconfigure)
