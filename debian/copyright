@@ -20,10 +20,10 @@ Copyright: 1996, 1998 Internet Software Consortium
 License: MIT(*)
 
 Files:
-  vmware-user/libvmwarectrl.h
-  vmware-user/vmwarectrlproto.h
-  vmware-user/vmwarectrl.h,libvmwarectrl.c
-  vmware-user/libvmwarectrl.c
+  services/plugins/resolutionSet/libvmwarectrl.h
+  services/plugins/resolutionSet/vmwarectrlproto.h
+  services/plugins/resolutionSet/vmwarectrl.h
+  services/plugins/resolutionSet/libvmwarectrl.c
 Copyright: 2006 VMware, Inc. <http://www.vmware.com/>
 License: MIT(**)
 
