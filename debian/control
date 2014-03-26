@@ -15,7 +15,7 @@ Vcs-Browser: https://github.com/bzed/pkg-open-vm-tools
 Package: open-vm-tools
 Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Recommends: open-vm-tools-dkms, ethtool, zerofree
+Recommends: ethtool, zerofree
 Suggests: open-vm-tools-desktop
 Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source
@@ -85,6 +85,9 @@ Description: Open VMware Tools for virtual machines hosted on VMware (DKMS)
  This package provides the source code for the open-vm kernel modules.
  The open-vm-tools package is also required in order to make use of these
  modules. Kernel source or headers are required to compile these modules.
+ .
+ Modules included are legacy vmxnet (newer vmxnet3 is included in the kernel)
+ and vmhgfs (required to mount Shared Folders)
 
 Package: open-vm-dkms
 Section: oldlibs
