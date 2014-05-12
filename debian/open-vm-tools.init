@@ -48,8 +48,12 @@ case "${1}" in
 		${0} start
 		;;
 
+	status)
+		status_of_proc -p /var/run/vmtoolsd.pid /usr/bin/vmtoolsd vmtoolsd && exit 0 || exit $?
+		;;
+
 	*)
-		log_success_msg "Usage: ${0} {start|stop|restart|force-reload}"
+		log_success_msg "Usage: ${0} {start|stop|restart|force-reload|status}"
 		exit 1
 		;;
 esac
