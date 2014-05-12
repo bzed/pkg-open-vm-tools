@@ -1,1 +1,0 @@
-open-vm-tools-desktop: desktop-command-not-in-package /usr/share/applications/vmware-user.desktop vmware-user-suid-wrapper
