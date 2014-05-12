@@ -7,7 +7,7 @@ vmblock \- vmware kernel module
 modprobe vmblock
 
 .SH DESCRIPTION
-This is a kernel filesystem module. Ideally, it should be loaded before any of the Tools userlevel components are allowed to start, though vmblock itself has no dependencies. When loaded, vmblock will establish itself in /proc/fs/vmblock and create two nodes therein, dev and mountPoint. Before mounting a vmblock filesystem, ensure that /tmp/VMwareDnD exists as a directory with permissions 1777, otherwise host to guest drag n' drop operations won't work.
+This is a kernel filesystem module. Ideally, it should be loaded before any of the Tools userlevel components are allowed to start, though vmblock itself has no dependencies. When loaded, vmblock will establish itself in /proc/fs/vmblock and create two nodes therein, dev and mountPoint. Before mounting a vmblock filesystem, ensure that /run/VMwareDnD exists as a directory with permissions 1777, otherwise host to guest drag n' drop operations won't work.
 .PP
 To mount, issue:
 .PP

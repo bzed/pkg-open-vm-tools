@@ -16,3 +16,4 @@ dkms-do-not-build-vmsync-vmblock--remove-for-backports-to-pre-3.0
 kuid_t-kgid_t-fix-for-3.12
 e55039c_HGFS-Fix-Linux-client-symlinks
 wheezy-04-CVE-2013-3237.patch 
+tmp_vmwarednd_path_change
