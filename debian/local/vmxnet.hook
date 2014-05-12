@@ -28,7 +28,7 @@ esac
 # modprobe configuration, we can ensure that vmxnet is always preferred over
 # pcnet32.
 
-if [ -e "${DESTDIR}"/lib/modules/*/kernel/drivers/net/pcnet32.ko ]
-then
+if [   -e "${DESTDIR}"/lib/modules/*/kernel/drivers/net/pcnet32.ko \
+    -o -e "${DESTDIR}"/lib/modules/*/kernel/drivers/net/*/pcnet32.ko ]; then
 	manual_add_modules vmxnet
 fi
