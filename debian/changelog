@@ -1,3 +1,36 @@
+open-vm-tools (2:9.4.0-1280544-6) unstable; urgency=medium
+
+  [ Cédric Barboiron ]
+  * [4e45e2e8] Hot apply udev rule for disk timeout
+  * [527525fc] fix syntax-error-in-dep5-copyright
+  * [5f6b2a47] fix malformed-override open-vm-toolbox
+  * [5aabaf79] fix manpage-has-errors-from-man
+  * [f867443c] fix executable-not-elf-or-script
+    match unit file rights in systemd package
+  * [f89024a1] fix file locations in copyright
+
+  [ Bernd Zeimetz ]
+  * [76dadf83] Add patch for CVE-2013-3237.
+  * [fa7d4a63] Merge pull request #1 from yastupin/master
+    procps, init script and doc
+  * [115b8c49] Better permission handling.
+    Especially for pam.d files and vmware-user-suid-wrapper.
+  * [70fa10d1] Fix vmxnet initramfs-tools hook.
+    Thanks to Norbert Lange
+  * [9d3f3c9b] Move vmware-user-suid-wrapper into desktop package.
+  * [49dc599d] Use /run/VMwareDnD instead of /tmp/VMwareDnD.
+    /tmp/VMwareDnD might be existing already or evil users might try to
+    trick us into doing bad things. Using known directories in /tmp is bad
+    enough not to spend time to try to figure out if the code tries to work
+    around possible attacks. Using a directory in /run is a much safer
+    approach. Proper init scripts will be added at a later point.
+  * [d9467cd9] Dropping lintian override files.
+    Also fixing some lintian warnings.
+  * [a7f7e5bd] Use libprocps-dev instead of libprocps0-dev.
+  * [21214012] Use manpages-desktop as source folder for -desktop.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 13 May 2014 00:08:03 +0200
+
 open-vm-tools (2:9.4.0-1280544-5) unstable; urgency=low
 
   * [31c30832] Revert "Enable building of vmci again."
