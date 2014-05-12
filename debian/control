@@ -57,7 +57,6 @@ Description: Open VMware Tools for virtual machines hosted on VMware (developmen
 
 Package: open-vm-tools-dbg
 Section: debug
-Priority: extra
 Architecture: amd64 i386
 Depends: ${misc:Depends}, open-vm-tools (= ${binary:Version}), open-vm-tools-desktop (= ${binary:Version})
 Description: Open VMware Tools for virtual machines hosted on VMware (debug)
@@ -91,7 +90,6 @@ Description: Open VMware Tools for virtual machines hosted on VMware (DKMS)
 
 Package: open-vm-dkms
 Section: oldlibs
-Priority: extra
 Architecture: all
 Depends: ${misc:Depends}, open-vm-tools-dkms
 Description: Open VMware Tools for virtual machines hosted on VMware (transitional package)
@@ -103,7 +101,6 @@ Description: Open VMware Tools for virtual machines hosted on VMware (transition
 
 Package: open-vm-toolbox
 Section: oldlibs
-Priority: extra
 Architecture: all
 Depends: ${misc:Depends}, open-vm-tools-desktop
 Description: Open VMware Tools for virtual machines hosted on VMware (transitional package)
