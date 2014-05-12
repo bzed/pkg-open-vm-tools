@@ -22,7 +22,8 @@ override_dh_auto_install:
 		mv debian/open-vm-tools/etc/pam.d/vmtoolsd-x64 debian/open-vm-tools/etc/pam.d/vmtoolsd; \
 	fi
 
-	chmod 0644 debian/open-vm-tools/etc/pam.d/vmtoolsd
+	chmod 0644 debian/*/etc/pam.d/*
+	chmod 4755 debian/*/usr/bin/vmware-user-suid-wrapper
 
 	install -D -m 0755 debian/local/vmxnet.hook debian/open-vm-tools/usr/share/initramfs-tools/hooks/vmxnet
 	install -D -m 0644 debian/local/xautostart.conf debian/open-vm-tools-desktop/etc/vmware-tools/xautostart.conf
