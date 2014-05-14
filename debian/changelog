@@ -1,3 +1,10 @@
+open-vm-tools (2:9.4.0-1280544-6~bpo70+1) wheezy-backports; urgency=medium
+
+  * Rebuild for wheezy-backports.
+  * Add gbp.conf for wheezy-backports.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 14 May 2014 10:18:30 +0200
+
 open-vm-tools (2:9.4.0-1280544-6) unstable; urgency=medium
 
   [ Cédric Barboiron ]
