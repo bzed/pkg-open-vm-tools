@@ -6,11 +6,6 @@ VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -
 	dh ${@} --with autotools_dev,dkms,autoreconf
 
 override_dh_auto_configure:
-	if grep -r --exclude-dir=debian --exclude-dir=.pc /tmp/VMwareDnD *; then \
-	    echo '/tmp/VMwareDnD found - patch needs update!' ;\
-	    exit 1 ;\
-	fi
-
 	dh_auto_configure -- \
 			--prefix=/usr \
 			--libdir=\$${prefix}/lib \
