@@ -1,3 +1,24 @@
+open-vm-tools (2:9.4.0-1280544-7) unstable; urgency=medium
+
+  * [9960cb11] Add gbp setting for merge info in changelog.
+  * [645a5350] Remove old patch for the vsock module.
+    Not necessary in the current version anymore.
+    Thanks to Hilmar Preuße (Closes: #748202)
+  * [4c8effb7] Fix patch to avoid building vmblock on kernel >= 3.0.
+    No real difference, though, as we don't build kernel modules with
+    configure.
+  * [2cbfa96d] Refreshing patches.
+  * [be59923b] Do not build vsock on kernels >= 3.9
+    the vsock module was included in the upstream kernel.
+  * [6d36f49e] Move .desktop file into the -desktop package.
+  * [ef406f81] Move /lib/modules-load.d/open-vm-tools.conf to open-vm-tools-dkms.
+    Thanks to Jim Barber (Closes: #748187)
+  * [56742c8c] Revert "Use /run/VMwareDnD instead of /tmp/VMwareDnD."
+    This reverts commit 49dc599d453ed40a1299b9a376755cdbb43e0da2.
+  * [c6df2503] Patch pam.d/vmtoolsd to use common-auth/account.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 15 May 2014 20:02:26 +0200
+
 open-vm-tools (2:9.4.0-1280544-6) unstable; urgency=medium
 
   [ Cédric Barboiron ]
