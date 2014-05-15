@@ -1,3 +1,14 @@
+open-vm-tools (2:9.4.0-1280544-8) unstable; urgency=medium
+
+  * [0ecb889e] Removing old transitional packages.
+  * [5e039b52] Add missing Breaks/Replaces for file moves.
+  * [9d01b21d] Fix vsock removal patch, add some missing ""
+  * [2ae80665] Add e55039c_HGFS-Fix-Linux-client-symlinks patch again.
+    Went missing during a merge conflict. Ouch.
+  * [d7f7e40e] Fix vsock removal patch (avoid { foo;; })
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 16 May 2014 00:33:35 +0200
+
 open-vm-tools (2:9.4.0-1280544-7) unstable; urgency=medium
 
   * [9960cb11] Add gbp setting for merge info in changelog.
