@@ -23,7 +23,7 @@ Signed-off-by: Dmitry Torokhov <dtor@vmware.com>
     [solaris*])
        os="solaris"
        ;;
-@@ -952,7 +955,7 @@ if test "$os" = "linux"; then
+@@ -954,7 +957,7 @@ if test "$os" = "linux"; then
     buildHgfsmounter=yes
  fi
  
@@ -32,7 +32,7 @@ Signed-off-by: Dmitry Torokhov <dtor@vmware.com>
     LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -lkvm"
     MODULES_DIR="/boot/modules"
  
-@@ -1021,8 +1024,9 @@ fi
+@@ -1023,8 +1026,9 @@ fi
  AM_CONDITIONAL(BUILD_HGFSMOUNTER, test "$buildHgfsmounter" = "yes")
  AM_CONDITIONAL(LINUX, test "$os" = "linux")
  AM_CONDITIONAL(SOLARIS, test "$os" = "solaris")
