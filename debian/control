@@ -28,6 +28,8 @@ Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
 Package: open-vm-tools-desktop
 Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends}, open-vm-tools (= ${binary:Version})
+Breaks: open-vm-tools (<< 2:9.4.0-1280544-8~)
+Replaces: open-vm-tools (<< 2:9.4.0-1280544-8~)
 Recommends:
  open-vm-tools-dkms, xauth, xserver-xorg-input-vmmouse,
  xserver-xorg-video-vmware
@@ -69,6 +71,8 @@ Package: open-vm-tools-dkms
 Architecture: all
 Section: kernel
 Depends: ${misc:Depends}, dkms, make
+Breaks: open-vm-tools (<< 2:9.4.0-1280544-8~)
+Replaces: open-vm-tools (<< 2:9.4.0-1280544-8~)
 Recommends: open-vm-tools
 Suggests: open-vm-tools-desktop
 Description: Open VMware Tools for virtual machines hosted on VMware (DKMS)
