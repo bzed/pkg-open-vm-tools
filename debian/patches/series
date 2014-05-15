@@ -15,3 +15,4 @@ dkms-do-not-build-vsock--remove-for-backports-to-pre-3.9
 3a9f229_Harden-HostinfoOSData-against-PATH-attacks
 54780b8_Debian-guys-want-to-play-with-FreeBSD-kernels-and-Linux-userland
 kuid_t-kgid_t-fix-for-3.12
+pam-use-common-auth-account
