@@ -9,7 +9,9 @@ dh_dkms_fail_workaround.patch
 dkms-module-location.patch
 4a527c9_HGFS-Make-Linux-client-compile-on-kernels-3.11
 530ef7f_OVT-do-not-build-vmblock-on-Linux-kernels-3.0
+do-not-build-vsock-on-linux-kernels-3.9
 dkms-do-not-build-vmsync-vmblock--remove-for-backports-to-pre-3.0
+dkms-do-not-build-vsock--remove-for-backports-to-pre-3.9
 3a9f229_Harden-HostinfoOSData-against-PATH-attacks
 54780b8_Debian-guys-want-to-play-with-FreeBSD-kernels-and-Linux-userland
 kuid_t-kgid_t-fix-for-3.12
