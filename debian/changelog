@@ -2,6 +2,8 @@ open-vm-tools (2:9.4.0-1280544-8~bpo70+1) wheezy-backports; urgency=medium
 
   * Rebuild for wheezy-backports.
   * Update gbp.conf for wheezy-backports.
+  * Revert "Do not build vsock on kernels >= 3.9"
+  * Revert "Add patch to convert kuid_t/kgid_t to uid_t/gid_t."
 
  -- Bernd Zeimetz <bzed@debian.org>  Fri, 16 May 2014 10:38:45 +0200
 
