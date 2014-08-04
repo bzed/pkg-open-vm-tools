@@ -2,12 +2,9 @@
 0002-dkms.patch
 0005-dkms-vmci-remove.patch
 0006-vmblock-fixes.patch
-0007-linux-311-vmhgfs-fix.patch
 glib.patch
 dh_dkms_fail_workaround.patch
-1a3eb34_Fix-AssertOnCompileFailed-for-GCC-4.8-kernel-3.10
 dkms-module-location.patch
-4a527c9_HGFS-Make-Linux-client-compile-on-kernels-3.11
 530ef7f_OVT-do-not-build-vmblock-on-Linux-kernels-3.0
 do-not-build-vsock-on-linux-kernels-3.9
 dkms-do-not-build-vmsync-vmblock--remove-for-backports-to-pre-3.0

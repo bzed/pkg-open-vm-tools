@@ -41,7 +41,7 @@
     si->dmask = mountInfo->dmask;
 --- a/modules/linux/vmhgfs/inode.c
 +++ b/modules/linux/vmhgfs/inode.c
-@@ -490,13 +490,13 @@ HgfsPackSetattrRequest(struct iattr *iat
+@@ -488,13 +488,13 @@ HgfsPackSetattrRequest(struct iattr *iat
  
        if (valid & ATTR_UID) {
           attrV2->mask |= HGFS_ATTR_VALID_USERID;
@@ -57,7 +57,7 @@
           *changed = TRUE;
        }
  
-@@ -593,13 +593,13 @@ HgfsPackSetattrRequest(struct iattr *iat
+@@ -591,13 +591,13 @@ HgfsPackSetattrRequest(struct iattr *iat
  
        if (valid & ATTR_UID) {
           attrV2->mask |= HGFS_ATTR_VALID_USERID;
@@ -73,7 +73,7 @@
           *changed = TRUE;
        }
  
-@@ -1192,7 +1192,8 @@ HgfsMkdir(struct inode *dir,     // IN:
+@@ -1190,7 +1190,8 @@ HgfsMkdir(struct inode *dir,     // IN:
               * a Linux machine and as root, but we might as well give it
               * a go.
               */
@@ -104,7 +104,7 @@
     }
  
     inode->i_rdev = 0;  /* Device nodes are not supported */
-@@ -1623,7 +1623,7 @@ HgfsSetUidGid(struct inode *parent,
+@@ -1624,7 +1624,7 @@ HgfsSetUidGid(struct inode *parent,
     struct iattr setUidGid;
  
     setUidGid.ia_valid = ATTR_UID;
@@ -113,7 +113,7 @@
  
     /*
      * Only set the gid if the host file system wouldn't have for us.  See the
-@@ -1631,7 +1631,7 @@ HgfsSetUidGid(struct inode *parent,
+@@ -1632,7 +1632,7 @@ HgfsSetUidGid(struct inode *parent,
      */
     if (!parent || !(parent->i_mode & S_ISGID)) {
        setUidGid.ia_valid |= ATTR_GID;
