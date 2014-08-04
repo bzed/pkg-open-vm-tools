@@ -73,7 +73,7 @@ override_dh_dkms:
 	dh_dkms -popen-vm-tools-dkms -V $(VERSION) -- modules/linux/dkms.conf
 
 override_dh_fixperms:
-	dh_fixperms -Xsbin/mount.vmhgfs
+	dh_fixperms -Xsbin/mount.vmhgfs -Xvmware-user-suid-wrapper
 
 override_dh_installinit:
 	dh_installinit --update-rcd-params='start . 2 3 4 5 . stop . 0 1 6 .'
