@@ -1,3 +1,16 @@
+open-vm-tools (2:9.4.6-1770165-1) unstable; urgency=medium
+
+  * [d448e841] Merge tag 'upstream/9.4.6-1770165'
+    Upstream version 9.4.6-1770165
+    Closes: #756620
+  * [969fc903] Ensure that vmware-user-suid-wrapper ships a suid bit.
+  * [8067da08] Add -Wno-sizeof-pointer-memaccess gcc option.
+    See http://sourceforge.net/p/open-vm-tools/mailman/message/32550433/
+    for details. Code quality doesn't seem to be the best :(
+  * [b5ba8c3b] refreshing patches.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 Aug 2014 18:34:07 +0200
+
 open-vm-tools (2:9.4.0-1280544-8) unstable; urgency=medium
 
   * [0ecb889e] Removing old transitional packages.
