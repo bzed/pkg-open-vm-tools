@@ -10,7 +10,7 @@ override_dh_auto_configure:
 			--prefix=/usr \
 			--libdir=\$${prefix}/lib \
 			--without-kernel-modules \
-			CFLAGS="-Wno-deprecated-declarations $(CFLAGS)" \
+			CFLAGS="-Wno-deprecated-declarations -Wno-sizeof-pointer-memaccess $(CFLAGS)" \
 			CUSTOM_PROCPS_NAME=procps
 
 override_dh_auto_install:
