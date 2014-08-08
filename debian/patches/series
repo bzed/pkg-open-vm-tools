@@ -14,3 +14,4 @@ dkms-do-not-build-vsock--remove-for-backports-to-pre-3.9
 kuid_t-kgid_t-fix-for-3.12
 pam-use-common-auth-account
 e55039c_HGFS-Fix-Linux-client-symlinks
+fedora-sizeof_argument.patch
