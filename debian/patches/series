@@ -16,3 +16,4 @@ kuid_t-kgid_t-fix-for-3.12
 pam-use-common-auth-account
 e55039c_HGFS-Fix-Linux-client-symlinks
 fedora-sizeof_argument.patch
+max_nic_count.patch
