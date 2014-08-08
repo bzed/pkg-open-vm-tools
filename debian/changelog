@@ -1,5 +1,6 @@
 open-vm-tools (2:9.4.6-1770165-1) unstable; urgency=medium
 
+  [ Bernd Zeimetz ]
   * [d448e841] Merge tag 'upstream/9.4.6-1770165'
     Upstream version 9.4.6-1770165
     Closes: #756620
@@ -8,8 +9,31 @@ open-vm-tools (2:9.4.6-1770165-1) unstable; urgency=medium
     See http://sourceforge.net/p/open-vm-tools/mailman/message/32550433/
     for details. Code quality doesn't seem to be the best :(
   * [b5ba8c3b] refreshing patches.
+  * [36cd39c6] Updating changelog.
+  * [99f43e95] Revert "Add -Wno-sizeof-pointer-memaccess gcc option."
+    This reverts commit 8067da0891e0fc6a2e55853a103ff2c95fa1f59b.
+  * [bb95d814] Adding a patch from fedora instead of
+    -Wno-sizeof-pointer-memaccess.
+  * [d6b2ad4a] Update manpages.
+    Changes taken from Ubuntu, thanks!
+  * [3768ff7f] Better startup message if not in a vm.
+    Patch taken from Ubuntu (LP: #1289564).
+  * [4d5dec19] Add patch for Debian 7.X os recognition.
+    Official code only handles 7.0 and 7.1.
+    Also maybe 8.x, needs to be tested if it breaks stuff in vmware.
+  * [7b3d23c9] Refreshing patches.
+  * [af20a700] Make patches/kuid_t-kgid_t-fix-for-3.12 compatible with
+    older kernels. Thanks to Norbert Lange for the idea.
+  * [c4df056b] PIC handling in configure is broken.
+    Add --with-pic as configure option and -fPIC to CFLAGS.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 Aug 2014 18:34:07 +0200
+  [ Nicholas Levi Sielicki ]
+  * [eafd8723] Rise the number of supported NICs.
+    There is an arbitrary constant declared limiting the amount of NICs that
+    it supports. I have bumped the limit from 16 to 64 to make this
+    toolset functional for larger setups. (Closes: #756808)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 09 Aug 2014 01:40:56 +0200
 
 open-vm-tools (2:9.4.0-1280544-8) unstable; urgency=medium
 
