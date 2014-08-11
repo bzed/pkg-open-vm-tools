@@ -1,11 +1,11 @@
 fix_debian_verison_recognition
+dkms-module-location.patch
 0001-kvers.patch
 0002-dkms.patch
 0005-dkms-vmci-remove.patch
 0006-vmblock-fixes.patch
 glib.patch
 dh_dkms_fail_workaround.patch
-dkms-module-location.patch
 530ef7f_OVT-do-not-build-vmblock-on-Linux-kernels-3.0
 do-not-build-vsock-on-linux-kernels-3.9
 dkms-do-not-build-vmsync-vmblock--remove-for-backports-to-pre-3.0
