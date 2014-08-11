@@ -4,6 +4,11 @@ set -e
 
 case "${1}" in
 	configure)
+		if [ -x /usr/sbin/update-initramfs ]
+		then
+			update-initramfs -u
+		fi
+
 		if [ -x /sbin/udevadm ]
 		then
 			udevadm trigger
