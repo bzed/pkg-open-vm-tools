@@ -4,6 +4,8 @@ open-vm-tools (2:9.4.6-1770165-2~bpo70+1) wheezy-backports; urgency=medium
   * Update gbp.conf for wheezy-backports.
   * Revert "Do not build vsock on kernels >= 3.9"
   * Revert "Add patch to convert kuid_t/kgid_t to uid_t/gid_t."
+  * Enable building of vmci again.
+    Needed by vmhgfs to work with the Wheezy kernel.
 
  -- Bernd Zeimetz <bzed@debian.org>  Mon, 11 Aug 2014 08:52:24 +0200
 
