@@ -1,0 +1,12 @@
+--- a/lib/syncDriver/syncDriverPosix.c
++++ b/lib/syncDriver/syncDriverPosix.c
+@@ -72,8 +72,7 @@ SyncDriverIsRemoteFSType(const char *fsT
+    size_t i;
+ 
+    for (i = 0; i < ARRAYSIZE(gRemoteFSTypes); i++) {
+-      if (Str_Strncmp(fsType, gRemoteFSTypes[i],
+-                      sizeof gRemoteFSTypes[i]) == 0) {
++      if (Str_Strcmp(gRemoteFSTypes[i], fsType) == 0) {
+          return TRUE;
+       }
+    }

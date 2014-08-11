@@ -1,0 +1,71 @@
+--- a/lib/include/guest_os_tables.h
++++ b/lib/include/guest_os_tables.h
+@@ -202,8 +202,8 @@
+    GOSL(STR_OS_DEBIAN_6 "-64",               GUEST_OS_DEBIAN45_64)          \
+    GOSL(STR_OS_DEBIAN_7,                     GUEST_OS_DEBIAN45)             \
+    GOSL(STR_OS_DEBIAN_7 "-64",               GUEST_OS_DEBIAN45_64)          \
+-   GOSL(STR_OS_DEBIAN_7_1,                   GUEST_OS_DEBIAN45)             \
+-   GOSL(STR_OS_DEBIAN_7_1 "-64",             GUEST_OS_DEBIAN45_64)          \
++   GOSL(STR_OS_DEBIAN_8,                     GUEST_OS_DEBIAN45)             \
++   GOSL(STR_OS_DEBIAN_8 "-64",               GUEST_OS_DEBIAN45_64)          \
+    GOSL(STR_OS_SOLARIS "6",                  GUEST_OS_SOLARIS_6_AND_7)      \
+    GOSL(STR_OS_SOLARIS "7",                  GUEST_OS_SOLARIS_6_AND_7)      \
+    GOSL(STR_OS_SOLARIS "8",                  GUEST_OS_SOLARIS8)             \
+--- a/lib/misc/hostinfoPosix.c
++++ b/lib/misc/hostinfoPosix.c
+@@ -581,7 +581,43 @@ HostinfoGetOSShortName(char *distro,
+       } else if (strstr(distroLower, "7.0")) {
+          Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
+       } else if (strstr(distroLower, "7.1")) {
+-         Str_Strcpy(distroShort, STR_OS_DEBIAN_7_1, distroShortSize);
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.2")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.3")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.4")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.5")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.6")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.7")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.8")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "7.9")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
++      } else if (strstr(distroLower, "8.0")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.1")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.2")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.3")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.4")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.5")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.6")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.7")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.8")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
++      } else if (strstr(distroLower, "8.9")) {
++         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
+       }
+    } else if (StrUtil_StartsWith(distroLower, "enterprise linux") ||
+               StrUtil_StartsWith(distroLower, "oracle")) {
+--- a/lib/include/guest_os.h
++++ b/lib/include/guest_os.h
+@@ -199,7 +199,7 @@ Bool Gos_InSetArray(uint32 gos, const ui
+ #define STR_OS_DEBIAN_5            "debian5"
+ #define STR_OS_DEBIAN_6            "debian6"
+ #define STR_OS_DEBIAN_7            "debian7"
+-#define STR_OS_DEBIAN_7_1          "debian7"
++#define STR_OS_DEBIAN_8            "debian8"
+ #define STR_OS_FEDORA              "Fedora"
+ #define STR_OS_GENTOO              "Gentoo"
+ #define STR_OS_IMMUNIX             "Immunix"

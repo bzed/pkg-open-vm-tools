@@ -40,7 +40,7 @@ Signed-off-by: Dmitry Torokhov <dtor@vmware.com>
 
 --- a/lib/misc/hostinfoPosix.c
 +++ b/lib/misc/hostinfoPosix.c
-@@ -762,17 +762,27 @@ out:
+@@ -800,17 +800,27 @@ out:
  static char *
  HostinfoGetCmdOutput(const char *cmd)  // IN:
  {
@@ -69,7 +69,7 @@ Signed-off-by: Dmitry Torokhov <dtor@vmware.com>
     }
  
     for (;;) {
-@@ -806,11 +816,16 @@ HostinfoGetCmdOutput(const char *cmd)  /
+@@ -844,11 +854,16 @@ HostinfoGetCmdOutput(const char *cmd)  /
     if (DynBuf_Get(&db)) {
        out = (char *) DynBuf_AllocGet(&db);
     }
@@ -88,7 +88,7 @@ Signed-off-by: Dmitry Torokhov <dtor@vmware.com>
     return out;
  }
  
-@@ -929,7 +944,7 @@ HostinfoOSData(void)
+@@ -967,7 +982,7 @@ HostinfoOSData(void)
         * Try to get OS detailed information from the lsb_release command.
         */
  
