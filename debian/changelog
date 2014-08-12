@@ -1,3 +1,13 @@
+open-vm-tools (2:9.4.6-1770165-2~bpo60+1) squeeze-backports-sloppy; urgency=medium
+
+  * Rebuild for wheezy-backports.
+  * [aa51c48a] add gbp config for squeeze-backports
+  * [e53c15e8] Update patches for the Squeeze kernel.
+    - Drop (not backwards compatible) support for newer kernels.
+    - Update module locations for all dkms modules.
+
+ -- Bernd Zeimetz <bernd@bzed.de>  Tue, 12 Aug 2014 11:24:44 +0200
+
 open-vm-tools (2:9.4.6-1770165-2) unstable; urgency=medium
 
   * [d493d4ce] Remove vmware-user-suid-wrapper.1 from open-vm-tools.
