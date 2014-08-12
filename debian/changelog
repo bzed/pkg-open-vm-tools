@@ -1,12 +1,13 @@
 open-vm-tools (2:9.4.6-1770165-2~bpo60+1) squeeze-backports-sloppy; urgency=medium
 
-  * Rebuild for wheezy-backports.
   * [aa51c48a] add gbp config for squeeze-backports
   * [e53c15e8] Update patches for the Squeeze kernel.
     - Drop (not backwards compatible) support for newer kernels.
     - Update module locations for all dkms modules.
+  * [336f7b17] Updateing changelog.
+  * [2e776474] Install procps package instead of libprocps-dev
 
- -- Bernd Zeimetz <bernd@bzed.de>  Tue, 12 Aug 2014 11:24:44 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 12 Aug 2014 14:08:36 +0200
 
 open-vm-tools (2:9.4.6-1770165-2) unstable; urgency=medium
 
