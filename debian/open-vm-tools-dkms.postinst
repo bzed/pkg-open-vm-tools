@@ -2,6 +2,8 @@
 
 set -e
 
+#DEBHELPER#
+
 case "${1}" in
 	configure)
 		if [ -x /usr/sbin/update-initramfs ]
@@ -25,6 +27,5 @@ case "${1}" in
 		;;
 esac
 
-#DEBHELPER#
 
 exit 0
