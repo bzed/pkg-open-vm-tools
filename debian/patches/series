@@ -17,3 +17,4 @@ pam-use-common-auth-account
 e55039c_HGFS-Fix-Linux-client-symlinks
 fedora-sizeof_argument.patch
 max_nic_count.patch
+remove_unused_DEPRECATED_define
