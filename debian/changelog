@@ -1,3 +1,39 @@
+open-vm-tools (2:9.4.6-1770165-3) unstable; urgency=medium
+
+  [ Bernd Zeimetz ]
+  * [b04735fa] Ensure LINUX_BACKPORT is defined in patches/kuid_t-kgid_t-fix-for-3.12.
+
+  [ Norbert Lange ]
+  * [01aaa407] Fix initramfs hook for the vmxnet module
+  * [5279fa17] Move the dkms module location patch before otehr patches
+     changing the dkms.conf file. this eases adding or removing those patches
+  * [b1db2b5c] Move files belonging to modules in dkms package.
+    Call update-initramfs for the dkms package. Otherwise the initrd wont
+    contain the vmxnet module if you installed the dkms package after the
+    tools package. Move the module scripts to the dmks package.
+    The modules in the dkms package should work without the tools now.
+
+  [ Bernd Zeimetz ]
+  * [d0ccee4f] Run #DEBHELPER# first in open-vm-tools-dkms.postinst.
+    Otherwise dkms was not called and the module is not built yet.
+  * [f680b4fa] Run update-initramfs in open-vm-tools-dkms.postrm.
+    Otherwise a removed module stays in the initrd.
+  * [ef4bd019] Remove unused DEPRECATED define.
+    The dkms module ftbfs with 3.16 as DEPRECATED is define in the kernel
+    source already.
+    Thanks to Benjamin Kaduk (Closes: #761924)
+  * [5389dd1f] Some more fixes to make dkms build on 3.16
+  * [4c1f5fa7] Drop dkms.conf patches.
+    Ship the dkms.conf file in debian/local instead.
+  * [805ccb06] Tidying patches.
+    - Removing those for kernel modules we don't build anymore
+    - Taking fixes for current issues from Arch
+    - Sorting patches into from_fedora / from_arch / debian directories.
+    This will break backports to wheezy.
+  * [519191ff] Fix dh_dkms call for new dkms.conf
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 20 Sep 2014 17:21:27 +0200
+
 open-vm-tools (2:9.4.6-1770165-2) unstable; urgency=medium
 
   * [d493d4ce] Remove vmware-user-suid-wrapper.1 from open-vm-tools.
