@@ -76,7 +76,7 @@ override_dh_fixperms:
 	dh_fixperms -Xsbin/mount.vmhgfs -Xvmware-user-suid-wrapper
 
 override_dh_installinit:
-	dh_installinit --update-rcd-params='start . 2 3 4 5 . stop . 0 1 6 .'
+	dh_installinit
 
 override_dh_strip:
 	dh_strip --dbg-package=open-vm-tools-dbg
