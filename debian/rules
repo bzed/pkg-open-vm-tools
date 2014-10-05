@@ -35,6 +35,7 @@ override_dh_auto_install:
 
 	install -D -m 0644 debian/local/run-vmblock-fuse.automount debian/open-vm-tools-desktop/lib/systemd/system/run-vmblock-fuse.automount
 	install -D -m 0644 debian/local/run-vmblock-fuse.mount debian/open-vm-tools-desktop/lib/systemd/system/run-vmblock-fuse.mount
+	install -D -m 0644 debian/local/vmblock-fuse-tmpfiles.conf debian/open-vm-tools-desktop/usr/lib/tmpfiles.d/vmblock-fuse-tmpfiles.conf
 
 	# open-vm-tools-dev
 	mkdir -p debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
