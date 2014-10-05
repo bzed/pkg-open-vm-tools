@@ -1,3 +1,11 @@
+open-vm-tools (2:9.4.6-1770165-5) unstable; urgency=medium
+
+  * [7f362040] Create /tmp/VMwareDnD for vmblock-fuse.
+  * [c5f35c1b] Revert "Fix Breaks and Replaces Fields in debian/control"
+    This reverts commit 34797213251956fbc1451ab1affc7b6c413b7072.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 05 Oct 2014 23:36:27 +0200
+
 open-vm-tools (2:9.4.6-1770165-4) unstable; urgency=medium
 
   [ Norbert Lange ]
