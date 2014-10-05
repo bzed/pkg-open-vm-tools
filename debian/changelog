@@ -1,3 +1,25 @@
+open-vm-tools (2:9.4.6-1770165-4) unstable; urgency=medium
+
+  [ Norbert Lange ]
+  * [34797213] Fix Breaks and Replaces Fields in debian/control
+  * [aff1eb77] Add udev rule for vsock.
+    The blockdevice is created at /dev/vsock after loading the module,
+    but with 0600 permissions which dont allow access for regular users.
+    This rule fixes the issue by changing perms to 0666
+
+  [ Bernd Zeimetz ]
+  * [371e5d30] Move vsock udev rules into open-vm-tools.udev.
+    The vsock module is shipped in the vanilla kernel these days.
+  * [edaeb2fd] Add systemd (auto)mount units for vmblock-fuse.
+    This will hopefully make drag & drop operations work properly.
+    Also add fuse to Recommends of the -desktop package as it is
+    needed to mount fuse filesystems.
+    Thanks to Norbert Lange (Closes: #736812)
+  * [171276e3] Remove update-rcd-params from dh_installinit.
+    Thanks to Remi (Closes: #762695)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 05 Oct 2014 12:21:47 +0200
+
 open-vm-tools (2:9.4.6-1770165-3) unstable; urgency=medium
 
   [ Bernd Zeimetz ]
