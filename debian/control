@@ -32,7 +32,7 @@ Breaks: open-vm-toolbox (<< 2:9.4.0-1280544-8~)
 Replaces: open-vm-toolbox (<< 2:9.4.0-1280544-8~)
 Recommends:
  open-vm-tools-dkms, xauth, xserver-xorg-input-vmmouse,
- xserver-xorg-video-vmware
+ xserver-xorg-video-vmware, fuse
 Suggests: xdg-utils
 Description: Open VMware Tools for virtual machines hosted on VMware (GUI)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source

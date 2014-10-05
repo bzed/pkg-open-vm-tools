@@ -1,0 +1,9 @@
+[Unit]
+Description=VMware vmblock fuse automount
+Documentation=https://github.com/vmware/open-vm-tools/blob/master/open-vm-tools/vmblock-fuse/design.txt
+DefaultDependencies=no
+ConditionVirtualization=vmware
+
+[Automount]
+Where=/run/vmblock-fuse
+DirectoryMode=0755
