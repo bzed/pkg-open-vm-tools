@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# workaround to avoid upgrade failures.
+pkill -USR1 -f '(vmtoolsd.*vmusr|vmware-user)' || true 
+
+if [ -d /run/systemd/system ]; then
+    deb-systemd-invoke stop run-vmblock\\x2dfuse.mount >/dev/null || true
+fi
+
+
