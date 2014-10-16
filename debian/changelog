@@ -1,3 +1,18 @@
+open-vm-tools (2:9.4.6-1770165-6) unstable; urgency=medium
+
+  * [6b514014] Fix installation of systemd services.
+    Thanks to Norbert Lange (Closes: #764295)
+  * [1130d9e9] Workaround for buggy dh_systemd_start.
+  * [1d43a9e7] Remove the automount feature for vmblock-fuse.
+    vmtools* checks /etc/mtab and friends for mounted filesystems
+    instead of using stat or something similar.
+  * [b06f93e5] Add mate-panel to xautostart.conf
+  * [26a5da76] Workaround open-vm-tools-desktop upgrade failures.
+    For now just ignore errors while unmounting the fuse-vmblock
+    file system.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 16 Oct 2014 09:49:17 +0200
+
 open-vm-tools (2:9.4.6-1770165-5) unstable; urgency=medium
 
   * [7f362040] Create /tmp/VMwareDnD for vmblock-fuse.
