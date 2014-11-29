@@ -1,3 +1,10 @@
+open-vm-tools (2:9.4.6-1770165-7) unstable; urgency=medium
+
+  * [8df5b4ac] Adding patch to fix CVE-2014-4199.
+    Thanks to Moritz Muehlenhoff (Closes: #770809)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 29 Nov 2014 15:57:20 +0100
+
 open-vm-tools (2:9.4.6-1770165-6) unstable; urgency=medium
 
   * [6b514014] Fix installation of systemd services.
