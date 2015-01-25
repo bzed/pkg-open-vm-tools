@@ -1,13 +1,97 @@
-open-vm-tools (2:9.4.6-1770165-2~bpo70+1) wheezy-backports; urgency=medium
+open-vm-tools (2:9.4.6-1770165-7~bpo70+1) wheezy-backports; urgency=medium
 
   * Rebuild for wheezy-backports.
-  * Update gbp.conf for wheezy-backports.
-  * Revert "Do not build vsock on kernels >= 3.9"
-  * Revert "Add patch to convert kuid_t/kgid_t to uid_t/gid_t."
-  * Enable building of vmci again.
-    Needed by vmhgfs to work with the Wheezy kernel.
+  * [683b294b] Add gbp.conf for backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 11 Aug 2014 08:52:24 +0200
+ -- Bernd Zeimetz <bernd@bzed.de>  Sun, 25 Jan 2015 10:51:23 +0100
+
+open-vm-tools (2:9.4.6-1770165-7) unstable; urgency=medium
+
+  * [8df5b4ac] Adding patch to fix CVE-2014-4199.
+    Thanks to Moritz Muehlenhoff (Closes: #770809)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 29 Nov 2014 15:57:20 +0100
+
+open-vm-tools (2:9.4.6-1770165-6) unstable; urgency=medium
+
+  * [6b514014] Fix installation of systemd services.
+    Thanks to Norbert Lange (Closes: #764295)
+  * [1130d9e9] Workaround for buggy dh_systemd_start.
+  * [1d43a9e7] Remove the automount feature for vmblock-fuse.
+    vmtools* checks /etc/mtab and friends for mounted filesystems
+    instead of using stat or something similar.
+  * [b06f93e5] Add mate-panel to xautostart.conf
+  * [26a5da76] Workaround open-vm-tools-desktop upgrade failures.
+    For now just ignore errors while unmounting the fuse-vmblock
+    file system.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 16 Oct 2014 09:49:17 +0200
+
+open-vm-tools (2:9.4.6-1770165-5) unstable; urgency=medium
+
+  * [7f362040] Create /tmp/VMwareDnD for vmblock-fuse.
+  * [c5f35c1b] Revert "Fix Breaks and Replaces Fields in debian/control"
+    This reverts commit 34797213251956fbc1451ab1affc7b6c413b7072.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 05 Oct 2014 23:36:27 +0200
+
+open-vm-tools (2:9.4.6-1770165-4) unstable; urgency=medium
+
+  [ Norbert Lange ]
+  * [34797213] Fix Breaks and Replaces Fields in debian/control
+  * [aff1eb77] Add udev rule for vsock.
+    The blockdevice is created at /dev/vsock after loading the module,
+    but with 0600 permissions which dont allow access for regular users.
+    This rule fixes the issue by changing perms to 0666
+
+  [ Bernd Zeimetz ]
+  * [371e5d30] Move vsock udev rules into open-vm-tools.udev.
+    The vsock module is shipped in the vanilla kernel these days.
+  * [edaeb2fd] Add systemd (auto)mount units for vmblock-fuse.
+    This will hopefully make drag & drop operations work properly.
+    Also add fuse to Recommends of the -desktop package as it is
+    needed to mount fuse filesystems.
+    Thanks to Norbert Lange (Closes: #736812)
+  * [171276e3] Remove update-rcd-params from dh_installinit.
+    Thanks to Remi (Closes: #762695)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 05 Oct 2014 12:21:47 +0200
+
+open-vm-tools (2:9.4.6-1770165-3) unstable; urgency=medium
+
+  [ Bernd Zeimetz ]
+  * [b04735fa] Ensure LINUX_BACKPORT is defined in patches/kuid_t-kgid_t-fix-for-3.12.
+
+  [ Norbert Lange ]
+  * [01aaa407] Fix initramfs hook for the vmxnet module
+  * [5279fa17] Move the dkms module location patch before otehr patches
+     changing the dkms.conf file. this eases adding or removing those patches
+  * [b1db2b5c] Move files belonging to modules in dkms package.
+    Call update-initramfs for the dkms package. Otherwise the initrd wont
+    contain the vmxnet module if you installed the dkms package after the
+    tools package. Move the module scripts to the dmks package.
+    The modules in the dkms package should work without the tools now.
+
+  [ Bernd Zeimetz ]
+  * [d0ccee4f] Run #DEBHELPER# first in open-vm-tools-dkms.postinst.
+    Otherwise dkms was not called and the module is not built yet.
+  * [f680b4fa] Run update-initramfs in open-vm-tools-dkms.postrm.
+    Otherwise a removed module stays in the initrd.
+  * [ef4bd019] Remove unused DEPRECATED define.
+    The dkms module ftbfs with 3.16 as DEPRECATED is define in the kernel
+    source already.
+    Thanks to Benjamin Kaduk (Closes: #761924)
+  * [5389dd1f] Some more fixes to make dkms build on 3.16
+  * [4c1f5fa7] Drop dkms.conf patches.
+    Ship the dkms.conf file in debian/local instead.
+  * [805ccb06] Tidying patches.
+    - Removing those for kernel modules we don't build anymore
+    - Taking fixes for current issues from Arch
+    - Sorting patches into from_fedora / from_arch / debian directories.
+    This will break backports to wheezy.
+  * [519191ff] Fix dh_dkms call for new dkms.conf
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 20 Sep 2014 17:21:27 +0200
 
 open-vm-tools (2:9.4.6-1770165-2) unstable; urgency=medium
 

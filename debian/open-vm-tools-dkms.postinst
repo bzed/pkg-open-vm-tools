@@ -2,8 +2,15 @@
 
 set -e
 
+#DEBHELPER#
+
 case "${1}" in
 	configure)
+		if [ -x /usr/sbin/update-initramfs ]
+		then
+			update-initramfs -u
+		fi
+
 		if [ -x /sbin/udevadm ]
 		then
 			udevadm trigger
@@ -20,6 +27,5 @@ case "${1}" in
 		;;
 esac
 
-#DEBHELPER#
 
 exit 0
