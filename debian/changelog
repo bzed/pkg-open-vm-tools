@@ -1,9 +1,11 @@
 open-vm-tools (2:9.4.6-1770165-7~bpo70+1) wheezy-backports; urgency=medium
 
-  * Rebuild for wheezy-backports.
+  * Rebuild for wheezy-backports (Closes: #776163).
   * [683b294b] Add gbp.conf for backports.
+  * [31093435] Enable more dkms modules for wheezy.
+  * [bdabb3e3] Let open-vm-tools-desktop depend on bpo systemd.
 
- -- Bernd Zeimetz <bernd@bzed.de>  Sun, 25 Jan 2015 10:51:23 +0100
+ -- Bernd Zeimetz <bernd@bzed.de>  Sun, 25 Jan 2015 11:38:50 +0100
 
 open-vm-tools (2:9.4.6-1770165-7) unstable; urgency=medium
 
