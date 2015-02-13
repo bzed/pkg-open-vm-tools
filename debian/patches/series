@@ -1,3 +1,4 @@
+debian/d_alias_fix
 upstream/3a9f229_Harden-HostinfoOSData-against-PATH-attacks
 upstream/54780b8_Debian-guys-want-to-play-with-FreeBSD-kernels-and-Linux-userland
 
