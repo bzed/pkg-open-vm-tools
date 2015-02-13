@@ -1,3 +1,11 @@
+open-vm-tools (2:9.4.6-1770165-8) unstable; urgency=medium
+
+  * [406817b6] Add patch to move from d_alias to d_u.d_alias.
+    Make open-vm-tools build with the recent jessie kernel again.
+    Thanks to Timo Metsala (Closes: #778293)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 13 Feb 2015 11:26:59 +0100
+
 open-vm-tools (2:9.4.6-1770165-7) unstable; urgency=medium
 
   * [8df5b4ac] Adding patch to fix CVE-2014-4199.
