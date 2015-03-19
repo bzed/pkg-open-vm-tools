@@ -1,3 +1,12 @@
+open-vm-tools (2:8.8.0+2012.05.21-724730-1+nmu2+deb7u1) stable; urgency=medium
+
+  * [6f4a32b1] Add patch to handle the move of d_alias to d_u.d_alias.
+    Thanks to Stefan Schueller (Closes: #779081)
+  * [b32d3413] Add git-buildpackage config for wheezy.
+  * [3f1b34b0] Updating Maintainer.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 19 Mar 2015 16:44:25 +0100
+
 open-vm-tools (2:8.8.0+2012.05.21-724730-1+nmu2) testing-proposed-updates; urgency=low
 
   * Non-maintainer upload.
