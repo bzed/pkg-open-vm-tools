@@ -1,5 +1,5 @@
 ################################################################################
-### Copyright 2009 VMware, Inc.  All rights reserved.
+### Copyright (C) 2009-2015 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -38,13 +38,25 @@ libvmbackup_la_SOURCES += vmBackupSignals.c
 BUILT_SOURCES =
 BUILT_SOURCES += vmBackupSignals.c
 BUILT_SOURCES += vmBackupSignals.h
+BUILT_SOURCES += guestQuiesce.h
+BUILT_SOURCES += guestQuiesce_xdr.c
 
 CLEANFILES =
 CLEANFILES += vmBackupSignals.c
 CLEANFILES += vmBackupSignals.h
+CLEANFILES += guestQuiesce.h
+CLEANFILES += guestQuiesce_xdr.c
 
 EXTRA_DIST =
 EXTRA_DIST += vmBackupSignals.gm
+
+libvmbackup_la_SOURCES += guestQuiesce_xdr.c
+
+guestQuiesce.h: guestQuiesce.x
+		@RPCGEN_WRAPPER@ services/plugins/vmbackup/guestQuiesce.x $@
+
+guestQuiesce_xdr.c: guestQuiesce.x guestQuiesce.h
+		@RPCGEN_WRAPPER@ services/plugins/vmbackup/guestQuiesce.x $@
 
 vmBackupSignals.c: $(top_srcdir)/services/plugins/vmbackup/vmBackupSignals.gm
 	glib-genmarshal --body $(top_srcdir)/services/plugins/vmbackup/vmBackupSignals.gm > \

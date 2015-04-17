@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -52,7 +52,7 @@ typedef unsigned VThreadID;
 #define VTHREAD_INVALID_ID	(VThreadID)(~0u)
 
 /* XXX Vestigial need as an MXState array size */
-#define VTHREAD_MAX_THREADS   160
+#define VTHREAD_MAX_THREADS   224
 
 #ifdef VMM
 /*
@@ -93,10 +93,11 @@ VThread_CurName(void)
 
 #else
 
-#define VTHREAD_VMX_ID		0
-#define VTHREAD_MKS_ID		1
-#define VTHREAD_OTHER_ID	2
-#define VTHREAD_ALLOCSTART_ID	3
+#define VTHREAD_VMX_ID          0
+#define VTHREAD_SVGA_ID         1
+#define VTHREAD_MKS_ID          2
+#define VTHREAD_OTHER_ID        3
+#define VTHREAD_ALLOCSTART_ID   4
 
 #define VTHREADBASE_MAX_NAME    32  /* Arbitrary */
 

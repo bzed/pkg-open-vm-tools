@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2009 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -35,6 +35,10 @@ void (*MXUserMX_LockRec)(struct MX_MutexRec *lock) = NULL;
 void (*MXUserMX_UnlockRec)(struct MX_MutexRec *lock) = NULL;
 Bool (*MXUserMX_TryLockRec)(struct MX_MutexRec *lock) = NULL;
 Bool (*MXUserMX_IsLockedByCurThreadRec)(const struct MX_MutexRec *lock) = NULL;
+static void (*MXUserMX_SetInPanic)(void) = NULL;
+static Bool (*MXUserMX_InPanic)(void) = NULL;
+
+#define MXUSER_NOISE_FLOOR_TRIALS 1000
 
 
 /*
@@ -63,7 +67,7 @@ MXUserInternalSingleton(Atomic_Ptr *storage)  // IN:
    MXRecLock *lock = (MXRecLock *) Atomic_ReadPtr(storage);
 
    if (UNLIKELY(lock == NULL)) {
-      MXRecLock *newLock = Util_SafeMalloc(sizeof(MXRecLock));
+      MXRecLock *newLock = Util_SafeMalloc(sizeof *newLock);
 
       if (MXRecLockInit(newLock)) {
          lock = Atomic_ReadIfEqualWritePtr(storage, NULL, (void *) newLock);
@@ -84,8 +88,6 @@ MXUserInternalSingleton(Atomic_Ptr *storage)  // IN:
 }
 
 
-#define MXUSER_SYNDROME
-#if defined(MXUSER_SYNDROME)
 /*
  *-----------------------------------------------------------------------------
  *
@@ -146,7 +148,6 @@ MXUserSyndrome(void)
 
    return syndrome;
 }
-#endif
 
 
 /*
@@ -173,7 +174,6 @@ MXUserGetSignature(MXUserObjectType objectType)  // IN:
    ASSERT((objectType >= 0) && (objectType < 16) &&
           (objectType != MXUSER_TYPE_NEVER_USE));
 
-#if defined(MXUSER_SYNDROME)
    /*
     * Use a random syndrome combined with a unique bit pattern mapping
     * of objectType to bits in a nibble. The random portion of the signature
@@ -182,46 +182,6 @@ MXUserGetSignature(MXUserObjectType objectType)  // IN:
     */
 
    signature = (MXUserSyndrome() & 0x0FFFFFFF) | (objectType << 28);
-#else
-   /*
-    * Map the abstract objectType back to the bit patterns used in older
-    * versions of lib/lock. This provides absolute compatibility with
-    * these older libraries.
-    */
-
-   switch (objectType) {
-   case MXUSER_TYPE_RW:
-      signature = 0x57524B4C;
-      break;
-
-   case MXUSER_TYPE_REC:
-      signature = 0x43524B4C;
-      break;
-
-   case MXUSER_TYPE_RANK:
-      signature = 0x4E4B5241;
-      break;
-
-   case MXUSER_TYPE_EXCL:
-      signature = 0x58454B4C;
-      break;
-
-   case MXUSER_TYPE_SEMA:
-      signature = 0x414D4553;
-      break;
-
-   case MXUSER_TYPE_CONDVAR:
-      signature = 0x444E4F43;
-      break;
-
-   case MXUSER_TYPE_BARRIER:
-      signature = 0x52524142;
-      break;
-
-   default:
-      Panic("%s: unknown objectType %d\n", __FUNCTION__, objectType);
-   }
-#endif
 
    ASSERT(signature);
 
@@ -271,11 +231,8 @@ MXUserDumpAndPanic(MXUserHeader *header,  // IN:
  *  MXUser_SetInPanic --
  *	Notify the locking system that a panic is occurring.
  *
- *      This is the "out of the monitor" - userland - implementation. The "in
- *      the monitor" implementation lives in mutex.c.
- *
  *  Results:
- *     Set the internal "in a panic" global variable.
+ *     Set the "in a panic" state both in userland, and monitor, if applicable.
  *
  *  Side effects:
  *     None
@@ -287,6 +244,9 @@ void
 MXUser_SetInPanic(void)
 {
    mxInPanic = TRUE;
+   if (MXUserMX_SetInPanic != NULL) {
+      MXUserMX_SetInPanic();
+   }
 }
 
 
@@ -295,9 +255,6 @@ MXUser_SetInPanic(void)
  *
  *  MXUser_InPanic --
  *	Is the caller in the midst of a panic?
- *
- *      This is the "out of the monitor" - userland - implementation. The "in
- *      the monitor" implementation lives in mutex.c.
  *
  *  Results:
  *     TRUE   Yes
@@ -312,7 +269,7 @@ MXUser_SetInPanic(void)
 Bool
 MXUser_InPanic(void)
 {
-   return mxInPanic;
+   return mxInPanic || (MXUserMX_InPanic != NULL && MXUserMX_InPanic());
 }
 
 
@@ -340,7 +297,9 @@ MXUserInstallMxHooks(void (*theLockListFunc)(void),
                      void (*theLockFunc)(struct MX_MutexRec *lock),
                      void (*theUnlockFunc)(struct MX_MutexRec *lock),
                      Bool (*theTryLockFunc)(struct MX_MutexRec *lock),
-                     Bool (*theIsLockedFunc)(const struct MX_MutexRec *lock))
+                     Bool (*theIsLockedFunc)(const struct MX_MutexRec *lock),
+                     void (*theSetInPanicFunc)(void),
+                     Bool (*theInPanicFunc)(void))
 {
    /*
     * This function can be called more than once but the second and later
@@ -353,20 +312,27 @@ MXUserInstallMxHooks(void (*theLockListFunc)(void),
        (MXUserMX_LockRec == NULL) &&
        (MXUserMX_UnlockRec == NULL) &&
        (MXUserMX_TryLockRec == NULL) &&
-       (MXUserMX_IsLockedByCurThreadRec == NULL)) {
+       (MXUserMX_IsLockedByCurThreadRec == NULL) &&
+       (MXUserMX_SetInPanic == NULL) &&
+       (MXUserMX_InPanic == NULL)
+       ) {
       MXUserMxLockLister = theLockListFunc;
       MXUserMxCheckRank = theRankFunc;
       MXUserMX_LockRec = theLockFunc;
       MXUserMX_UnlockRec = theUnlockFunc;
       MXUserMX_TryLockRec = theTryLockFunc;
       MXUserMX_IsLockedByCurThreadRec = theIsLockedFunc;
+      MXUserMX_SetInPanic = theSetInPanicFunc;
+      MXUserMX_InPanic = theInPanicFunc;
    } else {
       ASSERT((MXUserMxLockLister == theLockListFunc) &&
              (MXUserMxCheckRank == theRankFunc) &&
              (MXUserMX_LockRec == theLockFunc) &&
              (MXUserMX_UnlockRec == theUnlockFunc) &&
              (MXUserMX_TryLockRec == theTryLockFunc) &&
-             (MXUserMX_IsLockedByCurThreadRec == theIsLockedFunc)
+             (MXUserMX_IsLockedByCurThreadRec == theIsLockedFunc) &&
+             (MXUserMX_SetInPanic == theSetInPanicFunc) &&
+             (MXUserMX_InPanic == theInPanicFunc)
             );
    }
 }
@@ -533,7 +499,6 @@ MXUserGetPerThread(Bool mayAlloc)  // IN: alloc perThread if not present?
 
    return perThread;
 }
-
 
 /*
  *-----------------------------------------------------------------------------
@@ -702,7 +667,7 @@ MXUserAcquisitionTracking(MXUserHeader *header,  // IN:
 {
    MXUserPerThread *perThread = MXUserGetPerThread(TRUE);
 
-   ASSERT_NOT_IMPLEMENTED(perThread->locksHeld < MXUSER_MAX_LOCKS_PER_THREAD);
+   VERIFY(perThread->locksHeld < MXUSER_MAX_LOCKS_PER_THREAD);
 
    /*
     * Rank checking anyone?

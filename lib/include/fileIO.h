@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -306,6 +306,12 @@ FileIOResult FileIO_Open(FileIODescriptor *file,
                          int access,
                          FileIOOpenAction action);
 
+FileIOResult FileIO_OpenRetry(FileIODescriptor *file,
+                              ConstUnicode pathName,
+                              int access,
+                              FileIOOpenAction action,
+                              uint32 msecMaxWaitTime);
+
 uint64 FileIO_Seek(const FileIODescriptor *file,
                    int64 distance,
                    FileIOSeekOrigin origin);
@@ -325,9 +331,8 @@ Unicode FileIO_AtomicTempPath(ConstUnicode path);
 FileIOResult FileIO_AtomicTempFile(FileIODescriptor *fileFD,
                                    FileIODescriptor *tempFD);
 
-int FileIO_AtomicUpdate(FileIODescriptor *newFD,
-                        FileIODescriptor *currFD,
-                        Bool renameOnNFS);
+Bool FileIO_AtomicUpdate(FileIODescriptor *newFD,
+                         FileIODescriptor *currFD);
 
 #if !defined(VMX86_TOOLS) || !defined(__FreeBSD__)
 

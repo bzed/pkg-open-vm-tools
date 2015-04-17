@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -38,14 +38,14 @@
 #include "hgfsServerPolicy.h"
 #include "hgfsUtil.h"
 #include "hgfsVirtualDir.h"
-#include "hgfsEscape.h"
 #include "codeset.h"
-#include "config.h"
 #include "dbllnklst.h"
 #include "file.h"
 #include "util.h"
 #include "wiper.h"
 #include "hgfsServer.h"
+#include "hgfsServerParameters.h"
+#include "hgfsServerOplock.h"
 #include "hgfsDirNotify.h"
 #include "hgfsTransport.h"
 #include "userlock.h"
@@ -87,11 +87,12 @@
 #define HGFS_ASSERT_CLIENT(op)
 #endif
 
-#define HGFS_ASSERT_INPUT(input) ASSERT(input && input->packet && input->metaPacket && \
-                                        ((!input->v4header && input->session) || \
-                                         (input->v4header && \
-                                          (input->op == HGFS_OP_CREATE_SESSION_V4 || input->session))) && \
-                                        (!input->payloadSize || input->payload))
+#define HGFS_ASSERT_INPUT(input) \
+   ASSERT(input && input->packet && input->request && \
+          ((!input->sessionEnabled && input->session) || \
+          (input->sessionEnabled && \
+          (input->op == HGFS_OP_CREATE_SESSION_V4 || input->session))) && \
+          (!input->payloadSize || input->payload))
 
 /*
  * Define this to enable an ASSERT if server gets an op lower than
@@ -111,10 +112,6 @@
 #define HGFS_ASSERT_MINIMUM_OP(op)
 #endif
 
-#ifdef VMX86_TOOLS
-#define Config_GetBool(defaultValue,fmt) (defaultValue)
-#endif
-
 /*
  * This ensures that the hgfs name conversion code never fails on long
  * filenames by using a buffer that is too small. If anything, we will
@@ -129,17 +126,66 @@
 #define NUM_FILE_NODES 100
 #define NUM_SEARCHES 100
 
-/* Default maximum number of open nodes. */
-#define MAX_CACHED_FILENODES 30
-
 /* Default maximun number of open nodes that have server locks. */
 #define MAX_LOCKED_FILENODES 10
 
-/* Maximum number of cached open nodes. */
-static unsigned int maxCachedOpenNodes;
 
-/* Value of config option to require using host timestamps */
-Bool alwaysUseHostTime = FALSE;
+struct HgfsTransportSessionInfo {
+   /* Default session id. */
+   uint64 defaultSessionId;
+
+   /* Lock to manipulate the list of sessions */
+   MXUserExclLock *sessionArrayLock;
+
+   /* List of sessions */
+   DblLnkLst_Links sessionArray;
+
+   /* Max packet size that is supported by both client and server. */
+   uint32 maxPacketSize;
+
+   /* Total number of sessions present this transport session*/
+   uint32 numSessions;
+
+   /* Transport session context. */
+   void *transportData;
+
+   /* Current state of the session. */
+   HgfsSessionInfoState state;
+
+   /* Session is dynamic or internal. */
+   HgfsSessionInfoType type;
+
+   /* Function callbacks into Hgfs Channels. */
+   HgfsServerChannelCallbacks *channelCbTable;
+
+   Atomic_uint32 refCount;    /* Reference count for session. */
+
+   HgfsServerChannelData channelCapabilities;
+};
+
+/* The input request paramaters object. */
+typedef struct HgfsInputParam {
+   const void *request;          /* Hgfs header followed by operation request */
+   size_t requestSize;           /* Size of Hgfs header and operation request */
+   HgfsSessionInfo *session;     /* Hgfs session data */
+   HgfsTransportSessionInfo *transportSession;
+   HgfsPacket *packet;           /* Public (server/transport) Hgfs packet */
+   const void *payload;          /* Hgfs operation request */
+   uint32 payloadOffset;         /* Offset to start of Hgfs operation request */
+   size_t payloadSize;           /* Hgfs operation request size */
+   HgfsOp op;                    /* Hgfs operation command code */
+   uint32 id;                    /* Request ID to be matched with the reply */
+   Bool sessionEnabled;          /* Requests have session enabled headers */
+} HgfsInputParam;
+
+/*
+ * The HGFS server configurable settings.
+ * (Note: the guest sets these to all defaults only modifiable from the VMX.)
+ */
+static HgfsServerConfig gHgfsCfgSettings = {
+   (HGFS_CONFIG_NOTIFY_ENABLED | HGFS_CONFIG_VOL_INFO_MIN),
+   HGFS_MAX_CACHED_FILENODES
+};
 
 /*
  * Monotonically increasing handle counter used to dish out HgfsHandles.
@@ -183,7 +229,7 @@ static void HgfsServerSessionReceive(HgfsPacket *packet,
                                      void *clientData);
 static Bool HgfsServerSessionConnect(void *transportData,
                                      HgfsServerChannelCallbacks *channelCbTable,
-                                     uint32 channelCapabililies,
+                                     HgfsServerChannelData *channelCapabililies,
                                      void **clientData);
 static void HgfsServerSessionDisconnect(void *clientData);
 static void HgfsServerSessionClose(void *clientData);
@@ -227,15 +273,21 @@ typedef struct HgfsSharedFolderProperties {
    Bool markedForDeletion;
 } HgfsSharedFolderProperties;
 
-static void HgfsServerTransportRemoveSessionFromList(HgfsTransportSessionInfo *transportSession,
-                                                     HgfsSessionInfo *sessionInfo);
 
-/*
- *    Limit payload to 16M + header.
- *    This limit ensures that list of shared pages fits into VMCI datagram.
- *    Client may impose a lower limit in create session request.
- */
-#define MAX_SERVER_PACKET_SIZE_V4         (0x1000000 + sizeof(HgfsHeader))
+/* Allocate/Add sessions helper functions. */
+
+static Bool
+HgfsServerAllocateSession(HgfsTransportSessionInfo *transportSession,
+                          HgfsSessionInfo **sessionData);
+static HgfsInternalStatus
+HgfsServerTransportAddSessionToList(HgfsTransportSessionInfo *transportSession,
+                                    HgfsSessionInfo *sessionInfo);
+static void
+HgfsServerTransportRemoveSessionFromList(HgfsTransportSessionInfo *transportSession,
+                                         HgfsSessionInfo *sessionInfo);
+static HgfsSessionInfo *
+HgfsServerTransportGetSessionInfo(HgfsTransportSessionInfo *transportSession,
+                                  uint64 sessionId);
 
 /* Local functions. */
 static void HgfsInvalidateSessionObjects(DblLnkLst_Links *shares,
@@ -294,6 +346,12 @@ static void HgfsServerDirWatchEvent(HgfsSharedFolderHandle sharedFolder,
                                     struct HgfsSessionInfo *session);
 static void HgfsFreeSearchDirents(HgfsSearch *search);
 
+static HgfsInternalStatus
+HgfsServerTransportGetDefaultSession(HgfsTransportSessionInfo *transportSession,
+                                     HgfsSessionInfo **session);
+static Bool HgfsPacketSend(HgfsPacket *packet,
+                           HgfsTransportSessionInfo *transportSession,
+                           HgfsSendFlags flags);
 
 /*
  * Opcode handlers
@@ -338,7 +396,7 @@ static void HgfsServerRemoveDirNotifyWatch(HgfsInputParam *input);
  *----------------------------------------------------------------------------
  */
 
-void
+static void
 HgfsServerSessionGet(HgfsSessionInfo *session)   // IN: session context
 {
    ASSERT(session);
@@ -369,7 +427,7 @@ HgfsServerSessionPut(HgfsSessionInfo *session)   // IN: session context
 {
    ASSERT(session);
 
-   if (Atomic_FetchAndDec(&session->refCount) == 1) {
+   if (Atomic_ReadDec32(&session->refCount) == 1) {
       HgfsServerExitSessionInternal(session);
    }
 }
@@ -421,7 +479,7 @@ static void
 HgfsServerTransportSessionPut(HgfsTransportSessionInfo *transportSession)   // IN: transport session context
 {
    ASSERT(transportSession);
-   if (Atomic_FetchAndDec(&transportSession->refCount) == 1) {
+   if (Atomic_ReadDec32(&transportSession->refCount) == 1) {
       DblLnkLst_Links *curr, *next;
 
       MXUser_AcquireExclLock(transportSession->sessionArrayLock);
@@ -504,7 +562,7 @@ HgfsServerGetHandleCounter(void)
 static uint32
 HgfsServerGetNextHandleCounter(void)
 {
-   uint32 count = Atomic_FetchAndInc(&hgfsHandleCounter);
+   uint32 count = Atomic_ReadInc32(&hgfsHandleCounter);
    /*
     * Call server manager for logging state updates.
     * XXX - This will have to be reworked when the server is
@@ -767,56 +825,6 @@ exit:
 /*
  *-----------------------------------------------------------------------------
  *
- * HgfsHandle2ServerLock --
- *
- *    Retrieve the serverlock information for the file node that corresponds to
- *    the specified hgfs handle. If the server is not compiled with oplock
- *    support, we always return TRUE and HGFS_LOCK_NONE.
- *
- * Results:
- *    TRUE if the hgfs handle is valid and the lock was retrieved successfully.
- *    FALSE otherwise.
- *
- * Side effects:
- *    None.
- *
- *-----------------------------------------------------------------------------
- */
-
-Bool
-HgfsHandle2ServerLock(HgfsHandle handle,        // IN: Hgfs file handle
-                      HgfsSessionInfo *session, // IN: Session info
-                      HgfsServerLock *lock)     // OUT: Server lock
-{
-#ifdef HGFS_OPLOCKS
-   Bool found = FALSE;
-   HgfsFileNode *fileNode = NULL;
-
-   ASSERT(lock);
-
-   MXUser_AcquireExclLock(session->nodeArrayLock);
-   fileNode = HgfsHandle2FileNode(handle, session);
-   if (fileNode == NULL) {
-      goto exit;
-   }
-
-   *lock = fileNode->serverLock;
-   found = TRUE;
-
-exit:
-   MXUser_ReleaseExclLock(session->nodeArrayLock);
-
-   return found;
-#else
-   *lock = HGFS_LOCK_NONE;
-   return TRUE;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
  * HgfsFileDesc2Handle --
  *
  *    Given an OS handle/fd, return file's hgfs handle.
@@ -1057,64 +1065,6 @@ HgfsHandle2NotifyInfo(HgfsHandle handle,                    // IN: Hgfs file han
 /*
  *-----------------------------------------------------------------------------
  *
- * HgfsFileHasServerLock --
- *
- *    Check if the file with the given name is already opened with a server
- *    lock on it. If the server is compiled without oplock support, we always
- *    return FALSE.
- *
- * Results:
- *    TRUE if the node was found and has an oplock.
- *    FALSE otherwise.
- *
- * Side effects:
- *    None.
- *
- *-----------------------------------------------------------------------------
- */
-
-Bool
-HgfsFileHasServerLock(const char *utf8Name,             // IN: Name in UTF8
-                      HgfsSessionInfo *session,         // IN: Session info
-                      HgfsServerLock *serverLock,       // OUT: Existing oplock
-                      fileDesc   *fileDesc)             // OUT: Existing fd
-{
-#ifdef HGFS_OPLOCKS
-   unsigned int i;
-   Bool found = FALSE;
-   ASSERT(utf8Name);
-
-   ASSERT(session);
-   ASSERT(session->nodeArray);
-
-   MXUser_AcquireExclLock(session->nodeArrayLock);
-
-   for (i = 0; i < session->numNodes; i++) {
-      HgfsFileNode *existingFileNode = &session->nodeArray[i];
-
-      if ((existingFileNode->state == FILENODE_STATE_IN_USE_CACHED) &&
-          (existingFileNode->serverLock != HGFS_LOCK_NONE) &&
-          (!stricmp(existingFileNode->utf8Name, utf8Name))) {
-         LOG(4, ("Found file with a lock: %s\n", utf8Name));
-         *serverLock = existingFileNode->serverLock;
-         *fileDesc = existingFileNode->fileDesc;
-         found = TRUE;
-         break;
-      }
-   }
-
-   MXUser_ReleaseExclLock(session->nodeArrayLock);
-
-   return found;
-#else
-   return FALSE;
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
  * HgfsGetNodeCopy --
  *
  *    Make a copy of the node. The node should not be kept around for long, as
@@ -1333,7 +1283,7 @@ exit:
 Bool
 HgfsUpdateNodeServerLock(fileDesc fd,                // IN: OS handle
                          HgfsSessionInfo *session,   // IN: Session info
-                         HgfsServerLock serverLock)  // IN: new oplock
+                         HgfsLockType serverLock)    // IN: new oplock
 {
    unsigned int i;
    HgfsFileNode *existingFileNode = NULL;
@@ -1906,7 +1856,7 @@ HgfsAddToCacheInternal(HgfsHandle handle,         // IN: HGFS file handle
    }
 
    /* Remove the LRU node if the list is full. */
-   if (session->numCachedOpenNodes == maxCachedOpenNodes) {
+   if (session->numCachedOpenNodes == gHgfsCfgSettings.maxCachedOpenNodes) {
       if (!HgfsRemoveLruNode(session)) {
          LOG(4, ("%s: Unable to remove LRU node from cache.\n",
                  __FUNCTION__));
@@ -1915,7 +1865,7 @@ HgfsAddToCacheInternal(HgfsHandle handle,         // IN: HGFS file handle
       }
    }
 
-   ASSERT_BUG(36244, session->numCachedOpenNodes < maxCachedOpenNodes);
+   ASSERT(session->numCachedOpenNodes < gHgfsCfgSettings.maxCachedOpenNodes);
 
    node = HgfsHandle2FileNode(handle, session);
    ASSERT(node);
@@ -1991,7 +1941,7 @@ HgfsRemoveFromCacheInternal(HgfsHandle handle,        // IN: Hgfs handle to the 
       /*
        * XXX: From this point and up in the call chain (i.e. this function and
        * all callers), Bool is returned instead of the HgfsInternalStatus.
-       * HgfsCloseFile returns HgfsInternalStatus, which is far more granular,
+       * HgfsPlatformCloseFile returns HgfsInternalStatus, which is far more granular,
        * but modifying this stack to use HgfsInternalStatus instead of Bool is
        * not worth it, as we'd have to #define per-platform error codes for
        * things like "ran out of memory", "bad file handle", etc.
@@ -1999,7 +1949,7 @@ HgfsRemoveFromCacheInternal(HgfsHandle handle,        // IN: Hgfs handle to the 
        * Instead, we'll just await the lobotomization of the node cache to
        * really fix this.
        */
-      if (HgfsCloseFile(node->fileDesc, node->fileCtx)) {
+      if (HgfsPlatformCloseFile(node->fileDesc, node->fileCtx)) {
          LOG(4, ("%s: Could not close fd %u\n", __FUNCTION__, node->fileDesc));
 
          return FALSE;
@@ -2013,7 +1963,7 @@ HgfsRemoveFromCacheInternal(HgfsHandle handle,        // IN: Hgfs handle to the 
       * we have a problem (see bug 36244).
       */
 
-      ASSERT(session->numCachedOpenNodes < maxCachedOpenNodes);
+      ASSERT(session->numCachedOpenNodes < gHgfsCfgSettings.maxCachedOpenNodes);
    }
 
    return TRUE;
@@ -2400,6 +2350,7 @@ HgfsAddNewSearch(char const *utf8Dir,       // IN: UTF8 name of dir to search in
 
    newSearch->dents = NULL;
    newSearch->numDents = 0;
+   newSearch->flags = 0;
    newSearch->type = type;
    newSearch->handle = HgfsServerGetNextHandleCounter();
 
@@ -2441,11 +2392,13 @@ HgfsFreeSearchDirents(HgfsSearch *search)       // IN/OUT: search
 {
    unsigned int i;
 
-   if (search->dents) {
+   if (NULL != search->dents) {
       for (i = 0; i < search->numDents; i++) {
          free(search->dents[i]);
+         search->dents[i] = NULL;
       }
       free(search->dents);
+      search->dents = NULL;
    }
 }
 
@@ -2482,6 +2435,12 @@ HgfsRemoveSearchInternal(HgfsSearch *search,       // IN: search
    free(search->utf8Dir);
    free(search->utf8ShareName);
    free((char*)search->shareInfo.rootDir);
+   search->utf8DirLen = 0;
+   search->utf8Dir = NULL;
+   search->utf8ShareNameLen = 0;
+   search->utf8ShareName = NULL;
+   search->shareInfo.rootDirLen = 0;
+   search->shareInfo.rootDir = NULL;
 
    /* Prepend at the beginning of the list */
    DblLnkLst_LinkFirst(&session->searchFreeList, &search->links);
@@ -2528,11 +2487,91 @@ HgfsRemoveSearch(HgfsHandle handle,        // IN: search
 
 
 /*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsSearchHasReadAllEntries --
+ *
+ *    Return whether the client has read all the search entries or not.
+ *
+ * Results:
+ *    TRUE on success, FALSE on failure.  readAllEntries is filled in on
+ *    success.
+ *
+ * Side effects:
+ *    None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+static Bool
+HgfsSearchHasReadAllEntries(HgfsHandle handle,        // IN:  Hgfs file handle
+                            HgfsSessionInfo *session, // IN: Session info
+                            Bool *readAllEntries)     // OUT: If open was sequential
+{
+   HgfsSearch *search;
+   Bool success = FALSE;
+
+   ASSERT(NULL != readAllEntries);
+
+   MXUser_AcquireExclLock(session->searchArrayLock);
+
+   search = HgfsSearchHandle2Search(handle, session);
+   if (NULL == search) {
+      goto exit;
+   }
+
+   *readAllEntries = search->flags & HGFS_SEARCH_FLAG_READ_ALL_ENTRIES;
+   success = TRUE;
+
+exit:
+   MXUser_ReleaseExclLock(session->searchArrayLock);
+
+   return success;
+}
+
+
+/*
+ *----------------------------------------------------------------------------
+ *
+ * HgfsSearchSetReadAllEntries --
+ *
+ *    Set the flag to indicate the client has read all the search entries.
+ *
+ * Results:
+ *    None.
+ *
+ * Side effects:
+ *    None.
+ *
+ *----------------------------------------------------------------------------
+ */
+
+static void
+HgfsSearchSetReadAllEntries(HgfsHandle handle,        // IN:  Hgfs file handle
+                            HgfsSessionInfo *session) // IN: Session info
+{
+   HgfsSearch *search;
+
+   MXUser_AcquireExclLock(session->searchArrayLock);
+
+   search = HgfsSearchHandle2Search(handle, session);
+   if (NULL == search) {
+      goto exit;
+   }
+
+   search->flags |= HGFS_SEARCH_FLAG_READ_ALL_ENTRIES;
+
+exit:
+   MXUser_ReleaseExclLock(session->searchArrayLock);
+}
+
+
+/*
  *-----------------------------------------------------------------------------
  *
- * HgfsGetSearchResult --
+ * HgfsServerGetDirEntry --
  *
- *    Returns a copy of the search result at the given offset. If remove is set
+ *    Returns a copy of the directory entry at the given index. If remove is set
  *    to TRUE, the existing result is also pruned and the remaining results
  *    are shifted up in the result array.
  *
@@ -2546,74 +2585,45 @@ HgfsRemoveSearch(HgfsHandle handle,        // IN: search
  *-----------------------------------------------------------------------------
  */
 
-DirectoryEntry *
-HgfsGetSearchResult(HgfsHandle handle,         // IN: Handle to search
-                    HgfsSessionInfo *session,  // IN: Session info
-                    uint32 offset,             // IN: Offset to retrieve at
-                    Bool remove)               // IN: If true, removes the result
+HgfsInternalStatus
+HgfsServerGetDirEntry(HgfsHandle handle,                // IN: Handle to search
+                      HgfsSessionInfo *session,         // IN: Session info
+                      uint32 index,                     // IN: index to retrieve at
+                      Bool remove,                      // IN: If true, removes the result
+                      struct DirectoryEntry **dirEntry) // OUT: directory entry
 {
    HgfsSearch *search;
-   DirectoryEntry *dent = NULL;
+   struct DirectoryEntry *dent = NULL;
+   HgfsInternalStatus status = HGFS_ERROR_SUCCESS;
 
    MXUser_AcquireExclLock(session->searchArrayLock);
 
    search = HgfsSearchHandle2Search(handle, session);
-   if (search == NULL || search->dents == NULL) {
+   if (search == NULL) {
+      status = HGFS_ERROR_INVALID_HANDLE;
       goto out;
    }
 
-   if (offset >= search->numDents) {
+   /* No more entries or none. */
+   if (search->dents == NULL) {
       goto out;
    }
 
-   /* If we're not removing the result, we need to make a copy of it. */
-   if (remove) {
-      /*
-       * We're going to shift the dents array, overwriting the dent pointer at
-       * offset, so first we need to save said pointer so that we can return it
-       * later to the caller.
-       */
-      dent = search->dents[offset];
-
-      /* Shift up the remaining results */
-      memmove(&search->dents[offset], &search->dents[offset + 1],
-              (search->numDents - (offset + 1)) * sizeof search->dents[0]);
-
-      /* Decrement the number of results */
-      search->numDents--;
-   } else {
-      DirectoryEntry *originalDent;
-      size_t nameLen;
-
-      originalDent = search->dents[offset];
-      ASSERT(originalDent);
-
-      nameLen = strlen(originalDent->d_name);
-      /*
-       * Make sure the name will not overrun the d_name buffer, the end of
-       * which is also the end of the DirectoryEntry.
-       */
-      ASSERT(offsetof(DirectoryEntry, d_name) + nameLen < originalDent->d_reclen);
-
-      dent = malloc(originalDent->d_reclen);
-      if (dent == NULL) {
-         goto out;
-      }
-
-      /*
-       * Yes, there are more members than this in a dirent. But if you look
-       * at the top of hgfsServerInt.h, you'll see that on Windows we only
-       * define d_reclen and d_name, as those are the only fields we need.
-       */
-      dent->d_reclen = originalDent->d_reclen;
-      memcpy(dent->d_name, originalDent->d_name, nameLen);
-      dent->d_name[nameLen] = 0;
+   if (HGFS_SEARCH_LAST_ENTRY_INDEX == index) {
+      /* Set the index to the final entry. */
+      index = search->numDents - 1;
    }
 
-  out:
+   status = HgfsPlatformGetDirEntry(search,
+                                    session,
+                                    index,
+                                    remove,
+                                    &dent);
+out:
    MXUser_ReleaseExclLock(session->searchArrayLock);
+   *dirEntry = dent;
 
-   return dent;
+   return status;
 }
 
 
@@ -2757,10 +2767,10 @@ HgfsServerClose(HgfsInputParam *input)  // IN: Input params
 
       if (!HgfsRemoveFromCache(file, input->session)) {
          LOG(4, ("%s: Could not remove the node from cache.\n", __FUNCTION__));
-         status = HGFS_ERROR_INTERNAL;
+         status = HGFS_ERROR_INVALID_HANDLE;
       } else {
          HgfsFreeFileNode(file, input->session);
-         if (!HgfsPackCloseReply(input->packet, input->metaPacket, input->op,
+         if (!HgfsPackCloseReply(input->packet, input->request, input->op,
                                  &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -2804,7 +2814,7 @@ HgfsServerSearchClose(HgfsInputParam *input)  // IN: Input params
       LOG(4, ("%s: close search #%u\n", __FUNCTION__, search));
 
       if (HgfsRemoveSearch(search, input->session)) {
-         if (HgfsPackSearchCloseReply(input->packet, input->metaPacket,
+         if (HgfsPackSearchCloseReply(input->packet, input->request,
                                       input->op,
                                       &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_SUCCESS;
@@ -2814,7 +2824,7 @@ HgfsServerSearchClose(HgfsInputParam *input)  // IN: Input params
       } else {
          /* Invalid handle */
          LOG(4, ("%s: invalid handle %u\n", __FUNCTION__, search));
-         status = HGFS_ERROR_INTERNAL;
+         status = HGFS_ERROR_INVALID_HANDLE;
       }
    } else {
       status = HGFS_ERROR_INTERNAL;
@@ -2884,8 +2894,8 @@ static struct {
     * second field is the minimum size for actual HGFS operational request
     * and not the minimum size of operational request with a header.
     */
-   { HgfsServerCreateSession,    offsetof(HgfsRequestCreateSessionV4, reserved),   REQ_SYNC},
-   { HgfsServerDestroySession,   offsetof(HgfsRequestDestroySessionV4, reserved),  REQ_SYNC},
+   { HgfsServerCreateSession,    sizeof (HgfsRequestCreateSessionV4),              REQ_SYNC},
+   { HgfsServerDestroySession,   sizeof (HgfsRequestDestroySessionV4),             REQ_SYNC},
    { HgfsServerRead,             sizeof (HgfsRequestReadV3),                       REQ_SYNC},
    { HgfsServerWrite,            sizeof (HgfsRequestWriteV3),                      REQ_SYNC},
    { HgfsServerSetDirNotifyWatch,    sizeof (HgfsRequestSetWatchV4),               REQ_SYNC},
@@ -2894,6 +2904,186 @@ static struct {
    { HgfsServerSearchRead,       sizeof (HgfsRequestSearchReadV4),                 REQ_SYNC},
 
 };
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HgfsServerInputAllocInit --
+ *
+ *    Allocates and initializes the input params object with the operation parameters.
+ *
+ * Results:
+ *    None.
+ *
+ * Side effects:
+ *    None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static void
+HgfsServerInputAllocInit(HgfsPacket *packet,                        // IN: packet
+                         HgfsTransportSessionInfo *transportSession,// IN: session
+                         HgfsSessionInfo *session,                  // IN: session Id
+                         const void *request,                       // IN: HGFS packet
+                         size_t requestSize,                        // IN: request packet size
+                         Bool sessionEnabled,                       // IN: session enabled request
+                         uint32 requestId,                          // IN: unique request id
+                         HgfsOp requestOp,                          // IN: op
+                         size_t requestOpArgsSize,                  // IN: op args size
+                         const void *requestOpArgs,                 // IN: op args
+                         HgfsInputParam **params)                   // OUT: parameters
+{
+   HgfsInputParam *localParams;
+
+   localParams = Util_SafeCalloc(1, sizeof *localParams);
+
+   localParams->packet = packet;
+   localParams->request = request;
+   localParams->requestSize = requestSize;
+   localParams->transportSession = transportSession;
+   localParams->session = session;
+   localParams->id = requestId;
+   localParams->sessionEnabled = sessionEnabled;
+   localParams->op = requestOp;
+   localParams->payload = requestOpArgs;
+   localParams->payloadSize = requestOpArgsSize;
+
+   if (NULL != localParams->payload) {
+      localParams->payloadOffset = (char *)localParams->payload -
+                                   (char *)localParams->request;
+   }
+   *params = localParams;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HgfsServerInputExit --
+ *
+ *    Tearsdown and frees the input params object with the operation parameters.
+ *
+ * Results:
+ *    None.
+ *
+ * Side effects:
+ *    None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static void
+HgfsServerInputExit(HgfsInputParam *params)                        // IN: packet
+{
+   if (NULL != params->session) {
+      HgfsServerSessionPut(params->session);
+   }
+   HgfsServerTransportSessionPut(params->transportSession);
+   free(params);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HgfsServerGetRequest --
+ *
+ *    Takes the Hgfs packet and extracts the operation parameters.
+ *    This validates the incoming packet as part of the processing.
+ *
+ * Results:
+ *    HGFS_ERROR_SUCCESS if all the request parameters are successfully extracted.
+ *    HGFS_ERROR_INTERNAL if an error occurs without sufficient request data to be
+ *    able to send a reply to the client.
+ *    Any other appropriate error if the incoming packet has errors and there is
+ *    sufficient information to send a response.
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static HgfsInternalStatus
+HgfsServerGetRequest(HgfsPacket *packet,                        // IN: packet
+                     HgfsTransportSessionInfo *transportSession,// IN: session
+                     HgfsInputParam **input)                    // OUT: parameters
+{
+   HgfsSessionInfo *session = NULL;
+   uint64 sessionId = HGFS_INVALID_SESSION_ID;
+   Bool sessionEnabled = FALSE;
+   uint32 requestId;
+   HgfsOp opcode;
+   const void *request;
+   size_t requestSize;
+   const void *requestOpArgs;
+   size_t requestOpArgsSize;
+   HgfsInternalStatus parseStatus = HGFS_ERROR_SUCCESS;
+
+   request = HSPU_GetMetaPacket(packet, &requestSize, transportSession->channelCbTable);
+
+   if (NULL == request) {
+      /*
+       * How can I return error back to the client, clearly the client is either broken or
+       * malicious? We cannot continue from here.
+       */
+      parseStatus = HGFS_ERROR_INTERNAL;
+      goto exit;
+   }
+
+   parseStatus = HgfsUnpackPacketParams(request,
+                                        requestSize,
+                                        &sessionEnabled,
+                                        &sessionId,
+                                        &requestId,
+                                        &opcode,
+                                        &requestOpArgsSize,
+                                        &requestOpArgs);
+   if (HGFS_ERROR_INTERNAL == parseStatus) {
+      /* The packet was malformed and we cannot reply. */
+      goto exit;
+   }
+
+   /*
+    * Every request must be processed within an HGFS session, except create session.
+    * If we don't already have an HGFS session for processing this request,
+    * then use or create the default session.
+    */
+   if (sessionEnabled) {
+      if (opcode != HGFS_OP_CREATE_SESSION_V4) {
+         session = HgfsServerTransportGetSessionInfo(transportSession,
+                                                     sessionId);
+         if (NULL == session || session->state != HGFS_SESSION_STATE_OPEN) {
+            LOG(4, ("%s: HGFS packet with invalid session id!\n", __FUNCTION__));
+            parseStatus = HGFS_ERROR_STALE_SESSION;
+         }
+      }
+   } else {
+      parseStatus = HgfsServerTransportGetDefaultSession(transportSession,
+                                                         &session);
+   }
+
+   if (NULL != session) {
+      session->isInactive = FALSE;
+   }
+
+   HgfsServerInputAllocInit(packet,
+                            transportSession,
+                            session,
+                            request,
+                            requestSize,
+                            sessionEnabled,
+                            requestId,
+                            opcode,
+                            requestOpArgsSize,
+                            requestOpArgs,
+                            input);
+
+exit:
+   return parseStatus;
+}
 
 
 /*
@@ -2920,9 +3110,10 @@ HgfsServerCompleteRequest(HgfsInternalStatus status,   // IN: Status of the requ
                           size_t replyPayloadSize,     // IN: sizeof the reply payload
                           HgfsInputParam *input)       // INOUT: request context
 {
-   char *packetOut;
-   size_t replyPacketSize;
+   void *reply;
    size_t replySize;
+   size_t replyTotalSize;
+   uint64 replySessionId;
 
    if (HGFS_ERROR_SUCCESS == status) {
       HGFS_ASSERT_INPUT(input);
@@ -2930,56 +3121,42 @@ HgfsServerCompleteRequest(HgfsInternalStatus status,   // IN: Status of the requ
       ASSERT(input);
    }
 
-   if (input->v4header) {
-      HgfsHeader *header;
-      replySize = sizeof *header + replyPayloadSize;
-      replyPacketSize = replySize;
-      header = HSPU_GetReplyPacket(input->packet, &replyPacketSize,
-                                   input->transportSession);
-      packetOut = (char *)header;
+   replySessionId =  (NULL != input->session) ? input->session->sessionId
+                                              : HGFS_INVALID_SESSION_ID;
 
-      ASSERT_DEVEL(header && (replySize <= replyPacketSize));
-      if (header && (sizeof *header <= replyPacketSize)) {
-         uint64 replySessionId = HGFS_INVALID_SESSION_ID;
-
-         if (NULL != input->session) {
-            replySessionId = input->session->sessionId;
-         }
-         HgfsPackReplyHeaderV4(status, replyPayloadSize, input->op,
-                               replySessionId, input->id, header);
-      }
+   if (input->sessionEnabled) {
+      replySize = sizeof (HgfsHeader) + replyPayloadSize;
    } else {
-      HgfsReply *reply;
-
       /*
        * Starting from HGFS V3 header is not included in the payload size.
        */
       if (input->op < HGFS_OP_OPEN_V3) {
-         replySize = MAX(replyPayloadSize, sizeof *reply);
+         replySize = MAX(replyPayloadSize, sizeof (HgfsReply));
       } else {
-         replySize = sizeof *reply + replyPayloadSize;
-      }
-      replyPacketSize = replySize;
-      reply = HSPU_GetReplyPacket(input->packet, &replyPacketSize,
-                                  input->transportSession);
-      packetOut = (char *)reply;
-
-      ASSERT_DEVEL(reply && (replySize <= replyPacketSize));
-      if (reply && (sizeof *reply <= replyPacketSize)) {
-         HgfsPackLegacyReplyHeader(status, input->id, reply);
+         replySize = sizeof (HgfsReply) + replyPayloadSize;
       }
    }
-   if (!HgfsPacketSend(input->packet, packetOut, replySize,
-                       input->transportSession, 0)) {
+
+   reply = HSPU_GetReplyPacket(input->packet,
+                               input->transportSession->channelCbTable,
+                               replySize,
+                               &replyTotalSize);
+
+   ASSERT(reply && (replySize <= replyTotalSize));
+   if (!HgfsPackReplyHeader(status, replyPayloadSize, input->sessionEnabled, replySessionId,
+                           input->id, input->op, HGFS_PACKET_FLAG_REPLY, replyTotalSize,
+                           reply)) {
+      Log("%s: Error packing header!\n", __FUNCTION__);
+      goto exit;
+   }
+
+   if (!HgfsPacketSend(input->packet, input->transportSession, 0)) {
       /* Send failed. Drop the reply. */
-      LOG(4, ("Error sending reply\n"));
+      Log("%s: Error sending reply\n", __FUNCTION__);
    }
 
-   if (NULL != input->session) {
-      HgfsServerSessionPut(input->session);
-   }
-   HgfsServerTransportSessionPut(input->transportSession);
-   free(input);
+exit:
+   HgfsServerInputExit(input);
 }
 
 
@@ -3003,13 +3180,13 @@ static void
 HgfsServerProcessRequest(void *context)
 {
    HgfsInputParam *input = (HgfsInputParam *)context;
-   if (!input->metaPacket) {
-      input->metaPacket = HSPU_GetMetaPacket(input->packet,
-                                             &input->metaPacketSize,
-                                             input->transportSession);
+   if (!input->request) {
+      input->request = HSPU_GetMetaPacket(input->packet,
+                                          &input->requestSize,
+                                          input->transportSession->channelCbTable);
    }
 
-   input->payload = (char *)input->metaPacket + input->payloadOffset;
+   input->payload = (char *)input->request + input->payloadOffset;
    (*handlers[input->op].handler)(input);
 }
 
@@ -3049,7 +3226,7 @@ static void
 HgfsServerSessionReceive(HgfsPacket *packet,      // IN: Hgfs Packet
                          void *clientData)        // IN: session info
 {
-   HgfsTransportSessionInfo *transportSession = (HgfsTransportSessionInfo *)clientData;
+   HgfsTransportSessionInfo *transportSession = clientData;
    HgfsInternalStatus status;
    HgfsInputParam *input = NULL;
 
@@ -3063,34 +3240,34 @@ HgfsServerSessionReceive(HgfsPacket *packet,      // IN: Hgfs Packet
 
    HgfsServerTransportSessionGet(transportSession);
 
-   if (!HgfsParseRequest(packet, transportSession, &input, &status)) {
-      LOG(4, ("%s: %d: Can't generate any response for the guest, just exit.\n ",
-              __FUNCTION__, __LINE__));
+   status = HgfsServerGetRequest(packet, transportSession, &input);
+   if (HGFS_ERROR_INTERNAL == status) {
+      LOG(4, ("%s: %d: Error: packet invalid and cannot reply %d.\n ",
+              __FUNCTION__, __LINE__, status));
       HgfsServerTransportSessionPut(transportSession);
       return;
    }
 
-   packet->id = input->id;
    HGFS_ASSERT_MINIMUM_OP(input->op);
    if (HGFS_ERROR_SUCCESS == status) {
       HGFS_ASSERT_INPUT(input);
-      if (HgfsValidatePacket(input->metaPacket, input->metaPacketSize,
-                             input->v4header) &&
-          (input->op < ARRAYSIZE(handlers)) &&
+      if ((input->op < ARRAYSIZE(handlers)) &&
           (handlers[input->op].handler != NULL) &&
-          (input->metaPacketSize >= handlers[input->op].minReqSize)) {
+          (input->requestSize >= handlers[input->op].minReqSize)) {
          /* Initial validation passed, process the client request now. */
-         packet->processedAsync = packet->supportsAsync &&
-                                         (handlers[input->op].reqType == REQ_ASYNC);
-         if (packet->processedAsync) {
+         if ((handlers[input->op].reqType == REQ_ASYNC) &&
+             (transportSession->channelCapabilities.flags & HGFS_CHANNEL_ASYNC)) {
+             packet->state |= HGFS_STATE_ASYNC_REQUEST;
+         }
+         if (0 != (packet->state & HGFS_STATE_ASYNC_REQUEST)) {
             LOG(4, ("%s: %d: @@Async\n", __FUNCTION__, __LINE__));
 #ifndef VMX86_TOOLS
             /*
              * Asynchronous processing is supported by the transport.
              * We can release mappings here and reacquire when needed.
              */
-            HSPU_PutMetaPacket(packet, transportSession);
-            input->metaPacket = NULL;
+            HSPU_PutMetaPacket(packet, transportSession->channelCbTable);
+            input->request = NULL;
             Atomic_Inc(&gHgfsAsyncCounter);
 
             /* Remove pending requests during poweroff. */
@@ -3147,7 +3324,7 @@ HgfsServerSessionReceive(HgfsPacket *packet,      // IN: Hgfs Packet
  *-----------------------------------------------------------------------------
  */
 
-HgfsSessionInfo *
+static HgfsSessionInfo *
 HgfsServerTransportGetSessionInfo(HgfsTransportSessionInfo *transportSession,       // IN: transport session info
                                   uint64 sessionId)                                 // IN: session id
 {
@@ -3174,6 +3351,65 @@ HgfsServerTransportGetSessionInfo(HgfsTransportSessionInfo *transportSession,   
    MXUser_ReleaseExclLock(transportSession->sessionArrayLock);
 
    return session;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HgfsServerTransportGetDefaultSession --
+ *
+ *    Returns default session if there is one, otherwise creates it.
+ *    XXX - this function should be moved to the HgfsServer file.
+ *
+ * Results:
+ *    HGFS_ERROR_SUCCESS and the session if found or created successfully
+ *    or an appropriate error if no memory or cannot add to the list of sessions.
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static HgfsInternalStatus
+HgfsServerTransportGetDefaultSession(HgfsTransportSessionInfo *transportSession, // IN: transport
+                                     HgfsSessionInfo **session)                  // OUT: session
+{
+   HgfsInternalStatus status = HGFS_ERROR_SUCCESS;
+   HgfsSessionInfo *defaultSession;
+
+   defaultSession = HgfsServerTransportGetSessionInfo(transportSession,
+                                                      transportSession->defaultSessionId);
+   if (NULL != defaultSession) {
+      /* The default session already exists, we are done. */
+      goto exit;
+   }
+
+   /*
+    * Create a new session if the default session doesn't exist.
+    */
+   if (!HgfsServerAllocateSession(transportSession,
+                                  &defaultSession)) {
+      status = HGFS_ERROR_NOT_ENOUGH_MEMORY;
+      goto exit;
+   }
+
+   status = HgfsServerTransportAddSessionToList(transportSession,
+                                                defaultSession);
+   if (HGFS_ERROR_SUCCESS != status) {
+      LOG(4, ("%s: Could not add session to the list.\n", __FUNCTION__));
+      HgfsServerSessionPut(defaultSession);
+      defaultSession = NULL;
+      goto exit;
+   }
+
+   transportSession->defaultSessionId = defaultSession->sessionId;
+   HgfsServerSessionGet(defaultSession);
+
+exit:
+   *session = defaultSession;
+   return status;
 }
 
 
@@ -3227,7 +3463,7 @@ HgfsServerTransportRemoveSessionFromList(HgfsTransportSessionInfo *transportSess
  *-----------------------------------------------------------------------------
  */
 
-HgfsInternalStatus
+static HgfsInternalStatus
 HgfsServerTransportAddSessionToList(HgfsTransportSessionInfo *transportSession,       // IN: transport session info
                                     HgfsSessionInfo *session)                         // IN: session info
 {
@@ -3494,6 +3730,7 @@ HgfsServerGetShareName(HgfsSharedFolderHandle sharedFolder, // IN: Notify handle
 
 Bool
 HgfsServer_InitState(HgfsServerSessionCallbacks **callbackTable,  // IN/OUT: our callbacks
+                     HgfsServerConfig *serverCfgData,             // IN: configurable settings
                      HgfsServerStateLogger *serverMgrData)        // IN: mgr callback
 {
    Bool result = TRUE;
@@ -3503,10 +3740,9 @@ HgfsServer_InitState(HgfsServerSessionCallbacks **callbackTable,  // IN/OUT: our
    /* Save any server manager data for logging state updates.*/
    hgfsMgrData = serverMgrData;
 
-   maxCachedOpenNodes = Config_GetLong(MAX_CACHED_FILENODES,
-                                       "hgfs.fdCache.maxNodes");
-
-   alwaysUseHostTime = Config_GetBool(FALSE, "hgfs.alwaysUseHostTime");
+   if (NULL != serverCfgData) {
+      gHgfsCfgSettings = *serverCfgData;
+   }
 
    /*
     * Initialize the globals for handling the active shared folders.
@@ -3525,7 +3761,7 @@ HgfsServer_InitState(HgfsServerSessionCallbacks **callbackTable,  // IN/OUT: our
       if (NULL != gHgfsAsyncLock) {
          gHgfsAsyncVar = MXUser_CreateCondVarExclLock(gHgfsAsyncLock);
          if (NULL != gHgfsAsyncVar) {
-            if (!HgfsServerPlatformInit()) {
+            if (!HgfsPlatformInit()) {
                LOG(4, ("Could not initialize server platform specific \n"));
                result = FALSE;
             }
@@ -3545,10 +3781,16 @@ HgfsServer_InitState(HgfsServerSessionCallbacks **callbackTable,  // IN/OUT: our
 
    if (result) {
       *callbackTable = &hgfsServerSessionCBTable;
-      if (Config_GetBool(TRUE, "isolation.tools.hgfs.notify.enable")) {
+
+      if (0 != (gHgfsCfgSettings.flags & HGFS_CONFIG_NOTIFY_ENABLED)) {
          gHgfsDirNotifyActive = HgfsNotify_Init() == HGFS_STATUS_SUCCESS;
          Log("%s: initialized notification %s.\n", __FUNCTION__,
              (gHgfsDirNotifyActive ? "active" : "inactive"));
+      }
+      if (0 != (gHgfsCfgSettings.flags & HGFS_CONFIG_OPLOCK_ENABLED)) {
+         if (!HgfsServerOplockInit()) {
+            gHgfsCfgSettings.flags &= ~HGFS_CONFIG_OPLOCK_ENABLED;
+         }
       }
       gHgfsInitialized = TRUE;
    } else {
@@ -3584,6 +3826,9 @@ HgfsServer_ExitState(void)
 {
    gHgfsInitialized = FALSE;
 
+   if (0 != (gHgfsCfgSettings.flags & HGFS_CONFIG_OPLOCK_ENABLED)) {
+      HgfsServerOplockDestroy();
+   }
    if (gHgfsDirNotifyActive) {
       HgfsNotify_Exit();
       gHgfsDirNotifyActive = FALSE;
@@ -3605,7 +3850,7 @@ HgfsServer_ExitState(void)
       gHgfsAsyncVar = NULL;
    }
 
-   HgfsServerPlatformDestroy();
+   HgfsPlatformDestroy();
 }
 
 
@@ -3750,7 +3995,7 @@ HgfsServerEnumerateSharedFolders(void)
 static Bool
 HgfsServerSessionConnect(void *transportData,                         // IN: transport session context
                          HgfsServerChannelCallbacks *channelCbTable,  // IN: Channel callbacks
-                         uint32 channelCapabilities,                  // IN: channel capabilities
+                         HgfsServerChannelData *channelCapabilities,  // IN: channel capabilities
                          void **transportSessionData)                 // OUT: server session context
 {
    HgfsTransportSessionInfo *transportSession;
@@ -3762,10 +4007,9 @@ HgfsServerSessionConnect(void *transportData,                         // IN: tra
    transportSession = Util_SafeCalloc(1, sizeof *transportSession);
    transportSession->transportData = transportData;
    transportSession->channelCbTable = channelCbTable;
-   transportSession->maxPacketSize = MAX_SERVER_PACKET_SIZE_V4;
    transportSession->type = HGFS_SESSION_TYPE_REGULAR;
    transportSession->state = HGFS_SESSION_STATE_OPEN;
-   transportSession->channelCapabilities = channelCapabilities;
+   transportSession->channelCapabilities = *channelCapabilities;
    transportSession->numSessions = 0;
 
    transportSession->sessionArrayLock =
@@ -3810,9 +4054,8 @@ HgfsServerSessionConnect(void *transportData,                         // IN: tra
  *-----------------------------------------------------------------------------
  */
 
-Bool
+static Bool
 HgfsServerAllocateSession(HgfsTransportSessionInfo *transportSession, // IN:
-                          uint32 channelCapabilities,                 // IN:
                           HgfsSessionInfo **sessionData)              // OUT:
 {
    int i;
@@ -3859,8 +4102,8 @@ HgfsServerAllocateSession(HgfsTransportSessionInfo *transportSession, // IN:
    session->sessionId = HgfsGenerateSessionId();
    session->state = HGFS_SESSION_STATE_OPEN;
    DblLnkLst_Init(&session->links);
-   session->maxPacketSize = MAX_SERVER_PACKET_SIZE_V4;
-   session->activeNotification = FALSE;
+   session->maxPacketSize = transportSession->channelCapabilities.maxPacketSize;
+   session->flags |= HGFS_SESSION_MAXPACKETSIZE_VALID;
    session->isInactive = TRUE;
    session->transportSession = transportSession;
    session->numInvalidationAttempts = 0;
@@ -3913,7 +4156,7 @@ HgfsServerAllocateSession(HgfsTransportSessionInfo *transportSession, // IN:
    HgfsServerGetDefaultCapabilities(session->hgfsSessionCapabilities,
                                     &session->numberOfCapabilities);
 
-   if (channelCapabilities & HGFS_CHANNEL_SHARED_MEM) {
+   if (transportSession->channelCapabilities.flags & HGFS_CHANNEL_SHARED_MEM) {
       HgfsServerSetSessionCapability(HGFS_OP_READ_FAST_V4,
                                      HGFS_REQUEST_SUPPORTED, session);
       HgfsServerSetSessionCapability(HGFS_OP_WRITE_FAST_V4,
@@ -3925,7 +4168,7 @@ HgfsServerAllocateSession(HgfsTransportSessionInfo *transportSession, // IN:
                                            HGFS_REQUEST_SUPPORTED, session);
             HgfsServerSetSessionCapability(HGFS_OP_REMOVE_WATCH_V4,
                                            HGFS_REQUEST_SUPPORTED, session);
-            session->activeNotification = TRUE;
+            session->flags |= HGFS_SESSION_CHANGENOTIFY_ENABLED;
          } else {
             HgfsServerSetSessionCapability(HGFS_OP_SET_WATCH_V4,
                                            HGFS_REQUEST_NOT_SUPPORTED, session);
@@ -3933,7 +4176,8 @@ HgfsServerAllocateSession(HgfsTransportSessionInfo *transportSession, // IN:
                                            HGFS_REQUEST_NOT_SUPPORTED, session);
          }
          LOG(8, ("%s: session notify capability is %s\n", __FUNCTION__,
-                 (session->activeNotification ? "enabled" : "disabled")));
+                 (session->flags & HGFS_SESSION_CHANGENOTIFY_ENABLED ? "enabled" :
+                                                                       "disabled")));
       }
       HgfsServerSetSessionCapability(HGFS_OP_SEARCH_READ_V4,
                                      HGFS_REQUEST_SUPPORTED, session);
@@ -3941,7 +4185,7 @@ HgfsServerAllocateSession(HgfsTransportSessionInfo *transportSession, // IN:
 
    *sessionData = session;
 
-   LOG(8, ("%s: exit TRUE\n", __FUNCTION__));
+   Log("%s: init session %p id %"FMT64"x\n", __FUNCTION__, session, session->sessionId);
    return TRUE;
 }
 
@@ -3975,10 +4219,7 @@ HgfsDisconnectSessionInt(HgfsSessionInfo *session)    // IN: session context
    ASSERT(session->nodeArray);
    ASSERT(session->searchArray);
 
-   if (session->activeNotification) {
-      LOG(8, ("%s: calling notify component to disconnect\n", __FUNCTION__));
-      HgfsNotify_RemoveSessionSubscribers(session);
-   }
+   session->state = HGFS_SESSION_STATE_CLOSED;
    LOG(8, ("%s: exit\n", __FUNCTION__));
 }
 
@@ -4006,7 +4247,7 @@ HgfsDisconnectSessionInt(HgfsSessionInfo *session)    // IN: session context
 static void
 HgfsServerSessionDisconnect(void *clientData)    // IN: session context
 {
-   HgfsTransportSessionInfo *transportSession = (HgfsTransportSessionInfo *)clientData;
+   HgfsTransportSessionInfo *transportSession = clientData;
    DblLnkLst_Links *curr, *next;
 
    LOG(8, ("%s: entered\n", __FUNCTION__));
@@ -4050,7 +4291,7 @@ HgfsServerSessionDisconnect(void *clientData)    // IN: session context
 static void
 HgfsServerSessionClose(void *clientData)    // IN: session context
 {
-   HgfsTransportSessionInfo *transportSession = (HgfsTransportSessionInfo *)clientData;
+   HgfsTransportSessionInfo *transportSession = clientData;
 
    ASSERT(transportSession);
    ASSERT(transportSession->state == HGFS_SESSION_STATE_CLOSED);
@@ -4075,7 +4316,7 @@ HgfsServerSessionClose(void *clientData)    // IN: session context
  *    TRUE on success, FALSE otherwise.
  *
  * Side effects:
- *    Allocates new session info.
+ *    None.
  *
  *-----------------------------------------------------------------------------
  */
@@ -4089,9 +4330,25 @@ HgfsServerExitSessionInternal(HgfsSessionInfo *session)    // IN: session contex
    ASSERT(session->nodeArray);
    ASSERT(session->searchArray);
 
+   ASSERT(session->state == HGFS_SESSION_STATE_CLOSED);
+
+   /* Check and remove any notification handles we have for this session. */
+   if (session->flags & HGFS_SESSION_CHANGENOTIFY_ENABLED) {
+      LOG(8, ("%s: calling notify component to disconnect\n", __FUNCTION__));
+      /*
+       * This routine will synchronize itself with notification generator.
+       * Therefore, it will remove subscribers and prevent the event generator
+       * from generating any new events while it locks the subscribers lists.
+       * New events will continue once more but with the updated subscriber list
+       * that will not contain this session.
+       */
+      HgfsNotify_RemoveSessionSubscribers(session);
+   }
+
    MXUser_AcquireExclLock(session->nodeArrayLock);
 
-   LOG(4, ("%s: exiting.\n", __FUNCTION__));
+   Log("%s: exit session %p id %"FMT64"x\n", __FUNCTION__, session, session->sessionId);
+
    /* Recycle all nodes that are still in use, then destroy the node pool. */
    for (i = 0; i < session->numNodes; i++) {
       HgfsHandle handle;
@@ -4206,13 +4463,12 @@ void
 HgfsServerSessionSendComplete(HgfsPacket *packet,   // IN/OUT: Hgfs packet
                               void *clientData)     // IN: session info
 {
-   HgfsTransportSessionInfo *transportSession =
-         (HgfsTransportSessionInfo *)clientData;
+   HgfsTransportSessionInfo *transportSession = clientData;
 
-   if (packet->guestInitiated) {
-      HSPU_PutMetaPacket(packet, transportSession);
-      HSPU_PutReplyPacket(packet, transportSession);
-      HSPU_PutDataPacketBuf(packet, transportSession);
+   if (0 != (packet->state & HGFS_STATE_CLIENT_REQUEST)) {
+      HSPU_PutMetaPacket(packet, transportSession->channelCbTable);
+      HSPU_PutReplyPacket(packet, transportSession->channelCbTable);
+      HSPU_PutDataPacketBuf(packet, transportSession->channelCbTable);
    } else {
       free(packet->metaPacket);
       free(packet);
@@ -4289,7 +4545,7 @@ HgfsServer_Quiesce(Bool freeze)  // IN:
 static void
 HgfsNotifyPacketSent(void)
 {
-   if (Atomic_FetchAndDec(&gHgfsAsyncCounter) == 1) {
+   if (Atomic_ReadDec32(&gHgfsAsyncCounter) == 1) {
       MXUser_AcquireExclLock(gHgfsAsyncLock);
       MXUser_BroadcastCondVar(gHgfsAsyncVar);
       MXUser_ReleaseExclLock(gHgfsAsyncLock);
@@ -4313,25 +4569,23 @@ HgfsNotifyPacketSent(void)
  *----------------------------------------------------------------------------
  */
 
-Bool
+static Bool
 HgfsPacketSend(HgfsPacket *packet,            // IN/OUT: Hgfs Packet
-               char *packetOut,               // IN: output buffer
-               size_t packetOutLen,           // IN: packet size
                HgfsTransportSessionInfo *transportSession,      // IN: session info
                HgfsSendFlags flags)           // IN: flags for how to process
 {
    Bool result = FALSE;
-   Bool notificationNeeded = packet->guestInitiated && packet->processedAsync;
+   Bool notificationNeeded = (0 != (packet->state & HGFS_STATE_CLIENT_REQUEST) &&
+                              0 != (packet->state & HGFS_STATE_ASYNC_REQUEST));
 
    ASSERT(packet);
    ASSERT(transportSession);
 
    if (transportSession->state == HGFS_SESSION_STATE_OPEN) {
-      packet->replyPacketSize = packetOutLen;
       ASSERT(transportSession->type == HGFS_SESSION_TYPE_REGULAR);
       result = transportSession->channelCbTable->send(transportSession->transportData,
-                                             packet, packetOut,
-                                             packetOutLen, flags);
+                                                      packet,
+                                                      flags);
    }
 
    if (notificationNeeded) {
@@ -4484,8 +4738,7 @@ void
 HgfsServerSessionInvalidateObjects(void *clientData,         // IN:
                                    DblLnkLst_Links *shares)  // IN: List of new shares
 {
-   HgfsTransportSessionInfo *transportSession =
-         (HgfsTransportSessionInfo *)clientData;
+   HgfsTransportSessionInfo *transportSession = clientData;
    DblLnkLst_Links *curr;
 
    ASSERT(transportSession);
@@ -4533,8 +4786,7 @@ HgfsServerSessionInvalidateObjects(void *clientData,         // IN:
 uint32
 HgfsServerSessionInvalidateInactiveSessions(void *clientData)         // IN:
 {
-   HgfsTransportSessionInfo *transportSession =
-         (HgfsTransportSessionInfo *)clientData;
+   HgfsTransportSessionInfo *transportSession = clientData;
    uint32 numActiveSessionsLeft = 0;
    DblLnkLst_Links shares, *curr, *next;
 
@@ -4557,6 +4809,9 @@ HgfsServerSessionInvalidateInactiveSessions(void *clientData)         // IN:
       if (session->isInactive) {
 
          if (session->numInvalidationAttempts == MAX_SESSION_INVALIDATION_ATTEMPTS) {
+            LOG(4, ("%s: closing inactive session %"FMT64"x\n", __FUNCTION__,
+                    session->sessionId));
+            session->state = HGFS_SESSION_STATE_CLOSED;
             HgfsServerTransportRemoveSessionFromList(transportSession,
                                                      session);
             /*
@@ -4644,12 +4899,13 @@ HgfsServerStatFs(const char *pathName, // IN: Path we're interested in
 /*
  *-----------------------------------------------------------------------------
  *
- * HgfsServerGetShareInfo --
+ * HgfsServerGetLocalNameInfo --
  *
- *    Construct local name based on the crossplatform CPName for the file.
+ *    Construct local name based on the crossplatform CPName for the file and the
+ *    share information.
+ *
  *    The name returned is allocated and must be freed by the caller.
- *
- *    outLen can be NULL, in which case the length is not returned.
+ *    The name length is optionally returned.
  *
  * Results:
  *    A status code indicating either success (correspondent share exists) or
@@ -4661,17 +4917,17 @@ HgfsServerStatFs(const char *pathName, // IN: Path we're interested in
  *-----------------------------------------------------------------------------
  */
 
-HgfsNameStatus
-HgfsServerGetShareInfo(char *cpName,            // IN:  Cross-platform filename to check
-                       size_t cpNameSize,       // IN:  Size of name cpName
-                       uint32 caseFlags,        // IN:  Case-sensitivity flags
-                       HgfsShareInfo *shareInfo,// OUT: properties of the shared folder
-                       char **bufOut,           // OUT: File name in local fs
-                       size_t *outLen)          // OUT: Length of name out
+static HgfsNameStatus
+HgfsServerGetLocalNameInfo(const char *cpName,      // IN:  Cross-platform filename to check
+                           size_t cpNameSize,       // IN:  Size of name cpName
+                           uint32 caseFlags,        // IN:  Case-sensitivity flags
+                           HgfsShareInfo *shareInfo,// OUT: properties of the shared folder
+                           char **bufOut,           // OUT: File name in local fs
+                           size_t *outLen)          // OUT: Length of name out optional
 {
    HgfsNameStatus nameStatus;
-   char const *inEnd;
-   char *next;
+   const char *inEnd;
+   const char *next;
    char *myBufOut;
    char *convertedMyBufOut;
    char *out;
@@ -4699,7 +4955,7 @@ HgfsServerGetShareInfo(char *cpName,            // IN:  Cross-platform filename 
    /*
     * Get first component.
     */
-   len = CPName_GetComponent(cpName, inEnd, (char const **) &next);
+   len = CPName_GetComponent(cpName, inEnd, &next);
    if (len < 0) {
       LOG(4, ("%s: get first component failed\n", __FUNCTION__));
 
@@ -4755,6 +5011,13 @@ HgfsServerGetShareInfo(char *cpName,            // IN:  Cross-platform filename 
    if (shareInfo->rootDirLen == 0) {
       size_t prefixLen;
 
+      /* Are root shares allowed? If not, we exit with an error. */
+      if (0 == (gHgfsCfgSettings.flags & HGFS_CONFIG_SHARE_ALL_HOST_DRIVES_ENABLED)) {
+         LOG(4, ("%s: Root share being used\n", __FUNCTION__));
+         nameStatus = HGFS_NAME_STATUS_ACCESS_DENIED;
+         goto error;
+      }
+
       /*
        * This is a "root" share. Interpret the input appropriately as
        * either a drive letter or UNC name and append it to the output
@@ -4763,7 +5026,7 @@ HgfsServerGetShareInfo(char *cpName,            // IN:  Cross-platform filename 
        */
       tempSize = sizeof tempBuf;
       tempPtr = tempBuf;
-      nameStatus = CPName_ConvertFromRoot((char const **) &cpName,
+      nameStatus = CPName_ConvertFromRoot(&cpName,
                                           &cpNameSize, &tempSize, &tempPtr);
       if (nameStatus != HGFS_NAME_STATUS_COMPLETE) {
          LOG(4, ("%s: ConvertFromRoot not complete\n", __FUNCTION__));
@@ -4803,7 +5066,7 @@ HgfsServerGetShareInfo(char *cpName,            // IN:  Cross-platform filename 
    tempPtr = tempBuf;
 
 
-   if (CPName_ConvertFrom((char const **) &cpName, &cpNameSize, &tempSize,
+   if (CPName_ConvertFrom(&cpName, &cpNameSize, &tempSize,
                           &tempPtr) < 0) {
       LOG(4, ("%s: CP name conversion failed\n", __FUNCTION__));
       nameStatus = HGFS_NAME_STATUS_FAILURE;
@@ -4861,24 +5124,24 @@ HgfsServerGetShareInfo(char *cpName,            // IN:  Cross-platform filename 
 #endif /* defined(__APPLE__) */
 
    /*
-    * Convert file name to proper case if host default config option is not set
-    * and case conversion is required for this platform.
+    * Look up the file name using the proper case if the config option is not set
+    * to use the host default and lookup is supported for this platform.
     */
 
    if (!HgfsServerPolicy_IsShareOptionSet(shareOptions,
                                           HGFS_SHARE_HOST_DEFAULT_CASE) &&
-       HgfsServerCaseConversionRequired()) {
-      nameStatus = HgfsServerConvertCase(shareInfo->rootDir, shareInfo->rootDirLen,
-                                         myBufOut, myBufOutLen, caseFlags,
-                                         &convertedMyBufOut,
-                                         &convertedMyBufOutLen);
+       HgfsPlatformDoFilenameLookup()) {
+      nameStatus = HgfsPlatformFilenameLookup(shareInfo->rootDir, shareInfo->rootDirLen,
+                                              myBufOut, myBufOutLen, caseFlags,
+                                              &convertedMyBufOut,
+                                              &convertedMyBufOutLen);
 
       /*
-       * On success, use the converted file names for further operations.
+       * On successful lookup, use the found matching file name for further operations.
        */
 
       if (nameStatus != HGFS_NAME_STATUS_COMPLETE) {
-         LOG(4, ("%s: HgfsServerConvertCase failed.\n", __FUNCTION__));
+         LOG(4, ("%s: HgfsPlatformFilenameLookup failed.\n", __FUNCTION__));
          goto error;
       }
 
@@ -4900,8 +5163,8 @@ HgfsServerGetShareInfo(char *cpName,            // IN:  Cross-platform filename 
        * We should use the resolved file path for further file system
        * operations, instead of using the one passed from the client.
        */
-      nameStatus = HgfsServerHasSymlink(myBufOut, myBufOutLen, shareInfo->rootDir,
-                                        shareInfo->rootDirLen);
+      nameStatus = HgfsPlatformPathHasSymlink(myBufOut, myBufOutLen, shareInfo->rootDir,
+                                              shareInfo->rootDirLen);
       if (nameStatus != HGFS_NAME_STATUS_COMPLETE) {
          LOG(4, ("%s: parent path failed to be resolved: %d\n",
                  __FUNCTION__, nameStatus));
@@ -4949,7 +5212,7 @@ error:
  *
  *    This function assumes that CPName_GetComponent() will always succeed
  *    with a size greater than 0, so it must ONLY be called after a call to
- *    HgfsServerGetShareInfo() that returns HGFS_NAME_STATUS_COMPLETE.
+ *    HgfsServerGetLocalNameInfo() that returns HGFS_NAME_STATUS_COMPLETE.
  *
  * Results:
  *    True if it is a shared folder only, otherwise false
@@ -4980,208 +5243,39 @@ HgfsServerIsSharedFolderOnly(char const *cpName,// IN:  Cross-platform filename 
 }
 
 
+#ifdef VMX86_LOG
 /*
  *-----------------------------------------------------------------------------
  *
- * HgfsServerDumpDents --
+ * HgfsServerDirDumpDents --
  *
  *    Dump a set of directory entries (debugging code)
  *
  * Results:
- *    None
+ *    None.
  *
  * Side effects:
- *    None
+ *    None.
  *
  *-----------------------------------------------------------------------------
  */
 
 void
-HgfsServerDumpDents(HgfsHandle searchHandle,  // IN: Handle to dump dents from
-                    HgfsSessionInfo *session) // IN: Session info
+HgfsServerDirDumpDents(HgfsHandle searchHandle,  // IN: Handle to dump dents from
+                       HgfsSessionInfo *session) // IN: Session info
 {
-#ifdef VMX86_LOG
-   unsigned int i;
    HgfsSearch *search;
 
    MXUser_AcquireExclLock(session->searchArrayLock);
 
    search = HgfsSearchHandle2Search(searchHandle, session);
    if (search != NULL) {
-      Log("%s: %u dents in \"%s\"\n", __FUNCTION__, search->numDents,
-          search->utf8Dir);
-
-      Log("Dumping dents:\n");
-      for (i = 0; i < search->numDents; i++) {
-         Log("\"%s\"\n", search->dents[i]->d_name);
-      }
+      HgfsPlatformDirDumpDents(search);
    }
 
    MXUser_ReleaseExclLock(session->searchArrayLock);
-#endif
 }
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * HgfsServerGetDents --
- *
- *    Get directory entry names from the given callback function, and
- *    build an array of DirectoryEntrys of all the names. Somewhat similar to
- *    scandir(3) on linux, but more general.
- *
- * Results:
- *    On success, the number of directory entries found.
- *    On failure, negative error.
- *
- * Side effects:
- *    Memory allocation.
- *
- *-----------------------------------------------------------------------------
- */
-
-static int
-HgfsServerGetDents(HgfsGetNameFunc getName,     // IN: Function to get name
-                   HgfsInitFunc initName,       // IN: Setup function
-                   HgfsCleanupFunc cleanupName, // IN: Cleanup function
-                   DirectoryEntry ***dents)     // OUT: Array of DirectoryEntrys
-{
-   uint32 totalDents = 0;   // Number of allocated dents
-   uint32 numDents = 0;     // Current actual number of dents
-   DirectoryEntry **myDents = NULL; // So realloc is happy w/ zero numDents
-   void *state;
-
-   state = initName();
-   if (!state) {
-      LOG(4, ("%s: Couldn't init state\n", __FUNCTION__));
-      goto error_free;
-   }
-
-   for (;;) {
-      DirectoryEntry *pDirEntry;
-      char const *name;
-      size_t len;
-      Bool done = FALSE;
-      size_t newDirEntryLen;
-      size_t maxLen;
-
-      /* Add '.' and ".." as the first dents. */
-      if (numDents == 0) {
-         name = ".";
-         len = 1;
-      } else if (numDents == 1) {
-         name = "..";
-         len = 2;
-      } else {
-         if (!getName(state, &name, &len, &done)) {
-            LOG(4, ("%s: Couldn't get next name\n", __FUNCTION__));
-            goto error;
-         }
-      }
-
-      if (done) {
-         LOG(4, ("%s: No more names\n", __FUNCTION__));
-         break;
-      }
-
-#if defined(sun)
-      /*
-       * Solaris lacks a single definition of NAME_MAX and using pathconf(), to
-       * determine NAME_MAX for the current directory, is too cumbersome for
-       * our purposes, so we use PATH_MAX as a reasonable upper bound on the
-       * length of the name.
-       */
-      maxLen = PATH_MAX;
-#else
-      maxLen = sizeof pDirEntry->d_name;
 #endif
-      if (len >= maxLen) {
-         Log("%s: Error: Name \"%s\" is too long.\n", __FUNCTION__, name);
-         continue;
-      }
-
-      /* See if we need to allocate more memory */
-      if (numDents == totalDents) {
-         void *p;
-
-         if (totalDents != 0) {
-            totalDents *= 2;
-         } else {
-            totalDents = 100;
-         }
-         p = realloc(myDents, totalDents * sizeof *myDents);
-         if (!p) {
-            LOG(4, ("%s: Couldn't reallocate array memory\n", __FUNCTION__));
-            goto error;
-         }
-         myDents = (DirectoryEntry **)p;
-      }
-
-      /* This file/directory can be added to the list. */
-      LOG(4, ("%s: Nextfilename = \"%s\"\n", __FUNCTION__, name));
-
-      /*
-       * Start with the size of the DirectoryEntry struct, subtract the static
-       * length of the d_name buffer (256 in Linux, 1 in Solaris, etc) and add
-       * back just enough space for the UTF-8 name and nul terminator.
-       */
-
-      newDirEntryLen = sizeof *pDirEntry - sizeof pDirEntry->d_name + len + 1;
-      pDirEntry = (DirectoryEntry *)malloc(newDirEntryLen);
-      if (!pDirEntry) {
-         LOG(4, ("%s: Couldn't allocate dentry memory\n", __FUNCTION__));
-         goto error;
-      }
-      pDirEntry->d_reclen = (unsigned short)newDirEntryLen;
-      memcpy(pDirEntry->d_name, name, len);
-      pDirEntry->d_name[len] = 0;
-
-      myDents[numDents] = pDirEntry;
-      numDents++;
-   }
-
-   /* We are done; cleanup the state */
-   if (!cleanupName(state)) {
-      LOG(4, ("%s: Non-error cleanup failed\n", __FUNCTION__));
-      goto error_free;
-   }
-
-   /* Trim extra memory off of dents */
-   {
-      void *p;
-
-      p = realloc(myDents, numDents * sizeof *myDents);
-      if (!p) {
-         LOG(4, ("%s: Couldn't realloc less array memory\n", __FUNCTION__));
-         *dents = myDents;
-      } else {
-         *dents = (DirectoryEntry **)p;
-      }
-   }
-
-   return numDents;
-
-error:
-   /* Cleanup the callback state */
-   if (!cleanupName(state)) {
-      LOG(4, ("%s: Error cleanup failed\n", __FUNCTION__));
-   }
-
-error_free:
-   /* Free whatever has been allocated so far */
-   {
-      unsigned int i;
-
-      for (i = 0; i < numDents; i++) {
-         free(myDents[i]);
-      }
-
-      free(myDents);
-   }
-
-   return -1;
-}
 
 
 /*
@@ -5219,7 +5313,6 @@ HgfsServerSearchRealDir(char const *baseDir,      // IN: Directory to search
    HgfsSearch *search = NULL;
    HgfsInternalStatus status = 0;
    HgfsNameStatus nameStatus;
-   int numDents;
    Bool followSymlinks;
    HgfsShareOptions configOptions;
 
@@ -5250,15 +5343,14 @@ HgfsServerSearchRealDir(char const *baseDir,      // IN: Directory to search
    followSymlinks = HgfsServerPolicy_IsShareOptionSet(configOptions,
                                                       HGFS_SHARE_FOLLOW_SYMLINKS);
 
-   status = HgfsServerScandir(baseDir, baseDirLen, followSymlinks,
-                              &search->dents, &numDents);
-   if (status != 0) {
+   status = HgfsPlatformScandir(baseDir, baseDirLen, followSymlinks,
+                                &search->dents, &search->numDents);
+   if (HGFS_ERROR_SUCCESS != status) {
       LOG(4, ("%s: couldn't scandir\n", __FUNCTION__));
       HgfsRemoveSearchInternal(search, session);
       goto out;
    }
 
-   search->numDents = numDents;
    *handle = HgfsSearch2SearchHandle(search);
 
   out:
@@ -5298,7 +5390,6 @@ HgfsServerSearchVirtualDir(HgfsGetNameFunc *getName,     // IN: Name enumerator
 {
    HgfsInternalStatus status = 0;
    HgfsSearch *search = NULL;
-   int result = 0;
 
    ASSERT(getName);
    ASSERT(initName);
@@ -5314,20 +5405,92 @@ HgfsServerSearchVirtualDir(HgfsGetNameFunc *getName,     // IN: Name enumerator
       goto out;
    }
 
-   result = HgfsServerGetDents(getName, initName, cleanupName, &search->dents);
-   if (result < 0) {
+   status = HgfsPlatformScanvdir(getName,
+                                 initName,
+                                 cleanupName,
+                                 type,
+                                 &search->dents,
+                                 &search->numDents);
+   if (HGFS_ERROR_SUCCESS != status) {
       LOG(4, ("%s: couldn't get dents\n", __FUNCTION__));
       HgfsRemoveSearchInternal(search, session);
-      status = HGFS_ERROR_INTERNAL;
       goto out;
    }
 
-   search->numDents = result;
    *handle = HgfsSearch2SearchHandle(search);
 
   out:
    MXUser_ReleaseExclLock(session->searchArrayLock);
 
+   return status;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HgfsServerRestartSearchVirtualDir --
+ *
+ *    Restart a search on a virtual directory (i.e. one that does not
+ *    really exist on the server). Takes a pointer to an enumerator
+ *    for the directory's contents and returns a handle to a search that is
+ *    correctly set up with the virtual directory's entries.
+ *
+ * Results:
+ *    Zero on success, returns a handle to the created search.
+ *    Non-zero on failure.
+ *
+ * Side effects:
+ *    None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+HgfsInternalStatus
+HgfsServerRestartSearchVirtualDir(HgfsGetNameFunc *getName,     // IN: Name enumerator
+                                  HgfsInitFunc *initName,       // IN: Init function
+                                  HgfsCleanupFunc *cleanupName, // IN: Cleanup function
+                                  HgfsSessionInfo *session,     // IN: Session info
+                                  HgfsHandle searchHandle)      // IN: search to restart
+{
+   HgfsInternalStatus status = 0;
+   HgfsSearch *vdirSearch;
+
+   ASSERT(getName);
+   ASSERT(initName);
+   ASSERT(cleanupName);
+   ASSERT(searchHandle);
+
+   MXUser_AcquireExclLock(session->searchArrayLock);
+
+   vdirSearch = HgfsSearchHandle2Search(searchHandle, session);
+   if (NULL == vdirSearch) {
+      status = HGFS_ERROR_INVALID_HANDLE;
+      goto exit;
+   }
+
+   /* Release the virtual directory's old set of entries. */
+   HgfsFreeSearchDirents(vdirSearch);
+
+   /* Restart by rescanning the virtual directory. */
+   status = HgfsPlatformScanvdir(getName,
+                                 initName,
+                                 cleanupName,
+                                 vdirSearch->type,
+                                 &vdirSearch->dents,
+                                 &vdirSearch->numDents);
+   if (HGFS_ERROR_SUCCESS != status) {
+      LOG(4, ("%s: couldn't get root dents %u\n", __FUNCTION__, status));
+      goto exit;
+   }
+
+   /* Clear the flag to indicate that the client has read the entries. */
+   vdirSearch->flags &= ~HGFS_SEARCH_FLAG_READ_ALL_ENTRIES;
+
+exit:
+   MXUser_ReleaseExclLock(session->searchArrayLock);
+
+   LOG(4, ("%s: refreshing dents return %d\n", __FUNCTION__, status));
    return status;
 }
 
@@ -5551,13 +5714,13 @@ HgfsCreateAndCacheFileNode(HgfsFileOpenInfo *openInfo, // IN: Open info struct
    len = CPName_GetComponent(openInfo->cpName, inEnd, &next);
    if (len < 0) {
       LOG(4, ("%s: get first component failed\n", __FUNCTION__));
-      HgfsCloseFile(fileDesc, NULL);
+      HgfsPlatformCloseFile(fileDesc, NULL);
       return FALSE;
    }
 
    /* See if we are dealing with the base of the namespace */
    if (!len) {
-      HgfsCloseFile(fileDesc, NULL);
+      HgfsPlatformCloseFile(fileDesc, NULL);
       return FALSE;
    }
 
@@ -5574,14 +5737,14 @@ HgfsCreateAndCacheFileNode(HgfsFileOpenInfo *openInfo, // IN: Open info struct
       LOG(4, ("%s: Failed to add new node.\n", __FUNCTION__));
       MXUser_ReleaseExclLock(session->nodeArrayLock);
 
-      HgfsCloseFile(fileDesc, NULL);
+      HgfsPlatformCloseFile(fileDesc, NULL);
       return FALSE;
    }
    handle = HgfsFileNode2Handle(node);
 
    if (!HgfsAddToCacheInternal(handle, session)) {
       HgfsFreeFileNodeInternal(handle, session);
-      HgfsCloseFile(fileDesc, NULL);
+      HgfsPlatformCloseFile(fileDesc, NULL);
 
       LOG(4, ("%s: Failed to add node to the cache.\n", __FUNCTION__));
       MXUser_ReleaseExclLock(session->nodeArrayLock);
@@ -5603,10 +5766,11 @@ HgfsCreateAndCacheFileNode(HgfsFileOpenInfo *openInfo, // IN: Open info struct
  *
  * HgfsAllocInitReply --
  *
- *    Allocates hgfs reply packet and calculates pointer to HGFS payload.
+ *    Retrieves the hgfs protocol reply data buffer that follows the reply header.
  *
  * Results:
- *    TRUE on success, FALSE on failure.
+ *    Cannot fail, returns the protocol reply data buffer for the corresponding
+ *    processed protocol request.
  *
  * Side effects:
  *    None
@@ -5614,18 +5778,17 @@ HgfsCreateAndCacheFileNode(HgfsFileOpenInfo *openInfo, // IN: Open info struct
  *-----------------------------------------------------------------------------
  */
 
-Bool
+void *
 HgfsAllocInitReply(HgfsPacket *packet,           // IN/OUT: Hgfs Packet
-                   char const *packetHeader,     // IN: packet header
-                   size_t payloadSize,           // IN: payload size
-                   void **payload,               // OUT: pointer to the reply payload
+                   const void *packetHeader,     // IN: packet header
+                   size_t replyDataSize,         // IN: replyDataSize size
                    HgfsSessionInfo *session)     // IN: Session Info
 {
-   HgfsRequest *request = (HgfsRequest *)packetHeader;
+   const HgfsRequest *request = packetHeader;
    size_t replyPacketSize;
    size_t headerSize = 0; /* Replies prior to V3 do not have a header. */
-   Bool result = FALSE;
-   char *reply;
+   void *replyHeader;
+   void *replyData;
 
    if (HGFS_V4_LEGACY_OPCODE == request->op) {
       headerSize = sizeof(HgfsHeader);
@@ -5633,20 +5796,22 @@ HgfsAllocInitReply(HgfsPacket *packet,           // IN/OUT: Hgfs Packet
               request->op > HGFS_OP_RENAME_V2) {
       headerSize = sizeof(HgfsReply);
    }
-   replyPacketSize = headerSize + payloadSize;
-   reply = HSPU_GetReplyPacket(packet, &replyPacketSize, session->transportSession);
+   replyHeader = HSPU_GetReplyPacket(packet,
+                                     session->transportSession->channelCbTable,
+                                     headerSize + replyDataSize,
+                                     &replyPacketSize);
 
-   if (reply && (replyPacketSize >= headerSize + payloadSize)) {
-      memset(reply, 0, headerSize + payloadSize);
-      result = TRUE;
-      if (payloadSize > 0) {
-         *payload = reply + headerSize;
-      } else {
-         *payload = NULL;
-      }
+   ASSERT(replyHeader && (replyPacketSize >= headerSize + replyDataSize));
+
+   memset(replyHeader, 0, headerSize + replyDataSize);
+   if (replyDataSize > 0) {
+      replyData = (char *)replyHeader + headerSize;
+   } else {
+      replyData = NULL;
+      ASSERT(FALSE);
    }
 
-   return result;
+   return replyData;
 }
 
 
@@ -5691,50 +5856,41 @@ HgfsServerRead(HgfsInputParam *input)  // IN: Input params
             uint32 inlineDataSize =
                (HGFS_OP_READ_FAST_V4 == input->op) ? 0 : requiredSize;
 
-            if (!HgfsAllocInitReply(input->packet, input->metaPacket,
-                                    sizeof *reply + inlineDataSize, (void **)&reply,
-                                    input->session)) {
-               status = HGFS_ERROR_PROTOCOL;
-               LOG(4, ("%s: V3/V4 Failed to alloc reply -> PROTOCOL_ERROR.\n", __FUNCTION__));
+            reply = HgfsAllocInitReply(input->packet, input->request,
+                                       sizeof *reply + inlineDataSize, input->session);
+            if (HGFS_OP_READ_V3 == input->op) {
+               payload = &reply->payload[0];
             } else {
-               if (HGFS_OP_READ_V3 == input->op) {
-                  payload = &reply->payload[0];
-               } else {
-                  payload = HSPU_GetDataPacketBuf(input->packet, BUF_WRITEABLE,
-                                                  input->transportSession);
+               payload = HSPU_GetDataPacketBuf(input->packet, BUF_WRITEABLE,
+                                               input->transportSession->channelCbTable);
+            }
+            if (payload) {
+               status = HgfsPlatformReadFile(file, input->session, offset,
+                                             requiredSize, payload,
+                                             &reply->actualSize);
+               if (HGFS_ERROR_SUCCESS == status) {
+                  reply->reserved = 0;
+                  replyPayloadSize = sizeof *reply +
+                                       ((inlineDataSize > 0) ? reply->actualSize : 0);
                }
-               if (payload) {
-                  status = HgfsPlatformReadFile(file, input->session, offset,
-                                                requiredSize, payload,
-                                                &reply->actualSize);
-                  if (HGFS_ERROR_SUCCESS == status) {
-                     reply->reserved = 0;
-                     replyPayloadSize = sizeof *reply +
-                                         ((inlineDataSize > 0) ? reply->actualSize : 0);
-                  }
-               } else {
-                  status = HGFS_ERROR_PROTOCOL;
-                  LOG(4, ("%s: V3/V4 Failed to get payload -> PROTOCOL_ERROR.\n", __FUNCTION__));
-               }
+            } else {
+               status = HGFS_ERROR_PROTOCOL;
+               LOG(4, ("%s: V3/V4 Failed to get payload -> PROTOCOL_ERROR.\n", __FUNCTION__));
             }
             break;
          }
       case HGFS_OP_READ: {
             HgfsReplyRead *reply;
 
-            if (HgfsAllocInitReply(input->packet, input->metaPacket,
-                                   sizeof *reply + requiredSize, (void **)&reply,
-                                   input->session)) {
-               status = HgfsPlatformReadFile(file, input->session, offset, requiredSize,
-                                             reply->payload, &reply->actualSize);
-               if (HGFS_ERROR_SUCCESS == status) {
-                  replyPayloadSize = sizeof *reply + reply->actualSize;
-               } else {
-                  LOG(4, ("%s: V1 Failed to read-> %d.\n", __FUNCTION__, status));
-               }
+            reply = HgfsAllocInitReply(input->packet, input->request,
+                                       sizeof *reply + requiredSize, input->session);
+
+            status = HgfsPlatformReadFile(file, input->session, offset, requiredSize,
+                                          reply->payload, &reply->actualSize);
+            if (HGFS_ERROR_SUCCESS == status) {
+               replyPayloadSize = sizeof *reply + reply->actualSize;
             } else {
-               status = HGFS_ERROR_PROTOCOL;
-               LOG(4, ("%s: V1 Failed to alloc reply -> PROTOCOL_ERROR.\n", __FUNCTION__));
+               LOG(4, ("%s: V1 Failed to read-> %d.\n", __FUNCTION__, status));
             }
             break;
          }
@@ -5773,28 +5929,44 @@ HgfsServerWrite(HgfsInputParam *input)  // IN: Input params
    HgfsInternalStatus status;
    HgfsWriteFlags flags;
    uint64 offset;
-   char *dataToWrite;
+   const void *dataToWrite;
    uint32 replyActualSize;
    size_t replyPayloadSize = 0;
    HgfsHandle file;
 
    HGFS_ASSERT_INPUT(input);
 
-   if (HgfsUnpackWriteRequest(input, &file, &offset, &numberBytesToWrite,
-                              &flags, &dataToWrite)) {
-
-      status = HgfsPlatformWriteFile(file, input->session, offset, numberBytesToWrite,
-                                     flags, dataToWrite, &replyActualSize);
-      if (HGFS_ERROR_SUCCESS == status) {
-          if (!HgfsPackWriteReply(input->packet, input->metaPacket, input->op,
-                                  replyActualSize, &replyPayloadSize, input->session)) {
-            status = HGFS_ERROR_INTERNAL;
-          }
-      }
-   } else {
+   if (!HgfsUnpackWriteRequest(input->payload, input->payloadSize, input->op,
+                              &file, &offset, &numberBytesToWrite, &flags,
+                              &dataToWrite)) {
+      LOG(4, ("%s: Error: Op %d unpack write request arguments\n", __FUNCTION__, input->op));
       status = HGFS_ERROR_PROTOCOL;
+      goto exit;
    }
 
+   if (NULL == dataToWrite) {
+      /* No inline data to write, get it from the transport shared memory. */
+      dataToWrite = HSPU_GetDataPacketBuf(input->packet, BUF_READABLE,
+                                          input->transportSession->channelCbTable);
+      if (NULL == dataToWrite) {
+         LOG(4, ("%s: Error: Op %d mapping write data buffer\n", __FUNCTION__, input->op));
+         status = HGFS_ERROR_PROTOCOL;
+         goto exit;
+      }
+   }
+
+   status = HgfsPlatformWriteFile(file, input->session, offset, numberBytesToWrite,
+                                  flags, dataToWrite, &replyActualSize);
+   if (HGFS_ERROR_SUCCESS != status) {
+      goto exit;
+   }
+
+   if (!HgfsPackWriteReply(input->packet, input->request, input->op,
+                           replyActualSize, &replyPayloadSize, input->session)) {
+      status = HGFS_ERROR_INTERNAL;
+   }
+
+exit:
    HgfsServerCompleteRequest(status, replyPayloadSize, input);
 }
 
@@ -5802,10 +5974,13 @@ HgfsServerWrite(HgfsInputParam *input)  // IN: Input params
 /*
  *-----------------------------------------------------------------------------
  *
- * HgfsQueryVolume --
+ * HgfsServerQueryVolInt --
  *
- *    Performs actual work to get free space and capacity for a volume or
- *    a group of volumes.
+ *    Internal function to query the volume's free space and capacity.
+ *    The volume queried can be:
+ *    - real taken from the file path of a real file or folder
+ *    - virtual taken from one of the HGFS virtual folders which can span
+ *      multiple volumes.
  *
  * Results:
  *    Zero on success.
@@ -5817,13 +5992,13 @@ HgfsServerWrite(HgfsInputParam *input)  // IN: Input params
  *
  *-----------------------------------------------------------------------------
  */
-HgfsInternalStatus
-HgfsQueryVolume(HgfsSessionInfo *session,   // IN: session info
-                char *fileName,             // IN: cpName for the volume
-                size_t fileNameLength,      // IN: cpName length
-                uint32 caseFlags,           // IN: case sensitive/insensitive name
-                uint64 *freeBytes,          // OUT: free space in bytes
-                uint64 *totalBytes)         // OUT: capacity in bytes
+static HgfsInternalStatus
+HgfsServerQueryVolInt(HgfsSessionInfo *session,   // IN: session info
+                      const char *fileName,       // IN: cpName for the volume
+                      size_t fileNameLength,      // IN: cpName length
+                      uint32 caseFlags,           // IN: case sensitive/insensitive name
+                      uint64 *freeBytes,          // OUT: free space in bytes
+                      uint64 *totalBytes)         // OUT: capacity in bytes
 {
    HgfsInternalStatus status = HGFS_ERROR_SUCCESS;
    uint64 outFreeBytes = 0;
@@ -5831,169 +6006,24 @@ HgfsQueryVolume(HgfsSessionInfo *session,   // IN: session info
    char *utf8Name = NULL;
    size_t utf8NameLen;
    HgfsNameStatus nameStatus;
-   Bool firstShare = TRUE;
    HgfsShareInfo shareInfo;
-   HgfsHandle handle;
    VolumeInfoType infoType;
-   DirectoryEntry *dent;
-   size_t failed = 0;
-   size_t shares = 0;
-   int offset = 0;
-   HgfsInternalStatus firstErr = HGFS_ERROR_SUCCESS;
-   Bool success;
 
-   /* It is now safe to read the file name field. */
-   nameStatus = HgfsServerGetShareInfo(fileName,
-                                       fileNameLength,
-                                       caseFlags,
-                                       &shareInfo,
-                                       &utf8Name,
-                                       &utf8NameLen);
+   /*
+    * XXX - make the filename const!
+    * It is now safe to read the file name field.
+    */
+   nameStatus = HgfsServerGetLocalNameInfo(fileName,
+                                           fileNameLength,
+                                           caseFlags,
+                                           &shareInfo,
+                                           &utf8Name,
+                                           &utf8NameLen);
 
-   switch (nameStatus) {
-   case HGFS_NAME_STATUS_INCOMPLETE_BASE:
-      /*
-       * This is the base of our namespace. Clients can request a
-       * QueryVolumeInfo on it, on individual shares, or on just about
-       * any pathname.
-       */
+   /* Check if we have a real path and if so handle it here. */
+   if (nameStatus == HGFS_NAME_STATUS_COMPLETE) {
+      Bool success;
 
-      LOG(4,("%s: opened search on base\n", __FUNCTION__));
-      status = HgfsServerSearchVirtualDir(HgfsServerPolicy_GetShares,
-                                          HgfsServerPolicy_GetSharesInit,
-                                          HgfsServerPolicy_GetSharesCleanup,
-                                          DIRECTORY_SEARCH_TYPE_BASE,
-                                          session,
-                                          &handle);
-      if (status != 0) {
-         return status;
-      }
-
-      /*
-       * If we're outside the Tools, find out if we're to compute the minimum
-       * values across all shares, or the maximum values.
-       */
-      infoType = VOLUME_INFO_TYPE_MIN;
-#ifndef VMX86_TOOLS
-      {
-         char *volumeInfoType = Config_GetString("min",
-                                                 "tools.hgfs.volumeInfoType");
-         if (!Str_Strcasecmp(volumeInfoType, "max")) {
-            infoType = VOLUME_INFO_TYPE_MAX;
-         }
-         free(volumeInfoType);
-      }
-#endif
-
-      /*
-       * Now go through all shares and get share paths on the server.
-       * Then retrieve space info for each share's volume.
-       */
-      offset = 0;
-      while ((dent = HgfsGetSearchResult(handle, session, offset,
-                                         TRUE)) != NULL) {
-         char const *sharePath;
-         size_t sharePathLen;
-         uint64 currentFreeBytes  = 0;
-         uint64 currentTotalBytes = 0;
-         size_t length;
-
-         length = strlen(dent->d_name);
-
-         /*
-          * Now that the server is passing '.' and ".." around as dents, we
-          * need to make sure to handle them properly. In particular, they
-          * should be ignored within QueryVolume, as they're not real shares.
-          */
-         if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, "..")) {
-            LOG(4, ("%s: Skipping fake share %s\n", __FUNCTION__,
-                    dent->d_name));
-            free(dent);
-            continue;
-         }
-
-         /*
-          * The above check ignores '.' and '..' so we do not include them in
-          * the share count here.
-          */
-         shares++;
-
-         /*
-          * Check permission on the share and get the share path.  It is not
-          * fatal if these do not succeed.  Instead we ignore the failures
-          * (apart from logging them) until we have processed all shares.  Only
-          * then do we check if there were any failures; if all shares failed
-          * to process then we bail out with an error code.
-          */
-
-         nameStatus = HgfsServerPolicy_GetSharePath(dent->d_name, length,
-                                                    HGFS_OPEN_MODE_READ_ONLY,
-                                                    &sharePathLen,
-                                                    &sharePath);
-         free(dent);
-         if (nameStatus != HGFS_NAME_STATUS_COMPLETE) {
-            LOG(4, ("%s: No such share or access denied\n", __FUNCTION__));
-            if (0 == firstErr) {
-               firstErr = HgfsPlatformConvertFromNameStatus(nameStatus);
-            }
-            failed++;
-            continue;
-         }
-
-         /*
-          * Pick the drive with amount of space available and return that
-          * according to different volume info type.
-          */
-
-
-         if (!HgfsServerStatFs(sharePath, sharePathLen,
-                               &currentFreeBytes, &currentTotalBytes)) {
-            LOG(4, ("%s: error getting volume information\n",
-                    __FUNCTION__));
-            if (0 == firstErr) {
-               firstErr = HGFS_ERROR_IO;
-            }
-            failed++;
-            continue;
-         }
-
-         /*
-          * Pick the drive with amount of space available and return that
-          * according to different volume info type.
-          */
-         switch (infoType) {
-         case VOLUME_INFO_TYPE_MIN:
-            if ((outFreeBytes > currentFreeBytes) || firstShare) {
-               firstShare = FALSE;
-               outFreeBytes  = currentFreeBytes;
-               outTotalBytes = currentTotalBytes;
-            }
-            break;
-         case VOLUME_INFO_TYPE_MAX:
-            if ((outFreeBytes < currentFreeBytes)) {
-               outFreeBytes  = currentFreeBytes;
-               outTotalBytes = currentTotalBytes;
-            }
-            break;
-         default:
-            NOT_IMPLEMENTED();
-         }
-      }
-      if (!HgfsRemoveSearch(handle, session)) {
-         LOG(4, ("%s: could not close search on base\n", __FUNCTION__));
-      }
-      if (shares == failed) {
-         if (firstErr != 0) {
-            /*
-             * We failed to query any of the shares.  We return the error]
-             * from the first share failure.
-             */
-            status = firstErr;
-         }
-         /* No shares but no error, return zero for sizes and success. */
-      }
-      break;
-   case HGFS_NAME_STATUS_COMPLETE:
       ASSERT(utf8Name);
       LOG(4,("%s: querying path %s\n", __FUNCTION__, utf8Name));
       success = HgfsServerStatFs(utf8Name, utf8NameLen,
@@ -6003,12 +6033,27 @@ HgfsQueryVolume(HgfsSessionInfo *session,   // IN: session info
          LOG(4, ("%s: error getting volume information\n", __FUNCTION__));
          status = HGFS_ERROR_IO;
       }
-      break;
-   default:
-      LOG(4,("%s: file access check failed\n", __FUNCTION__));
-      status = HgfsPlatformConvertFromNameStatus(nameStatus);
+      goto exit;
    }
 
+    /*
+     * If we're outside the Tools, find out if we're to compute the minimum
+     * values across all shares, or the maximum values.
+     */
+   infoType = VOLUME_INFO_TYPE_MIN;
+   /* We have a virtual folder path and if so pass it over to the platform code. */
+   if (0 == (gHgfsCfgSettings.flags & HGFS_CONFIG_VOL_INFO_MIN)) {
+      /* Using the maximum volume size and space values. */
+      infoType = VOLUME_INFO_TYPE_MAX;
+   }
+
+   status = HgfsPlatformVDirStatsFs(session,
+                                    nameStatus,
+                                    infoType,
+                                    &outFreeBytes,
+                                    &outTotalBytes);
+
+exit:
    *freeBytes  = outFreeBytes;
    *totalBytes = outTotalBytes;
    LOG(4, ("%s: return %"FMT64"u bytes Free %"FMT64"u bytes\n", __FUNCTION__,
@@ -6048,7 +6093,7 @@ HgfsServerQueryVolume(HgfsInputParam *input)  // IN: Input params
    HgfsInternalStatus status;
    size_t replyPayloadSize = 0;
    HgfsHandle file;
-   char *fileName;
+   const char *fileName;
    size_t fileNameLength;
    uint32 caseFlags;
    Bool useHandle;
@@ -6068,10 +6113,14 @@ HgfsServerQueryVolume(HgfsInputParam *input)  // IN: Input params
          LOG(4, ("%s: Doesn't support file handle.\n", __FUNCTION__));
          status = HGFS_ERROR_INVALID_PARAMETER;
       } else {
-         status = HgfsQueryVolume(input->session, fileName, fileNameLength, caseFlags,
-                                  &freeBytes, &totalBytes);
+         status = HgfsServerQueryVolInt(input->session,
+                                        fileName,
+                                        fileNameLength,
+                                        caseFlags,
+                                        &freeBytes,
+                                        &totalBytes);
          if (HGFS_ERROR_SUCCESS == status) {
-            if (!HgfsPackQueryVolumeReply(input->packet, input->metaPacket,
+            if (!HgfsPackQueryVolumeReply(input->packet, input->request,
                                           input->op, freeBytes, totalBytes,
                                           &replyPayloadSize, input->session)) {
                status = HGFS_ERROR_INTERNAL;
@@ -6107,10 +6156,10 @@ HgfsServerQueryVolume(HgfsInputParam *input)  // IN: Input params
 
 HgfsInternalStatus
 HgfsSymlinkCreate(HgfsSessionInfo *session, // IN: session info,
-                  char *srcFileName,        // IN: symbolic link file name
+                  const char *srcFileName,  // IN: symbolic link file name
                   uint32 srcFileNameLength, // IN: symbolic link name length
                   uint32 srcCaseFlags,      // IN: symlink case flags
-                  char *trgFileName,        // IN: symbolic link target name
+                  const char *trgFileName,  // IN: symbolic link target name
                   uint32 trgFileNameLength, // IN: target name length
                   uint32 trgCaseFlags)      // IN: target case flags
 {
@@ -6127,12 +6176,12 @@ HgfsSymlinkCreate(HgfsSessionInfo *session, // IN: session info,
     * "targetName" field
     */
 
-   nameStatus = HgfsServerGetShareInfo(srcFileName,
-                                       srcFileNameLength,
-                                       srcCaseFlags,
-                                       &shareInfo,
-                                       &localSymlinkName,
-                                       &localSymlinkNameLen);
+   nameStatus = HgfsServerGetLocalNameInfo(srcFileName,
+                                           srcFileNameLength,
+                                           srcCaseFlags,
+                                           &shareInfo,
+                                           &localSymlinkName,
+                                           &localSymlinkNameLen);
    if (nameStatus == HGFS_NAME_STATUS_COMPLETE) {
       if (shareInfo.writePermissions ) {
          /* Get the config options. */
@@ -6197,12 +6246,12 @@ HgfsServerSymlinkCreate(HgfsInputParam *input)  // IN: Input params
 {
    HgfsInternalStatus status;
    HgfsHandle srcFile;
-   char *srcFileName;
+   const char *srcFileName;
    size_t srcFileNameLength;
    uint32 srcCaseFlags;
    Bool srcUseHandle;
    HgfsHandle trgFile;
-   char *trgFileName;
+   const char *trgFileName;
    size_t trgFileNameLength;
    uint32 trgCaseFlags;
    Bool trgUseHandle;
@@ -6227,7 +6276,7 @@ HgfsServerSymlinkCreate(HgfsInputParam *input)  // IN: Input params
                                     srcCaseFlags, trgFileName, trgFileNameLength,
                                     trgCaseFlags);
          if (HGFS_ERROR_SUCCESS == status) {
-            if (!HgfsPackSymlinkCreateReply(input->packet, input->metaPacket, input->op,
+            if (!HgfsPackSymlinkCreateReply(input->packet, input->request, input->op,
                                             &replyPayloadSize, input->session)) {
                status = HGFS_ERROR_INTERNAL;
             }
@@ -6262,7 +6311,7 @@ HgfsServerSearchOpen(HgfsInputParam *input)  // IN: Input params
 {
    HgfsInternalStatus status;
    size_t replyPayloadSize = 0;
-   char *dirName;
+   const char *dirName;
    uint32 dirNameLength;
    uint32 caseFlags = HGFS_FILE_NAME_DEFAULT_CASE;
    HgfsHandle search;
@@ -6275,13 +6324,13 @@ HgfsServerSearchOpen(HgfsInputParam *input)  // IN: Input params
 
    if (HgfsUnpackSearchOpenRequest(input->payload, input->payloadSize, input->op,
                                    &dirName, &dirNameLength, &caseFlags)) {
-      nameStatus = HgfsServerGetShareInfo(dirName, dirNameLength, caseFlags, &shareInfo,
-                                          &baseDir, &baseDirLen);
+      nameStatus = HgfsServerGetLocalNameInfo(dirName, dirNameLength, caseFlags,
+                                              &shareInfo, &baseDir, &baseDirLen);
       status = HgfsPlatformSearchDir(nameStatus, dirName, dirNameLength, caseFlags,
                                      &shareInfo, baseDir, baseDirLen,
                                      input->session, &search);
       if (HGFS_ERROR_SUCCESS == status) {
-         if (!HgfsPackSearchOpenReply(input->packet, input->metaPacket, input->op, search,
+         if (!HgfsPackSearchOpenReply(input->packet, input->request, input->op, search,
                                       &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -6291,6 +6340,7 @@ HgfsServerSearchOpen(HgfsInputParam *input)  // IN: Input params
    }
 
    HgfsServerCompleteRequest(status, replyPayloadSize, input);
+   free(baseDir);
 }
 
 
@@ -6315,7 +6365,7 @@ HgfsServerSearchOpen(HgfsInputParam *input)  // IN: Input params
 HgfsInternalStatus
 HgfsValidateRenameFile(Bool useHandle,            // IN:
                        HgfsHandle fileHandle,     // IN:
-                       char *cpName,              // IN:
+                       const char *cpName,        // IN:
                        size_t cpNameLength,       // IN:
                        uint32 caseFlags,          // IN:
                        HgfsSessionInfo *session,  // IN: Session info
@@ -6326,7 +6376,7 @@ HgfsValidateRenameFile(Bool useHandle,            // IN:
 {
    HgfsInternalStatus status;
    Bool sharedFolderOpen = FALSE;
-   HgfsServerLock serverLock = HGFS_LOCK_NONE;
+   HgfsLockType serverLock = HGFS_LOCK_NONE;
    HgfsNameStatus nameStatus;
 
 
@@ -6354,12 +6404,12 @@ HgfsValidateRenameFile(Bool useHandle,            // IN:
          status = HGFS_ERROR_ACCESS_DENIED;
       }
    } else {
-      nameStatus = HgfsServerGetShareInfo(cpName,
-                                          cpNameLength,
-                                          caseFlags,
-                                          shareInfo,
-                                          localFileName,
-                                          localNameLength);
+      nameStatus = HgfsServerGetLocalNameInfo(cpName,
+                                              cpNameLength,
+                                              caseFlags,
+                                              shareInfo,
+                                              localFileName,
+                                              localNameLength);
       if (HGFS_NAME_STATUS_COMPLETE != nameStatus) {
          LOG(4, ("%s: access check failed\n", __FUNCTION__));
          status = HgfsPlatformConvertFromNameStatus(nameStatus);
@@ -6422,9 +6472,9 @@ HgfsServerRename(HgfsInputParam *input)  // IN: Input params
    size_t utf8OldNameLen;
    char *utf8NewName = NULL;
    size_t utf8NewNameLen;
-   char *cpOldName;
+   const char *cpOldName;
    size_t cpOldNameLen;
-   char *cpNewName;
+   const char *cpNewName;
    size_t cpNewNameLen;
    HgfsInternalStatus status;
    fileDesc srcFileDesc;
@@ -6509,7 +6559,7 @@ HgfsServerRename(HgfsInputParam *input)  // IN: Input params
       if (HGFS_ERROR_SUCCESS == status) {
          /* Update all file nodes that refer to this file to contain the new name. */
          HgfsUpdateNodeNames(utf8OldName, utf8NewName, input->session);
-         if (!HgfsPackRenameReply(input->packet, input->metaPacket, input->op,
+         if (!HgfsPackRenameReply(input->packet, input->request, input->op,
                                   &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -6548,7 +6598,7 @@ HgfsServerCreateDir(HgfsInputParam *input)  // IN: Input params
    HgfsInternalStatus status;
    HgfsNameStatus nameStatus;
    HgfsCreateDirInfo info;
-   char *utf8Name;
+   char *utf8Name = NULL;
    size_t utf8NameLen;
    size_t replyPayloadSize = 0;
    HgfsShareInfo shareInfo;
@@ -6557,8 +6607,8 @@ HgfsServerCreateDir(HgfsInputParam *input)  // IN: Input params
 
    if (HgfsUnpackCreateDirRequest(input->payload, input->payloadSize,
                                   input->op, &info)) {
-      nameStatus = HgfsServerGetShareInfo(info.cpName, info.cpNameSize, info.caseFlags,
-                                          &shareInfo, &utf8Name, &utf8NameLen);
+      nameStatus = HgfsServerGetLocalNameInfo(info.cpName, info.cpNameSize, info.caseFlags,
+                                              &shareInfo, &utf8Name, &utf8NameLen);
       if (HGFS_NAME_STATUS_COMPLETE == nameStatus) {
          ASSERT(utf8Name);
 
@@ -6571,7 +6621,7 @@ HgfsServerCreateDir(HgfsInputParam *input)  // IN: Input params
          if (shareInfo.writePermissions) {
             status = HgfsPlatformCreateDir(&info, utf8Name);
             if (HGFS_ERROR_SUCCESS == status) {
-               if (!HgfsPackCreateDirReply(input->packet, input->metaPacket, info.requestType,
+               if (!HgfsPackCreateDirReply(input->packet, input->request, info.requestType,
                                            &replyPayloadSize, input->session)) {
                   status = HGFS_ERROR_PROTOCOL;
                }
@@ -6613,6 +6663,7 @@ HgfsServerCreateDir(HgfsInputParam *input)  // IN: Input params
    }
 
    HgfsServerCompleteRequest(status, replyPayloadSize, input);
+   free(utf8Name);
 }
 
 
@@ -6641,9 +6692,9 @@ HgfsServerCreateDir(HgfsInputParam *input)  // IN: Input params
 static void
 HgfsServerDeleteFile(HgfsInputParam *input)  // IN: Input params
 {
-   char *cpName;
+   const char *cpName;
    size_t cpNameSize;
-   HgfsServerLock serverLock = HGFS_LOCK_NONE;
+   HgfsLockType serverLock = HGFS_LOCK_NONE;
    fileDesc fileDesc;
    HgfsHandle file;
    HgfsDeleteHint hints = 0;
@@ -6663,8 +6714,8 @@ HgfsServerDeleteFile(HgfsInputParam *input)  // IN: Input params
          char *utf8Name = NULL;
          size_t utf8NameLen;
 
-         nameStatus = HgfsServerGetShareInfo(cpName, cpNameSize, caseFlags, &shareInfo,
-                                             &utf8Name, &utf8NameLen);
+         nameStatus = HgfsServerGetLocalNameInfo(cpName, cpNameSize, caseFlags, &shareInfo,
+                                                 &utf8Name, &utf8NameLen);
          if (nameStatus == HGFS_NAME_STATUS_COMPLETE) {
             /*
              * Deleting a file needs both read and write permssions.
@@ -6697,7 +6748,7 @@ HgfsServerDeleteFile(HgfsInputParam *input)  // IN: Input params
          }
       }
       if (HGFS_ERROR_SUCCESS == status) {
-         if (!HgfsPackDeleteReply(input->packet, input->metaPacket, input->op,
+         if (!HgfsPackDeleteReply(input->packet, input->request, input->op,
                                   &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -6733,7 +6784,7 @@ HgfsServerDeleteFile(HgfsInputParam *input)  // IN: Input params
 static void
 HgfsServerDeleteDir(HgfsInputParam *input)  // IN: Input params
 {
-   char *cpName;
+   const char *cpName;
    size_t cpNameSize;
    HgfsInternalStatus status;
    HgfsNameStatus nameStatus;
@@ -6773,8 +6824,8 @@ HgfsServerDeleteDir(HgfsInputParam *input)  // IN: Input params
          char *utf8Name = NULL;
          size_t utf8NameLen;
 
-         nameStatus = HgfsServerGetShareInfo(cpName, cpNameSize, caseFlags, &shareInfo,
-                                             &utf8Name, &utf8NameLen);
+         nameStatus = HgfsServerGetLocalNameInfo(cpName, cpNameSize, caseFlags, &shareInfo,
+                                                 &utf8Name, &utf8NameLen);
          if (HGFS_NAME_STATUS_COMPLETE == nameStatus) {
             ASSERT(utf8Name);
             /* Guest OS is not allowed to delete shared folder. */
@@ -6803,7 +6854,7 @@ HgfsServerDeleteDir(HgfsInputParam *input)  // IN: Input params
          }
       }
       if (HGFS_ERROR_SUCCESS == status) {
-         if (!HgfsPackDeleteReply(input->packet, input->metaPacket, input->op,
+         if (!HgfsPackDeleteReply(input->packet, input->request, input->op,
                                   &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -6866,7 +6917,7 @@ HgfsServerWriteWin32Stream(HgfsInputParam *input)  // IN: Input params
    uint32  actualSize;
    HgfsInternalStatus status;
    HgfsHandle file;
-   char *dataToWrite;
+   const char *dataToWrite;
    Bool doSecurity;
    size_t replyPayloadSize = 0;
    size_t requiredSize;
@@ -6875,10 +6926,10 @@ HgfsServerWriteWin32Stream(HgfsInputParam *input)  // IN: Input params
 
    if (HgfsUnpackWriteWin32StreamRequest(input->payload, input->payloadSize, input->op, &file,
                                          &dataToWrite, &requiredSize, &doSecurity)) {
-      status = HgfsPlatformWriteWin32Stream(file, dataToWrite, (uint32)requiredSize,
+      status = HgfsPlatformWriteWin32Stream(file, (char *)dataToWrite, (uint32)requiredSize,
                                             doSecurity, &actualSize, input->session);
       if (HGFS_ERROR_SUCCESS == status) {
-         if (!HgfsPackWriteWin32StreamReply(input->packet, input->metaPacket, input->op,
+         if (!HgfsPackWriteWin32StreamReply(input->packet, input->request, input->op,
                                             actualSize, &replyPayloadSize,
                                             input->session)) {
             status = HGFS_ERROR_INTERNAL;
@@ -6961,7 +7012,7 @@ HgfsServerSetDirWatchByHandle(HgfsInputParam *input,         // IN: Input params
 
 static HgfsInternalStatus
 HgfsServerSetDirWatchByName(HgfsInputParam *input,         // IN: Input params
-                            char *cpName,                  // IN: directory name
+                            const char *cpName,            // IN: directory name
                             uint32 cpNameSize,             // IN: directory name length
                             uint32 caseFlags,              // IN: case flags
                             uint32 events,                 // IN: event types to report
@@ -6980,8 +7031,8 @@ HgfsServerSetDirWatchByName(HgfsInputParam *input,         // IN: Input params
 
    LOG(8, ("%s: entered\n",__FUNCTION__));
 
-   nameStatus = HgfsServerGetShareInfo(cpName, cpNameSize, caseFlags, &shareInfo,
-                                       &utf8Name, &utf8NameLen);
+   nameStatus = HgfsServerGetLocalNameInfo(cpName, cpNameSize, caseFlags, &shareInfo,
+                                           &utf8Name, &utf8NameLen);
    if (HGFS_NAME_STATUS_COMPLETE == nameStatus) {
       char const *inEnd = cpName + cpNameSize;
       char const *next;
@@ -7013,14 +7064,15 @@ HgfsServerSetDirWatchByName(HgfsInputParam *input,         // IN: Input params
             nameStatus = CPName_ConvertFrom((char const **) &next, &nameSize,
                                             &tempSize, &tempPtr);
             if (HGFS_NAME_STATUS_COMPLETE == nameStatus) {
-               LOG(8, ("%s: adding subscriber on share hnd %#x\n", __FUNCTION__, sharedFolder));
+               LOG(8, ("%s: session %p id %"FMT64"x on share hnd %#x\n", __FUNCTION__,
+                       input->session, input->session->sessionId, sharedFolder));
                *watchId = HgfsNotify_AddSubscriber(sharedFolder, tempBuf, events,
                                                    watchTree, HgfsServerDirWatchEvent,
                                                    input->session);
-                status = (HGFS_INVALID_SUBSCRIBER_HANDLE == *watchId) ?
-                                              HGFS_ERROR_INTERNAL : HGFS_ERROR_SUCCESS;
-               LOG(8, ("%s: adding subscriber on share hnd %#x result %u\n", __FUNCTION__,
-                       sharedFolder, status));
+               status = (HGFS_INVALID_SUBSCRIBER_HANDLE == *watchId) ?
+                        HGFS_ERROR_INTERNAL : HGFS_ERROR_SUCCESS;
+               LOG(8, ("%s: watchId %"FMT64"x result %u\n", __FUNCTION__,
+                       *watchId, status));
             } else {
                LOG(4, ("%s: Conversion to platform specific name failed\n",
                        __FUNCTION__));
@@ -7073,7 +7125,7 @@ HgfsServerSetDirWatchByName(HgfsInputParam *input,         // IN: Input params
 static void
 HgfsServerSetDirNotifyWatch(HgfsInputParam *input)  // IN: Input params
 {
-   char *cpName;
+   const char *cpName;
    size_t cpNameSize;
    HgfsInternalStatus status;
    HgfsHandle dir;
@@ -7090,10 +7142,11 @@ HgfsServerSetDirNotifyWatch(HgfsInputParam *input)  // IN: Input params
 
    /*
     * If the active session does not support directory change notification - bail out
-    * with an error immediately. Otherwise setting watch may succeed but no notification
-    * will be delivered when a change occurs.
+    * with an error immediately.
+    * Clients are expected to check the session capabilities and flags but a malicious
+    * or broken client could still issue this to us.
     */
-   if (!input->session->activeNotification) {
+   if (0 == (input->session->flags & HGFS_SESSION_CHANGENOTIFY_ENABLED)) {
       HgfsServerCompleteRequest(HGFS_ERROR_PROTOCOL, 0, input);
       return;
    }
@@ -7109,7 +7162,7 @@ HgfsServerSetDirNotifyWatch(HgfsInputParam *input)  // IN: Input params
                                               events, watchTree, &watchId);
       }
       if (HGFS_ERROR_SUCCESS == status) {
-         if (!HgfsPackSetWatchReply(input->packet, input->metaPacket, input->op,
+         if (!HgfsPackSetWatchReply(input->packet, input->request, input->op,
                                     watchId, &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -7149,6 +7202,17 @@ HgfsServerRemoveDirNotifyWatch(HgfsInputParam *input)  // IN: Input params
    LOG(8, ("%s: entered\n", __FUNCTION__));
    HGFS_ASSERT_INPUT(input);
 
+   /*
+    * If the active session does not support directory change notification - bail out
+    * with an error immediately.
+    * Clients are expected to check the session capabilities and flags but a malicious
+    * or broken client could still issue this to us.
+    */
+   if (0 == (input->session->flags & HGFS_SESSION_CHANGENOTIFY_ENABLED)) {
+      HgfsServerCompleteRequest(HGFS_ERROR_PROTOCOL, 0, input);
+      return;
+   }
+
    if (HgfsUnpackRemoveWatchRequest(input->payload, input->payloadSize, input->op,
                                     &watchId)) {
       LOG(8, ("%s: remove subscriber on subscr id %"FMT64"x\n", __FUNCTION__, watchId));
@@ -7163,7 +7227,7 @@ HgfsServerRemoveDirNotifyWatch(HgfsInputParam *input)  // IN: Input params
       status = HGFS_ERROR_PROTOCOL;
    }
    if (HGFS_ERROR_SUCCESS == status) {
-      if (!HgfsPackRemoveWatchReply(input->packet, input->metaPacket, input->op,
+      if (!HgfsPackRemoveWatchReply(input->packet, input->request, input->op,
          &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
       }
@@ -7193,12 +7257,12 @@ HgfsServerRemoveDirNotifyWatch(HgfsInputParam *input)  // IN: Input params
 static void
 HgfsServerGetattr(HgfsInputParam *input)  // IN: Input params
 {
-   char *localName;
+   char *localName = NULL;
    HgfsAttrHint hints = 0;
    HgfsFileAttrInfo attr;
    HgfsInternalStatus status = 0;
    HgfsNameStatus nameStatus;
-   char *cpName;
+   const char *cpName;
    size_t cpNameSize;
    char *targetName = NULL;
    uint32 targetNameLen = 0;
@@ -7230,8 +7294,8 @@ HgfsServerGetattr(HgfsInputParam *input)  // IN: Input params
           * Depending on whether this file/dir is real or virtual, either
           * forge its attributes or look them up in the actual filesystem.
           */
-         nameStatus = HgfsServerGetShareInfo(cpName, cpNameSize, caseFlags, &shareInfo,
-                                             &localName, &localNameLen);
+         nameStatus = HgfsServerGetLocalNameInfo(cpName, cpNameSize, caseFlags, &shareInfo,
+                                                 &localName, &localNameLen);
          switch (nameStatus) {
          case HGFS_NAME_STATUS_INCOMPLETE_BASE:
             /*
@@ -7251,13 +7315,12 @@ HgfsServerGetattr(HgfsInputParam *input)  // IN: Input params
             nameStatus = HgfsServerPolicy_GetShareOptions(cpName, cpNameSize,
                                                           &configOptions);
             if (HGFS_NAME_STATUS_COMPLETE == nameStatus) {
-               status = HgfsPlatformGetattrFromName(localName, configOptions, cpName, &attr,
+               status = HgfsPlatformGetattrFromName(localName, configOptions, (char *)cpName, &attr,
                                                     &targetName);
             } else {
                LOG(4, ("%s: no matching share: %s.\n", __FUNCTION__, cpName));
                status = HGFS_ERROR_FILE_NOT_FOUND;
             }
-            free(localName);
 
             if (HGFS_ERROR_SUCCESS == status &&
                 !HgfsServerPolicy_CheckMode(HGFS_OPEN_MODE_READ_ONLY,
@@ -7287,7 +7350,7 @@ HgfsServerGetattr(HgfsInputParam *input)  // IN: Input params
 
       }
       if (HGFS_ERROR_SUCCESS == status) {
-         if (!HgfsPackGetattrReply(input->packet, input->metaPacket, &attr, targetName,
+         if (!HgfsPackGetattrReply(input->packet, input->request, &attr, targetName,
                                    targetNameLen, &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -7297,6 +7360,7 @@ HgfsServerGetattr(HgfsInputParam *input)  // IN: Input params
    }
 
    free(targetName);
+   free(localName);
 
    HgfsServerCompleteRequest(status, replyPayloadSize, input);
 }
@@ -7324,7 +7388,7 @@ HgfsServerSetattr(HgfsInputParam *input)  // IN: Input params
    HgfsInternalStatus status = HGFS_ERROR_SUCCESS;
    HgfsNameStatus nameStatus;
    HgfsFileAttrInfo attr;
-   char *cpName;
+   const char *cpName;
    size_t cpNameSize = 0;
    HgfsAttrHint hints = 0;
    HgfsOpenMode shareMode;
@@ -7337,11 +7401,17 @@ HgfsServerSetattr(HgfsInputParam *input)  // IN: Input params
 
    if (HgfsUnpackSetattrRequest(input->payload, input->payloadSize, input->op, &attr,
                                 &hints, &cpName, &cpNameSize, &file, &caseFlags)) {
+      Bool useHostTime = 0 != (gHgfsCfgSettings.flags & HGFS_CONFIG_USE_HOST_TIME);
+
       /* Client wants us to reuse an existing handle. */
       if (hints & HGFS_ATTR_HINT_USE_FILE_DESC) {
          if (HgfsHandle2ShareMode(file, input->session, &shareMode)) {
             if (HGFS_OPEN_MODE_READ_ONLY != shareMode) {
-               status = HgfsPlatformSetattrFromFd(file, input->session, &attr, hints);
+               status = HgfsPlatformSetattrFromFd(file,
+                                                  input->session,
+                                                  &attr,
+                                                  hints,
+                                                  useHostTime);
             } else {
                status = HGFS_ERROR_ACCESS_DENIED;
             }
@@ -7354,11 +7424,15 @@ HgfsServerSetattr(HgfsInputParam *input)  // IN: Input params
          char *utf8Name = NULL;
          size_t utf8NameLen;
 
-         nameStatus = HgfsServerGetShareInfo(cpName, cpNameSize, caseFlags, &shareInfo,
-                                             &utf8Name, &utf8NameLen);
+         nameStatus = HgfsServerGetLocalNameInfo(cpName,
+                                                 cpNameSize,
+                                                 caseFlags,
+                                                 &shareInfo,
+                                                 &utf8Name,
+                                                 &utf8NameLen);
          if (HGFS_NAME_STATUS_COMPLETE == nameStatus) {
             fileDesc hFile;
-            HgfsServerLock serverLock = HGFS_LOCK_NONE;
+            HgfsLockType serverLock = HGFS_LOCK_NONE;
             HgfsShareOptions configOptions;
 
             /*
@@ -7381,7 +7455,11 @@ HgfsServerSetattr(HgfsInputParam *input)  // IN: Input params
                       __FUNCTION__));
                status = HGFS_ERROR_PATH_BUSY;
             } else {
-               status = HgfsPlatformSetattrFromName(utf8Name, &attr, configOptions, hints);
+               status = HgfsPlatformSetattrFromName(utf8Name,
+                                                    &attr,
+                                                    configOptions,
+                                                    hints,
+                                                    useHostTime);
             }
             free(utf8Name);
          } else {
@@ -7391,7 +7469,7 @@ HgfsServerSetattr(HgfsInputParam *input)  // IN: Input params
       }
 
       if (HGFS_ERROR_SUCCESS == status) {
-         if (!HgfsPackSetattrReply(input->packet, input->metaPacket, attr.requestType,
+         if (!HgfsPackSetattrReply(input->packet, input->request, attr.requestType,
                                    &replyPayloadSize, input->session)) {
             status = HGFS_ERROR_INTERNAL;
          }
@@ -7435,12 +7513,12 @@ HgfsServerValidateOpenParameters(HgfsFileOpenInfo *openInfo, // IN/OUT: openfile
    if ((openInfo->mask & HGFS_OPEN_VALID_MODE)) {
       HgfsNameStatus nameStatus;
       /* It is now safe to read the file name. */
-      nameStatus = HgfsServerGetShareInfo(openInfo->cpName,
-                                          openInfo->cpNameSize,
-                                          openInfo->caseFlags,
-                                          &openInfo->shareInfo,
-                                          &openInfo->utf8Name,
-                                          &utf8NameLen);
+      nameStatus = HgfsServerGetLocalNameInfo(openInfo->cpName,
+                                              openInfo->cpNameSize,
+                                              openInfo->caseFlags,
+                                              &openInfo->shareInfo,
+                                              &openInfo->utf8Name,
+                                              &utf8NameLen);
       if (HGFS_NAME_STATUS_COMPLETE == nameStatus) {
          if (openInfo->mask & HGFS_OPEN_VALID_FLAGS) {
             HgfsOpenFlags savedOpenFlags = openInfo->flags;
@@ -7528,7 +7606,7 @@ HgfsServerOpen(HgfsInputParam *input)  // IN: Input params
    HgfsLocalId localId;
    HgfsFileOpenInfo openInfo;
    fileDesc fileDesc;
-   HgfsServerLock serverLock = HGFS_LOCK_NONE;
+   HgfsLockType serverLock = HGFS_LOCK_NONE;
    size_t replyPayloadSize = 0;
 
    HGFS_ASSERT_INPUT(input);
@@ -7583,7 +7661,7 @@ HgfsServerOpen(HgfsInputParam *input)  // IN: Input params
 
                if (HgfsCreateAndCacheFileNode(&openInfo, &localId, newHandle,
                                               FALSE, input->session)) {
-                  if (!HgfsPackOpenReply(input->packet, input->metaPacket, &openInfo,
+                  if (!HgfsPackOpenReply(input->packet, input->request, &openInfo,
                                          &replyPayloadSize, input->session)) {
                      status = HGFS_ERROR_INTERNAL;
                   }
@@ -7681,7 +7759,7 @@ HgfsServerSearchReadAttrToMask(HgfsFileAttrInfo *attr,     // IN/OUT: attributes
  *
  * HgfsGetDirEntry --
  *
- *    Gets a directory entry at specified offset.
+ *    Gets a directory entry at specified index.
  *
  * Results:
  *    A platform specific error or success.
@@ -7702,21 +7780,20 @@ HgfsGetDirEntry(HgfsHandle hgfsSearchHandle,     // IN: ID for search data
                 Bool *moreEntries)               // OUT: any more entries
 {
    HgfsInternalStatus status = HGFS_ERROR_SUCCESS;
-   DirectoryEntry *dent;
+   struct DirectoryEntry *dent;
    HgfsSearchReadMask infoRetrieved;
    HgfsSearchReadMask infoRequested;
-   HgfsFileAttrInfo *attr;
+   HgfsFileAttrInfo *entryAttr;
    char **entryName;
-   uint32 *nameLength;
+   uint32 *entryNameLength;
    Bool getAttrs;
-   Bool unescapeName = TRUE;
    uint32 requestedIndex;
 
    infoRequested = info->requestedMask;
 
-   attr = &entry->attr;
+   entryAttr = &entry->attr;
    entryName = &entry->name;
-   nameLength = &entry->nameLength;
+   entryNameLength = &entry->nameLength;
 
    requestedIndex = info->currentIndex;
 
@@ -7729,237 +7806,50 @@ HgfsGetDirEntry(HgfsHandle hgfsSearchHandle,     // IN: ID for search data
 
    /* Clear out what we will return. */
    infoRetrieved = 0;
-   memset(attr, 0, sizeof *attr);
+   memset(entryAttr, 0, sizeof *entryAttr);
+   *moreEntries = FALSE;
+   *entryName = NULL;
+   *entryNameLength = 0;
 
-   dent = HgfsGetSearchResult(hgfsSearchHandle, session, requestedIndex, FALSE);
-   if (dent) {
-      unsigned int length;
-      char *fullName;
-      char *sharePath;
-      size_t sharePathLen;
-      size_t fullNameLen;
-      HgfsServerLock serverLock = HGFS_LOCK_NONE;
-      fileDesc fileDesc;
-
-      length = strlen(dent->d_name);
-
-      /* Each type of search gets a dent's attributes in a different way. */
-      switch (search->type) {
-      case DIRECTORY_SEARCH_TYPE_DIR:
-
-         /*
-          * Construct the UTF8 version of the full path to the file, and call
-          * HgfsGetattrFromName to get the attributes of the file.
-          */
-         fullNameLen = search->utf8DirLen + 1 + length;
-         fullName = (char *)malloc(fullNameLen + 1);
-         if (fullName) {
-            memcpy(fullName, search->utf8Dir, search->utf8DirLen);
-            fullName[search->utf8DirLen] = DIRSEPC;
-            memcpy(&fullName[search->utf8DirLen + 1], dent->d_name, length + 1);
-
-            LOG(4, ("%s: about to stat \"%s\"\n", __FUNCTION__, fullName));
-
-            /* Do we need to query the attributes information? */
-            if (getAttrs) {
-               /*
-                * XXX: It is unreasonable to make the caller either 1) pass existing
-                * handles for directory objects as part of the SearchRead, or 2)
-                * prior to calling SearchRead on a directory, break all oplocks on
-                * that directory's objects.
-                *
-                * To compensate for that, if we detect that this directory object
-                * has an oplock, we'll quietly reuse the handle. Note that this
-                * requires clients who take out an exclusive oplock to open a
-                * handle with read as well as write access, otherwise we'll fail
-                * further down in HgfsStat.
-                *
-                * XXX: We could open a new handle safely if its a shared oplock.
-                * But isn't this handle sharing always desirable?
-                */
-               if (HgfsFileHasServerLock(fullName, session, &serverLock, &fileDesc)) {
-                  LOG(4, ("%s: Reusing existing oplocked handle "
-                          "to avoid oplock break deadlock\n", __FUNCTION__));
-                  status = HgfsPlatformGetattrFromFd(fileDesc, session, attr);
-               } else {
-                  status = HgfsPlatformGetattrFromName(fullName, configOptions,
-                                                       search->utf8ShareName, attr, NULL);
-               }
-
-               if (HGFS_ERROR_SUCCESS != status) {
-                  HgfsOp savedOp = attr->requestType;
-                  LOG(4, ("%s: stat FAILED %s (%d)\n", __FUNCTION__, fullName, status));
-                  memset(attr, 0, sizeof *attr);
-                  attr->requestType = savedOp;
-                  attr->type = HGFS_FILE_TYPE_REGULAR;
-                  attr->mask = HGFS_ATTR_VALID_TYPE;
-                  status = HGFS_ERROR_SUCCESS;
-               }
-            }
-            /*
-             * Update the search read mask for the attributes information.
-             */
-            HgfsServerSearchReadAttrToMask(attr, &infoRetrieved);
-
-            free(fullName);
-         } else {
-            LOG(4, ("%s: could not allocate space for \"%s\\%s\"\n",
-                    __FUNCTION__, search->utf8Dir, dent->d_name));
-            status = HGFS_ERROR_NOT_ENOUGH_MEMORY;
-         }
-         break;
-
-      case DIRECTORY_SEARCH_TYPE_BASE:
-
-         /*
-          * We only want to unescape names that we could have escaped.
-          * This cannot apply to our shares since they are created by the user.
-          * The client will take care of escaping anything it requires.
-          */
-         unescapeName = FALSE;
-         if (getAttrs) {
-            /*
-             * For a search enumerating all shares, give the default attributes
-             * for '.' and ".." (which aren't really shares anyway). Each real
-             * share gets resolved into its full path, and gets its attributes
-             * via HgfsGetattrFromName.
-             */
-            if (strcmp(dent->d_name, ".") == 0 ||
-                strcmp(dent->d_name, "..") == 0) {
-               LOG(4, ("%s: assigning %s default attributes\n",
-                       __FUNCTION__, dent->d_name));
-               HgfsPlatformGetDefaultDirAttrs(attr);
-            } else {
-               HgfsNameStatus nameStatus;
-
-               /* Check permission on the share and get the share path */
-               nameStatus =
-                  HgfsServerPolicy_GetSharePath(dent->d_name, length,
-                                                HGFS_OPEN_MODE_READ_ONLY,
-                                                &sharePathLen,
-                                                (char const **)&sharePath);
-               if (nameStatus == HGFS_NAME_STATUS_COMPLETE) {
-
-                  /*
-                   * Server needs to produce list of shares that is consistent with
-                   * the list defined in UI. If a share can't be accessed because of
-                   * problems on the host, the server still enumerates it and
-                   * returns to the client.
-                   */
-                  /*
-                   * XXX: We will open a new handle for this, but it should be safe
-                   * from oplock-induced deadlock because these are all directories,
-                   * and thus cannot have oplocks placed on them.
-                   */
-                  status = HgfsPlatformGetattrFromName(sharePath, configOptions,
-                                                       dent->d_name, attr, NULL);
-
-                  /*
-                   * For some reason, Windows marks drives as hidden and system. So
-                   * if one of the top level shared folders is mapped to a drive
-                   * letter (like C:\), then GetFileAttributesEx() will return hidden
-                   * and system attributes for that drive. We don't want that
-                   * since we want the users to see all top level shared folders.
-                   * Even in the case when the top level shared folder is mapped
-                   * to a non-drive hidden/system directory, we still want to display
-                   * it to the user. So make sure that system and hidden attributes
-                   * are not set.
-                   * Note, that for network shares this doesn't apply, since each
-                   * top level network share is a separate mount point that doesn't
-                   * have such attributes. So when we finally have per share
-                   * mounting, this hack will go away.
-                   *
-                   * See bug 125065.
-                   */
-                  attr->flags &= ~(HGFS_ATTR_HIDDEN | HGFS_ATTR_SYSTEM);
-
-                  if (HGFS_ERROR_SUCCESS != status) {
-                     /*
-                      * The dent no longer exists. Log the event.
-                      */
-
-                     LOG(4, ("%s: stat FAILED\n", __FUNCTION__));
-                     status = HGFS_ERROR_SUCCESS;
-                  }
-               } else {
-                  LOG(4, ("%s: No such share or access denied\n", __FUNCTION__));
-                  status = HgfsPlatformConvertFromNameStatus(nameStatus);
-               }
-            }
-            if (HGFS_ERROR_SUCCESS == status) {
-               /*
-                * Update the search read mask for the attributes information.
-                */
-               HgfsServerSearchReadAttrToMask(attr, &infoRetrieved);
-            }
-         }
-         break;
-      case DIRECTORY_SEARCH_TYPE_OTHER:
-
-         /*
-          * The POSIX implementation of HgfsSearchOpen could not have created
-          * this kind of search.
-          */
-#if !defined(_WIN32)
-         NOT_IMPLEMENTED();
-#endif
-         /*
-          * We only want to unescape names that we could have escaped.
-          * This cannot apply to these entries.
-          */
-         unescapeName = FALSE;
-         if (getAttrs) {
-            /*
-             * All "other" searches get the default attributes. This includes
-             * an enumeration of drive, and the root enumeration (which contains
-             * a "drive" dent and a "unc" dent).
-             */
-            HgfsPlatformGetDefaultDirAttrs(attr);
-            /*
-             * Update the search read mask for the attributes information.
-             */
-            HgfsServerSearchReadAttrToMask(attr, &infoRetrieved);
-         }
-         break;
-      default:
-         NOT_IMPLEMENTED();
-         break;
-      }
-
-      /*
-       * We need to unescape the name before sending it back to the client
-       */
-      if (HGFS_ERROR_SUCCESS == status) {
-         *entryName = Util_SafeStrdup(dent->d_name);
-         if (unescapeName) {
-            *nameLength = HgfsEscape_Undo(*entryName, length + 1);
-         } else {
-            *nameLength = length;
-         }
-         infoRetrieved |= HGFS_SEARCH_READ_NAME;
-         LOG(4, ("%s: dent name is \"%s\" len = %u\n", __FUNCTION__,
-                 *entryName, *nameLength));
-      } else {
-         *entryName = NULL;
-         *nameLength = 0;
-         LOG(4, ("%s: error %d getting dent\n", __FUNCTION__, status));
-      }
-
-      if (HGFS_ERROR_SUCCESS == status) {
-         /* Update the entry fields for valid data and index for the dent. */
-         entry->fileIndex = requestedIndex;
-         entry->mask = infoRetrieved;
-         /* Retrieve any platform specific information from the dent. */
-      }
-      free(dent);
-      *moreEntries = TRUE;
-   } else {
-      /* End of directory entries marker. */
-      *entryName = NULL;
-      *nameLength = 0;
-      *moreEntries = FALSE;
-      info->replyFlags |= HGFS_SEARCH_READ_REPLY_FINAL_ENTRY;
+   status = HgfsServerGetDirEntry(hgfsSearchHandle, session, requestedIndex, FALSE, &dent);
+   if (HGFS_ERROR_SUCCESS != status) {
+      goto exit;
    }
+
+   if (NULL == dent) {
+      /* End of directory entries marker. */
+      info->replyFlags |= HGFS_SEARCH_READ_REPLY_FINAL_ENTRY;
+      HgfsSearchSetReadAllEntries(hgfsSearchHandle, session);
+      goto exit;
+   }
+
+   status = HgfsPlatformSetDirEntry(search,
+                                    configOptions,
+                                    session,
+                                    dent,
+                                    getAttrs,
+                                    entryAttr,
+                                    entryName,
+                                    entryNameLength);
+   if (HGFS_ERROR_SUCCESS != status) {
+      goto exit;
+   }
+
+   if (getAttrs) {
+      /*
+       * Update the search read mask for the attributes information.
+       */
+      HgfsServerSearchReadAttrToMask(entryAttr, &infoRetrieved);
+   }
+
+   infoRetrieved |= HGFS_SEARCH_READ_NAME;
+   /* Update the entry fields for valid data and index for the dent. */
+   entry->mask = infoRetrieved;
+   entry->fileIndex = requestedIndex;
+   *moreEntries = TRUE;
+
+exit:
+   free(dent);
    return status;
 }
 
@@ -8133,81 +8023,86 @@ HgfsServerSearchRead(HgfsInputParam *input)  // IN: Input params
       LOG(4, ("%s: read search #%u, offset %u\n", __FUNCTION__,
               hgfsSearchHandle, info.startIndex));
 
-      if (!HgfsAllocInitReply(input->packet, input->metaPacket,
-                              baseReplySize + inlineDataSize, &info.reply,
-                              input->session)) {
+      info.reply = HgfsAllocInitReply(input->packet, input->request,
+                                      baseReplySize + inlineDataSize,
+                                      input->session);
+
+      if (inlineDataSize == 0) {
+         info.replyPayload = HSPU_GetDataPacketBuf(input->packet, BUF_WRITEABLE,
+                                                   input->transportSession->channelCbTable);
+      } else {
+         info.replyPayload = (char *)info.reply + baseReplySize;
+      }
+
+      if (info.replyPayload == NULL) {
+         LOG(4, ("%s: Op %d reply buffer failure\n", __FUNCTION__, input->op));
          status = HGFS_ERROR_PROTOCOL;
       } else {
 
-         if (inlineDataSize == 0) {
-            info.replyPayload = HSPU_GetDataPacketBuf(input->packet, BUF_WRITEABLE,
-                                                      input->transportSession);
-         } else {
-            info.replyPayload = (char *)info.reply + baseReplySize;
-         }
+         if (HgfsGetSearchCopy(hgfsSearchHandle, input->session, &search)) {
+            /* Get the config options. */
+            if (search.utf8ShareNameLen != 0) {
+               nameStatus = HgfsServerPolicy_GetShareOptions(search.utf8ShareName,
+                                                               search.utf8ShareNameLen,
+                                                               &configOptions);
+               if (nameStatus != HGFS_NAME_STATUS_COMPLETE) {
+                  LOG(4, ("%s: no matching share: %s.\n", __FUNCTION__,
+                           search.utf8ShareName));
+                  status = HGFS_ERROR_FILE_NOT_FOUND;
+               }
+            } else if (0 == info.startIndex) {
+               Bool readAllEntries = FALSE;
 
-         if (info.replyPayload == NULL) {
-            LOG(4, ("%s: Op %d reply buffer failure\n", __FUNCTION__, input->op));
-            status = HGFS_ERROR_PROTOCOL;
-         } else {
-
-            if (HgfsGetSearchCopy(hgfsSearchHandle, input->session, &search)) {
-               /* Get the config options. */
-               if (search.utf8ShareNameLen != 0) {
-                  nameStatus = HgfsServerPolicy_GetShareOptions(search.utf8ShareName,
-                                                                search.utf8ShareNameLen,
-                                                                &configOptions);
-                  if (nameStatus != HGFS_NAME_STATUS_COMPLETE) {
-                     LOG(4, ("%s: no matching share: %s.\n", __FUNCTION__,
-                             search.utf8ShareName));
-                     status = HGFS_ERROR_FILE_NOT_FOUND;
-                  }
-               } else if (0 == info.startIndex) {
-                  HgfsSearch *rootSearch;
-
-                  MXUser_AcquireExclLock(input->session->searchArrayLock);
-
-                  rootSearch = HgfsSearchHandle2Search(hgfsSearchHandle, input->session);
-                  ASSERT(NULL != rootSearch);
-                  HgfsFreeSearchDirents(rootSearch);
-
-                  rootSearch->numDents =
-                     HgfsServerGetDents(HgfsServerPolicy_GetShares,
-                                        HgfsServerPolicy_GetSharesInit,
-                                        HgfsServerPolicy_GetSharesCleanup,
-                                        &rootSearch->dents);
-                  if (((int) (rootSearch->numDents)) < 0) {
-                     ASSERT_DEVEL(0);
-                     LOG(4, ("%s: couldn't get root dents\n", __FUNCTION__));
-                     rootSearch->numDents = 0;
-                     status = HGFS_ERROR_INTERNAL;
-                  }
-
-                  MXUser_ReleaseExclLock(input->session->searchArrayLock);
+               /*
+                * Reading the first entry, we check if this is a second scan
+                * of the directory. If so, in some cases we restart the scan
+                * by refreshing the entries first.
+                 */
+               if (!HgfsSearchHasReadAllEntries(hgfsSearchHandle,
+                                                input->session,
+                                                &readAllEntries)) {
+                  status = HGFS_ERROR_INTERNAL;
                }
 
-               if (HGFS_ERROR_SUCCESS == status) {
-                  status = HgfsDoSearchRead(hgfsSearchHandle,
-                                            &search,
-                                            configOptions,
-                                            input->session,
-                                            &info,
-                                            &replyInfoSize,
-                                            &replyDirentSize);
+               if (readAllEntries) {
+                  /*
+                   * XXX - a hack that is now required until Fusion 5.0 end
+                   * of lifes see bug 710697.
+                   * The coder modified the server instead of the OS X client
+                   * for the shares directory refresh needed by OS X clients in
+                   * order to work around handles remaining open by Finder.
+                   * This was fixed CLN 1988575 in the OS X client for 5.0.2.
+                   * However, Fusion 4.0 and Fusion 5.0 tools will rely on this hack.
+                   * At least now it works correctly without breaking everything
+                   * else.
+                   */
+                  status = HgfsPlatformRestartSearchDir(hgfsSearchHandle,
+                                                         input->session,
+                                                         search.type);
                }
-
-               if (HGFS_ERROR_SUCCESS == status) {
-                  replyPayloadSize = replyInfoSize +
-                                     ((inlineDataSize == 0) ? 0 : replyDirentSize);
-               }
-
-               free(search.utf8Dir);
-               free(search.utf8ShareName);
-
-            } else {
-               LOG(4, ("%s: handle %u is invalid\n", __FUNCTION__, hgfsSearchHandle));
-               status = HGFS_ERROR_INVALID_HANDLE;
             }
+
+            if (HGFS_ERROR_SUCCESS == status) {
+               status = HgfsDoSearchRead(hgfsSearchHandle,
+                                          &search,
+                                          configOptions,
+                                          input->session,
+                                          &info,
+                                          &replyInfoSize,
+                                          &replyDirentSize);
+            }
+
+            if (HGFS_ERROR_SUCCESS == status) {
+               replyPayloadSize = replyInfoSize +
+                                    ((inlineDataSize == 0) ? 0 : replyDirentSize);
+            }
+
+            free(search.utf8Dir);
+            free(search.utf8ShareName);
+
+         } else {
+            LOG(4, ("%s: handle %u is invalid\n", __FUNCTION__, hgfsSearchHandle));
+            status = HGFS_ERROR_INVALID_HANDLE;
          }
       }
    } else {
@@ -8249,7 +8144,6 @@ HgfsServerCreateSession(HgfsInputParam *input)  // IN: Input params
       LOG(4, ("%s: create session\n", __FUNCTION__));
 
       if (!HgfsServerAllocateSession(input->transportSession,
-                                     input->transportSession->channelCapabilities,
                                      &session)) {
          status = HGFS_ERROR_NOT_ENOUGH_MEMORY;
          goto abort;
@@ -8266,7 +8160,18 @@ HgfsServerCreateSession(HgfsInputParam *input)  // IN: Input params
       if (info.maxPacketSize < session->maxPacketSize) {
          session->maxPacketSize = info.maxPacketSize;
       }
-      if (HgfsPackCreateSessionReply(input->packet, input->metaPacket,
+
+      /*
+       * If the server is enabled for processing oplocks and the client
+       * is requesting to use them, then report back to the client oplocks
+       * are enabled by propagating the session flag.
+       */
+      if ((0 != (info.flags & HGFS_SESSION_OPLOCK_ENABLED)) &&
+          (0 != (gHgfsCfgSettings.flags & HGFS_CONFIG_OPLOCK_ENABLED))) {
+         session->flags |= HGFS_SESSION_OPLOCK_ENABLED;
+      }
+
+      if (HgfsPackCreateSessionReply(input->packet, input->request,
                                      &replyPayloadSize, session)) {
          status = HGFS_ERROR_SUCCESS;
       } else {
@@ -8326,7 +8231,7 @@ HgfsServerDestroySession(HgfsInputParam *input)  // IN: Input params
    HgfsServerTransportRemoveSessionFromList(transportSession, session);
    MXUser_ReleaseExclLock(transportSession->sessionArrayLock);
    if (HgfsPackDestroySessionReply(input->packet,
-                                   input->metaPacket,
+                                   input->request,
                                    &replyPayloadSize,
                                    session)) {
       status = HGFS_ERROR_SUCCESS;
@@ -8341,7 +8246,7 @@ HgfsServerDestroySession(HgfsInputParam *input)  // IN: Input params
 /*
  *-----------------------------------------------------------------------------
  *
- * HgfsBuildRelativePath --
+ * HgfsServerGetTargetRelativePath --
  *
  *    Generates relative file path which need to be used a symbolic link
  *    target which would generate target name defined in "target" if the path
@@ -8359,8 +8264,8 @@ HgfsServerDestroySession(HgfsInputParam *input)  // IN: Input params
  */
 
 char*
-HgfsBuildRelativePath(const char* source,    // IN: source file name
-                      const char* target)    // IN: target file name
+HgfsServerGetTargetRelativePath(const char* source,    // IN: source file name
+                                const char* target)    // IN: target file name
 {
    const char *relativeSource = source;
    const char *relativeTarget = target;
@@ -8469,10 +8374,16 @@ HgfsServerDirWatchEvent(HgfsSharedFolderHandle sharedFolder, // IN: shared folde
    char *shareName = NULL;
    size_t shareNameLen;
    size_t sizeNeeded;
-   uint32 flags;
+   uint32 notifyFlags;
 
    LOG(4, ("%s:Entered shr hnd %u hnd %"FMT64"x file %s mask %u\n",
          __FUNCTION__, sharedFolder, subscriber, fileName, mask));
+
+   if (session->state == HGFS_SESSION_STATE_CLOSED) {
+      LOG(4, ("%s: session has been closed drop the notification %"FMT64"x\n",
+              __FUNCTION__, session->sessionId));
+      goto exit;
+   }
 
    if (!HgfsServerGetShareName(sharedFolder, &shareNameLen, &shareName)) {
       LOG(4, ("%s: failed to find shared folder for a handle %x\n",
@@ -8484,22 +8395,23 @@ HgfsServerDirWatchEvent(HgfsSharedFolderHandle sharedFolder, // IN: shared folde
 
    packetHeader = Util_SafeCalloc(1, sizeNeeded);
    packet = Util_SafeCalloc(1, sizeof *packet);
-   packet->guestInitiated = FALSE;
+   packet->state &= ~HGFS_STATE_CLIENT_REQUEST;
    packet->metaPacketSize = sizeNeeded;
+   packet->metaPacketDataSize = packet->metaPacketSize;
    packet->metaPacket = packetHeader;
    packet->dataPacketIsAllocated = TRUE;
-   flags = 0;
+   notifyFlags = 0;
    if (mask & HGFS_NOTIFY_EVENTS_DROPPED) {
-      flags |= HGFS_NOTIFY_FLAG_OVERFLOW;
+      notifyFlags |= HGFS_NOTIFY_FLAG_OVERFLOW;
    }
 
    if (!HgfsPackChangeNotificationRequest(packetHeader, subscriber, shareName, fileName, mask,
-                                          flags, session, &sizeNeeded)) {
+                                          notifyFlags, session, &sizeNeeded)) {
       LOG(4, ("%s: failed to pack notification request\n", __FUNCTION__));
       goto exit;
    }
 
-   if (!HgfsPacketSend(packet, (char *)packetHeader,  sizeNeeded, session->transportSession, 0)) {
+   if (!HgfsPacketSend(packet, session->transportSession, 0)) {
       LOG(4, ("%s: failed to send notification to the host\n", __FUNCTION__));
       goto exit;
    }
@@ -8555,163 +8467,6 @@ HgfsIsShareRoot(char const *cpName,         // IN: name to test
    }
    return TRUE;
 }
-
-#ifdef HGFS_OPLOCKS
-/*
- *-----------------------------------------------------------------------------
- *
- * HgfsServerOplockBreakReply --
- *
- *      The client was sent an oplock break request, and responded with this
- *      reply. It contains the oplock status that the client is now in. Since
- *      the break could have actually been a degrade, it is well within the
- *      client's rights to transition to a non-broken state. We need to make
- *      sure that such a transition was legal, acknowledge the brea
- *      appropriately, and update our own state.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-HgfsServerOplockBreakReply(const unsigned char *packetIn, // IN: Reply packet
-                           unsigned int packetSize,       // IN: Size of packet
-                           void *clientData)              // IN: From request
-{
-   HgfsReplyServerLockChange *reply;
-   ServerLockData *lockData;
-   ASSERT(packetIn);
-   ASSERT(clientData);
-
-   if (packetSize < sizeof *reply) {
-      return;
-   }
-   reply = (HgfsReplyServerLockChange *)packetIn;
-   lockData = (ServerLockData *)clientData;
-
-   /*
-    * XXX: It should be safe to ignore the status and id from the actual
-    * HgfsReply. The only information we need to properly acknowledge the break
-    * is the original fd and the new lease, which, in the case of a degrade,
-    * is double checked in HgfsAckOplockBreak, so we'd be safe from a garbage
-    * value.
-    */
-   HgfsAckOplockBreak(lockData, reply->serverLock);
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * HgfsServerOplockBreak --
- *
- *      When the host FS needs to break the oplock so that another client
- *      can open the file, it signals the event in the overlapped structure
- *      that we used to request an oplock.
- *      This sets off the following chains of events:
- *      1. Send the oplock break request to the guest.
- *      2. Once the guest acknowledges the oplock break, the completion
- *      routine GuestRpcServerRequestCallback will fire, causing
- *      HgfsServerOplockBreakReply to also fire, which will break the oplock
- *      on the host FS.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      If successful, allocates memory for the rpc request.
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-HgfsServerOplockBreak(ServerLockData *lockData)
-{
-   HgfsHandle hgfsHandle;
-   char *requestBuffer = NULL;
-   HgfsRequestServerLockChange *request;
-   HgfsServerLock lock;
-
-   LOG(4, ("%s: entered\n", __FUNCTION__));
-
-   /*
-    * XXX: Just because the file in not in the cache on the server,
-    * does not mean it was closed on the client. It is possible that
-    * we closed the file on the server because we ran out of space
-    * in cache. That's why for now as long as a file has a lock,
-    * we don't remove it from the node cache. This should be fixed.
-    *
-    * In any case, none of these cache-related failures should cause us to ack
-    * the oplock break locally. That is because if the file wasn't in the
-    * cache, or it had no lock, chances are someone else (maybe the VCPU
-    * thread) broke the oplock and/or closed the file.
-    */
-
-   if (!HgfsFileDesc2Handle(lockData->fileDesc, &hgfsHandle)) {
-      LOG(4, ("%s: file is not in the cache\n", __FUNCTION__));
-      goto free_and_exit;
-   }
-
-   if (!HgfsHandle2ServerLock(hgfsHandle, &lock)) {
-      LOG(4, ("%s: could not retrieve node's lock info.\n", __FUNCTION__));
-      goto free_and_exit;
-   }
-
-   if (lock == HGFS_LOCK_NONE) {
-      LOG(4, ("%s: the file does not have a server lock.\n", __FUNCTION__));
-      goto free_and_exit;
-   }
-
-   /*
-    * We need to setup the entire request here. The command prefix will be
-    * added later, so save some space for it.
-    *
-    * XXX: This should probably go into a common allocation function that
-    * other out-of-band requests can use.
-    */
-
-   requestBuffer = malloc(sizeof *request + HGFS_CLIENT_CMD_LEN);
-   if (requestBuffer == NULL) {
-      LOG(4, ("%s: could not allocate memory.\n", __FUNCTION__));
-      goto ack_and_exit;
-   }
-
-   /* Save space for the command prefix. */
-   request = (HgfsRequestServerLockChange *)
-      (requestBuffer + HGFS_CLIENT_CMD_LEN);
-   request->header.op = HGFS_OP_SERVER_LOCK_CHANGE;
-   request->header.id = 0; /* XXX */
-   request->file = hgfsHandle;
-   request->newServerLock = lockData->serverLock;
-
-   /*
-    * Just send the request size for our actual request; our callee will
-    * write in the command prefix and modify the request size appropriately.
-    *
-    * If for some reason we fail, we'll acknowledge the oplock break
-    * immediately.
-    */
-
-   if (HgfsServerManager_SendRequest(requestBuffer, sizeof *request,
-                                     HgfsServerOplockBreakReply, lockData)) {
-      return;
-   }
-   free(requestBuffer);
-
-  ack_and_exit:
-   HgfsAckOplockBreak(lockData, HGFS_LOCK_NONE);
-
-   return;
-
-  free_and_exit:
-   free(lockData);
-}
-#endif
 
 /*
  * more testing

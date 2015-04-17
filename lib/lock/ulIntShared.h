@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -37,6 +37,8 @@ extern void MXUserInstallMxHooks(void (*theLockListFunc)(void),
                                  void (*theLockFunc)(struct MX_MutexRec *lock),
                                  void (*theUnlockFunc)(struct MX_MutexRec *lock),
                                  Bool (*theTryLockFunc)(struct MX_MutexRec *lock),
-                                 Bool (*theIsLockedFunc)(const struct MX_MutexRec *lock));
+                                 Bool (*theIsLockedFunc)(const struct MX_MutexRec *lock),
+                                 void (*theSetInPanicFunc)(void),
+                                 Bool (*theInPanicFunc)(void));
 
 #endif

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2005 VMware, Inc. All rights reserved.
+ * Copyright (C) 2005-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -334,6 +334,8 @@ Bool
 DnD_AddBlockLegacy(int blockFd,                    // IN
                    const char *blockPath)          // IN
 {
+   LOG(1, ("%s: placing block on %s\n", __func__, blockPath));
+
    ASSERT(blockFd >= 0);
 
    if (VMBLOCK_CONTROL(blockFd, VMBLOCK_ADD_FILEBLOCK, blockPath) != 0) {
@@ -367,6 +369,8 @@ Bool
 DnD_RemoveBlockLegacy(int blockFd,                    // IN
                       const char *blockedPath)        // IN
 {
+   LOG(1, ("%s: removing block on %s\n", __func__, blockedPath));
+
    if (blockFd >= 0) {
       if (VMBLOCK_CONTROL(blockFd, VMBLOCK_DEL_FILEBLOCK, blockedPath) != 0) {
          Log("%s: Cannot delete block on %s (%s)\n",
@@ -429,6 +433,8 @@ Bool
 DnD_AddBlockFuse(int blockFd,                    // IN
                  const char *blockPath)          // IN
 {
+   LOG(1, ("%s: placing block on %s\n", __func__, blockPath));
+
    ASSERT(blockFd >= 0);
 
    if (VMBLOCK_CONTROL_FUSE(blockFd, VMBLOCK_FUSE_ADD_FILEBLOCK,
@@ -463,6 +469,8 @@ Bool
 DnD_RemoveBlockFuse(int blockFd,                    // IN
                     const char *blockedPath)        // IN
 {
+   LOG(1, ("%s: removing block on %s\n", __func__, blockedPath));
+
    if (blockFd >= 0) {
       if (VMBLOCK_CONTROL_FUSE(blockFd, VMBLOCK_FUSE_DEL_FILEBLOCK,
                                blockedPath) != 0) {

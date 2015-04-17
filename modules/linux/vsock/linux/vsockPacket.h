@@ -27,12 +27,14 @@
 
 #include "vmci_sockets_packet.h"
 
-#if defined(_WIN32) || defined(VMKERNEL) || defined(__APPLE__)
+#if defined(_WIN32) || defined(VMKERNEL) || defined(__APPLE__) || defined(VMX86_VMX)
 # include "vsockOSInt.h"
 #else
 # define VSockOS_ClearMemory(_dst, _sz)   memset(_dst, 0, _sz)
 # define VSockOS_Memcpy(_dst, _src, _sz)  memcpy(_dst, _src, _sz)
 #endif
+
+#include "vsockCommon.h"
 
 
 /*
@@ -71,8 +73,11 @@ VSockPacket_Init(VSockPacket *pkt,        // OUT
     * We register the stream control handler as an any cid handle so we
     * must always send from a source address of VMADDR_CID_ANY
     */
-   pkt->dg.src = VMCI_MAKE_HANDLE(VMADDR_CID_ANY, VSOCK_PACKET_RID);
-   pkt->dg.dst = VMCI_MAKE_HANDLE(dst->svm_cid, VSOCK_PACKET_RID);
+   pkt->dg.src = VMCI_MAKE_HANDLE(VMADDR_CID_ANY, VSOCK_PACKET_LOCAL_RID);
+   pkt->dg.dst = VMCI_MAKE_HANDLE(dst->svm_cid,
+                                  dst->svm_cid == VMCI_HYPERVISOR_CONTEXT_ID ?
+                                  VSOCK_PACKET_HYPERVISOR_RID :
+                                  VSOCK_PACKET_RID);
    pkt->dg.payloadSize = sizeof *pkt - sizeof pkt->dg;
    pkt->version = VSOCK_PACKET_VERSION;
    pkt->type = type;
@@ -237,52 +242,5 @@ VSockPacket_GetAddresses(VSockPacket *pkt,           // IN
    VSockAddr_Init(remote, VMCI_HANDLE_TO_CONTEXT_ID(pkt->dg.src),
                   pkt->srcPort);
 }
-
-
-/*
- * SEQPACKET packets.
- */
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VSockSeqPacket_Init
- *
- *      Initialize the given packet.  This will use the current version and
- *      set the offset to point after the current (combined) structure.  The
- *      length will be set to include the combined structure.  To add data
- *      after calling this function, do "pkt->hdr.dg.payloadSize += dataLen".
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-static INLINE void
-VSockSeqPacket_Init(VSockSeqPacket *pkt,     // IN/OUT
-                    struct sockaddr_vm *src, // IN
-                    struct sockaddr_vm *dst, // IN
-                    uint8 type,              // IN
-                    int32 val)               // IN
-{
-   ASSERT(pkt);
-   VSOCK_ADDR_NOFAMILY_ASSERT(src);
-   VSOCK_ADDR_NOFAMILY_ASSERT(dst);
-
-   pkt->hdr.dg.src = VMCI_MAKE_HANDLE(src->svm_cid, src->svm_port);
-   pkt->hdr.dg.dst = VMCI_MAKE_HANDLE(VMCI_HYPERVISOR_CONTEXT_ID,
-                                      dst->svm_port);
-   pkt->hdr.dg.payloadSize = sizeof *pkt - sizeof pkt->hdr.dg;
-   pkt->hdr.version = VSOCK_SEQ_PACKET_VERSION;
-   pkt->hdr.type = type;
-   pkt->hdr.offset = sizeof *pkt;
-   pkt->hdr.val = val;
-}
-
 
 #endif // _VSOCK_PACKET_H_

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -58,6 +58,11 @@ BOOL Auth_AccountInformationIsStoredForVMs();
 BOOL Auth_DeleteAccountInformationStoredForVMs();
 uint32 Auth_RetrieveAccountInformationForVM(const char *filename, uint32 *attributes,
 					    char **username, char **password);
+
+#else
+
+AuthToken Auth_GetPwnam(const char *user);
+AuthToken Auth_AuthenticateSelf(void);
 
 #endif
 

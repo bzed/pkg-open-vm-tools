@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2009 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -49,6 +49,9 @@
 
 /** Reply from host when the command is not recognized. */
 #define RPCI_UNKNOWN_COMMAND      "Unknown command"
+
+#define GUESTRPC_TCLO_VSOCK_LISTEN_PORT      975
+#define GUESTRPC_RPCI_VSOCK_LISTEN_PORT      976
 
 /*
  * Tools options.
@@ -114,6 +117,17 @@
 /* When set, toolboxes should not show the cursor options page. */
 #define VMWARE_DISABLE_CURSOR_OPTIONS     0x800
 
+#define  RPCIN_TCLO_PING                 0x1
+
+enum {
+   GUESTRPCPKT_TYPE_DATA = 1,
+   GUESTRPCPKT_TYPE_PING
+};
+
+enum {
+   GUESTRPCPKT_FIELD_TYPE = 1,
+   GUESTRPCPKT_FIELD_PAYLOAD
+};
 
 #endif /* _TCLODEFS_H_ */
 

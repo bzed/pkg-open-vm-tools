@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -24,6 +24,7 @@
  */
 
 #include <stdlib.h>
+#include "vm_basic_defs.h"
 #include "vm_assert.h"
 #include "vm_atomic.h"
 #include "util.h"
@@ -60,8 +61,6 @@ static Bool HgfsChannelGuestBdInit(HgfsServerSessionCallbacks *serverCBTable,
 static void HgfsChannelGuestBdExit(HgfsGuestConn *data);
 static Bool HgfsChannelGuestBdSend(void *data,
                                    HgfsPacket *packet,
-                                   char *buffer,
-                                   size_t bufferLen,
                                    HgfsSendFlags flags);
 static Bool HgfsChannelGuestBdReceive(HgfsGuestConn *data,
                                       char const *packetIn,
@@ -142,7 +141,7 @@ static void
 HgfsChannelGuestConnPut(HgfsGuestConn *connData)   // IN: connection
 {
    ASSERT(connData);
-   if (Atomic_FetchAndDec(&connData->refCount) == 1) {
+   if (Atomic_ReadDec32(&connData->refCount) == 1) {
       HgfsChannelGuestConnDestroy(connData);
    }
 }
@@ -344,6 +343,10 @@ static Bool
 HgfsChannelGuestConnConnect(HgfsGuestConn *connData)  // IN: our connection data
 {
    Bool result;
+   static HgfsServerChannelData HgfsBdCapData = {
+      0,
+      HGFS_LARGE_PACKET_MAX
+   };
 
    connData->channelCbTable.getWriteVa = NULL;
    connData->channelCbTable.getReadVa = NULL;
@@ -351,7 +354,7 @@ HgfsChannelGuestConnConnect(HgfsGuestConn *connData)  // IN: our connection data
    connData->channelCbTable.send = HgfsChannelGuestBdSend;
    result = connData->serverCbTable->connect(connData,
                                              &connData->channelCbTable,
-                                             0,
+                                             &HgfsBdCapData,
                                              &connData->serverSession);
    if (result) {
       HgfsChannelGuestConnGet(connData);
@@ -481,11 +484,11 @@ HgfsChannelGuestReceiveInternal(HgfsGuestConn *connData,  // IN: connection
    packet.iov[0].len = packetInSize;
    packet.iovCount = 1;
    packet.metaPacket = (void *)packetIn;
+   packet.metaPacketDataSize = packetInSize;
    packet.metaPacketSize = packetInSize;
    packet.replyPacket = packetOut;
    packet.replyPacketSize = *packetOutSize;
-   /* Misnomer to be fixed, guestInitiated really means client initiated */
-   packet.guestInitiated = TRUE;
+   packet.state |= HGFS_STATE_CLIENT_REQUEST;
 
    /* The server will perform a synchronous processing of requests. */
    connData->serverCbTable->receive(&packet, connData->serverSession);
@@ -629,23 +632,20 @@ HgfsChannelGuestBdInvalidateInactiveSessions(HgfsGuestConn *connData)  // IN: co
 static Bool
 HgfsChannelGuestBdSend(void *conn,              // IN: our connection data
                        HgfsPacket *packet,      // IN/OUT: Hgfs Packet
-                       char *buffer,            // IN: buffer to be sent
-                       size_t bufferLen,        // IN: buffer length
                        HgfsSendFlags flags)     // IN: Flags to say how to process
 {
    HgfsGuestConn *connData = conn;
 
    ASSERT(NULL != connData);
    ASSERT(NULL != packet);
-   ASSERT(NULL != buffer);
-   ASSERT(bufferLen <= HGFS_LARGE_PACKET_MAX &&
-          bufferLen <= packet->replyPacketSize);
+   ASSERT(NULL != packet->replyPacket);
+   ASSERT(packet->replyPacketDataSize <= connData->packetOutLen);
+   ASSERT(packet->replyPacketSize == connData->packetOutLen);
 
-   ASSERT(bufferLen <= connData->packetOutLen);
-   if (bufferLen > connData->packetOutLen) {
-      bufferLen = connData->packetOutLen;
+   if (packet->replyPacketDataSize > connData->packetOutLen) {
+      packet->replyPacketDataSize = connData->packetOutLen;
    }
-   connData->packetOutLen = (uint32)bufferLen;
+   connData->packetOutLen = (uint32)packet->replyPacketDataSize;
 
    if (!(flags & HGFS_SEND_NO_COMPLETE)) {
       connData->serverCbTable->sendComplete(packet,

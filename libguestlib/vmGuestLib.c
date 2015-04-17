@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2005 VMware, Inc. All rights reserved.
+ * Copyright (C) 2005-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -27,7 +27,7 @@
 #include "vmGuestLib.h"
 #include "vmGuestLibInt.h"
 #include "str.h"
-#include "rpcout.h"
+#include "vmware/tools/guestrpc.h"
 #include "vmcheck.h"
 #include "util.h"
 #include "debug.h"
@@ -379,7 +379,7 @@ VMGuestLibUpdateInfo(VMGuestLibHandle handle) // IN
                   hostVersion);
 
       /* Send the request. */
-      if (RpcOut_sendOne(&reply, &replyLen, commandBuf)) {
+      if (RpcChannel_SendOne(&reply, &replyLen, commandBuf)) {
          VMGuestLibDataV2 *v2reply = (VMGuestLibDataV2 *)reply;
          VMSessionId sessionId = HANDLE_SESSIONID(handle);
 
@@ -1798,7 +1798,8 @@ VMGuestLibIoctl(const GuestLibIoctlParam *param,
       DynXdr_Destroy(&xdrs, TRUE);
       return FALSE;
    }
-   ret = RpcOut_SendOneRaw(DynXdr_Get(&xdrs), xdr_getpos(&xdrs), reply, replySize);
+   ret = RpcChannel_SendOneRaw(DynXdr_Get(&xdrs), xdr_getpos(&xdrs),
+                               reply, replySize);
    DynXdr_Destroy(&xdrs, TRUE);
    return ret;
 }
@@ -1835,4 +1836,86 @@ VMGuestLib_AtomicUpdateCookie(const char *src,    // IN
    param.GuestLibIoctlParam_u.atomicUpdateCookie.src = (char *)src;
    param.GuestLibIoctlParam_u.atomicUpdateCookie.dst = (char *)dst;
    return VMGuestLibIoctl(&param, reply, replySize);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VMGuestLib_StatGet --
+ *
+ *      Fetches semi-structured stat information from the hypervisor.
+ *      Pass to VMGuestLib_StatFree() to release.
+ *
+ *      Encodings: 'json', 'text', 'xml', 'yaml'
+ *      Stats: pass NULL or "" to receive a list of available stats
+ *      Some stats are two words, e.g. "vscsi scsi0:0"
+ *
+ *      NOTE: stats, their meaning and availability may change from release
+ *      to release as the underlying implementation evolves.
+ *      This information is intended for troubleshooting only!
+ *
+ * Results:
+ *      VMGuestLibError
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+VMGuestLibError
+VMGuestLib_StatGet(const char *encoding,  // IN
+                   const char *stat,      // IN
+                   char **reply,          // OUT
+                   size_t *replySize)     // OUT
+{
+   char commandBuf[256];
+   int bufRet;
+   Bool ret;
+
+   if (encoding == NULL) {
+      return VMGUESTLIB_ERROR_INVALID_ARG;
+   }
+   if (stat == NULL) {
+      stat = "";  // Dummy value
+   }
+
+   /*
+    * Construct command string with the command name and the name
+    * of the stat that we want.
+    */
+   bufRet = Str_Snprintf(commandBuf, sizeof commandBuf, "%s %s %s",
+                         VMGUESTLIB_STATDATA_COMMAND_STRING, encoding, stat);
+   if (bufRet == -1 || bufRet >= sizeof commandBuf) {
+      return VMGUESTLIB_ERROR_BUFFER_TOO_SMALL;
+   }
+
+   ret = RpcChannel_SendOneRaw(commandBuf, strlen(commandBuf),
+                               reply, replySize);
+
+   return ret ? VMGUESTLIB_ERROR_SUCCESS : VMGUESTLIB_ERROR_NOT_AVAILABLE;
+}
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VMGuestLib_StatFree --
+ *
+ *      Frees a stat fetched by VMGuestLib_StatGet()
+ *
+ * Results:
+ *      None
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+VMGuestLib_StatFree(char *reply,       // IN
+                    size_t replySize)  // IN
+{
+   free(reply);
 }

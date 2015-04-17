@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -70,15 +70,10 @@
 #define RANK_hgfsNodeArrayLock       (RANK_libLockBase + 0x4070)
 
 /*
- * SLPv2 global lock
- */
-#define RANK_slpv2GlobalLock         (RANK_libLockBase + 0x4305)
-
-/*
  * vigor (must be < VMDB range and < disklib, see bug 741290)
  */
-#define RANK_vigorClientLock         (RANK_libLockBase + 0x4400)
-#define RANK_vigorOfflineClientLock  (RANK_libLockBase + 0x4410)
+#define RANK_vigorOnlineLock         (RANK_libLockBase + 0x4400)
+#define RANK_vigorOfflineLock        (RANK_libLockBase + 0x4410)
 
 /*
  * NFC lib lock
@@ -86,9 +81,9 @@
 #define RANK_nfcLibLock              (RANK_libLockBase + 0x4505)
 
 /*
- * policy ops pending list lock
+ * Policy lib lock
  */
-#define RANK_popPendingListLock      (RANK_libLockBase + 0x4605)
+#define RANK_policyLibLock           (RANK_libLockBase + 0x4605)
 
 /*
  * disklib and I/O related locks
@@ -128,6 +123,7 @@
 #define RANK_usbEnumGlobalLock       (RANK_libLockBase + 0x6506)
 #define RANK_usbArbLibAsockLock      (RANK_libLockBase + 0x6507)
 #define RANK_usbEnumBackendLock      (RANK_libLockBase + 0x6508)
+#define RANK_sensorQueueLock         (RANK_libLockBase + 0x6509)
 
 /*
  * misc locks
@@ -158,5 +154,6 @@
 #define RANK_getSafeTmpDirLock       (RANK_libLockBase + 0x7086)
 #define RANK_licenseCheckLock        (RANK_libLockBase + 0x7090)
 #define RANK_preferenceLock          (RANK_libLockBase + 0x7100)
+
 
 #endif /* _LIBMUTEXRANK_H */

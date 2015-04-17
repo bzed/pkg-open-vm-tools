@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2009 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -48,10 +48,10 @@
  * long (i.e., on a 64-bit machine Time may occupy 8 bytes).
  *
  * Breaking it down:
- *   · When Gtk+ provides a X11 selection via Gtk::SelectionData, on a
+ *   · When Gtk+ provides an X11 selection via Gtk::SelectionData, on a
  *     32-bit machine we'll have 4 bytes of raw data.  Everything's copacetic.
- *   · On a 64-bit machine, even if the source client provides on 32 bits
- *     of timestamp data, Gtk+ will decode as an unsigned long and provide 8
+ *   · On a 64-bit machine, even if the source client provides 32 bits of
+ *     timestamp data, Gtk+ will decode as an unsigned long and provide 8
  *     bytes of raw data.
  *   · On a 64-bit machine with a wacky application which actually tries
  *     to record a full 64 bits of timestamp data, Gtk+ will provide 16 bytes:
@@ -72,6 +72,7 @@
 #include "copyPasteUIX11.h"
 #include "dndFileList.hh"
 #include "guestDnDCPMgr.hh"
+#include "tracer.hh"
 
 extern "C" {
    #include "vmblock.h"
@@ -161,7 +162,7 @@ CopyPasteUIX11::CopyPasteUIX11()
 bool
 CopyPasteUIX11::Init()
 {
-   g_debug("%s: enter\n", __FUNCTION__);
+   TRACE_CALL();
    if (mInited) {
       return true;
    }
@@ -206,7 +207,7 @@ CopyPasteUIX11::Init()
 
 CopyPasteUIX11::~CopyPasteUIX11()
 {
-   g_debug("%s: enter\n", __FUNCTION__);
+   TRACE_CALL();
    CPClipboard_Destroy(&mClipboard);
    /* Any files from last unfinished file transfer should be deleted. */
    if (DND_FILE_TRANSFER_IN_PROGRESS == mHGGetFileStatus &&
@@ -1170,7 +1171,7 @@ CopyPasteUIX11::GetRemoteClipboardCB(const CPClipboard *clip) // IN
    void *buf;
    size_t sz;
 
-   g_debug("%s: enter\n", __FUNCTION__);
+   TRACE_CALL();
    if (!clip) {
       g_debug("%s: No clipboard contents.", __FUNCTION__);
       return;
@@ -1590,6 +1591,6 @@ CopyPasteUIX11::SendClipNotChanged(void)
 void
 CopyPasteUIX11::Reset(void)
 {
-   g_debug("%s: enter\n", __FUNCTION__);
+   TRACE_CALL();
    /* Cancel any pending file transfer. */
 }

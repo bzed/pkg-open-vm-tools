@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2004 VMware, Inc. All rights reserved.
+ * Copyright (C) 2004-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -26,7 +26,6 @@
  */
 
 #include "vmware.h"
-#include "vm_version.h"
 #include "util.h"
 #include "str.h"
 #include "base64.h"
@@ -292,14 +291,10 @@ static const VixCommandInfo vixCommandInfoTable[] = {
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_SET_GUEST_NETWORKING_CONFIG,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
-   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_FAULT_TOLERANCE_REGISTER,
-                           VIX_COMMAND_CATEGORY_PRIVILEGED),
-   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_FAULT_TOLERANCE_UNREGISTER,
-                           VIX_COMMAND_CATEGORY_PRIVILEGED),
-   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_FAULT_TOLERANCE_CONTROL,
-                           VIX_COMMAND_CATEGORY_PRIVILEGED),
-   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_FAULT_TOLERANCE_QUERY_SECONDARY,
-                           VIX_COMMAND_CATEGORY_PRIVILEGED),
+   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_UNUSED_COMMAND,
+   VIX_DEFINE_UNUSED_COMMAND,
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_VM_PAUSE,
                            VIX_COMMAND_CATEGORY_PRIVILEGED),
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_VM_UNPAUSE,
@@ -474,6 +469,8 @@ static const VixCommandInfo vixCommandInfoTable[] = {
    VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_DELETE_REGISTRY_VALUE,
                            VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
 
+   VIX_DEFINE_COMMAND_INFO(VIX_COMMAND_REMOVE_AUTH_ALIAS_BY_CERT,
+                           VIX_COMMAND_CATEGORY_ALWAYS_ALLOWED),
 };
 
 
@@ -1298,7 +1295,7 @@ VixMsgEncodeBuffer(const uint8 *buffer,     // IN
       srcPtr++;
    }
 
-   ASSERT_NOT_IMPLEMENTED((destPtr - resultString) <= resultBufferLength);
+   VERIFY((destPtr - resultString) <= resultBufferLength);
    *destPtr = 0;
 
 abort:
@@ -1435,7 +1432,7 @@ VixMsgDecodeBuffer(const char *str,           // IN
    }
 
    if (nullTerminateResult) {
-      ASSERT_NOT_IMPLEMENTED(resultStrLogicalLength < resultStrAllocatedLength);
+      VERIFY(resultStrLogicalLength < resultStrAllocatedLength);
       resultStr[resultStrLogicalLength] = 0;
    }
 

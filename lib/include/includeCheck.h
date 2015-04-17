@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -26,9 +26,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of VMware Inc. nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission of VMware Inc.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -73,7 +70,6 @@
  *	INCLUDE_ALLOW_DISTRIBUTE
  *	INCLUDE_ALLOW_VMK_MODULE
  *      INCLUDE_ALLOW_VMKDRIVERS
- *      INCLUDE_ALLOW_VMIROM
  *      INCLUDE_ALLOW_MKS
  *
  * Then include this file.
@@ -155,14 +151,7 @@
 #undef INCLUDE_ALLOW_VMK_MODULE
 #undef INCLUDE_ALLOW_VMKDRIVERS
 
-#if defined VMIROM && ! defined INCLUDE_ALLOW_VMIROM
-#error "The surrounding include file is not allowed in vmirom."
-#endif
-#undef INCLUDE_ALLOW_VMIROM
-
-#if defined INCLUDE_ALLOW_MKS && \
-    !(defined LOCALMKS  || defined REMOTEMKS || \
-      defined SERVERMKS || defined CLIENTMKS)
+#if defined INCLUDE_ALLOW_MKS && !(defined COREMKS)
 #error "The surrounding include file is not allowed outside of the MKS."
 #endif
 #undef INCLUDE_ALLOW_MKS

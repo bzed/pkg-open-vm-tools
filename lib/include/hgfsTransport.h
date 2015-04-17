@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -41,64 +41,12 @@
 
 #include "vmci_defs.h"
 
-/****************************************
- * Vsock, Tcp specific data structures  *
- ****************************************/
-
-/* Some fudged values for TCP over sockets. */
-#define HGFS_HOST_PORT 2000
-
-/* Socket packet magic. */
-#define HGFS_SOCKET_VERSION1   1
-
-/*
- * Socket status codes.
- */
-
-typedef enum {
-   HGFS_SOCKET_STATUS_SUCCESS,                  /* Socket header is good. */
-   HGFS_SOCKET_STATUS_SIZE_MISMATCH,            /* Size and version are incompatible. */
-   HGFS_SOCKET_STATUS_VERSION_NOT_SUPPORTED,    /* Version not handled by remote. */
-   HGFS_SOCKET_STATUS_INVALID_PACKETLEN,        /* Message len exceeds maximum. */
-} HgfsSocketStatus;
-
-/*
- * Socket flags.
- */
-
-typedef uint32 HgfsSocketFlags;
-
-/* Used by backdoor proxy socket client to Hgfs server (out of VMX process). */
-#define HGFS_SOCKET_SYNC         (1 << 0)
-
-/* Socket packet header. */
-typedef
-#include "vmware_pack_begin.h"
-struct HgfsSocketHeader {
-   uint32 version;            /* Header version. */
-   uint32 size;               /* Header size, should match for the specified version. */
-   HgfsSocketStatus status;   /* Status: always success when sending (ignored) valid on replies. */
-   uint32 packetLen;          /* The length of the packet to follow. */
-   HgfsSocketFlags flags;     /* The flags to indicate how to deal with the packet. */
-}
-#include "vmware_pack_end.h"
-HgfsSocketHeader;
-
-#define HgfsSocketHeaderInit(hdr, _version, _size, _status, _pktLen, _flags) \
-   do {                                                                      \
-      (hdr)->version    = (_version);                                        \
-      (hdr)->size       = (_size);                                           \
-      (hdr)->status     = (_status);                                         \
-      (hdr)->packetLen  = (_pktLen);                                         \
-      (hdr)->flags      = (_flags);                                          \
-   } while (0)
-
-
 /************************************************
  *    VMCI specific data structures, macros     *
  ************************************************/
 
 #define HGFS_VMCI_VERSION_1          0x1
+#define HGFS_VMCI_VERSION_2          0x2
 
 typedef enum {
    HGFS_TS_IO_PENDING,
@@ -110,13 +58,13 @@ typedef enum {
    HGFS_ASYNC_IOREQ_SHMEM,
    HGFS_ASYNC_IOREQ_GET_PAGES,
    HGFS_ASYNC_IOREP,
-} HgfsAsyncReplyFlags;
+} HgfsTransportReplyType;
 
 typedef enum {
    HGFS_TH_REP_GET_PAGES,
    HGFS_TH_REQUEST,
    HGFS_TH_TERMINATE_SESSION,
-} HgfsTransportPacketType;
+} HgfsTransportRequestType;
 
 #define HGFS_VMCI_TRANSPORT_ERROR      (VMCI_ERROR_CLIENT_MIN - 1)
 #define HGFS_VMCI_VERSION_MISMATCH     (VMCI_ERROR_CLIENT_MIN - 2)
@@ -158,14 +106,28 @@ HgfsAsyncIov;
  * Every VMCI request will have this transport Header sent over
  * in the datagram by the Guest OS.
  *
+ * Node fields are set to be compatible for backwards compatibility
+ * for version 1 and common for newer versions.
+ *
  * Used By : Guest and Host
  * Lives in : Sent by Guest inside VMCI datagram
  */
 typedef
 #include "vmware_pack_begin.h"
-struct HgfsVmciTransportHeader {
+struct HgfsVmciHeaderNode {
    uint32 version;                          /* Version number */
-   HgfsTransportPacketType pktType;         /* Type of packet */
+   union {
+      HgfsTransportRequestType pktType;     /* Type of packet for client to server */
+      HgfsTransportReplyType replyType;     /* Type of packet for server to client */
+   };
+}
+#include "vmware_pack_end.h"
+HgfsVmciHeaderNode;
+
+typedef
+#include "vmware_pack_begin.h"
+struct HgfsVmciTransportHeader {
+   HgfsVmciHeaderNode node;                 /* Node: version, type etc. */
    uint32 iovCount;                         /* Number of iovs */
    union {
       HgfsIov iov[1];                       /* (PA, len) */
@@ -174,6 +136,39 @@ struct HgfsVmciTransportHeader {
 }
 #include "vmware_pack_end.h"
 HgfsVmciTransportHeader;
+
+/*
+ * Every VMCI request will have this transport Header sent over
+ * in the datagram by the Guest or the Host.
+ * This supersedes the above header and the HgfsVmciAsyncReply structure
+ * below.
+ *
+ * Used By : Guest and Host
+ * Lives in : Sent by Guest and Host inside VMCI datagram
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct HgfsVmciTransportHeaderV2 {
+   HgfsVmciHeaderNode node;                 /* Common node for all versions. */
+   uint32 size;                             /* Size of the header. */
+   uint64 pktId;                            /* Id corresponding to the request */
+   uint64 flags;                            /* flags to indicate state of the header */
+   uint32 pktDataSize;                      /* packet data size (not buffer size) */
+   uint64 reserved1;                        /* For future use, sender must zero */
+   uint64 reserved2;                        /* For future use, sender must zero  */
+   uint32 iovCount;                         /* Number of iovs to follow */
+   union {
+      HgfsIov iov[1];                       /* (PA, len) */
+      HgfsAsyncIov asyncIov[1];
+   };
+}
+#include "vmware_pack_end.h"
+HgfsVmciTransportHeaderV2;
+
+#define HGFS_VMCI_HDR_FLAGS_REQUEST          (1 << 0)    /* CLient to the server */
+#define HGFS_VMCI_HDR_FLAGS_REPLY            (1 << 1)    /* Server to the client */
+#define HGFS_VMCI_HDR_FLAGS_ASYNCIOV         (1 << 2)    /* IOV type is async */
+
 
 /*
  * Indicates status of VMCI requests. If the requests are processed sync
@@ -211,8 +206,7 @@ HgfsVmciAsyncShmem;
 typedef
 #include "vmware_pack_begin.h"
 struct HgfsVmciAsyncReply {
-   uint32 version;
-   HgfsAsyncReplyFlags pktType;
+   HgfsVmciHeaderNode node;                 /* Node: version, type etc. */
    union {
      HgfsVmciAsyncResponse response;
      HgfsVmciAsyncShmem shmem;

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2007-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -18,7 +18,7 @@
 
 /*
  * This header file is given out as part of the open source
- * tools. Things in this file are public, but they may not have 
+ * tools. Things in this file are public, but they may not have
  * been tested or documented, and that may change in future releases.
  * The public Vix API is defined in vix.h
  *
@@ -32,7 +32,7 @@
 
 #ifdef __cplusplus
 extern "C"{
-#endif 
+#endif
 
 /*
  * VIX_HIDE_BORA_DEPENDENCIES:
@@ -145,6 +145,7 @@ enum {
    VIX_ERROREXTRATYPE_BLOCKLIST     = 10,
    VIX_ERROREXTRATYPE_V2I           = 11,
    VIX_ERROREXTRATYPE_MSGPOST       = 12,
+   VIX_ERROREXTRATYPE_NFC           = 13,	// NfcErrorCode
 };
 
 
@@ -168,10 +169,18 @@ enum {
       VIX_ERROR_SET_FROM_GUEST(err);                                  \
    } while (0)
 
-#define VIX_ERROR_SET_ADDITIONAL_ERROR(err, vixError, additionalError)   \
-   do {                                                                 \
-      err = additionalError;                                             \
-      err = (err << 32) | vixError;                                     \
+#define VIX_ERROR_SET_ADDITIONAL_ERROR(err, vixError, additionalError) \
+   do {                                                                \
+      err = additionalError;                                           \
+      err = (err << 32) | vixError;                                    \
+   } while (0)
+
+#define VIX_SET_ERROR(err, vixError, origErrorType, origError) \
+   do {                                                        \
+      err = 0;                                                 \
+      VIX_ERROR_BASE_ERROR(err) = vixError;                    \
+      VIX_ERROR_EXTRA_ERROR_TYPE(err) = origErrorType;         \
+      VIX_ERROR_EXTRA_ERROR(err) = origError;                  \
    } while (0)
 
 /*
@@ -184,6 +193,7 @@ enum {
 
    VIX_E_VI_OP_NOT_SUPPORTED_ON_GUEST              = 3048,
    VIX_E_INVALID_LOGIN_CREDENTIALS                 = 3050,
+   VIX_E_GUEST_AUTHTYPE_DISABLED                   = 3051,
 
    /* File Errors */
    VIX_E_DIRECTORY_NOT_EMPTY                       = 20006,
@@ -195,6 +205,7 @@ enum {
    VIX_E_REG_KEY_HAS_SUBKEYS                       = 20009,
    VIX_E_REG_VALUE_NOT_FOUND                       = 20010,
    VIX_E_REG_KEY_ALREADY_EXISTS                    = 20011,
+   VIX_E_REG_KEY_PARENT_VOLATILE                   = 20012,
 
    /* Generic Guest Errors */
    VIX_E_HGFS_MOUNT_FAIL                           = 20050,
@@ -209,7 +220,7 @@ enum {
  *
  * VIX Handles --
  *
- * These are common functions that apply to handles of several types. 
+ * These are common functions that apply to handles of several types.
  *-----------------------------------------------------------------------------
  */
 
@@ -285,6 +296,7 @@ enum {
    VIX_PROPERTY_GUEST_SET_REGISTRY_VALUE_ENABLED       = 4565,
    VIX_PROPERTY_GUEST_LIST_REGISTRY_VALUES_ENABLED     = 4566,
    VIX_PROPERTY_GUEST_DELETE_REGISTRY_VALUE_ENABLED    = 4567,
+   VIX_PROPERTY_GUEST_REMOVE_AUTH_ALIAS_BY_CERT_ENABLED = 4568,
 };
 
 
@@ -297,7 +309,7 @@ enum {
  *-----------------------------------------------------------------------------
  */
 
-/* 
+/*
  * VIX Property Type
  */
 
@@ -390,7 +402,7 @@ VixError VixPropertyList_Deserialize(VixPropertyListImpl *propListImpl,
                                      const char *buffer,
                                      size_t bufferSize,
                                      VixPropertyListBadEncodingAction action);
- 
+
 VixError
 VixPropertyList_DeserializeNoClobber(VixPropertyListImpl *propListImpl,
                                      const char *buffer,
@@ -401,7 +413,11 @@ VixError VixPropertyList_GetString(struct VixPropertyListImpl *propList,
                                    int propertyID,
                                    int index,
                                    char **resultValue);
-                                                 
+
+VixError VixPropertyList_SetStringSensitive(struct VixPropertyListImpl *propList,
+                                            int propertyID,
+                                            const char *value);
+
 VixError VixPropertyList_SetString(struct VixPropertyListImpl *propList,
                                    int propertyID,
                                    const char *value);
@@ -453,6 +469,11 @@ VixError VixPropertyList_SetBlob(struct VixPropertyListImpl *propList,
                                  int blobSize,
                                  const unsigned char *value);
 
+VixError VixPropertyList_SetBlobSensitive(struct VixPropertyListImpl *propList,
+                                          int propertyID,
+                                          int blobSize,
+                                          const unsigned char *value);
+
 VixError VixPropertyList_RemoveAll(VixHandle propertyListHandle);
 
 VixError VixPropertyList_Remove(VixHandle propertyListHandle,
@@ -461,7 +482,7 @@ VixError VixPropertyList_Remove(VixHandle propertyListHandle,
 VixError VixPropertyList_RemoveFromImpl(VixPropertyListImpl *propList,
                                         int propertyID);
 
-VixError VixPropertyList_AppendProperties(VixHandle handle, 
+VixError VixPropertyList_AppendProperties(VixHandle handle,
                                           int firstPropertyID,
                                           ...);
 
@@ -484,11 +505,11 @@ VixError VixPropertyListAppendProperty(VixPropertyListImpl *propList,
 int VixPropertyList_GetNumProperties(VixHandle propertyListHandle,
                                      int propertyID);
 
-VixError VixPropertyList_GetOptionalProperties(VixHandle propertyListHandle, 
+VixError VixPropertyList_GetOptionalProperties(VixHandle propertyListHandle,
                                                int firstPropertyID,
                                                ...);
 
-VixError VixPropertyList_GetIndexedProperties(VixHandle propertyListHandle, 
+VixError VixPropertyList_GetIndexedProperties(VixHandle propertyListHandle,
                                               Bool ignoreMissingProperties,
                                               int firstPropertyID,
                                               int firstPropertyIndex,
@@ -507,7 +528,28 @@ int VixPropertyList_NumItems(VixPropertyListImpl *propList);
 
 Bool VixPropertyList_Empty(VixPropertyListImpl *propList);
 
+void VixPropertyList_MarkAllSensitive(VixPropertyListImpl *propList);
 
+Bool Vix_XMLFindElementText(const char *pattern,
+                            char *str,
+                            char *endStr,
+                            char **startText,
+                            char **stopText,
+                            char **resumeSearch);
+
+Bool Vix_XMLFindStringElementText(const char *pattern,
+                                  char *str,
+                                  char *endStr,
+                                  Bool doUnescape,
+                                  char **startText,
+                                  char **stopText,
+                                  Bool *needToFree,
+                                  char **resumeSearch);
+
+Bool Vix_XMLResultIsEscaped(const char *resultXML,
+                            const char *dataParentTag);
+
+Bool Vix_IsValidString(const char *str);
 #endif   // VIX_HIDE_FROM_JAVA
 
 
@@ -516,7 +558,7 @@ Bool VixPropertyList_Empty(VixPropertyListImpl *propList);
  *
  * VixVM --
  *
- * This describes the persistent configuration state of a single VM. The 
+ * This describes the persistent configuration state of a single VM. The
  * VM may or may not be running.
  *
  *-----------------------------------------------------------------------------
@@ -639,14 +681,14 @@ typedef enum VixRegValueDataType {
  *      Use as:
  *
  *      VIX_DEBUG(("test debug message: %s %d\n", stringArg, intArg));
- *       
+ *
  *       Output will go to logfile if VIX_DEBUG_PREFERENCE_NAME is non-zero
  *
  *      VIX_DEBUG_LEVEL(3, ("test debug message: %s %d\n", stringArg, intArg));
  *
  *       Output will go to logfile if VIX_DEBUG_PREFERENCE_NAME is >=
  *       the first argument to the macro.
- * 
+ *
  *-----------------------------------------------------------------------------
  */
 
@@ -726,7 +768,7 @@ extern VixError VixLogError(VixError err, const char *function, int line,
 
 #ifdef __cplusplus
 } // extern "C" {
-#endif 
+#endif
 
 
 #endif // _VIXOpenSource_h_

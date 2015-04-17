@@ -294,14 +294,7 @@ VMCIQPairMapQueueHeaders(VMCIQueue *produceQ, // IN
 
    if (NULL == produceQ->qHeader || NULL == consumeQ->qHeader) {
       if (canBlock) {
-         /*
-          * We return data from creator of the queue in VM2VM case.
-          * That should be OK, as if they do not match then there
-          * is somebody else in progress of making them match, and
-          * you should not be looking at somebody else's queue if
-          * queue is active.
-          */
-         result = VMCIHost_MapQueues(0, produceQ, consumeQ, 0);
+         result = VMCIHost_MapQueues(produceQ, consumeQ, 0);
       } else {
          result = VMCI_ERROR_QUEUEPAIR_NOT_READY;
       }
@@ -485,12 +478,7 @@ vmci_qpair_alloc(VMCIQPair **qpair,            // OUT
    }
 
    if ((flags & (VMCI_QPFLAG_NONBLOCK | VMCI_QPFLAG_PINNED)) && !vmkernel) {
-#if defined(linux)
-      if (VMCI_ROUTE_AS_GUEST != route)
-#endif // linux
-      {
-         return VMCI_ERROR_INVALID_ARGS;
-      }
+      return VMCI_ERROR_INVALID_ARGS;
    }
 
    if (flags & VMCI_QPFLAG_PINNED) {
@@ -1246,9 +1234,9 @@ vmci_qpair_peek(VMCIQPair *qpair,    // IN
 }
 
 
-#if defined (SOLARIS) || (defined(__APPLE__) && !defined (VMX86_TOOLS)) || \
-    (defined(__linux__) && defined(__KERNEL__)) || \
-    (defined(_WIN32) && defined(WINNT_DDK))
+#if (defined(__APPLE__) && !defined (VMX86_TOOLS)) || \
+    (defined(__linux__) && defined(__KERNEL__))    || \
+    (defined(_WIN32)    && defined(WINNT_DDK))
 
 /*
  *-----------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -62,8 +62,8 @@ char *Config_GetStringEnum(const char *defaultValue,
                            const char **choices,
                            const char *fmt, ...) PRINTF_DECL(3, 4);
 
-int Config_CompareVersion(const char *version);
-int Config_CompareVersions(const char *version1, const char *version2);
+int Config_CompareVersion(int version);
+int Config_CompareVersions(int version1, int version2);
 char *Config_GetPathName(const char *defaultValue,
                          const char *fmt, ...) PRINTF_DECL(2, 3);
 Bool Config_GetBool(Bool defaultValue,
@@ -94,12 +94,10 @@ void Config_Set(void *value, int type,
 void *Config_Get(const void *pDefaultValue, int type,
                  const char *fmt, ...) PRINTF_DECL(3, 4);
 
-void Config_MarkModified(const char *fmt, ...) PRINTF_DECL(1, 2);
 Bool Config_Load(const char *filename);
-Bool Config_Write(const char *dummy);
+Bool Config_Write(void);
 Bool Config_WriteNoMsg(void);
 
-Bool  Config_FileIsPresent(void);
 Bool  Config_FileIsWritable(void);
 
 uint32 Config_GetMask(uint32 defaultMask, const char *optionName);

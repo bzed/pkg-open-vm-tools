@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008,2014-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -24,7 +24,7 @@
  *
  *    Defines the interface between applications and the underlying GuestRPC
  *    channel. The goal is to have an abstraction so applications can run over
- *    the backdoor, VMCI sockets or TCP/IP sockets by just picking up the
+ *    the backdoor, vSockets or TCP/IP sockets by just picking up the
  *    desired channel at runtime, without the need to modify the code.
  *
  *    For this reason, the behavior of all channels is modeled after the RpcIn
@@ -45,7 +45,7 @@ G_BEGIN_DECLS
 #define RPCIN_SETRETVALS  RpcChannel_SetRetVals
 #define RPCIN_SETRETVALSF RpcChannel_SetRetValsF
 
-struct RpcChannel;
+typedef struct _RpcChannel RpcChannel;
 
 /** Data structure passed to RPC callbacks. */
 typedef struct RpcInData {
@@ -76,6 +76,12 @@ typedef struct RpcInData {
    void *clientData;
 } RpcInData;
 
+typedef enum RpcChannelType {
+   RPCCHANNEL_TYPE_INACTIVE,
+   RPCCHANNEL_TYPE_BKDOOR,
+   RPCCHANNEL_TYPE_PRIV_VSOCK,
+   RPCCHANNEL_TYPE_UNPRIV_VSOCK
+} RpcChannelType;
 
 /**
  * Type for RpcIn callbacks. The callback function is responsible for
@@ -108,21 +114,6 @@ typedef struct RpcChannelCallback {
    size_t            xdrInSize;
 } RpcChannelCallback;
 
-
-typedef gboolean (*RpcChannelStartFn)(struct RpcChannel *);
-typedef void (*RpcChannelStopFn)(struct RpcChannel *);
-typedef void (*RpcChannelShutdownFn)(struct RpcChannel *);
-typedef gboolean (*RpcChannelSendFn)(struct RpcChannel *,
-                                     char const *data,
-                                     size_t dataLen,
-                                     char **result,
-                                     size_t *resultLen);
-typedef void (*RpcChannelSetupFn)(struct RpcChannel *chan,
-                                  GMainContext *mainCtx,
-                                  const char *appName,
-                                  gpointer appCtx);
-
-
 /**
  * Signature for the callback function called after a channel reset.
  *
@@ -130,80 +121,28 @@ typedef void (*RpcChannelSetupFn)(struct RpcChannel *chan,
  * @param[in]  success  Whether reset was successful.
  * @param[in]  data     Client data.
  */
-typedef void (*RpcChannelResetCb)(struct RpcChannel *chan,
+typedef void (*RpcChannelResetCb)(RpcChannel *chan,
                                   gboolean success,
                                   gpointer data);
 
+gboolean
+RpcChannel_Start(RpcChannel *chan);
 
-/** Defines the interface between the application and the RPC channel. */
-typedef struct RpcChannel {
-   RpcChannelStartFn       start;
-   RpcChannelStopFn        stop;
-   RpcChannelSendFn        send;
-   RpcChannelSetupFn       setup;
-   RpcChannelShutdownFn    shutdown;
-   gpointer                _private;
-} RpcChannel;
+void
+RpcChannel_Stop(RpcChannel *chan);
 
+RpcChannelType
+RpcChannel_GetType(RpcChannel *chan);
 
-/**
- * Wrapper for the start function of an RPC channel struct.
- *
- * @param[in]  chan        The RPC channel instance.
- *
- * @return TRUE on success.
- */
-
-G_INLINE_FUNC gboolean
-RpcChannel_Start(RpcChannel *chan)
-{
-   g_return_val_if_fail(chan != NULL, FALSE);
-   g_return_val_if_fail(chan->start != NULL, FALSE);
-
-   return chan->start(chan);
-}
-
-
-/**
- * Wrapper for the stop function of an RPC channel struct.
- *
- * @param[in]  chan        The RPC channel instance.
- */
-
-G_INLINE_FUNC void
-RpcChannel_Stop(RpcChannel *chan)
-{
-   g_return_if_fail(chan != NULL);
-   g_return_if_fail(chan->stop != NULL);
-
-   chan->stop(chan);
-}
-
-
-/**
- * Wrapper for the send function of an RPC channel struct.
- *
- * @param[in]  chan        The RPC channel instance.
- * @param[in]  data        Data to send.
- * @param[in]  dataLen     Number of bytes to send.
- * @param[out] result      Response from other side (should be freed by caller).
- * @param[out] resultLen   Number of bytes in response.
- *
- * @return The status from the remote end (TRUE if call was successful).
- */
-
-G_INLINE_FUNC gboolean
+gboolean
 RpcChannel_Send(RpcChannel *chan,
                 char const *data,
                 size_t dataLen,
                 char **result,
-                size_t *resultLen)
-{
-   g_return_val_if_fail(chan != NULL, FALSE);
-   g_return_val_if_fail(chan->send != NULL, FALSE);
+                size_t *resultLen);
 
-   return chan->send(chan, data, dataLen, result, resultLen);
-}
+void
+RpcChannel_Free(void *ptr);
 
 gboolean
 RpcChannel_BuildXdrCommand(const char *cmd,
@@ -214,6 +153,9 @@ RpcChannel_BuildXdrCommand(const char *cmd,
 
 RpcChannel *
 RpcChannel_Create(void);
+
+void
+RpcChannel_Shutdown(RpcChannel *chan);
 
 gboolean
 RpcChannel_Destroy(RpcChannel *chan);
@@ -247,9 +189,23 @@ void
 RpcChannel_UnregisterCallback(RpcChannel *chan,
                               RpcChannelCallback *rpc);
 
+gboolean
+RpcChannel_SendOneRaw(const char *data,
+                      size_t dataLen,
+                      char **result,
+                      size_t *resultLen);
+
+gboolean
+RpcChannel_SendOne(char **reply,
+                   size_t *repLen,
+                   const char *reqFmt,
+                   ...);
 
 RpcChannel *
-BackdoorChannel_New(void);
+RpcChannel_New(void);
+
+void
+RpcChannel_SetBackdoorOnly(void);
 
 G_END_DECLS
 

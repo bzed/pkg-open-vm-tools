@@ -1,17 +1,74 @@
-open-vm-tools 9.4.6 changes:
-	* Release of open-vm-tools matching vSphere 5.5p02.
+open-vm-tools 2015.03.12 changes:
+        * vgauth added.
 
-	* Security enhancements in support scripts for Tools.
+        * deploypkg added.
 
-   	* Skip freezing remote mounts in sync driver.
+        * guest proxycerttool added.
+
+        * hgfs and vmci/vsock fixes.
+
+        * asyncsocket enhancements.
+
+        * various library fixes and improvements.
+
+        * locking and logging fixes and improvements.
+
+        * foundry fixes.
+
+        * vm-support script fixes.
+
+
+open-vm-tools 2013.09.16 changes:
+	* HGFS client and server improvements.
+
+	* Fixes for HGFS driver to compile with newer kernels.
+
+	* Tools demon now can use vsock to communicate with the host.
 
 	* Other fixes and cleanups.
 
-open-vm-tools 9.4.0 changes:
-	* Release of open-vm-tools matching vSphere 5.5.
+open-vm-tools 2013.04.16 changes:
+	* VMCI/VMSOCK Linux kernel modules are disabled for kernels
+	  3.9 and above.
 
-	* Branch was cut from commit id 63be9626897c801ccafee8367e15d7ac1e1c4b6f
-	(tagged as 2012.12.26-958366) and clobbered with the released files.
+	* HGFS compilation fixes, performance and other improvements.
+
+	* Disable glib deprecation warnigns on newer Linux
+	  distributions.
+
+	* Configure script will automatically detect procps-ng.
+
+	* Other fixes and cleanups.
+
+open-vm-tools 2012.12.26 changes:
+	* vmsync is not longer being compiled on newer (3.0+) Linux
+	  kernels since they support FIFREEZE/FITHAW ioctls.
+
+	* vmblock is not longer being compiled on newer (3.0+) Linux
+	  kernels, such systems should use vmblock-fuse.
+
+	* The draft SOCK_SEQPACKET code is removed from VSOCK driver.
+
+	* Fixes for the vmballoon driver.
+
+	* Other fixes and cleanups.
+
+open-vm-tools 2012.10.14 changes:
+	* Changes and cleanups to VMCI driver
+
+	* Changes to HGFS to allow compiling on newer kernels
+
+	* Fix MTU handling in vmxnet3 for Solaris driver.
+
+	* Updates to the vmballon driver to handle new protocol.
+
+	* Fix for FreeBSD version of vmblock driver to stop kernel
+	  panics on unload on FreeBSD 9.0
+
+	* Fix to guestinfo plugin causing vmtoolsd to crash when
+	  guest had too many NICs.
+
+	* Other fixes and cleanups.
 
 open-vm-tools 2012.05.21 changes:
 	* Updates for newer Linux kernel releases (3.4).

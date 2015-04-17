@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2009 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -217,8 +217,8 @@ SlashProcNet_GetSnmp(void)
 {
    GHashTable *myHashTable = NULL;
    GIOChannel *myChannel = NULL;
-   GIOStatus keyIoStatus;
-   GIOStatus valIoStatus;
+   GIOStatus keyIoStatus = G_IO_STATUS_ERROR;
+   GIOStatus valIoStatus = G_IO_STATUS_ERROR;
    gchar *myKeyLine = NULL;
    gchar *myValLine = NULL;
    Bool parseError = FALSE;
@@ -536,7 +536,7 @@ SlashProcNet_GetRoute(void)
       myFieldsRE = g_regex_new("^Iface\\s+Destination\\s+Gateway\\s+Flags\\s+"
                                "RefCnt\\s+Use\\s+Metric\\s+Mask\\s+MTU\\s+"
                                "Window\\s+IRTT\\s*$", 0, 0, NULL);
-      myValuesRE = g_regex_new("^(\\w+)\\s+([[:xdigit:]]{8})\\s+"
+      myValuesRE = g_regex_new("^(\\S+)\\s+([[:xdigit:]]{8})\\s+"
                                "([[:xdigit:]]{8})\\s+([[:xdigit:]]{4})\\s+"
                                "\\d+\\s+\\d+\\s+(\\d+)\\s+"
                                "([[:xdigit:]]{8})\\s+(\\d+)\\s+\\d+\\s+(\\d+)\\s*$",
@@ -727,7 +727,7 @@ SlashProcNet_GetRoute6(void)
                                 "([[:xdigit:]]{32}) ([[:xdigit:]]{2}) "
                                 "([[:xdigit:]]{32}) ([[:xdigit:]]{8}) "
                                 "[[:xdigit:]]{8} [[:xdigit:]]{8} "
-                                "([[:xdigit:]]{8})\\s+(\\w+)\\s*$", 0, 0,
+                                "([[:xdigit:]]{8})\\s+(\\S+)\\s*$", 0, 0,
                                 NULL);
       ASSERT(myValuesRE);
    }

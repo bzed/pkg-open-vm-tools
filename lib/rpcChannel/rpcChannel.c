@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -30,6 +30,8 @@
 #include "strutil.h"
 #include "vmxrpc.h"
 #include "xdrutil.h"
+#include "rpcin.h"
+#include "debug.h"
 
 /** Internal state of a channel. */
 typedef struct RpcChannelInt {
@@ -46,9 +48,10 @@ typedef struct RpcChannelInt {
    guint                   rpcErrorCount;
 } RpcChannelInt;
 
-
 /** Max number of times to attempt a channel restart. */
 #define RPCIN_MAX_RESTARTS 60
+
+#define LGPFX "RpcChannel: "
 
 static gboolean
 RpcChannelPing(RpcInData *data);
@@ -57,6 +60,7 @@ static RpcChannelCallback gRpcHandlers[] =  {
    { "ping", RpcChannelPing, NULL, NULL, NULL, 0 }
 };
 
+static gboolean gUseBackdoorOnly = FALSE;
 
 /**
  * Handler for a "ping" message. Does nothing.
@@ -88,7 +92,7 @@ RpcChannelRestart(gpointer _chan)
 
    RpcChannel_Stop(&chan->impl);
    if (!RpcChannel_Start(&chan->impl)) {
-      g_warning("Channel restart failed [%d]\n", chan->rpcErrorCount);
+      Warning("Channel restart failed [%d]\n", chan->rpcErrorCount);
       if (chan->resetCb != NULL) {
          chan->resetCb(&chan->impl, FALSE, chan->resetData);
       }
@@ -120,8 +124,8 @@ RpcChannelCheckReset(gpointer _chan)
       GSource *src;
 
       if (++(chan->rpcErrorCount) > channelTimeoutAttempts) {
-         g_warning("Failed to reset channel after %u attempts\n",
-                   chan->rpcErrorCount - 1);
+         Warning("Failed to reset channel after %u attempts\n",
+                 chan->rpcErrorCount - 1);
          if (chan->resetCb != NULL) {
             chan->resetCb(&chan->impl, FALSE, chan->resetData);
          }
@@ -129,7 +133,7 @@ RpcChannelCheckReset(gpointer _chan)
       }
 
       /* Schedule the channel restart for 1 sec in the future. */
-      g_debug("Resetting channel [%u]\n", chan->rpcErrorCount);
+      Debug(LGPFX "Resetting channel [%u]\n", chan->rpcErrorCount);
       src = g_timeout_source_new(1000);
       g_source_set_callback(src, RpcChannelRestart, chan, NULL);
       g_source_attach(src, chan->mainCtx);
@@ -138,7 +142,7 @@ RpcChannelCheckReset(gpointer _chan)
    }
 
    /* Reset was successful. */
-   g_debug("Channel was reset successfully.\n");
+   Debug(LGPFX "Channel was reset successfully.\n");
    chan->rpcErrorCount = 0;
 
    if (chan->resetCb != NULL) {
@@ -359,6 +363,7 @@ RpcChannel_Dispatch(RpcInData *data)
 
    name = StrUtil_GetNextToken(&index, data->args, " ");
    if (name == NULL) {
+      Debug(LGPFX "Bad command (null) received.\n");
       status = RPCIN_SETRETVALS(data, "Bad command", FALSE);
       goto exit;
    }
@@ -368,6 +373,7 @@ RpcChannel_Dispatch(RpcInData *data)
    }
 
    if (rpc == NULL) {
+      Debug(LGPFX "Unknown Command '%s': Handler not registered.\n", name);
       status = RPCIN_SETRETVALS(data, "Unknown Command", FALSE);
       goto exit;
    }
@@ -409,8 +415,8 @@ RpcChannel_Destroy(RpcChannel *chan)
    size_t i;
    RpcChannelInt *cdata = (RpcChannelInt *) chan;
 
-   if (cdata->impl.shutdown != NULL) {
-      cdata->impl.shutdown(chan);
+   if (cdata->impl.funcs != NULL && cdata->impl.funcs->shutdown != NULL) {
+      cdata->impl.funcs->shutdown(chan);
    }
 
    RpcChannel_UnregisterCallback(chan, &cdata->resetReg);
@@ -459,7 +465,11 @@ RpcChannel_Error(void *_chan,
 {
    RpcChannelInt *chan = _chan;
    chan->rpcError = TRUE;
-   g_debug("Error in the RPC receive loop: %s.\n", status);
+   /*
+    * XXX: Workaround for PR 935520.
+    * Revert the log call to Warning() after fixing PR 955746.
+    */
+   Debug(LGPFX "Error in the RPC receive loop: %s.\n", status);
 
    if (chan->resetCheck == NULL) {
       chan->resetCheck = g_idle_source_new();
@@ -512,8 +522,12 @@ RpcChannel_Setup(RpcChannel *chan,
       RpcChannel_RegisterCallback(chan, &gRpcHandlers[i]);
    }
 
-   if (cdata->impl.setup != NULL) {
-      cdata->impl.setup(&cdata->impl, mainCtx, appName, appCtx);
+   if (chan->funcs != NULL && chan->funcs->setup != NULL) {
+      chan->funcs->setup(chan, mainCtx, appName, appCtx);
+   } else {
+      chan->mainCtx = g_main_context_ref(mainCtx);
+      chan->in = RpcIn_Construct(mainCtx, RpcChannel_Dispatch, chan);
+      ASSERT(chan->in != NULL);
    }
 }
 
@@ -591,7 +605,7 @@ RpcChannel_RegisterCallback(RpcChannel *chan,
       cdata->rpcs = g_hash_table_new(g_str_hash, g_str_equal);
    }
    if (g_hash_table_lookup(cdata->rpcs, rpc->name) != NULL) {
-      g_error("Trying to overwrite existing RPC registration for %s!\n", rpc->name);
+      Panic("Trying to overwrite existing RPC registration for %s!\n", rpc->name);
    }
    g_hash_table_insert(cdata->rpcs, (gpointer) rpc->name, rpc);
 }
@@ -615,3 +629,401 @@ RpcChannel_UnregisterCallback(RpcChannel *chan,
    }
 }
 
+
+/**
+ * Force to create backdoor channels only.
+ * This provides a kill-switch to disable vsocket channels if needed.
+ * This needs to be called before RpcChannel_New to take effect.
+ */
+
+void
+RpcChannel_SetBackdoorOnly(void)
+{
+   gUseBackdoorOnly = TRUE;
+   Debug(LGPFX "Using vsocket is disabled.\n");
+}
+
+
+/**
+ * Create an RpcChannel instance using a prefered channel implementation,
+ * currently this is VSockChannel.
+ *
+ * @return  RpcChannel
+ */
+
+RpcChannel *
+RpcChannel_New(void)
+{
+   RpcChannel *chan;
+#if (defined(__linux__) && !defined(USERWORLD)) || defined(_WIN32)
+   chan = gUseBackdoorOnly ? BackdoorChannel_New() : VSockChannel_New();
+#else
+   chan = BackdoorChannel_New();
+#endif
+   if (chan) {
+      g_static_mutex_init(&chan->outLock);
+   }
+   return chan;
+}
+
+
+/**
+ * Wrapper for the shutdown function of an RPC channel struct.
+ *
+ * @param[in]  chan        The RPC channel instance.
+ */
+
+void
+RpcChannel_Shutdown(RpcChannel *chan)
+{
+   if (chan != NULL) {
+      g_static_mutex_free(&chan->outLock);
+   }
+
+   if (chan != NULL && chan->funcs != NULL && chan->funcs->shutdown != NULL) {
+      if (chan->in != NULL) {
+         if (chan->inStarted) {
+            RpcIn_stop(chan->in);
+         }
+         chan->inStarted = FALSE;
+         RpcIn_Destruct(chan->in);
+         chan->in = NULL;
+      } else {
+         ASSERT(!chan->inStarted);
+      }
+
+      if (chan->mainCtx != NULL) {
+         g_main_context_unref(chan->mainCtx);
+      }
+      chan->funcs->shutdown(chan);
+   }
+}
+
+
+/**
+ * Start an RPC channel. We may fallback to backdoor channel when other type
+ * of channel fails to start.
+ *
+ * @param[in]  chan        The RPC channel instance.
+ *
+ * @return TRUE on success.
+ */
+
+gboolean
+RpcChannel_Start(RpcChannel *chan)
+{
+   gboolean ok;
+   const RpcChannelFuncs *funcs;
+
+   if (chan == NULL || chan->funcs == NULL || chan->funcs->start == NULL) {
+      return FALSE;
+   }
+
+   if (chan->outStarted) {
+      /* Already started. Make sure both channels are in sync and return. */
+      ASSERT(chan->in == NULL || chan->inStarted);
+      return TRUE;
+   }
+
+   if (chan->in != NULL && !chan->inStarted) {
+      ok = RpcIn_start(chan->in, RPCIN_MAX_DELAY, RpcChannel_Error, chan);
+      chan->inStarted = ok;
+   }
+
+   funcs = chan->funcs;
+   ok = funcs->start(chan);
+
+   if (!ok && funcs->onStartErr != NULL) {
+      Debug(LGPFX "Fallback to backdoor ...\n");
+      funcs->onStartErr(chan);
+      ok = BackdoorChannel_Fallback(chan);
+   }
+
+   return ok;
+}
+
+
+/**
+ * Wrapper for the stop function of an RPC channel struct.
+ *
+ * @param[in]  chan        The RPC channel instance.
+ */
+
+void
+RpcChannel_Stop(RpcChannel *chan)
+{
+   g_return_if_fail(chan != NULL);
+   g_return_if_fail(chan->funcs != NULL);
+   g_return_if_fail(chan->funcs->stop != NULL);
+
+   g_static_mutex_lock(&chan->outLock);
+   chan->funcs->stop(chan);
+
+   if (chan->in != NULL) {
+      if (chan->inStarted) {
+         RpcIn_stop(chan->in);
+      }
+      chan->inStarted = FALSE;
+   } else {
+      ASSERT(!chan->inStarted);
+   }
+   g_static_mutex_unlock(&chan->outLock);
+}
+
+
+/**
+ * Wrapper for get channel type function of an RPC channel struct.
+ *
+ * @param[in]  chan        The RPC channel instance.
+ */
+
+RpcChannelType
+RpcChannel_GetType(RpcChannel *chan)
+{
+   if (chan == NULL || chan->funcs == NULL || chan->funcs->getType == NULL) {
+      return RPCCHANNEL_TYPE_INACTIVE;
+   }
+   return chan->funcs->getType(chan);
+}
+
+
+/**
+ * Free the allocated memory for the results from RpcChannel_Send* calls.
+ *
+ * @param[in] ptr   result from RpcChannel_Send* calls.
+ *
+ * @return none
+ */
+
+void
+RpcChannel_Free(void *ptr)
+{
+   free(ptr);
+}
+
+
+/**
+ * Send function of an RPC channel struct. Retry once if it fails for
+ * non-backdoor Channels. Backdoor channel already tries inside. A second try
+ * may create a different type of channel.
+ *
+ * @param[in]  chan        The RPC channel instance.
+ * @param[in]  data        Data to send.
+ * @param[in]  dataLen     Number of bytes to send.
+ * @param[out] result      Response from other side (should be freed by
+ *                         calling RpcChannel_Free).
+ * @param[out] resultLen   Number of bytes in response.
+ *
+ * @return The status from the remote end (TRUE if call was successful).
+ */
+
+gboolean
+RpcChannel_Send(RpcChannel *chan,
+                char const *data,
+                size_t dataLen,
+                char **result,
+                size_t *resultLen)
+{
+   gboolean ok;
+   char *res = NULL;
+   size_t resLen = 0;
+   const RpcChannelFuncs *funcs;
+
+   Debug(LGPFX "Sending: %"FMTSZ"u bytes\n", dataLen);
+
+   ASSERT(chan && chan->funcs);
+
+   g_static_mutex_lock(&chan->outLock);
+
+   funcs = chan->funcs;
+   ASSERT(funcs->send);
+
+   if (result != NULL) {
+      *result = NULL;
+   }
+   if (resultLen != NULL) {
+      *resultLen = 0;
+   }
+
+   ok = funcs->send(chan, data, dataLen, &res, &resLen);
+
+   if (!ok && (funcs->getType(chan) != RPCCHANNEL_TYPE_BKDOOR) &&
+       (funcs->stopRpcOut != NULL)) {
+
+       free(res);
+       res = NULL;
+       resLen = 0;
+
+      /* retry once */
+      Debug(LGPFX "Stop RpcOut channel and try to send again ...\n");
+      funcs->stopRpcOut(chan);
+      if (RpcChannel_Start(chan)) {
+         /* The channel may get switched from vsocket to backdoor */
+         funcs = chan->funcs;
+         ASSERT(funcs->send);
+         ok = funcs->send(chan, data, dataLen, &res, &resLen);
+         goto done;
+      }
+
+      ok = FALSE;
+      goto exit;
+   }
+
+done:
+   if (ok) {
+      Debug(LGPFX "Recved %"FMTSZ"u bytes\n", resLen);
+   }
+
+   if (result != NULL) {
+      *result = res;
+   }
+   if (resultLen != NULL) {
+      *resultLen = resLen;
+   }
+
+exit:
+   g_static_mutex_unlock(&chan->outLock);
+   return ok;
+}
+
+
+/**
+ * Open/close RpcChannel each time for sending a Rpc message, this is a wrapper
+ * for RpcChannel APIs.
+ *
+ * @param[in]  data        request data
+ * @param[in]  dataLen     data length
+ * @param[in]  result      reply, should be freed by calling RpcChannel_Free.
+ * @param[in]  resultLen   reply length
+
+ * @returns    TRUE on success.
+ */
+
+gboolean
+RpcChannel_SendOneRaw(const char *data,
+                      size_t dataLen,
+                      char **result,
+                      size_t *resultLen)
+{
+   RpcChannel *chan;
+   gboolean status;
+
+   status = FALSE;
+
+   chan = RpcChannel_New();
+   if (chan == NULL) {
+      if (result != NULL) {
+         *result = Util_SafeStrdup("RpcChannel: Unable to create "
+                                   "the RpcChannel object");
+         if (resultLen != NULL) {
+            *resultLen = strlen(*result);
+         }
+      }
+      goto sent;
+   } else if (!RpcChannel_Start(chan)) {
+      if (result != NULL) {
+         *result = Util_SafeStrdup("RpcChannel: Unable to open the "
+                                   "communication channel");
+         if (resultLen != NULL) {
+            *resultLen = strlen(*result);
+         }
+      }
+      goto sent;
+   } else if (!RpcChannel_Send(chan, data, dataLen, result, resultLen)) {
+      /* We already have the description of the error */
+      goto sent;
+   }
+
+   status = TRUE;
+
+sent:
+   Debug(LGPFX "Request %s: reqlen=%"FMTSZ"u, replyLen=%"FMTSZ"u\n",
+         status ? "OK" : "FAILED", dataLen, resultLen ? *resultLen : 0);
+   if (chan) {
+      RpcChannel_Stop(chan);
+      RpcChannel_Destroy(chan);
+   }
+
+   return status;
+}
+
+
+/**
+ * Open/close RpcChannel each time for sending a Rpc message, this is a wrapper
+ * for RpcChannel APIs.
+ *
+ * @param[out] reply       reply, should be freed by calling RpcChannel_Free.
+ * @param[out] repLen      reply length
+ * @param[in]  reqFmt      request data
+ * @param[in]  ...         optional arguments depending on reqFmt.
+
+ * @returns    TRUE on success.
+ */
+
+gboolean
+RpcChannel_SendOne(char **reply,
+                   size_t *repLen,
+                   char const *reqFmt,
+                   ...)
+{
+   va_list args;
+   gboolean status;
+   char *request;
+   size_t reqLen = 0;
+
+   status = FALSE;
+
+   /* Format the request string */
+   va_start(args, reqFmt);
+   request = Str_Vasprintf(&reqLen, reqFmt, args);
+   va_end(args);
+
+   /*
+    * If Str_Vasprintf failed, write NULL into the reply if the caller wanted
+    * a reply back.
+    */
+   if (request == NULL) {
+      goto error;
+   }
+
+   /*
+    * If the command doesn't contain a space, add one to the end to maintain
+    * compatibility with old VMXs.
+    *
+    * For a long time, the GuestRpc logic in the VMX was wired to expect a
+    * trailing space in every command, even commands without arguments. That is
+    * no longer true, but we must continue to add a trailing space because we
+    * don't know whether we're talking to an old or new VMX.
+    */
+   if (request[reqLen - 1] != ' ') {
+      char *tmp;
+
+      tmp = Str_Asprintf(NULL, "%s ", request);
+      free(request);
+      request = tmp;
+
+      /*
+       * If Str_Asprintf failed, write NULL into reply if the caller wanted
+       * a reply back.
+       */
+      if (request == NULL) {
+         goto error;
+      }
+   }
+
+   status = RpcChannel_SendOneRaw(request, reqLen, reply, repLen);
+
+   free(request);
+
+   return status;
+
+error:
+   if (reply) {
+      *reply = NULL;
+   }
+
+   if (repLen) {
+      *repLen = 0;
+   }
+   return FALSE;
+}

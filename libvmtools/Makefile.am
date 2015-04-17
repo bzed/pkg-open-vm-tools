@@ -1,5 +1,5 @@
 ################################################################################
-### Copyright 2008 VMware, Inc.  All rights reserved.
+### Copyright (C) 2008-2015 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -20,6 +20,12 @@ lib_LTLIBRARIES = libvmtools.la
 libvmtools_la_LIBADD =
 libvmtools_la_LIBADD += ../lib/lock/libLock.la
 libvmtools_la_LIBADD += ../lib/backdoor/libBackdoor.la
+libvmtools_la_LIBADD += ../lib/asyncsocket/libAsyncSocket.la
+libvmtools_la_LIBADD += ../lib/sslDirect/libSslDirect.la
+libvmtools_la_LIBADD += ../lib/pollGtk/libPollGtk.la
+libvmtools_la_LIBADD += ../lib/poll/libPoll.la
+libvmtools_la_LIBADD += ../lib/dataMap/libDataMap.la
+libvmtools_la_LIBADD += ../lib/hashMap/libHashMap.la
 libvmtools_la_LIBADD += ../lib/dict/libDict.la
 libvmtools_la_LIBADD += ../lib/dynxdr/libDynxdr.la
 libvmtools_la_LIBADD += ../lib/err/libErr.la
@@ -29,6 +35,7 @@ libvmtools_la_LIBADD += ../lib/guestApp/libGuestApp.la
 libvmtools_la_LIBADD += ../lib/guestRpc/libGuestRpc.la
 libvmtools_la_LIBADD += ../lib/message/libMessage.la
 libvmtools_la_LIBADD += ../lib/netUtil/libNetUtil.la
+libvmtools_la_LIBADD += ../lib/nicInfo/libNicInfo.la
 libvmtools_la_LIBADD += ../lib/panic/libPanic.la
 libvmtools_la_LIBADD += ../lib/procMgr/libProcMgr.la
 libvmtools_la_LIBADD += ../lib/rpcChannel/libRpcChannel.la
@@ -49,6 +56,11 @@ libvmtools_la_LIBADD += @LIBVMTOOLS_LIBADD@
 libvmtools_la_LIBADD += @GLIB2_LIBS@
 libvmtools_la_LIBADD += @ICU_LIBS@
 
+if ENABLE_GRABBITMQPROXY
+   libvmtools_la_LIBADD += @SSL_LIBS@
+   libvmtools_la_LIBADD += -lcrypto
+endif
+
 if USE_SLASH_PROC
 libvmtools_la_LIBADD += ../lib/slashProc/libSlashProc.la
 endif
@@ -61,6 +73,7 @@ libvmtools_la_SOURCES += vmtools.c
 libvmtools_la_SOURCES += vmtoolsConfig.c
 libvmtools_la_SOURCES += vmtoolsLog.c
 libvmtools_la_SOURCES += vmxLogger.c
+libvmtools_la_SOURCES += guestSDKLog.c
 
 # Recompile the stub for Log_* functions, but not Log() itself (see -DNO_LOG_STUB).
 libvmtools_la_SOURCES += $(top_srcdir)/lib/stubs/stub-log.c
