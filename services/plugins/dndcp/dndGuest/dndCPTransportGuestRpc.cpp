@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -90,7 +90,7 @@ RecvMsgCB(RpcInData *data) // IN/OUT
 
 static Bool
 RecvMsgCB(void *clientData,
-          uint16 channelId,
+          GuestRpcChannel *chan,
           const unsigned char *args,
           uint32 argsSize,
           unsigned char **result,

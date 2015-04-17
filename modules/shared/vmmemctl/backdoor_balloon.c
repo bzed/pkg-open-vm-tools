@@ -26,9 +26,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of VMware Inc. nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission of VMware Inc.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -134,7 +131,7 @@ BackdoorCmd(uint16 cmd,     // IN
  */
 
 int
-Backdoor_MonitorStart(Balloon *b,               // IN
+Backdoor_MonitorStart(Balloon *b,               // IN/OUT
                       uint32 protoVersion)      // IN
 {
    uint32 capabilities;
@@ -179,7 +176,7 @@ Backdoor_MonitorStart(Balloon *b,               // IN
  */
 
 int
-Backdoor_MonitorGuestType(Balloon *b) // IN
+Backdoor_MonitorGuestType(Balloon *b) // IN/OUT
 {
    int status = BackdoorCmd(BALLOON_BDOOR_CMD_GUEST_ID, b->guestType, 0,
                             NULL, &b->resetFlag);
@@ -223,7 +220,7 @@ Backdoor_MonitorGuestType(Balloon *b) // IN
  */
 
 int
-Backdoor_MonitorGetTarget(Balloon *b,     // IN
+Backdoor_MonitorGetTarget(Balloon *b,     // IN/OUT
                           uint32 *target) // OUT
 {
    unsigned long limit;
@@ -271,8 +268,9 @@ Backdoor_MonitorGetTarget(Balloon *b,     // IN
  */
 
 int
-Backdoor_MonitorLockPage(Balloon *b,    // IN
-                         PPN64 ppn)     // IN
+Backdoor_MonitorLockPage(Balloon *b,     // IN/OUT
+                         PPN64 ppn,      // IN
+                         uint32 *target) // OUT
 {
    int status;
    uint32 ppn32 = (uint32)ppn;
@@ -282,7 +280,7 @@ Backdoor_MonitorLockPage(Balloon *b,    // IN
       return BALLOON_ERROR_PPN_INVALID;
    }
 
-   status = BackdoorCmd(BALLOON_BDOOR_CMD_LOCK, ppn32, 0, NULL,
+   status = BackdoorCmd(BALLOON_BDOOR_CMD_LOCK, ppn32, 0, target,
                         &b->resetFlag);
 
    /* update stats */
@@ -314,8 +312,9 @@ Backdoor_MonitorLockPage(Balloon *b,    // IN
  */
 
 int
-Backdoor_MonitorUnlockPage(Balloon *b,  // IN
-                           PPN64 ppn)   // IN
+Backdoor_MonitorUnlockPage(Balloon *b,     // IN/OUT
+                           PPN64 ppn,      // IN
+                           uint32 *target) // OUT
 {
    int status;
    uint32 ppn32 = (uint32)ppn;
@@ -325,7 +324,7 @@ Backdoor_MonitorUnlockPage(Balloon *b,  // IN
       return BALLOON_ERROR_PPN_INVALID;
    }
 
-   status = BackdoorCmd(BALLOON_BDOOR_CMD_UNLOCK, ppn32, 0, NULL,
+   status = BackdoorCmd(BALLOON_BDOOR_CMD_UNLOCK, ppn32, 0, target,
                         &b->resetFlag);
 
    /* update stats */
@@ -354,12 +353,13 @@ Backdoor_MonitorUnlockPage(Balloon *b,  // IN
  */
 
 int
-Backdoor_MonitorLockPagesBatched(Balloon *b,    // IN
-                                 PPN64 ppn,     // IN
-                                 uint32 nPages) // IN
+Backdoor_MonitorLockPagesBatched(Balloon *b,     // IN/OUT
+                                 PPN64 ppn,      // IN
+                                 uint32 nPages,  // IN
+                                 uint32 *target) // OUT
 {
    int status = BackdoorCmd(BALLOON_BDOOR_CMD_BATCHED_LOCK,
-                            (size_t)ppn, nPages, NULL, &b->resetFlag);
+                            (size_t)ppn, nPages, target, &b->resetFlag);
 
    /* update stats */
    STATS_INC(b->stats.lock);
@@ -387,12 +387,13 @@ Backdoor_MonitorLockPagesBatched(Balloon *b,    // IN
  */
 
 int
-Backdoor_MonitorUnlockPagesBatched(Balloon *b,          // IN
+Backdoor_MonitorUnlockPagesBatched(Balloon *b,          // IN/OUT
                                    PPN64 ppn,           // IN
-                                   uint32 nPages)       // IN
+                                   uint32 nPages,       // IN
+                                   uint32 *target)      // OUT
 {
    int status = BackdoorCmd(BALLOON_BDOOR_CMD_BATCHED_UNLOCK,
-                            (size_t)ppn, nPages, NULL, &b->resetFlag);
+                            (size_t)ppn, nPages, target, &b->resetFlag);
 
    /* update stats */
    STATS_INC(b->stats.unlock);

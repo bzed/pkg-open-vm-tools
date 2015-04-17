@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006-2013 VMware, Inc. All rights reserved.
+ * Copyright (C) 2013 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -46,17 +46,6 @@
    q.hash = full_name_hash(q.name, q.len);                                    \
    d_alloc(parent, &q);                                                       \
 })
-#endif
-
-/*
- * d_count field was removed in 3.11.0.
- */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#define compat_d_count(dentry) d_count(dentry)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
-#define compat_d_count(dentry) dentry->d_count
-#else
-#define compat_d_count(dentry) atomic_read(&dentry->d_count);
 #endif
 
 #endif /* __COMPAT_DCACHE_H__ */

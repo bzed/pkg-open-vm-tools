@@ -1,5 +1,5 @@
 ################################################################################
-### Copyright 2007 VMware, Inc.  All rights reserved.
+### Copyright (C) 2007-2015 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -19,5 +19,6 @@ noinst_LTLIBRARIES = libUser.la
 
 libUser_la_SOURCES =
 libUser_la_SOURCES += util.c
+libUser_la_SOURCES += utilBacktrace.c
 
 AM_CFLAGS = @LIB_USER_CPPFLAGS@

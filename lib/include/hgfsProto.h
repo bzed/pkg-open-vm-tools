@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -260,7 +260,7 @@ typedef uint32 HgfsAccessMode;
 #define HGFS_MODE_WRITE_DATA          (1 << 4)  // Ability to writge file data
 #define HGFS_MODE_APPEND_DATA         (1 << 5)  // Appending data to the end of file
 #define HGFS_MODE_DELETE              (1 << 6)  // Ability to delete the file
-#define HGFS_MODE_TRAVERSE_DIRECTORY  (1 << 7)  // Ability to access files in a directory 
+#define HGFS_MODE_TRAVERSE_DIRECTORY  (1 << 7)  // Ability to access files in a directory
 #define HGFS_MODE_LIST_DIRECTORY      (1 << 8)  // Ability to list file names
 #define HGFS_MODE_ADD_SUBDIRECTORY    (1 << 9)  // Ability to create a new subdirectory
 #define HGFS_MODE_ADD_FILE            (1 << 10) // Ability to create a new file
@@ -296,7 +296,9 @@ typedef enum {
    HGFS_LOCK_OPPORTUNISTIC,
    HGFS_LOCK_EXCLUSIVE,
    HGFS_LOCK_SHARED,
-} HgfsServerLock;
+   HGFS_LOCK_BATCH,
+   HGFS_LOCK_LEASE,
+} HgfsLockType;
 
 
 /*
@@ -448,7 +450,7 @@ typedef uint64 HgfsAttrValid;
 #define HGFS_ATTR_VALID_GROUPID           (1 << 13)
 #define HGFS_ATTR_VALID_FILEID            (1 << 14)
 #define HGFS_ATTR_VALID_VOLID             (1 << 15)
-/* 
+/*
  * Add our file and volume identifiers.
  * NOTE: On Windows hosts, the file identifier is not guaranteed to be valid
  *       particularly with FAT. A defrag operation could cause it to change.
@@ -715,7 +717,7 @@ struct HgfsRequestOpenV2 {
    uint64 allocationSize;        /* How much space to pre-allocate during creation */
    uint32 desiredAccess;         /* Extended support for windows access modes */
    uint32 shareAccess;           /* Windows only, share access modes */
-   HgfsServerLock desiredLock;   /* The type of lock desired by the client */
+   HgfsLockType desiredLock;     /* The type of lock desired by the client */
    uint64 reserved1;             /* Reserved for future use */
    uint64 reserved2;             /* Reserved for future use */
    HgfsFileName fileName;
@@ -740,7 +742,7 @@ struct HgfsRequestOpenV3 {
    uint64 allocationSize;        /* How much space to pre-allocate during creation */
    uint32 desiredAccess;         /* Extended support for windows access modes */
    uint32 shareAccess;           /* Windows only, share access modes */
-   HgfsServerLock desiredLock;   /* The type of lock desired by the client */
+   HgfsLockType desiredLock;     /* The type of lock desired by the client */
    uint64 reserved1;             /* Reserved for future use */
    uint64 reserved2;             /* Reserved for future use */
    HgfsFileNameV3 fileName;
@@ -768,7 +770,7 @@ typedef
 struct HgfsReplyOpenV2 {
    HgfsReply header;
    HgfsHandle file;                  /* Opaque file ID used by the server */
-   HgfsServerLock acquiredLock;      /* The type of lock acquired by the server */
+   HgfsLockType acquiredLock;        /* The type of lock acquired by the server */
 }
 #include "vmware_pack_end.h"
 HgfsReplyOpenV2;
@@ -780,7 +782,7 @@ typedef
 #include "vmware_pack_begin.h"
 struct HgfsReplyOpenV3 {
    HgfsHandle file;                  /* Opaque file ID used by the server */
-   HgfsServerLock acquiredLock;      /* The type of lock acquired by the server */
+   HgfsLockType acquiredLock;        /* The type of lock acquired by the server */
    uint64 reserved;                  /* Reserved for future use */
 }
 #include "vmware_pack_end.h"
@@ -1590,7 +1592,7 @@ typedef
 struct HgfsRequestServerLockChange {
    HgfsRequest header;
    HgfsHandle file;
-   HgfsServerLock newServerLock;
+   HgfsLockType newServerLock;
 }
 #include "vmware_pack_end.h"
 HgfsRequestServerLockChange;
@@ -1600,7 +1602,7 @@ typedef
 #include "vmware_pack_begin.h"
 struct HgfsReplyServerLockChange {
    HgfsReply header;
-   HgfsServerLock serverLock;
+   HgfsLockType serverLock;
 }
 #include "vmware_pack_end.h"
 HgfsReplyServerLockChange;
@@ -1652,13 +1654,18 @@ struct HgfsReplySymlinkCreateV3 {
 HgfsReplySymlinkCreateV3;
 
 /* HGFS protocol version 4 definitions. */
+#define HGFS_HEADER_VERSION_1                 1
+#define HGFS_HEADER_VERSION                   HGFS_HEADER_VERSION_1
 
 /*
- * HGFS_PACKET_FLAG_NOTIFICATION set in flags field means that
- * this is a notification or a callback request (not a reply to client request).
+ * Flags to indicate the type of packet following the header and
+ * the overall state of the operation.
  */
 
-#define HGFS_PACKET_FLAG_NOTIFICATION         (1 << 0)
+#define HGFS_PACKET_FLAG_REQUEST              (1 << 0)       // Request packet
+#define HGFS_PACKET_FLAG_REPLY                (1 << 1)       // Reply packet
+#define HGFS_PACKET_FLAG_INFO_EXTERROR        (1 << 2)       // Info has ext error
+#define HGFS_PACKET_FLAG_VALID_FLAGS          (0x7)          // Mask for valid values
 
 typedef
 #include "vmware_pack_begin.h"
@@ -1672,7 +1679,7 @@ struct HgfsHeader {
    uint32 requestId;    /* Request ID. */
    uint32 op;           /* Operation. */
    uint32 status;       /* Return value. */
-   uint32 flags;        /* Flags. */
+   uint32 flags;        /* Flags. See above. */
    uint32 information;  /* Generic field, used e.g. for native error code. */
    uint64 sessionId;    /* Session ID. */
    uint64 reserved;     /* Reserved for future use. */
@@ -1780,18 +1787,32 @@ struct HgfsIdentity {
 #include "vmware_pack_end.h"
 HgfsIdentity;
 
+#define HGFS_INVALID_SESSION_ID     (~((uint64)0))
+
+/*
+ * The HGFS session flags. These determine the state and validity of the session
+ * information.
+ * It is envisaged that flags will be set for notifying the clients of file system
+ * feature support that transcend multiple request types i.e., HGFS opcodes.
+ */
+typedef uint32 HgfsSessionFlags;
+
+#define HGFS_SESSION_MAXPACKETSIZE_VALID    (1 << 0)
+#define HGFS_SESSION_CHANGENOTIFY_ENABLED   (1 << 1)
+#define HGFS_SESSION_OPLOCK_ENABLED         (1 << 2)
+
 typedef
 #include "vmware_pack_begin.h"
 struct HgfsRequestCreateSessionV4 {
    uint32 numCapabilities;            /* Number of capabilities to follow. */
    uint32 maxPacketSize;              /* Maximum packet size supported. */
-   uint64 reserved;                   /* Reserved for future use. */
+   HgfsSessionFlags flags;            /* Session capability flags. */
+   uint32 reserved;                   /* Reserved for future use. */
    HgfsCapability capabilities[1];    /* Array of HgfsCapabilities. */
 }
 #include "vmware_pack_end.h"
 HgfsRequestCreateSessionV4;
 
-#define HGFS_INVALID_SESSION_ID     (~((uint64)0))
 typedef
 #include "vmware_pack_begin.h"
 struct HgfsReplyCreateSessionV4 {
@@ -1799,7 +1820,8 @@ struct HgfsReplyCreateSessionV4 {
    uint32 numCapabilities;            /* Number of capabilities to follow. */
    uint32 maxPacketSize;              /* Maximum packet size supported. */
    uint32 identityOffset;             /* Offset to HgfsIdentity or 0 if no identity. */
-   uint64 reserved;                   /* Reserved for future use. */
+   HgfsSessionFlags flags;            /* Flags. */
+   uint32 reserved;                   /* Reserved for future use. */
    HgfsCapability capabilities[1];    /* Array of HgfsCapabilities. */
 }
 #include "vmware_pack_end.h"
@@ -2111,18 +2133,11 @@ HgfsReplyUnlockRangeV4;
  * HGFS_OPLOCK_BATCH: batch oplock. Read/Write and Open caching is allowed.
  */
 
-typedef enum {
-   HGFS_OPLOCK_NONE,
-   HGFS_OPLOCK_SHARED,
-   HGFS_OPLOCK_EXCLUSIVE,
-   HGFS_OPLOCK_BATCH,
-} HgfsOpportunisticLock;
-
 typedef
 #include "vmware_pack_begin.h"
 struct HgfsRequestServerLockChangeV2 {
    HgfsHandle fid;                    /* File to take lock on. */
-   HgfsOpportunisticLock serverLock;  /* Lock type. */
+   HgfsLockType serverLock;           /* Lock type. */
    uint64 reserved;
 }
 #include "vmware_pack_end.h"
@@ -2131,7 +2146,7 @@ HgfsRequestServerLockChangeV2;
 typedef
 #include "vmware_pack_begin.h"
 struct HgfsReplyServerLockChangeV2 {
-   HgfsOpportunisticLock serverLock;  /* Lock granted. */
+   HgfsLockType serverLock;            /* Lock granted. */
    uint64 reserved;
 }
 #include "vmware_pack_end.h"
@@ -2146,7 +2161,7 @@ typedef
 #include "vmware_pack_begin.h"
 struct HgfsRequestOplockBreakV4 {
    HgfsHandle fid;                    /* File handle. */
-   HgfsOpportunisticLock serverLock;  /* Lock downgraded to this type. */
+   HgfsLockType serverLock;           /* Lock downgraded to this type. */
    uint64 reserved;                   /* Reserved for future use. */
 }
 #include "vmware_pack_end.h"
@@ -2155,7 +2170,9 @@ HgfsRequestOplockBreakV4;
 typedef
 #include "vmware_pack_begin.h"
 struct HgfsReplyOplockBreakV4 {
-   uint64 reserved;                 /* Reserved for future use. */
+   HgfsHandle fid;                    /* File handle. */
+   HgfsLockType serverLock;           /* Lock type. */
+   uint64 reserved;                   /* Reserved for future use. */
 }
 #include "vmware_pack_end.h"
 HgfsReplyOplockBreakV4;
@@ -2164,7 +2181,7 @@ HgfsReplyOplockBreakV4;
  *  Flusing of a whole volume is not supported.
  *  Flusing of reqular files is supported on all hosts.
  *  Flusing of directories is supproted on POSIX hosts and is
- *  NOOP on Windows hosts. 
+ *  NOOP on Windows hosts.
  */
 typedef
 #include "vmware_pack_begin.h"
@@ -2305,7 +2322,7 @@ struct HgfsRequestOpenV4 {
    uint32 desiredAccess;         /* Extended support for windows access modes */
    uint32 shareAccess;           /* Windows only, share access modes */
    HgfsOpenCreateOptions createOptions; /* Various options. */
-   HgfsOpportunisticLock requestedLock;   /* The type of lock desired by the client */
+   HgfsLockType requestedLock;   /* The type of lock desired by the client */
    HgfsFileNameV3 fileName;      /* fid can be used only for relative open,
                                   * i.e. to open named stream.
                                   */
@@ -2350,7 +2367,7 @@ typedef
 #include "vmware_pack_begin.h"
 struct HgfsReplyOpenV4 {
    HgfsHandle file;                   /* Opaque file ID used by the server */
-   HgfsOpportunisticLock grantedLock; /* The type of lock acquired by the server */
+   HgfsLockType grantedLock;          /* The type of lock acquired by the server */
    HgfsOpenResult openResult;         /* Opened/overwritten or a new file created? */
    uint32 grantedAccess;              /* Granted access rights. */
    uint64 fileId;                     /* Persistent volume-wide unique file id. */

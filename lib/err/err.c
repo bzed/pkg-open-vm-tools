@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -53,18 +53,25 @@ typedef struct ErrInfo {
  * Variables
  */
 
-static Atomic_Ptr errNumTable;
-static Atomic_Ptr errPtrTable;
-
-#define NUMTABLE() HashTable_AllocOnce(&errNumTable, HASHTABLE_SIZE, \
-				       HASH_INT_KEY | HASH_FLAG_ATOMIC, NULL)
-#define PTRTABLE() HashTable_AllocOnce(&errPtrTable, HASHTABLE_SIZE, \
-				       HASH_INT_KEY | HASH_FLAG_ATOMIC, NULL)
+/*
+ * We statically link lib/err in several libraries. This means that a
+ * single binary may have several copies of lib/err. These pointers are
+ * not static so that we have one copy across the entire binary.
+ */
+Atomic_Ptr errNumTable;
+Atomic_Ptr errPtrTable;
 #if defined VMX86_DEBUG && defined __linux__
 Atomic_Ptr errStrTable;
+#endif
+
+#define NUMTABLE() HashTable_AllocOnce(&errNumTable, HASHTABLE_SIZE, \
+                                       HASH_INT_KEY | HASH_FLAG_ATOMIC, NULL)
+#define PTRTABLE() HashTable_AllocOnce(&errPtrTable, HASHTABLE_SIZE, \
+                                       HASH_INT_KEY | HASH_FLAG_ATOMIC, NULL)
+#if defined VMX86_DEBUG && defined __linux__
 #define STRTABLE() HashTable_AllocOnce(&errStrTable, HASHTABLE_SIZE, \
-				       HASH_STRING_KEY | HASH_FLAG_ATOMIC, \
-				       NULL)
+                                       HASH_STRING_KEY | HASH_FLAG_ATOMIC, \
+                                       NULL)
 #endif
 
 

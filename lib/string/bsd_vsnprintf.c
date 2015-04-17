@@ -1,5 +1,5 @@
 /* **********************************************************
- * Copyright 2006 VMware, Inc.  All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc.  All rights reserved.
  * **********************************************************/
 
 /*
@@ -17,9 +17,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 4. Neither the name of the University nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -627,9 +624,7 @@ bsd_vsnprintf_core(char **outbuf,
    convbuf = NULL;
 #if !defined(NO_FLOATING_POINT)
    dtoaresult = NULL;
-#if !defined __ANDROID__
-   decimal_point = localeconv()->decimal_point;
-#else
+#ifdef __ANDROID__
    /*
     * Struct lconv is not working! For decimal_point,
     * using '.' instead is a workaround.
@@ -1470,7 +1465,6 @@ bsd_vsnprintf(char **outbuf,
    /*
     * Struct lconv is not working! The code below is a workaround.
     */
-   NOT_TESTED();
    grouping = NULL;
    thousands_sep = ',';
    decimal_point = &dp;

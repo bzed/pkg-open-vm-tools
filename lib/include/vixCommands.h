@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2003 VMware, Inc. All rights reserved.
+ * Copyright (C) 2003-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -25,7 +25,6 @@
 #ifndef _VIX_COMMANDS_H_
 #define _VIX_COMMANDS_H_
 
-#include "vm_version.h"
 #include "vixOpenSource.h"
 
 /*
@@ -100,13 +99,15 @@ enum VixCommonCommandOptionValues {
  * These are the flags set in the request Flags field.
  */
 enum {
-   VIX_REQUESTMSG_ONLY_RELOAD_NETWORKS                = 0x01,
-   VIX_REQUESTMSG_RETURN_ON_INITIATING_TOOLS_UPGRADE  = 0x02,
-   VIX_REQUESTMSG_RUN_IN_ANY_VMX_STATE                = 0x04,
-   VIX_REQUESTMSG_REQUIRES_INTERACTIVE_ENVIRONMENT    = 0x08,
-   VIX_REQUESTMSG_INCLUDES_AUTH_DATA_V1               = 0x10,
-   VIX_REQUESTMSG_REQUIRES_VMDB_NOTIFICATION          = 0x20,
-   VIX_REQUESTMSG_ESCAPE_XML_DATA                     = 0x40,
+   VIX_REQUESTMSG_ONLY_RELOAD_NETWORKS                = 0x001,
+   VIX_REQUESTMSG_RETURN_ON_INITIATING_TOOLS_UPGRADE  = 0x002,
+   VIX_REQUESTMSG_RUN_IN_ANY_VMX_STATE                = 0x004,
+   VIX_REQUESTMSG_REQUIRES_INTERACTIVE_ENVIRONMENT    = 0x008,
+   VIX_REQUESTMSG_INCLUDES_AUTH_DATA_V1               = 0x010,
+   VIX_REQUESTMSG_REQUIRES_VMDB_NOTIFICATION          = 0x020,
+   VIX_REQUESTMSG_ESCAPE_XML_DATA                     = 0x040,
+   VIX_REQUESTMSG_HAS_HASHED_SHARED_SECRET            = 0x080,
+   VIX_REQUESTMSG_VIGOR_COMMAND                       = 0x100,
 };
 
 
@@ -119,6 +120,7 @@ enum VixResponseFlagsValues {
    VIX_RESPONSE_TRUNCATED                 = 0x0004,
    VIX_RESPONSE_FSR                       = 0x0008,
    VIX_RESPONSE_VMDB_NOTIFICATION_POSTED  = 0x0010,
+   VIX_RESPONSE_VIGOR_COMMAND             = 0x0020,
 };
 
 
@@ -1152,32 +1154,6 @@ struct VixMsgDebuggerEvent {
 #include "vmware_pack_end.h"
 VixMsgDebuggerEvent;
 
-/*
- * Fault Tolerance Automation
- */
-typedef
-#include "vmware_pack_begin.h"
-struct VixMsgFaultToleranceControlRequest {
-   VixCommandRequestHeader    requestHeader;
-
-   int32                      command;
-   char                       uuid[48];
-   uint32                     vmxPathLen;
-   char                       vmxFilePath[1];
-} 
-#include "vmware_pack_end.h"
-VixMsgFaultToleranceControlRequest;
-
-typedef
-#include "vmware_pack_begin.h"
-struct VixFaultToleranceControlResponse {
-   VixCommandResponseHeader header;
-   uint32 propertyListBufferSize;
-   // Followed by a serialized property list containing error context.
-}
-#include "vmware_pack_end.h"
-VixFaultToleranceControlResponse;
-
 
 /*
  * **********************************************************
@@ -2153,14 +2129,6 @@ struct VixCommandGenericRequest {
 #include "vmware_pack_end.h"
 VixCommandGenericRequest;
 
-
-/*
- * These are values we use to discover hosts and guests through SLPv2.
- */
-#define VIX_SLPV2_SERVICE_NAME_TOOLS_SERVICE       "VMware_Vix_Tools"
-#define VIX_SLPV2_PROPERTY_IP_ADDR                 "IP"
-#define VIX_SLPV2_PROPERTY_MAC_ADDR                "Mac"
-
 /*
  * The security classifications for async op types/op code. Each op code
  * is given a security category, and the VMX uses that category to determine
@@ -2317,10 +2285,10 @@ enum {
    VIX_COMMAND_GET_GUEST_NETWORKING_CONFIG      = 116,
    VIX_COMMAND_SET_GUEST_NETWORKING_CONFIG      = 117,
 
-   VIX_COMMAND_FAULT_TOLERANCE_REGISTER         = 118,
-   VIX_COMMAND_FAULT_TOLERANCE_UNREGISTER       = 119,
-   VIX_COMMAND_FAULT_TOLERANCE_CONTROL          = 120,
-   VIX_COMMAND_FAULT_TOLERANCE_QUERY_SECONDARY  = 121,
+   /* DEPRECATED VIX_COMMAND_FAULT_TOLERANCE_REGISTER         = 118, */
+   /* DEPRECATED VIX_COMMAND_FAULT_TOLERANCE_UNREGISTER       = 119, */
+   /* DEPRECATED VIX_COMMAND_FAULT_TOLERANCE_CONTROL          = 120, */
+   /* DEPRECATED VIX_COMMAND_FAULT_TOLERANCE_QUERY_SECONDARY  = 121, */
 
    VIX_COMMAND_VM_PAUSE                         = 122,
    VIX_COMMAND_VM_UNPAUSE                       = 123,
@@ -2448,6 +2416,8 @@ enum {
    VIX_COMMAND_LIST_REGISTRY_VALUES             = 205,
    VIX_COMMAND_DELETE_REGISTRY_VALUE            = 206,
 
+   VIX_COMMAND_REMOVE_AUTH_ALIAS_BY_CERT        = 207,
+
    /*
     * HOWTO: Adding a new Vix Command. Step 2a.
     *
@@ -2458,7 +2428,7 @@ enum {
     * Once a new command is added here, a command info field needs to be added
     * in bora/lib/foundryMsg/foundryMsg.c as well.
     */
-   VIX_COMMAND_LAST_NORMAL_COMMAND              = 207,
+   VIX_COMMAND_LAST_NORMAL_COMMAND              = 208,
 
    VIX_TEST_UNSUPPORTED_TOOLS_OPCODE_COMMAND    = 998,
    VIX_TEST_UNSUPPORTED_VMX_OPCODE_COMMAND      = 999,

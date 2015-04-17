@@ -1,5 +1,5 @@
 /* **********************************************************
- * Copyright 2007 VMware, Inc.  All rights reserved.
+ * Copyright (C) 2007-2015 VMware, Inc.  All rights reserved.
  * **********************************************************/
 
 /*
@@ -376,6 +376,9 @@ Bool CodeSet_UTF32ToUTF8(const char *utf32,
 
 int CodeSet_LengthInCodePoints(const char *utf8);
 
+int CodeSet_CodePointOffsetToByteOffset(const char *utf8,
+                                        int codePointOffset);
+
 int CodeSet_GetUtf8(const char *string,
                     const char *end,
                     uint32 *uchar);
@@ -404,7 +407,7 @@ CodeSet_Utf8ToUtf16(const char *str)  // IN:
    utf16_t *strW;
 
    if (!CodeSet_Utf8ToUtf16le(str, strlen(str), (char **) &strW, NULL)) {
-      ASSERT_MEM_ALLOC(FALSE);
+      NOT_IMPLEMENTED();
    }
 
    return strW;
@@ -439,7 +442,7 @@ CodeSet_Utf16ToUtf8(const utf16_t *strW)  // IN:
 
    if (!CodeSet_Utf16leToUtf8((const char *) strW, len * sizeof strW[0],
                               (char **) &str, NULL)) {
-      ASSERT_NOT_IMPLEMENTED(0);
+      NOT_IMPLEMENTED();
    }
 
    return str;
@@ -458,7 +461,7 @@ CodeSet_Utf16ToUtf8(const utf16_t *strW)  // IN:
  *      put a NUL terminator.
  *
  * Results:
- *      
+ *
  *      Returns the offset of the byte immediately following the last
  *      complete UTF-8 code point in buf that is entirely within the
  *      range [0, offset-1]. Note that if the final UTF-8 code point
@@ -543,7 +546,7 @@ CodeSet_Utf8FindCodePointBoundary(const char *buf,   // IN
  *      put a NUL terminator.
  *
  * Results:
- *      
+ *
  *      Returns the offset of the byte immediately following the last
  *      complete UTF-16 code point in buf that is entirely within the
  *      range [0, offset-1]. Note that if the final UTF-16 code point

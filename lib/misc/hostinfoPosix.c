@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -100,7 +100,6 @@
 #include "hostinfo.h"
 #include "hostinfoInt.h"
 #include "safetime.h"
-#include "vm_version.h"
 #include "str.h"
 #include "err.h"
 #include "msg.h"
@@ -121,6 +120,10 @@
 #include "guest_os.h"
 #include "dynbuf.h"
 #include "strutil.h"
+
+#if defined(__APPLE__)
+#include "utilMacos.h"
+#endif
 
 #if defined(VMX86_SERVER)
 #include "uwvmkAPI.h"
@@ -454,7 +457,7 @@ Hostinfo_GetSystemBitness(void)
 }
 
 
-#if !defined __APPLE__
+#if !defined __APPLE__ && !defined USERWORLD
 /*
  *-----------------------------------------------------------------------------
  *
@@ -561,6 +564,9 @@ HostinfoGetOSShortName(char *distro,         // IN: full distro name
    } else if (strstr(distroLower, "asianux server 4") ||
               strstr(distroLower, "asianux client 4")) {
       Str_Strcpy(distroShort, STR_OS_ASIANUX_4, distroShortSize);
+   } else if (strstr(distroLower, "asianux server 5") ||
+              strstr(distroLower, "asianux client 5")) {
+      Str_Strcpy(distroShort, STR_OS_ASIANUX_5, distroShortSize);
    } else if (strstr(distroLower, "aurox")) {
       Str_Strcpy(distroShort, STR_OS_AUROX, distroShortSize);
    } else if (strstr(distroLower, "black cat")) {
@@ -578,10 +584,10 @@ HostinfoGetOSShortName(char *distro,         // IN: full distro name
          Str_Strcpy(distroShort, STR_OS_DEBIAN_5, distroShortSize);
       } else if (strstr(distroLower, "6.0")) {
          Str_Strcpy(distroShort, STR_OS_DEBIAN_6, distroShortSize);
-      } else if (strstr(distroLower, "7.0")) {
+      } else if (strstr(distroLower, "7.")) {
          Str_Strcpy(distroShort, STR_OS_DEBIAN_7, distroShortSize);
-      } else if (strstr(distroLower, "7.1")) {
-         Str_Strcpy(distroShort, STR_OS_DEBIAN_7_1, distroShortSize);
+      } else if (strstr(distroLower, "8.")) {
+         Str_Strcpy(distroShort, STR_OS_DEBIAN_8, distroShortSize);
       }
    } else if (StrUtil_StartsWith(distroLower, "enterprise linux") ||
               StrUtil_StartsWith(distroLower, "oracle")) {
@@ -742,7 +748,6 @@ out:
 
    return ret;
 }
-#endif
 
 
 /*
@@ -764,9 +769,19 @@ out:
 static char *
 HostinfoGetCmdOutput(const char *cmd)  // IN:
 {
+   Bool isSuperUser = FALSE;
    DynBuf db;
    FILE *stream;
    char *out = NULL;
+
+   /*
+    * Attempt to lower privs, because we use popen and an attacker
+    * may control $PATH.
+    */
+   if (vmx86_linux && Id_IsSuperUser()) {
+      Id_EndSuperUser(getuid());
+      isSuperUser = TRUE;
+   }
 
    DynBuf_Init(&db);
 
@@ -774,7 +789,7 @@ HostinfoGetCmdOutput(const char *cmd)  // IN:
    if (stream == NULL) {
       Warning("Unable to get output of command \"%s\"\n", cmd);
 
-      return NULL;
+      goto exit;
    }
 
    for (;;) {
@@ -793,7 +808,7 @@ HostinfoGetCmdOutput(const char *cmd)  // IN:
          break;
 
       default:
-         ASSERT_NOT_IMPLEMENTED(FALSE);
+         NOT_IMPLEMENTED();
       }
 
       if (line == NULL) {
@@ -808,13 +823,19 @@ HostinfoGetCmdOutput(const char *cmd)  // IN:
    if (DynBuf_Get(&db)) {
       out = (char *) DynBuf_AllocGet(&db);
    }
- closeIt:
-   DynBuf_Destroy(&db);
 
+ closeIt:
    pclose(stream);
 
+ exit:
+   DynBuf_Destroy(&db);
+
+   if (isSuperUser) {
+      Id_BeginSuperUser();
+   }
    return out;
 }
+#endif // !defined __APPLE__ && !defined USERWORLD
 
 
 /*
@@ -863,35 +884,57 @@ HostinfoOSData(void)
    Str_Sprintf(osNameFull, sizeof osNameFull, "%s %s", buf.sysname,
                buf.release);
 
-#if defined __APPLE__
+#if defined USERWORLD
+   if (buf.release[0] <= '4') {
+      Str_Strcpy(osName, "vmkernel", sizeof osName);
+   } else {
+      Str_Strcpy(osName, "vmkernel5", sizeof osName);
+   }
+   Str_Snprintf(osNameFull, sizeof osNameFull, "VMware ESXi %c.x",
+                buf.release[0]);
+#elif defined __APPLE__
    {
       /*
-       * The easiest way is to invoke "system_profiler" and hope that the
-       * format of its unlocalized output will never change.
+       * Read the version info from ServerVersion.plist or SystemVersion.plist.
+       * Mac OS Server (10.6 and earlier) has both files, and the product
+       * name in ServerVersion.plist is "Mac OS X Server". Client versions
+       * of Mac OS only have SystemVersion.plist with the name "Mac OS X".
        *
-       * Alternatively, we could do what system_profiler does and use the
-       * CFPropertyList/CFDIctionary APIs to parse
-       * /System/Library/CoreServices/{Server,System}Version.plist.
-       *
-       * On a MacBookPro4,1 (and possibly other models), invoking
-       * "system_profiler" can take several seconds: it seems to spin up the CD
-       * drive as a side-effect. So use "system_profiler SPSoftwareDataType"
-       * instead.
+       * This is better than executing system_profiler or sw_vers, or using
+       * the deprecated Gestalt() function (which only gets version numbers).
+       * All of those methods just read the same plist files anyway.
        */
-      char *sysname = HostinfoGetCmdOutput(
-                         "/usr/sbin/system_profiler SPSoftwareDataType"
-                      " | /usr/bin/grep 'System Version:'"
-                      " | /usr/bin/cut -d : -f 2");
+      static char const *versionPlists[] = {
+         "/System/Library/CoreServices/ServerVersion.plist",
+         "/System/Library/CoreServices/SystemVersion.plist"
+      };
+      unsigned int i;
+      char *productName;
+      char *productVersion;
+      char *productBuildVersion;
+      Bool haveVersion = FALSE;
 
-      if (sysname) {
-         char *trimmed = Unicode_Trim(sysname);
+      for (i = 0; !haveVersion && i < ARRAYSIZE(versionPlists); i++) {
+         CFDictionaryRef versionDict =
+            UtilMacos_CreateCFDictionaryWithContentsOfFile(versionPlists[i]);
+         if (versionDict != NULL) {
+            haveVersion = UtilMacos_ReadSystemVersion(versionDict,
+                                                      &productName,
+                                                      &productVersion,
+                                                      &productBuildVersion);
+            CFRelease(versionDict);
+         }
+      }
 
-         ASSERT_MEM_ALLOC(trimmed);
-         free(sysname);
-         Str_Snprintf(osNameFull, sizeof osNameFull, "%s", trimmed);
-         free(trimmed);
+      if (haveVersion) {
+         Str_Sprintf(osNameFull, sizeof osNameFull, "%s %s (%s) %s %s",
+                     productName, productVersion, productBuildVersion,
+                     buf.sysname, buf.release);
+         free(productName);
+         free(productVersion);
+         free(productBuildVersion);
       } else {
-         Log("%s: Failed to get output of system_profiler.\n", __FUNCTION__);
+         Log("%s: Failed to read system version plist.\n", __FUNCTION__);
          /* Fall back to returning the original osNameFull. */
       }
 
@@ -931,7 +974,7 @@ HostinfoOSData(void)
        * Try to get OS detailed information from the lsb_release command.
        */
 
-      lsbOutput = HostinfoGetCmdOutput("lsb_release -sd 2>/dev/null");
+      lsbOutput = HostinfoGetCmdOutput("/usr/bin/lsb_release -sd 2>/dev/null");
       if (!lsbOutput) {
          int i;
 
@@ -1038,6 +1081,7 @@ HostinfoOSData(void)
    }
 #endif
 
+#ifndef USERWORLD
    if (Hostinfo_GetSystemBitness() == 64) {
       if (strlen(osName) + sizeof STR_OS_64BIT_SUFFIX > sizeof osName) {
          Warning("%s: Error: buffer too small\n", __FUNCTION__);
@@ -1046,6 +1090,7 @@ HostinfoOSData(void)
       }
       Str_Strcat(osName, STR_OS_64BIT_SUFFIX, sizeof osName);
    }
+#endif
 
    /*
     * Before returning, truncate the \n character at the end of the full name.
@@ -1912,7 +1957,7 @@ Hostinfo_ResetProcessState(const int *keepFds, // IN:
       err = iopl(0);
 #endif
       Id_SetEUid(euid);
-      ASSERT_NOT_IMPLEMENTED(err == 0);
+      VERIFY(err == 0);
    }
 #endif
 }
@@ -2397,7 +2442,7 @@ HostinfoGetCpuInfo(int nCpu,    // IN:
          /* Free previous value */
          free(value);
          value = strdup(s);
-         ASSERT_MEM_ALLOC(value);
+         VERIFY(value);
 
          cpu++;
       }
@@ -2816,7 +2861,7 @@ HostinfoGetKernelZoneElemSizeZprint(char const *name) // IN: Kernel zone name
       pid = waitpid(child, &status, 0);
    } while ((pid == -1) && (errno == EINTR));
 
-   ASSERT_NOT_IMPLEMENTED(pid == child);
+   VERIFY(pid == child);
 
    retval = shared->retval;
    munmap((void *)shared, sizeof *shared);

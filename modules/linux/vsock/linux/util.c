@@ -33,10 +33,8 @@
 
 struct list_head vsockBindTable[VSOCK_HASH_SIZE + 1];
 struct list_head vsockConnectedTable[VSOCK_HASH_SIZE];
-struct list_head vsockSeqTable[VSOCK_HASH_SIZE];
 
 DEFINE_SPINLOCK(vsockTableLock);
-DEFINE_SPINLOCK(vsockSeqTableLock);
 
 
 /*
@@ -194,10 +192,6 @@ VSockVmciInitTables(void)
    for (i = 0; i < ARRAYSIZE(vsockConnectedTable); i++) {
       INIT_LIST_HEAD(&vsockConnectedTable[i]);
    }
-
-   for (i = 0; i < ARRAYSIZE(vsockSeqTable); i++) {
-      INIT_LIST_HEAD(&vsockSeqTable[i]);
-   }
 }
 
 
@@ -272,40 +266,6 @@ __VSockVmciInsertConnected(struct list_head *list,   // IN
 /*
  *----------------------------------------------------------------------------
  *
- * __VSockVmciInsertSeq --
- *
- *    Inserts socket into the sequential table.
- *
- *    Note that this assumes any necessary locks are held.
- *
- * Results:
- *    None.
- *
- * Side effects:
- *    The reference count for sk is incremented.
- *
- *----------------------------------------------------------------------------
- */
-
-void
-__VSockVmciInsertSeq(struct list_head *list,   // IN
-                     struct sock *sk)          // IN
-{
-   VSockVmciSock *vsk;
-
-   ASSERT(list);
-   ASSERT(sk);
-
-   vsk = vsock_sk(sk);
-
-   sock_hold(sk);
-   list_add(&vsk->seqTable, list);
-}
-
-
-/*
- *----------------------------------------------------------------------------
- *
  * __VSockVmciRemoveBound --
  *
  *    Removes socket from the bound table.
@@ -372,39 +332,6 @@ __VSockVmciRemoveConnected(struct sock *sk)  // IN
 /*
  *----------------------------------------------------------------------------
  *
- * __VSockVmciRemoveSeq --
- *
- *    Removes socket from the sequential table.
- *
- *    Note that this assumes any necessary locks are held.
- *
- * Results:
- *    None.
- *
- * Side effects:
- *    The reference count for sk is decremented.
- *
- *----------------------------------------------------------------------------
- */
-
-void
-__VSockVmciRemoveSeq(struct sock *sk)  // IN
-{
-   VSockVmciSock *vsk;
-
-   ASSERT(sk);
-   ASSERT(__VSockVmciInSeqTable(sk));
-
-   vsk = vsock_sk(sk);
-
-   list_del_init(&vsk->seqTable);
-   sock_put(sk);
-}
-
-
-/*
- *----------------------------------------------------------------------------
- *
  * __VSockVmciFindBoundSocket --
  *
  *    Finds the socket corresponding to the provided address in the bound
@@ -429,9 +356,8 @@ __VSockVmciFindBoundSocket(struct sockaddr_vm *addr)  // IN
 
    ASSERT(addr);
 
-
    list_for_each_entry(vsk, vsockBoundSockets(addr), boundTable) {
-      if (VSockAddr_EqualsAddrAny(addr, &vsk->localAddr)) {
+      if (addr->svm_port == vsk->localAddr.svm_port) {
          sk = sk_vsock(vsk);
 
          /* We only store stream sockets in the bound table. */
@@ -479,7 +405,7 @@ __VSockVmciFindConnectedSocket(struct sockaddr_vm *src,    // IN
 
    list_for_each_entry(vsk, vsockConnectedSockets(src, dst), connectedTable) {
       if (VSockAddr_EqualsAddr(src, &vsk->remoteAddr) &&
-          VSockAddr_EqualsAddr(dst, &vsk->localAddr)) {
+          dst->svm_port == vsk->localAddr.svm_port) {
          sk = sk_vsock(vsk);
          goto found;
       }
@@ -552,35 +478,6 @@ __VSockVmciInConnectedTable(struct sock *sk)     // IN
 /*
  *----------------------------------------------------------------------------
  *
- * __VSockVmciInSeqTable --
- *
- *    Determines whether the provided socket is in the sequential table.
- *
- * Results:
- *    TRUE is socket is in sequential table, FALSE otherwise.
- *
- * Side effects:
- *    None.
- *
- *----------------------------------------------------------------------------
- */
-
-Bool
-__VSockVmciInSeqTable(struct sock *sk)     // IN
-{
-   VSockVmciSock *vsk;
-
-   ASSERT(sk);
-
-   vsk = vsock_sk(sk);
-
-   return !list_empty(&vsk->seqTable);
-}
-
-
-/*
- *----------------------------------------------------------------------------
- *
  * VSockVmciGetPending --
  *
  *    Retrieves a pending connection that matches the addresses specified in
@@ -604,21 +501,18 @@ VSockVmciGetPending(struct sock *listener,      // IN: listening socket
    VSockVmciSock *vlistener;
    VSockVmciSock *vpending;
    struct sock *pending;
+   struct sockaddr_vm src;
 
    ASSERT(listener);
    ASSERT(pkt);
 
+   VSockAddr_Init(&src, VMCI_HANDLE_TO_CONTEXT_ID(pkt->dg.src), pkt->srcPort);
+
    vlistener = vsock_sk(listener);
 
    list_for_each_entry(vpending, &vlistener->pendingLinks, pendingLinks) {
-      struct sockaddr_vm src;
-      struct sockaddr_vm dst;
-
-      VSockAddr_Init(&src, VMCI_HANDLE_TO_CONTEXT_ID(pkt->dg.src), pkt->srcPort);
-      VSockAddr_Init(&dst, VMCI_HANDLE_TO_CONTEXT_ID(pkt->dg.dst), pkt->dstPort);
-
       if (VSockAddr_EqualsAddr(&src, &vpending->remoteAddr) &&
-          VSockAddr_EqualsAddr(&dst, &vpending->localAddr)) {
+          pkt->dstPort == vpending->localAddr.svm_port) {
          pending = sk_vsock(vpending);
          sock_hold(pending);
          goto found;
@@ -628,7 +522,6 @@ VSockVmciGetPending(struct sock *listener,      // IN: listening socket
    pending = NULL;
 found:
    return pending;
-
 }
 
 

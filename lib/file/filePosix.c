@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -66,6 +66,7 @@
 #include "localconfig.h"
 #include "hostType.h"
 #include "vmfs.h"
+#include "hashTable.h"
 
 #define LOGLEVEL_MODULE main
 #include "loglevel_user.h"
@@ -137,11 +138,11 @@ struct WalkDirContextImpl {
  *
  * FileRemoveDirectory --
  *
- *	Delete a directory.
+ *      Delete a directory.
  *
  * Results:
- *	0	success
- *	> 0	failure (errno)
+ *      0 success
+ *    > 0 failure (errno)
  *
  * Side effects:
  *      May change the host file system.
@@ -161,11 +162,11 @@ FileRemoveDirectory(ConstUnicode pathName)  // IN:
  *
  * File_Rename --
  *
- *	Rename a file.
+ *      Rename a file.
  *
  * Results:
- *	0	success
- *	> 0	failure (errno)
+ *        0  success
+ *      > 0  failure (errno)
  *
  * Side effects:
  *      May change the host file system.
@@ -198,8 +199,8 @@ File_RenameRetry(ConstUnicode oldFile,    // IN:
  *      and errno will be set to EFAULT.
  *
  * Results:
- *	0	success
- *	> 0	failure (errno)
+ *        0  success
+ *      > 0  failure (errno)
  *
  * Side effects:
  *      May change the host file system.  errno may be set.
@@ -277,11 +278,11 @@ File_UnlinkDelayed(ConstUnicode pathName)  // IN:
  *
  * FileAttributes --
  *
- *	Return the attributes of a file. Time units are in OS native time.
+ *      Return the attributes of a file. Time units are in OS native time.
  *
  * Results:
- *	0	success
- *	> 0	failure (errno)
+ *      0    success
+ *    > 0  failure (errno)
  *
  * Side effects:
  *      None
@@ -930,15 +931,15 @@ File_SetFilePermissions(ConstUnicode pathName,  // IN:
  *
  * FilePosixGetParent --
  *
- *      The input buffer is a canonical file path. Change it in place to the
- *      canonical file path of its parent directory.
+ *      The input buffer is a canonical path name. Change it in place to the
+ *      canonical path name of its parent directory.
  *
  *      Although this code is quite simple, we encapsulate it in a function
  *      because it is easy to get it wrong.
  *
  * Results:
- *      TRUE if the input buffer was (and remains) the root directory.
- *      FALSE if the input buffer was not the root directory and was changed in
+ *      TRUE  The input buffer was (and remains) the root directory.
+ *      FALSE The input buffer was not the root directory and was changed in
  *            place to its parent directory.
  *
  *      Example: "/foo/bar" -> "/foo" FALSE
@@ -957,6 +958,7 @@ FilePosixGetParent(Unicode *canPath)  // IN/OUT: Canonical file path
    Unicode pathName;
    Unicode baseName;
 
+   ASSERT(canPath);
    ASSERT(File_IsFullPath(*canPath));
 
    if (Unicode_Compare(*canPath, DIRSEPS) == 0) {
@@ -965,7 +967,6 @@ FilePosixGetParent(Unicode *canPath)  // IN/OUT: Canonical file path
 
    File_GetPathName(*canPath, &pathName, &baseName);
 
-   Unicode_Free(baseName);
    Unicode_Free(*canPath);
 
    if (Unicode_IsEmpty(pathName)) {
@@ -973,10 +974,38 @@ FilePosixGetParent(Unicode *canPath)  // IN/OUT: Canonical file path
       Unicode_Free(pathName);
       *canPath = Unicode_Duplicate("/");
    } else {
-      *canPath = pathName;
+      if (Unicode_IsEmpty(baseName)) {  // Directory
+         File_GetPathName(pathName, canPath, NULL);
+         Unicode_Free(pathName);
+      } else {                          // File
+         *canPath = pathName;
+      }
    }
 
+   Unicode_Free(baseName);
+
    return FALSE;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * File_GetParent --
+ *
+ *      The input buffer is a canonical path name. Change it in place to the
+ *      canonical path name of its parent directory.
+ *
+ * Side effects:
+ *      None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+Bool
+File_GetParent(Unicode *canPath)  // IN/OUT: Canonical file path
+{
+   return FilePosixGetParent(canPath);
 }
 
 
@@ -990,8 +1019,8 @@ FilePosixGetParent(Unicode *canPath)  // IN/OUT: Canonical file path
  *      on each level until it succeeds.
  *
  * Results:
- *      TRUE	statfs succeeded
- *	FALSE	unable to statfs anything along the path
+ *      TRUE    statfs succeeded
+ *      FALSE   unable to statfs anything along the path
  *
  * Side effects:
  *      None
@@ -1137,8 +1166,6 @@ File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File/dir to tes
    }
 
    ret = ioctl(fd, IOCTLCMD_VMFS_FS_GET_ATTR, (char *) *fsAttrs);
-
-   close(fd);
    if (ret == -1) {
       Log(LGPFX" %s: Could not get volume attributes (ret = %d): %s\n",
           __func__, ret, Err_Errno2String(errno));
@@ -1146,11 +1173,84 @@ File_GetVMFSAttributes(ConstUnicode pathName,             // IN: File/dir to tes
       *fsAttrs = NULL;
    }
 
+   close(fd);
+
 bail:
    Unicode_Free(fullPath);
    Unicode_Free(directory);
 
    return ret;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * File_GetVMFSFSType --
+ *
+ *      Get the filesystem type number of the file system on which the
+ *      given file/directory resides.
+ *
+ *      Caller can specify either a pathname or an already opened fd of
+ *      the file/dir whose filesystem he wants to determine.
+ *      'fd' takes precedence over 'pathName' so 'pathName' is used only
+ *      if 'fd' is -1.
+ *
+ * Results:
+ *      On success : return value  0 and file type number in 'fsTypeNum'.
+ *      On failure : return value -1 (errno will be set appropriately).
+ *
+ * Side effects:
+ *      On failure errno will be set.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+File_GetVMFSFSType(ConstUnicode pathName,  // IN:  File name to test
+                   int fd,                 // IN:  fd of an already opened file
+                   uint16 *fsTypeNum)      // OUT: Filesystem type number
+{
+   int ret, savedErrno;
+   Bool fdArg = (fd >= 0);  /* fd or pathname ? */
+
+   if (!fsTypeNum || (!fdArg && !pathName)) {
+      savedErrno = EINVAL;
+      goto exit;
+   }
+
+   if (!fdArg) {
+      fd = Posix_Open(pathName, O_RDONLY, 0);
+      if (fd < 0) {
+         savedErrno = errno;
+         Log(LGPFX" %s : Could not open %s : %s\n", __func__, UTF8(pathName),
+             Err_Errno2String(savedErrno));
+         goto exit;
+      }
+   }
+
+   ret = ioctl(fd, IOCTLCMD_VMFS_GET_FSTYPE, fsTypeNum);
+   /*
+    * Save errno to avoid close() affecting it.
+    */
+   savedErrno = errno;
+   if (!fdArg) {
+      close(fd);
+   }
+
+   if (ret == -1) {
+      Log(LGPFX" %s : Could not get filesystem type for %s (fd %d) : %s\n",
+          __func__, (!fdArg ? UTF8(pathName) : "__na__"), fd,
+          Err_Errno2String(savedErrno));
+      goto exit;
+   }
+
+   return 0;
+
+exit:
+   errno = savedErrno;
+   ASSERT(errno != 0);
+   return -1;
 }
 
 
@@ -1492,6 +1592,21 @@ File_GetUniqueFileSystemID(char const *path)  // IN: File path
 
    existPath = FilePosixNearestExistingAncestor(path);
    canPath = Posix_RealPath(existPath);
+
+   /*
+    * Returns "/vmfs/devices" for DEVFS. Since /vmfs/devices is symbol linker,
+    * We don't use realpath here.
+    */
+   if (strncmp(existPath, DEVFS_MOUNT_POINT, strlen(DEVFS_MOUNT_POINT)) == 0) {
+      char devfsName[FILE_MAXPATH];
+
+      if (sscanf(existPath, DEVFS_MOUNT_PATH "%[^/]%*s", devfsName) == 1) {
+         free(existPath);
+         free(canPath);
+         return Str_SafeAsprintf(NULL, "%s/%s", DEVFS_MOUNT_POINT, devfsName);
+      }
+   }
+
    free(existPath);
 
    if (canPath == NULL) {
@@ -1652,7 +1767,7 @@ retry:
 
          ret = Util_SafeStrdup(mnt.mnt_fsname);
 
-	 break;
+         break;
       }
    }
 
@@ -2007,8 +2122,8 @@ File_IsSameFile(ConstUnicode path1,  // IN:
  *
  * File_Replace --
  *
- *      Replace old file with new file, and attempt to reproduce
- *      file permissions.  A NULL value for either the oldName or
+ *      Replace old file (destination) with new file (source), and attempt to
+ *      reproduce file permissions.  A NULL value for either the oldName or
  *      newName will result in failure and errno will be set to EFAULT.
  *
  * Results:
@@ -2081,41 +2196,6 @@ bail:
 
    return result;
 }
-
-
-#ifdef VMX86_SERVER
-/*
- *-----------------------------------------------------------------------------
- *
- * File_Is2TiBEnabled --
- *
- *      Look up for the config option "disk.enable2TiB" in config file
- *      (/etc/vmware/config). If config option is not present then return
- *      TRUE.
- *
- * Results:
- *      TRUE if 2tbplus vdisk support is enabled (default value).
- *      FALSE otherwise.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-
-Bool
-File_Is2TiBEnabled(void)
-{
-   static Bool enable2TiB = FALSE;
-   static Bool enable2TiBInited = FALSE;
-
-   if (!enable2TiBInited) {
-      enable2TiB = LocalConfig_GetBool(TRUE, "disk.enable2TiB");
-      enable2TiBInited = TRUE;
-   }
-   return enable2TiB;
-}
-#endif
 
 
 /*
@@ -2471,20 +2551,6 @@ FileGetMaxOrSupportsFileSize(ConstUnicode pathName,  // IN:
 
    ASSERT(fileSize);
 
-#ifdef VMX86_SERVER
-   if (!File_Is2TiBEnabled()) {
-      if (getMaxFileSize) {
-         /*
-          * Return 2tb-512b since hostd uses this value directly to report max
-          * VMDK's sizes to the UI.
-          */
-         *fileSize = CONST64U(0x20000000000) - CONST64U(512);
-         return TRUE;
-      }
-      return *fileSize <= (CONST64U(0x20000000000) - CONST64U(512));
-   }
-#endif
-
    /*
     * We acquire the full path name for testing in
     * FilePosixCreateTestGetMaxOrSupportsFileSize().  This is also done in the
@@ -2634,11 +2700,11 @@ File_SupportsFileSize(ConstUnicode pathName,  // IN:
  *
  * FileCreateDirectory --
  *
- *	Create a directory. The umask is honored.
+ *      Create a directory. The umask is honored.
  *
  * Results:
- *	0	success
- *	> 0	failure (errno)
+ *      0    success
+ *    > 0  failure (errno)
  *
  * Side effects:
  *      May change the host file system.
@@ -2680,10 +2746,32 @@ FileCreateDirectory(ConstUnicode pathName,  // IN:
  *      The caller may trim it with realloc() if it cares.
  *
  *      A file name that cannot be represented in the default encoding
- *      will appear as a string of three UTF8 sustitution characters.
+ *      will appear as a string of three UTF8 substitution characters.
  *
  *----------------------------------------------------------------------
  */
+
+static int
+FileKeyDispose(const char *key,   // IN:
+               void *value,       // IN:
+               void *clientData)  // IN:
+{
+   Unicode_Free((void *) key);
+
+   return 0;
+}
+
+static int
+FileUnique(const char *key,   // IN:
+           void *value,       // IN:
+           void *clientData)  // IN/OUT: a DynBuf
+{
+   DynBuf *b = clientData;
+
+   DynBuf_Append(b, &key, sizeof key);
+
+   return 0;
+}
 
 int
 File_ListDirectory(ConstUnicode pathName,  // IN:
@@ -2691,19 +2779,19 @@ File_ListDirectory(ConstUnicode pathName,  // IN:
 {
    int err;
    DIR *dir;
-   DynBuf b;
    int count;
+   HashTable *hash;
 
    ASSERT(pathName != NULL);
 
    dir = Posix_OpenDir(pathName);
 
-   if (dir == (DIR *) NULL) {
+   if (dir == NULL) {
       // errno is preserved
       return -1;
    }
 
-   DynBuf_Init(&b);
+   hash = HashTable_Alloc(256, HASH_STRING_KEY, NULL);
    count = 0;
 
    while (TRUE) {
@@ -2711,7 +2799,7 @@ File_ListDirectory(ConstUnicode pathName,  // IN:
 
       errno = 0;
       entry = readdir(dir);
-      if (entry == (struct dirent *) NULL) {
+      if (entry == NULL) {
          err = errno;
          break;
       }
@@ -2743,18 +2831,44 @@ File_ListDirectory(ConstUnicode pathName,  // IN:
                                    UNICODE_SUBSTITUTION_CHAR);
          }
 
-         DynBuf_Append(&b, &id, sizeof id);
-      }
+         /*
+          * It is possible for a directory operation to change the contents
+          * of a directory while this routine is running. If the OS decides
+          * to physically rearrange the contents of the directory it is
+          * possible for readdir to report a file more than once. Only add
+          * a file to the return data if it is unique within the return
+          * data.
+          */
 
-      count++;
+         if (HashTable_Insert(hash, id, NULL)) {
+            count++;
+         } else {
+            Unicode_Free(id);
+         }
+      } else {
+         count++;
+      }
    }
 
    closedir(dir);
 
-   if (ids && (err == 0)) {
-      *ids = DynBuf_Detach(&b);
+   if (ids) {
+      ASSERT(count == HashTable_GetNumElements(hash));
+
+      if (err == 0) {
+         DynBuf b;
+
+         DynBuf_Init(&b);
+
+         HashTable_ForEach(hash, FileUnique, &b);
+         *ids = DynBuf_Detach(&b);
+         DynBuf_Destroy(&b);
+      } else {
+         HashTable_ForEach(hash, FileKeyDispose, NULL);
+      }
    }
-   DynBuf_Destroy(&b);
+
+   HashTable_Free(hash);
 
    return (errno = err) == 0 ? count : -1;
 }
@@ -2951,13 +3065,13 @@ File_WalkDirectoryEnd(WalkDirContext context)  // IN:
  *
  * FileIsGroupsMember --
  *
- *	Determine if a gid is in the gid list of the current process
+ *      Determine if a gid is in the gid list of the current process
  *
  * Results:
- *	FALSE if error (reported to the user)
+ *      FALSE if error (reported to the user)
  *
  * Side effects:
- *	None
+ *      None
  *
  *----------------------------------------------------------------------
  */
@@ -3019,19 +3133,19 @@ end:
  *
  * FileIsWritableDir --
  *
- *	Determine in a non-intrusive way if the user can create a file in a
- *	directory
+ *      Determine in a non-intrusive way if the user can create a file in a
+ *      directory
  *
  * Results:
- *	FALSE if error (reported to the user)
+ *      FALSE if error (reported to the user)
  *
  * Side effects:
- *	None
+ *      None
  *
  * Bug:
- *	It would be cleaner to use the POSIX access(2), which deals well
- *	with read-only filesystems. Unfortunately, access(2) doesn't deal with
- *	the effective [u|g]ids.
+ *      It would be cleaner to use the POSIX access(2), which deals well
+ *      with read-only filesystems. Unfortunately, access(2) doesn't deal with
+ *      the effective [u|g]ids.
  *
  *----------------------------------------------------------------------
  */
@@ -3080,10 +3194,10 @@ FileIsWritableDir(ConstUnicode dirName)  // IN:
  *      Owner always gets rwx.  Group/other get x where r is set.
  *
  * Results:
- *	FALSE if error
+ *      FALSE if error
  *
  * Side effects:
- *	errno is set on error
+ *      errno is set on error
  *
  *----------------------------------------------------------------------
  */

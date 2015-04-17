@@ -1,6 +1,6 @@
 
 /*********************************************************
- * Copyright (C) 2003 VMware, Inc. All rights reserved.
+ * Copyright (C) 2003-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -71,6 +71,9 @@ Vix_TranslateGuestRegistryError(int systemError) // IN
       break;
    case ERROR_ACCESS_DENIED:
       err = VIX_E_GUEST_USER_PERMISSIONS;
+      break;
+   case ERROR_CHILD_MUST_BE_VOLATILE:
+      err = VIX_E_REG_KEY_PARENT_VOLATILE;
       break;
    default:
       return Vix_TranslateSystemError(systemError);

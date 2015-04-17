@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -173,13 +173,12 @@ HgfsSendRequest(HgfsReq *req)       // IN/OUT: Outgoing request
 
    ASSERT(req);
    ASSERT(req->payloadSize <= req->bufferSize);
-   LOG(4, (KERN_WARNING "Size of buffer %Zu\n", req->bufferSize));
    req->state = HGFS_REQ_STATE_UNSENT;
 
-   LOG(8, (KERN_DEBUG "VMware hgfs: HgfsSendRequest: Sending request id %d\n",
+   LOG(10, (KERN_DEBUG "VMware hgfs: HgfsSendRequest: Sending request id %d\n",
            req->id));
    ret = HgfsTransportSendRequest(req);
-   LOG(8, (KERN_DEBUG "VMware hgfs: HgfsSendRequest: request finished, "
+   LOG(10, (KERN_DEBUG "VMware hgfs: HgfsSendRequest: request finished, "
            "return %d\n", ret));
 
    return ret;

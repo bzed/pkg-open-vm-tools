@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -2049,9 +2049,11 @@ string::end()
 bool
 Validate(const Glib::ustring& s) // IN
 {
-   bool isValid = s.validate();
+   bool isValid = Unicode_IsBufferValid(s.c_str(), s.bytes(),
+                                        STRING_ENCODING_UTF8);
    if (!isValid) {
-      char *escaped = Unicode_EscapeBuffer(s.c_str(), -1, STRING_ENCODING_UTF8);
+      char *escaped = Unicode_EscapeBuffer(s.c_str(), s.bytes(),
+                                           STRING_ENCODING_UTF8);
       Warning("Invalid UTF-8 string: \"%s\"\n", escaped);
       free(escaped);
    }

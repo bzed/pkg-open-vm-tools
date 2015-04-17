@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -28,40 +28,11 @@
 #include "rpcin.h"
 #include "rpcout.h"
 #include "util.h"
-
-/** Max amount of time (in .01s) that the RpcIn loop will sleep for. */
-#define RPCIN_MAX_DELAY    10
+#include "debug.h"
 
 typedef struct BackdoorChannel {
-   GMainContext  *mainCtx;
-   GStaticMutex   outLock;
-   RpcIn         *in;
-   RpcOut        *out;
-   gboolean       inStarted;
-   gboolean       outStarted;
+   RpcOut           *out;
 } BackdoorChannel;
-
-
-/**
- * Initializes internal state for the inbound channel.
- *
- * @param[in]  chan     The RPC channel instance.
- * @param[in]  ctx      Main application context.
- * @param[in]  appName  Unused.
- * @param[in]  appCtx   Unused.
- */
-
-static void
-RpcInSetup(RpcChannel *chan,
-           GMainContext *ctx,
-           const char *appName,
-           gpointer appCtx)
-{
-   BackdoorChannel *bdoor = chan->_private;
-   bdoor->mainCtx = g_main_context_ref(ctx);
-   bdoor->in = RpcIn_Construct(ctx, RpcChannel_Dispatch, chan);
-   ASSERT(bdoor->in != NULL);
-}
 
 
 /**
@@ -75,30 +46,22 @@ RpcInSetup(RpcChannel *chan,
  */
 
 static gboolean
-RpcInStart(RpcChannel *chan)
+BkdoorChannelStart(RpcChannel *chan)
 {
    gboolean ret = TRUE;
    BackdoorChannel *bdoor = chan->_private;
 
-   if (bdoor->outStarted) {
-      /* Already started. Make sure both channels are in sync and return. */
-      ASSERT(bdoor->in == NULL || bdoor->inStarted);
-      return ret;
-   } else {
-      ASSERT(bdoor->in == NULL || !bdoor->inStarted);
-   }
-
-   if (bdoor->in != NULL) {
-      ret = RpcIn_start(bdoor->in, RPCIN_MAX_DELAY, RpcChannel_Error, chan);
-   }
+   ret = chan->in == NULL || chan->inStarted;
    if (ret) {
       ret = RpcOut_start(bdoor->out);
       if (!ret) {
-         RpcIn_stop(bdoor->in);
+         if (chan->inStarted) {
+            RpcIn_stop(chan->in);
+            chan->inStarted = FALSE;
+         }
       }
    }
-   bdoor->inStarted = (bdoor->in != NULL);
-   bdoor->outStarted = TRUE;
+   chan->outStarted = ret;
    return ret;
 }
 
@@ -115,28 +78,17 @@ RpcInStart(RpcChannel *chan)
  */
 
 static void
-RpcInStop(RpcChannel *chan)
+BkdoorChannelStop(RpcChannel *chan)
 {
    BackdoorChannel *bdoor = chan->_private;
 
-   g_static_mutex_lock(&bdoor->outLock);
    if (bdoor->out != NULL) {
-      if (bdoor->outStarted) {
+      if (chan->outStarted) {
          RpcOut_stop(bdoor->out);
       }
-      bdoor->outStarted = FALSE;
+      chan->outStarted = FALSE;
    } else {
-      ASSERT(!bdoor->outStarted);
-   }
-   g_static_mutex_unlock(&bdoor->outLock);
-
-   if (bdoor->in != NULL) {
-      if (bdoor->inStarted) {
-         RpcIn_stop(bdoor->in);
-      }
-      bdoor->inStarted = FALSE;
-   } else {
-      ASSERT(!bdoor->inStarted);
+      ASSERT(!chan->outStarted);
    }
 }
 
@@ -150,19 +102,13 @@ RpcInStop(RpcChannel *chan)
  */
 
 static void
-RpcInShutdown(RpcChannel *chan)
+BkdoorChannelShutdown(RpcChannel *chan)
 {
    BackdoorChannel *bdoor = chan->_private;
-   RpcInStop(chan);
-   if (bdoor->in != NULL) {
-      RpcIn_Destruct(bdoor->in);
-   }
+   BkdoorChannelStop(chan);
    RpcOut_Destruct(bdoor->out);
-   g_static_mutex_free(&bdoor->outLock);
-   if (bdoor->mainCtx != NULL) {
-      g_main_context_unref(bdoor->mainCtx);
-   }
    g_free(bdoor);
+   chan->_private = NULL;
 }
 
 
@@ -179,19 +125,18 @@ RpcInShutdown(RpcChannel *chan)
  */
 
 static gboolean
-RpcInSend(RpcChannel *chan,
-          char const *data,
-          size_t dataLen,
-          char **result,
-          size_t *resultLen)
+BkdoorChannelSend(RpcChannel *chan,
+                  char const *data,
+                  size_t dataLen,
+                  char **result,
+                  size_t *resultLen)
 {
    gboolean ret = FALSE;
    const char *reply;
    size_t replyLen;
    BackdoorChannel *bdoor = chan->_private;
 
-   g_static_mutex_lock(&bdoor->outLock);
-   if (!bdoor->outStarted) {
+   if (!chan->outStarted) {
       goto exit;
    }
 
@@ -218,14 +163,14 @@ RpcInSend(RpcChannel *chan,
     */
    if (!ret && reply != NULL && replyLen > sizeof "RpcOut: " &&
        g_str_has_prefix(reply, "RpcOut: ")) {
-      g_debug("RpcOut failure, restarting channel.\n");
+      Debug("RpcOut failure, restarting channel.\n");
       RpcOut_stop(bdoor->out);
       if (RpcOut_start(bdoor->out)) {
          ret = RpcOut_send(bdoor->out, data, dataLen, &reply, &replyLen);
       } else {
-         g_warning("Couldn't restart RpcOut channel; bad things may happen "
-                   "until the RPC channel is reset.\n");
-         bdoor->outStarted = FALSE;
+         Warning("Couldn't restart RpcOut channel; bad things may happen "
+                 "until the RPC channel is reset.\n");
+         chan->outStarted = FALSE;
       }
    }
 
@@ -248,8 +193,47 @@ RpcInSend(RpcChannel *chan,
    }
 
 exit:
-   g_static_mutex_unlock(&bdoor->outLock);
    return ret;
+}
+
+
+/**
+ * Return the channel type.
+ *
+ * @param[in]  chan     RpcChannel
+ *
+ * @return backdoor channel type.
+ */
+
+static RpcChannelType
+BkdoorChannelGetType(RpcChannel *chan)
+{
+   return RPCCHANNEL_TYPE_BKDOOR;
+}
+
+
+/**
+ * Helper function to setup RpcChannel callbacks.
+ *
+ * @param[in]  chan     RpcChannel
+ */
+
+static void
+BackdoorChannelSetCallbacks(RpcChannel *chan)
+{
+   static RpcChannelFuncs funcs = {
+      BkdoorChannelStart,
+      BkdoorChannelStop,
+      BkdoorChannelSend,
+      NULL,
+      BkdoorChannelShutdown,
+      BkdoorChannelGetType,
+      NULL,
+      NULL
+   };
+
+   ASSERT(chan);
+   chan->funcs = &funcs;
 }
 
 
@@ -268,20 +252,42 @@ BackdoorChannel_New(void)
    ret = RpcChannel_Create();
    bdoor = g_malloc0(sizeof *bdoor);
 
-   g_static_mutex_init(&bdoor->outLock);
    bdoor->out = RpcOut_Construct();
    ASSERT(bdoor->out != NULL);
 
-   bdoor->inStarted = FALSE;
-   bdoor->outStarted = FALSE;
+   ret->inStarted = FALSE;
+   ret->outStarted = FALSE;
 
-   ret->start = RpcInStart;
-   ret->stop = RpcInStop;
-   ret->send = RpcInSend;
-   ret->setup = RpcInSetup;
-   ret->shutdown = RpcInShutdown;
+   BackdoorChannelSetCallbacks(ret);
    ret->_private = bdoor;
 
    return ret;
+}
+
+
+/**
+ * Fall back to backdoor when another type of RpcChannel fails to start.
+ *
+ * @param[in]  chan     RpcChannel
+ *
+ * @return TRUE on success.
+ */
+
+gboolean
+BackdoorChannel_Fallback(RpcChannel *chan)
+{
+   BackdoorChannel *bdoor;
+
+   ASSERT(chan);
+   ASSERT(chan->_private == NULL);
+
+   bdoor = g_malloc0(sizeof *bdoor);
+   bdoor->out = RpcOut_Construct();
+   ASSERT(bdoor->out != NULL);
+
+   BackdoorChannelSetCallbacks(chan);
+   chan->_private = bdoor;
+
+   return chan->funcs->start(chan);
 }
 

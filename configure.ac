@@ -1,5 +1,5 @@
 ################################################################################
-### Copyright 2007 VMware, Inc.  All rights reserved.
+### Copyright (C) 2007-2015 VMware, Inc.  All rights reserved.
 ###
 ### Configure script for building the VMware OSS Tools.
 ###
@@ -39,10 +39,10 @@
 ### Initialization
 ###
 
-TOOLS_VERSION="9.4.6"
+TOOLS_VERSION="2015.01.29"
 AC_INIT(
    [open-vm-tools],
-   [9.4.6],
+   [2015.01.29],
    [open-vm-tools-devel@lists.sourceforge.net])
 
 # In order to make this configure script auto-detect situations where
@@ -129,6 +129,9 @@ case "$host_os" in
       ;;
    [freebsd*])
       os="freebsd"
+      ;;
+   [kfreebsd*-gnu])
+      os="kfreebsd-gnu"
       ;;
    [solaris*])
       os="solaris"
@@ -289,45 +292,70 @@ if test "$have_libintl" = "no"; then
                    [])
 fi
 
+AC_ARG_ENABLE([deploypkg],
+   [AS_HELP_STRING([--disable-deploypkg],
+     [do not build deploypkg plugin.])],
+   [],
+   [enable_deploypkg=yes])
+
+if test "$enable_deploypkg" = "yes"; then
+  AC_VMW_CHECK_LIB([mspack],
+                   [MSPACK],
+                   [libmspack],
+                   [],
+                   [0.0.20040308alpha],
+                   [mspack.h],
+                   [],
+                   [],
+                   [AC_MSG_ERROR([mspack >= 0.0.20040308alpha is required.])])
+fi
+
+AC_ARG_ENABLE([grabbitmqproxy],
+   [AS_HELP_STRING([--disable-grabbitmqproxy],
+     [do not build grabbitmqproxy plugin.])],
+   [],
+   [enable_grabbitmqproxy=yes])
+
 #
-# Check for glib 2.6.0 or greater.
+# Check for glib 2.6.14 or greater.
 #
 AC_VMW_CHECK_LIB([glib-2.0],
                  [GLIB2],
                  [glib-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [glib.h],
                  [g_key_file_new],
                  [],
-                 [AC_MSG_ERROR([glib >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([glib2 >= 2.14.0 is required.])])
+
 AC_VMW_CHECK_LIB([gmodule-2.0],
                  [GMODULE],
                  [gmodule-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [],
                  [],
                  [],
-                 [AC_MSG_ERROR([gmodule >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([gmodule >= 2.14.0 is required.])])
 AC_VMW_CHECK_LIB([gobject-2.0],
                  [GOBJECT],
                  [gobject-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [glib-object.h],
                  [],
                  [],
-                 [AC_MSG_ERROR([gobject >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([gobject >= 2.14.0 is required.])])
 AC_VMW_CHECK_LIB([gthread-2.0],
                  [GTHREAD],
                  [gthread-2.0],
                  [],
-                 [2.6.0],
+                 [2.14.0],
                  [],
                  [],
                  [],
-                 [AC_MSG_ERROR([glib >= 2.6.0 is required.])])
+                 [AC_MSG_ERROR([glib >= 2.14.0 is required.])])
 AC_CHECK_PROG([have_genmarshal],
               [glib-genmarshal],
               [yes],
@@ -335,21 +363,6 @@ AC_CHECK_PROG([have_genmarshal],
 
 if test "$have_genmarshal" != "yes"; then
    AC_MSG_ERROR([glib-genmarshal is required; make sure it's available in your path.])
-fi
-
-#
-# Parts of our Linux code require more recent version of glib
-#
-if test "$os" = "linux"; then
-   AC_VMW_CHECK_LIB([glib-2.0],
-                    [GLIB2],
-                    [glib-2.0],
-                    [],
-                    [2.14.0],
-                    [glib.h],
-                    [g_regex_new],
-                    [have_glib_2_14=yes],
-                    [AC_MSG_WARN([glib is not recent enough, some features will be disabled.])])
 fi
 
 #
@@ -371,7 +384,7 @@ AC_VMW_CHECK_LIB([fuse],
 #
 AC_ARG_WITH([pam],
    [AS_HELP_STRING([--without-pam],
-   [compiles without PAM support.])],
+     [compiles without PAM support.])],
    [],
    [with_pam=yes])
 
@@ -386,6 +399,74 @@ if test "$with_pam" = "yes"; then
                     [pam_start],
                     [PAM_CPPFLAGS="$PAM_CPPFLAGS -DUSE_PAM"],
                     [AC_VMW_LIB_ERROR([PAM], [pam])])
+fi
+
+AC_ARG_ENABLE([vgauth],
+   [AS_HELP_STRING([--disable-vgauth],
+     [do not build vgauth.])],
+   [],
+   [enable_vgauth=yes])
+
+#
+# Check for openssl, xerces-c and xml-security-c
+#
+AC_ARG_WITH([ssl],
+   [AS_HELP_STRING([--without-ssl],
+     [compiles without openssl support (disables grabbitmqproxy and vgauth).])],
+   [
+     enable_grabbitmqproxy=no
+     enable_vgauth=no
+   ],
+   [with_ssl=yes])
+
+AC_ARG_WITH([xmlsecurity],
+   [AS_HELP_STRING([--without-xmlsecurity],
+     [compiles without xml-security-c support (disables vgauth).])],
+   [enable_vgauth=no],
+   [with_xmlsecurity=yes])
+
+AC_ARG_WITH([xerces],
+   [AS_HELP_STRING([--without-xerces],
+     [compiles without xerces support (disables vgauth).])],
+   [enable_vgauth=no],
+   [with_xerces=yes])
+
+if test "$enable_vgauth" = "yes" -o "$enable_grabbitmqproxy" = "yes"; then
+   AC_VMW_DEFAULT_FLAGS([SSL])
+   AC_VMW_CHECK_LIB([ssl],
+                    [SSL],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [AC_VMW_LIB_ERROR([SSL], [ssl])])
+fi
+
+if test "$enable_vgauth" = "yes"; then
+   CPPFLAGS="$CPPFLAGS -DUSE_VGAUTH"
+   AC_VMW_DEFAULT_FLAGS([XERCES])
+   AC_VMW_CHECK_LIB([xerces-c],
+                    [XERCES],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [AC_VMW_LIB_ERROR([XERCES], [xerces-c])])
+
+   AC_VMW_DEFAULT_FLAGS([XMLSECURITY])
+   AC_VMW_CHECK_LIB([xml-security-c],
+                    [XMLSECURITY],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [AC_VMW_LIB_ERROR([XMLSECURITY], [xml-security-c])])
 fi
 
 #
@@ -555,7 +636,9 @@ AC_CHECK_FUNCS(
       dl,
       dlopen,
       [VIX_LIBADD="$VIX_LIBADD -ldl"
-       LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -ldl"],
+       LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -ldl"
+       VGAUTH_LIBADD="$VGAUTH_LIBADD -ldl"
+      ],
       [AC_MSG_ERROR(
          [dlopen was not found, but is required for open-vm-tools to function properly. Please contact your OS vendor.])])])
 
@@ -596,35 +679,55 @@ else
 fi
 
 if test "$with_procps" = "yes"; then
-   if test -z "$CUSTOM_PROCPS_NAME"; then
-      CUSTOM_PROCPS_NAME=proc
-   fi
 
-   # XXX: no pkg-config and no procps-config means we need to
-   # hard-code a sensible default.
-   if test -z "$CUSTOM_PROCPS_LIBS"; then
-      CUSTOM_PROCPS_LIBS="-L/lib"
-   fi
-
-   # Some distros provide libproc-${version}.so only, others provide the
-   # libproc.so symlink. Try both to see what sticks (but only try the 3.2.7
-   # and 3.2.8 versions - adding every possible version here would be a mess).
-   #
-   # Users can help by providing CUSTOM_PROCPS_NAME / CUSTOM_PROCPS_LIBS if
-   # necessary.
    have_procps=no
 
-   AC_VMW_CHECK_LIB([$CUSTOM_PROCPS_NAME],
-                    [PROCPS],
-                    [],
-                    [],
-                    [],
-                    [],
-                    [getstat],
-                    [
-                     have_procps=yes;
-                    ],
-                    [])
+   if test -z "$CUSTOM_PROCPS_NAME" && test -z "$CUSTOM_PROCPS_LIBS"; then
+      # See if we have procps-ng (that finally supports pkg-config).
+      AC_VMW_CHECK_LIB([procps-ng],
+                       [PROCPS],
+                       [libprocps],
+                       [],
+                       [],
+                       [],
+                       [],
+                       [
+                        have_procps=yes;
+                       ],
+                       [])
+   fi
+
+   if test "$have_procps" = "no"; then
+      # Let's see if there is an older procps version, one that does not
+      # support pkg-config.
+      if test -z "$CUSTOM_PROCPS_NAME"; then
+         CUSTOM_PROCPS_NAME=proc
+      fi
+
+      # XXX: no pkg-config and no procps-config means we need to
+      # hard-code a sensible default.
+      if test -z "$CUSTOM_PROCPS_LIBS"; then
+         CUSTOM_PROCPS_LIBS="-L/lib"
+      fi
+
+      # Some distros provide libproc-${version}.so only, others provide the
+      # libproc.so symlink. Try both to see what sticks (but only try the 3.2.7
+      # and 3.2.8 versions - adding every possible version here would be a mess).
+      #
+      # Users can help by providing CUSTOM_PROCPS_NAME / CUSTOM_PROCPS_LIBS if
+      # necessary.
+      AC_VMW_CHECK_LIB([$CUSTOM_PROCPS_NAME],
+                       [PROCPS],
+                       [],
+                       [],
+                       [],
+                       [],
+                       [getstat],
+                       [
+                        have_procps=yes;
+                       ],
+                       [])
+   fi
 
    if test "$have_procps" = "no"; then
       AC_VMW_CHECK_LIB([proc-3.2.8],
@@ -834,9 +937,12 @@ AC_C_VOLATILE
 CFLAGS="$CFLAGS -Wall"
 CFLAGS="$CFLAGS -Werror"
 
-# -Wno-unknown-pragmas is due to gcc not understanding '#pragma ident' in Xlib.h on OpenSolaris.
+# -Wno-unknown-pragmas is due to gcc not understanding '#pragma ident'
+# in Xlib.h on OpenSolaris.
+# Glib2 keep changing mutex APIs so we also need to disable 'deprecated'
+# warnings for now (-Wno-deprecated-declarations).
 for TEST_CFLAG in -Wno-pointer-sign -Wno-unused-value -fno-strict-aliasing \
-    -Wno-unknown-pragmas -Wno-uninitialized; do
+    -Wno-unknown-pragmas -Wno-uninitialized -Wno-deprecated-declarations; do
     AC_MSG_CHECKING([for GCC flag $TEST_CFLAG])
     ORIGINAL_CFLAGS="$CFLAGS"
     CFLAGS="$CFLAGS $TEST_CFLAG"
@@ -927,10 +1033,6 @@ TARGET_OS="$os"
 MODULES_DIR=""
 buildHgfsmounter=no
 
-if test "$have_glib_2_14" = "yes"; then
-   CPPFLAGS="$CPPFLAGS -DHAVE_GLIB_REGEX"
-fi
-
 if test "$os" = "linux"; then
    MODULES_DIR="$LINUXDIR/kernel/"
 
@@ -942,12 +1044,19 @@ if test "$os" = "linux"; then
 
    LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -lrt"
 
-   MODULES="$MODULES vmsync vmci vsock"
-   MODULES="$MODULES vmxnet vmblock vmhgfs"
+   MODULES="$MODULES vmxnet vmhgfs"
+   # See if we need vmci and vsock modules. Starting with 3.9 they made
+   # their way into mainline kernel.
+   if test "$osVersion" -lt 309000; then
+      MODULES="$MODULES vmci vsock"
+   fi
+   if test "$osVersion" -lt 300000; then
+      MODULES="$MODULES vmblock vmsync"
+   fi
    buildHgfsmounter=yes
 fi
 
-if test "$os" = "freebsd"; then
+if test "$os" = "freebsd" || test "$os" = "kfreebsd-gnu"; then
    LIBVMTOOLS_LIBADD="$LIBVMTOOLS_LIBADD -lkvm"
    MODULES_DIR="/boot/modules"
 
@@ -958,8 +1067,7 @@ if test "$os" = "freebsd"; then
       MODULES="$MODULES vmxnet"
    fi
    if test "$osVersion" -ge 600000; then
-      MODULES="$MODULES vmblock vmhgfs"
-      buildHgfsmounter=yes
+      MODULES="$MODULES vmblock"
    fi
 
    if test "$with_kernel_modules" = "yes"; then
@@ -1016,8 +1124,9 @@ fi
 AM_CONDITIONAL(BUILD_HGFSMOUNTER, test "$buildHgfsmounter" = "yes")
 AM_CONDITIONAL(LINUX, test "$os" = "linux")
 AM_CONDITIONAL(SOLARIS, test "$os" = "solaris")
-AM_CONDITIONAL(FREEBSD, test "$os" = "freebsd")
-AM_CONDITIONAL(FREEBSD_CUSTOM_SYSDIR, test "$os" = "freebsd" -a -n "$SYSDIR")
+AM_CONDITIONAL(FREEBSD, test "$os" = "freebsd" -o "$os" = "kfreebsd-gnu")
+AM_CONDITIONAL(FREEBSD_CUSTOM_SYSDIR,
+               test \( "$os" = "freebsd" -o "$os" = "kfreebsd-gnu" \) -a -n "$SYSDIR")
 AM_CONDITIONAL(THIRTY_TWO_BIT_USERSPACE, test "$userSpaceBitness" = "32")
 AM_CONDITIONAL(HAVE_X11, test "$have_x" = "yes")
 AM_CONDITIONAL(HAVE_ICU, test "$with_icu" = "yes")
@@ -1032,8 +1141,11 @@ AM_CONDITIONAL(HAVE_FUSE, test "$have_fuse" = "yes")
 AM_CONDITIONAL(HAVE_GNU_LD, test "$with_gnu_ld" = "yes")
 AM_CONDITIONAL(HAVE_GTKMM, test "$have_x" = "yes" -a "$with_gtkmm" = "yes")
 AM_CONDITIONAL(HAVE_PAM, test "$with_pam" = "yes")
-AM_CONDITIONAL(USE_SLASH_PROC, test "os" = "linux" -a "$have_glib_2_14" = "yes")
+AM_CONDITIONAL(USE_SLASH_PROC, test "$os" = "linux")
 AM_CONDITIONAL(USE_PRINTF_WRAPPERS, test "$bsdPrintfWrappers" = "yes")
+AM_CONDITIONAL(ENABLE_DEPLOYPKG, test "$enable_deploypkg" = "yes")
+AM_CONDITIONAL(ENABLE_GRABBITMQPROXY, test "$enable_grabbitmqproxy" = "yes")
+AM_CONDITIONAL(ENABLE_VGAUTH, test "$enable_vgauth" = "yes")
 
 if test "$have_xsm" != "yes"; then
 AC_DEFINE([NO_XSM], 1, [])
@@ -1135,6 +1247,7 @@ AC_SUBST([LIBVMTOOLS_LIBADD])
 ### Program substs
 
 AC_SUBST([VIX_LIBADD])
+AC_SUBST([VGAUTH_LIBADD])
 
 ###
 ### Create the Makefiles
@@ -1145,6 +1258,12 @@ AC_CONFIG_FILES([                      \
    lib/appUtil/Makefile                \
    lib/auth/Makefile                   \
    lib/backdoor/Makefile               \
+   lib/asyncsocket/Makefile            \
+   lib/sslDirect/Makefile              \
+   lib/pollGtk/Makefile                \
+   lib/poll/Makefile                   \
+   lib/dataMap/Makefile                \
+   lib/hashMap/Makefile                \
    lib/dict/Makefile                   \
    lib/dynxdr/Makefile                 \
    lib/err/Makefile                    \
@@ -1164,6 +1283,7 @@ AC_CONFIG_FILES([                      \
    lib/message/Makefile                \
    lib/misc/Makefile                   \
    lib/netUtil/Makefile                \
+   lib/nicInfo/Makefile                \
    lib/panic/Makefile                  \
    lib/panicDefault/Makefile           \
    lib/printer/Makefile                \
@@ -1188,22 +1308,30 @@ AC_CONFIG_FILES([                      \
    services/plugins/Makefile           \
    services/plugins/desktopEvents/Makefile \
    services/plugins/dndcp/Makefile     \
+   services/plugins/grabbitmqProxy/Makefile \
    services/plugins/guestInfo/Makefile \
-   services/plugins/guestInfo/getlib/Makefile \
    services/plugins/hgfsServer/Makefile \
    services/plugins/powerOps/Makefile  \
    services/plugins/resolutionSet/Makefile \
    services/plugins/timeSync/Makefile  \
    services/plugins/vix/Makefile       \
    services/plugins/vmbackup/Makefile  \
+   services/plugins/deployPkg/Makefile  \
    vmware-user-suid-wrapper/Makefile   \
    toolbox/Makefile                    \
    hgfsclient/Makefile                 \
    hgfsmounter/Makefile                \
    checkvm/Makefile                    \
    rpctool/Makefile                    \
+   guestproxycerttool/Makefile         \
+   vgauth/Makefile                     \
+   vgauth/lib/Makefile                 \
+   vgauth/cli/Makefile                 \
+   vgauth/service/Makefile             \
    libguestlib/Makefile                \
    libguestlib/vmguestlib.pc           \
+   libDeployPkg/Makefile               \
+   libDeployPkg/libDeployPkg.pc        \
    libhgfs/Makefile                    \
    libvmtools/Makefile                 \
    xferlogs/Makefile                   \

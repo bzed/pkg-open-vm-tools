@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006-2011 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -59,6 +59,7 @@
  * Brief names are used when the VMware prefix is not wanted.
  */
 #define PRODUCT_SCALABLE_SERVER_BRIEF_NAME "ESX"
+#define PRODUCT_ESXI_BRIEF_NAME "ESXi"
 #define PRODUCT_WORKSTATION_BRIEF_NAME "Workstation"
 #define PRODUCT_WORKSTATION_ENTERPRISE_BRIEF_NAME \
          PRODUCT_WORKSTATION_BRIEF_NAME " " "ACE Edition"
@@ -137,7 +138,7 @@
 #define PRODUCT_VDDK_SHORT_NAME "VDDK"
 #define PRODUCT_VDDK_NAME MAKE_NAME("Virtual Disk Development Kit")
 
-#define PRODUCT_VDM_CLIENT_NAME MAKE_NAME("View Client")
+#define PRODUCT_VDM_CLIENT_NAME MAKE_NAME("Horizon View Client")
 #define PRODUCT_VDM_CLIENT_NAME_FOR_LICENSE PRODUCT_VDM_CLIENT_NAME
 
 #define PRODUCT_XVP_SHORT_NAME "XVP"
@@ -440,21 +441,6 @@
 #   else
 #      if defined(__APPLE__)
 #         define VMWARE_HOST_DIRECTORY VMWARE_HOST_DIRECTORY_PREFIX
-#      elif defined(__ACESC_LICENSE__)
-/*
- * This definition (__ACESC_LICENSE__) is used by the acesc licensing.
- * The licensing API uses VMWARE_HOST_DIRECTORY definition to save the activated
- * license (as well as searching).
- * In our case, the ACESC will use this customized directory, instead of the common
- * '/etc/vmware'.
- * The main motivation for this is that the acesc configuration application is
- * a web application (cgi app). Using the common directory, the apache process
- * does not have enough permission to write into the directory (/etc/vmware).
- * Instead of making the /etc/vmware writeable by everybody, we just create another
- * subdirectory (/etc/vmware/acesc).
- */
-#         define VMWARE_HOST_DIRECTORY "/etc/vmware/acesc"
-#         define DEFAULT_LIBDIRECTORY "/usr/lib/" PRODUCT_GENERIC_NAME_LOWER
 #      else
 #         define VMWARE_HOST_DIRECTORY "/etc/" PRODUCT_GENERIC_NAME_LOWER
 #         define DEFAULT_LIBDIRECTORY "/usr/lib/" PRODUCT_GENERIC_NAME_LOWER
@@ -463,13 +449,9 @@
 
 #   if defined(__APPLE__)
 #      if defined VMX86_DESKTOP
-/*
- * We will remove this definition soon. Fusion's library directory should not
- * be hardcoded: it prevents Fusion from being relocated. Use
- * Location_GetLibrary() instead.
- */
+/* On Mac OS, use Location_Get() instead of DEFAULT_LIBDIRECTORY. */
 #         define DEFAULT_LIBDIRECTORY \
-             "/Applications/" PRODUCT_SHORT_NAME ".app/Contents/Library"
+             "/dev/null/Non-existing DEFAULT_LIBDIRECTORY"
 #      else
 #         define DEFAULT_LIBDIRECTORY VMWARE_HOST_DIRECTORY
 #      endif

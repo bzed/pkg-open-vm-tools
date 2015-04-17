@@ -1,5 +1,5 @@
 ################################################################################
-### Copyright 2007 VMware, Inc.  All rights reserved.
+### Copyright (C) 2007-2015 VMware, Inc.  All rights reserved.
 ###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of version 2 of the GNU General Public License as
@@ -22,6 +22,12 @@ if HAVE_X11
 endif
 SUBDIRS += auth
 SUBDIRS += backdoor
+SUBDIRS += asyncsocket
+SUBDIRS += sslDirect
+SUBDIRS += pollGtk
+SUBDIRS += poll
+SUBDIRS += dataMap
+SUBDIRS += hashMap
 SUBDIRS += dict
 SUBDIRS += dynxdr
 SUBDIRS += err
@@ -40,6 +46,7 @@ SUBDIRS += lock
 SUBDIRS += message
 SUBDIRS += misc
 SUBDIRS += netUtil
+SUBDIRS += nicInfo
 SUBDIRS += panic
 SUBDIRS += panicDefault
 SUBDIRS += printer

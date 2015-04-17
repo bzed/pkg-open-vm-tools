@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -50,6 +50,23 @@
 #include "request.h"
 #include "fsutil.h"
 #include "vm_assert.h"
+
+
+#if defined VMW_DCOUNT_311 || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+/*
+ * Linux Kernel versions that are version 3.11 version and newer or are compatible
+ * by having the d_count function replacement backported.
+ */
+#define hgfs_d_count(dentry) d_count(dentry)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+/*
+ * Kernel versions that are not 3.11 version compatible or are just older will
+ * use the d_count field.
+ */
+#define hgfs_d_count(dentry) dentry->d_count
+#else
+#define hgfs_d_count(dentry) atomic_read(&dentry->d_count)
+#endif
 
 /* Private functions. */
 static int HgfsDelete(struct inode *dir,
@@ -158,6 +175,38 @@ struct inode_operations HgfsFileInodeOperations = {
 /*
  * Private functions implementations.
  */
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * HgfsClearReadOnly --
+ *
+ *    Try to remove the file/dir read only attribute.
+ *
+ *    Note when running on Windows servers the entry may have the read-only
+ *    flag set and prevent a rename or delete operation from occuring.
+ *
+ * Results:
+ *    Returns zero on success, or a negative error on failure.
+ *
+ * Side effects:
+ *    None
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+HgfsClearReadOnly(struct dentry *dentry)  // IN: file/dir to remove read only
+{
+   struct iattr enableWrite;
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: HgfsClearReadOnly: removing read-only\n"));
+   enableWrite.ia_mode = (dentry->d_inode->i_mode | S_IWUSR);
+   enableWrite.ia_valid = ATTR_MODE;
+   return HgfsSetattr(dentry, &enableWrite);
+}
+
 
 /*
  *----------------------------------------------------------------------
@@ -309,14 +358,8 @@ HgfsDelete(struct inode *dir,      // IN: Parent dir of file/dir to delete
           * safe?
           */
          if (!secondAttempt) {
-            struct iattr enableWrite;
             secondAttempt = TRUE;
-
-            LOG(4, (KERN_DEBUG "VMware hgfs: HgfsDelete: access denied, "
-                    "attempting to work around read-only bit\n"));
-            enableWrite.ia_mode = (dentry->d_inode->i_mode | S_IWUSR);
-            enableWrite.ia_valid = ATTR_MODE;
-            result = HgfsSetattr(dentry, &enableWrite);
+            result = HgfsClearReadOnly(dentry);
             if (result == 0) {
                LOG(4, (KERN_DEBUG "VMware hgfs: HgfsDelete: file is no "
                        "longer read-only, retrying delete\n"));
@@ -404,6 +447,8 @@ HgfsPackSetattrRequest(struct iattr *iattr,   // IN: Inode attrs to update from
    size_t reqBufferSize;
    size_t reqSize;
    int result = 0;
+   uid_t attrUid = -1;
+   gid_t attrGid = -1;
 
    ASSERT(iattr);
    ASSERT(dentry);
@@ -411,6 +456,14 @@ HgfsPackSetattrRequest(struct iattr *iattr,   // IN: Inode attrs to update from
    ASSERT(changed);
 
    valid = iattr->ia_valid;
+
+   if (valid & ATTR_UID) {
+      attrUid = from_kuid(&init_user_ns, iattr->ia_uid);
+   }
+
+   if (valid & ATTR_GID) {
+      attrGid = from_kgid(&init_user_ns, iattr->ia_gid);
+   }
 
    switch (opUsed) {
    case HGFS_OP_SETATTR_V3: {
@@ -488,13 +541,13 @@ HgfsPackSetattrRequest(struct iattr *iattr,   // IN: Inode attrs to update from
 
       if (valid & ATTR_UID) {
          attrV2->mask |= HGFS_ATTR_VALID_USERID;
-         attrV2->userId = iattr->ia_uid;
+         attrV2->userId = attrUid;
          *changed = TRUE;
       }
 
       if (valid & ATTR_GID) {
          attrV2->mask |= HGFS_ATTR_VALID_GROUPID;
-         attrV2->groupId = iattr->ia_gid;
+         attrV2->groupId = attrGid;
          *changed = TRUE;
       }
 
@@ -591,13 +644,13 @@ HgfsPackSetattrRequest(struct iattr *iattr,   // IN: Inode attrs to update from
 
       if (valid & ATTR_UID) {
          attrV2->mask |= HGFS_ATTR_VALID_USERID;
-         attrV2->userId = iattr->ia_uid;
+         attrV2->userId = attrUid;
          *changed = TRUE;
       }
 
       if (valid & ATTR_GID) {
          attrV2->mask |= HGFS_ATTR_VALID_GROUPID;
-         attrV2->groupId = iattr->ia_gid;
+         attrV2->groupId = attrGid;
          *changed = TRUE;
       }
 
@@ -1326,6 +1379,7 @@ HgfsRename(struct inode *oldDir,      // IN: Inode of original directory
    HgfsReq *req = NULL;
    char *oldName;
    char *newName;
+   Bool secondAttempt=FALSE;
    uint32 *oldNameLength;
    uint32 *newNameLength;
    int result = 0;
@@ -1490,6 +1544,31 @@ retry:
                     "returned error: %d\n", result));
             goto out;
          }
+      } else if ((-EACCES == result) || (-EPERM == result)) {
+         /*
+          * It's possible that we're talking to a Windows server with
+          * a file marked read-only. Let's try again, after removing
+          * the read-only bit from the file.
+          *
+          * XXX: I think old servers will send -EPERM here. Is this entirely
+          * safe?
+          */
+         if (!secondAttempt) {
+            secondAttempt = TRUE;
+            result = HgfsClearReadOnly(newDentry);
+            if (result == 0) {
+               LOG(4, (KERN_DEBUG "VMware hgfs: HgfsRename: file is no "
+                       "longer read-only, retrying rename\n"));
+               goto retry;
+            }
+            LOG(4, (KERN_DEBUG "VMware hgfs: HgfsRename: failed to remove "
+                    "read-only property\n"));
+         } else {
+            LOG(4, (KERN_DEBUG "VMware hgfs: HgfsRename: second attempt at "
+                    "rename failed\n"));
+         }
+      } else if (0 != result) {
+         LOG(4, (KERN_DEBUG "VMware hgfs: HgfsRename: failed with result %d\n", result));
       }
    } else if (result == -EIO) {
       LOG(4, (KERN_DEBUG "VMware hgfs: HgfsRename: timed out\n"));
@@ -1839,7 +1918,7 @@ HgfsPermission(struct inode *inode,
 #endif
                            &inode->i_dentry,
                            d_alias) {
-         int dcount = compat_d_count(dentry);
+         int dcount = hgfs_d_count(dentry);
          if (dcount) {
             LOG(4, ("Found %s %d \n", dentry->d_name.name, dcount));
             return HgfsAccessInt(dentry, mask & (MAY_READ | MAY_WRITE | MAY_EXEC));
@@ -1892,7 +1971,7 @@ HgfsPermission(struct inode *inode,
       list_for_each(pos, &inode->i_dentry) {
          int dcount;
          struct dentry *dentry = list_entry(pos, struct dentry, d_alias);
-         dcount = compat_d_count(dentry);
+         dcount = hgfs_d_count(dentry);
          if (dcount) {
             LOG(4, ("Found %s %d \n", (dentry)->d_name.name, dcount));
             return HgfsAccessInt(dentry, mask & (MAY_READ | MAY_WRITE | MAY_EXEC));

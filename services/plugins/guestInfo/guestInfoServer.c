@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998-2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -61,6 +61,7 @@
 #include "vmware/tools/vmbackup.h"
 
 #if !defined(__APPLE__)
+#include "vm_version.h"
 #include "embed_version.h"
 #include "vmtoolsd_version.h"
 VM_EMBED_VERSION(VMTOOLSD_VERSION_STRING);
@@ -231,10 +232,12 @@ GuestInfoGather(gpointer data)
    char name[256];  // Size is derived from the SUS2 specification
                     // "Host names are limited to 255 bytes"
    char *osString = NULL;
+#if !defined(USERWORLD)
    gboolean disableQueryDiskInfo;
-   NicInfoV3 *nicInfo = NULL;
    GuestDiskInfo *diskInfo = NULL;
-#if defined(_WIN32) || defined(linux)
+#endif
+   NicInfoV3 *nicInfo = NULL;
+#if (defined(__linux__) && !defined(USERWORLD)) || defined(_WIN32)
    GuestMemInfo vmStats = {0};
    gboolean perfmonEnabled;
 #endif
@@ -273,6 +276,7 @@ GuestInfoGather(gpointer data)
    }
    free(osString);
 
+#if !defined(USERWORLD)
    disableQueryDiskInfo =
       g_key_file_get_boolean(ctx->config, CONFGROUPNAME_GUESTINFO,
                              CONFNAME_GUESTINFO_DISABLEQUERYDISKINFO, NULL);
@@ -289,6 +293,7 @@ GuestInfoGather(gpointer data)
          }
       }
    }
+#endif
 
    if (!System_GetNodeName(sizeof name, name)) {
       g_warning("Failed to get netbios name.\n");
@@ -323,7 +328,7 @@ GuestInfoGather(gpointer data)
    /* Send the uptime to VMX so that it can detect soft resets. */
    SendUptime(ctx);
 
-#if defined(_WIN32) || defined(linux)
+#if (defined(__linux__) && !defined(USERWORLD)) || defined(_WIN32)
    /* Send the vmstats to the VMX. */
    perfmonEnabled = !g_key_file_get_boolean(ctx->config,
                                             CONFGROUPNAME_GUESTINFO,
@@ -1255,13 +1260,7 @@ GuestInfoServerSetOption(gpointer src,
       goto exit;
    }
 
-   ip = NetUtil_GetPrimaryIP();
-   if (ip == NULL) {
-      /*
-       * If there is any error, then return a blank string.
-       */
-      ip = Util_SafeStrdup("");
-   }
+   ip = GuestInfo_GetPrimaryIP();
 
    msg = g_strdup_printf("info-set guestinfo.ip %s", ip);
    ret = RpcChannel_Send(ctx->rpc, msg, strlen(msg) + 1, NULL, NULL);

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -25,9 +25,9 @@
 #ifndef _UUID_H_
 #define _UUID_H_
 
-#define INCLUDE_ALLOW_USERLEVEL 
+#define INCLUDE_ALLOW_USERLEVEL
 #define INCLUDE_ALLOW_VMCORE
-#include "includeCheck.h" 
+#include "includeCheck.h"
 
 #define UUID_SIZE 16
 #define UUID_STRSIZE (2*UUID_SIZE + 1)
@@ -56,6 +56,7 @@ char *UUID_ConvertToText(const uint8 id[UUID_SIZE]);
 char *UUID_Create(const char *configFileFullPath, int schemeControl);
 
 char *UUID_CreateRandom(void);
+char *UUID_CreateRandomRFC4122V4(void);
 char *UUID_CreateRandomVpxStyle(uint8 vpxdId, UUIDStyle);
 Bool UUID_IsUUIDGeneratedByThatVpxd(const uint8 *id, int vpxdInstanceId);
 char *UUID_PackText(const char *text, char *pack, int packLen);
