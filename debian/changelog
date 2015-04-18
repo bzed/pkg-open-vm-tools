@@ -1,3 +1,9 @@
+open-vm-tools (2:9.10.0-2476743-2) unstable; urgency=medium
+
+  * [7967f7c1] Fix version number in configure.ac.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 18 Apr 2015 16:37:13 +0200
+
 open-vm-tools (2:9.10.0-2476743-1) unstable; urgency=medium
 
   * [4de8ff44] Add script to update patches.
