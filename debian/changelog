@@ -1,3 +1,17 @@
+open-vm-tools (2:9.10.0-2476743-1) unstable; urgency=medium
+
+  * [4de8ff44] Add script to update patches.
+  * [52b74910] Merge tag 'upstream/9.10.0-2476743'
+    Upstream version 9.10.0-2476743
+    (Closes: #781784)
+  * [fddc317d] Refreshing patches for new upstream version.
+  * [7b53f258] Add libmspack-dev as build-dependency.
+  * [6b5841da] Add libssl-dev as build-dependency.
+  * [de52be8e] Add libxerces-c-dev as build-dependency.
+  * [17b2788a] Add libxml-security-c-dev as build-dependency.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 18 Apr 2015 15:41:58 +0200
+
 open-vm-tools (2:9.4.6-1770165-8) unstable; urgency=medium
 
   * [406817b6] Add patch to move from d_alias to d_u.d_alias.
