@@ -1,3 +1,9 @@
+open-vm-tools (2:9.10.0-2476743-3) unstable; urgency=medium
+
+  * [4148c544] Also fix version number in modules/linux/dkms.sh.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 28 Apr 2015 12:34:38 +0200
+
 open-vm-tools (2:9.10.0-2476743-2) unstable; urgency=medium
 
   * [7967f7c1] Fix version number in configure.ac.
