@@ -9,13 +9,18 @@ UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' configure.ac | sed 's,.
 
 override_dh_autoreconf:
 	cp configure.ac configure.ac.autoreconf
+	cp modules/linux/dkms.sh modules/linux/dkms.sh.autoreconf
 	sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' configure.ac
+	sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' modules/linux/dkms.sh
 	dh_autoreconf
 
 override_dh_autoreconf_clean:
 	dh_autoreconf_clean
 	if [ -f configure.ac.autoreconf ]; then \
 	    mv configure.ac.autoreconf configure.ac ;\
+	fi
+	if [ -f modules/linux/dkms.sh.autoreconf ]; then \
+	    mv modules/linux/dkms.sh.autoreconf modules/linux/dkms.sh ;\
 	fi
 
 override_dh_auto_configure:

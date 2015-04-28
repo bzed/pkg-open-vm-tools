@@ -1,4 +1,4 @@
-open-vm-tools (2:9.10.0-2476743-1~bpo70+1) wheezy-backports; urgency=medium
+open-vm-tools (2:9.10.0-2476743-3~bpo70+1) wheezy-backports; urgency=medium
 
   * Rebuild for wheezy-backports.
   * [683b294b] Add gbp.conf for backports.
@@ -7,6 +7,12 @@ open-vm-tools (2:9.10.0-2476743-1~bpo70+1) wheezy-backports; urgency=medium
   * [dff2ad00] Add --disable-deploypkg as configure flags.
 
  -- Bernd Zeimetz <bzed@debian.org>  Tue, 28 Apr 2015 12:01:35 +0200
+
+open-vm-tools (2:9.10.0-2476743-3) unstable; urgency=medium
+
+  * [4148c544] Also fix version number in modules/linux/dkms.sh.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 28 Apr 2015 12:34:38 +0200
 
 open-vm-tools (2:9.10.0-2476743-2) unstable; urgency=medium
 
