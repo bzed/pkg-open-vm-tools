@@ -1,4 +1,4 @@
-open-vm-tools (2:9.10.0-2476743-3~bpo70+1) wheezy-backports; urgency=medium
+open-vm-tools (2:9.10.0-2476743-3~bpo70+1) wheezy-backports-sloppy; urgency=medium
 
   * Rebuild for wheezy-backports.
   * [683b294b] Add gbp.conf for backports.
