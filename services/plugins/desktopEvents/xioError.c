@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -72,6 +72,7 @@ DEXIOErrorHandler(Display *dpy)
        * Inform clients capable of/interested in quick'n'dirty cleanup upon an
        * X I/O error.
        */
+      g_message("Emitting %s due to X I/O error.\n", TOOLS_CORE_SIG_XIOERROR);
       g_signal_emit_by_name(gCtx->serviceObj, TOOLS_CORE_SIG_XIOERROR, gCtx);
 
       /*

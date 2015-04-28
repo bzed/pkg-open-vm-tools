@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -47,29 +47,60 @@
 #include "vm_assert.h"
 #include "vm_basic_types.h"
 
+/*
+ * Before Linux 2.6.33 only O_DSYNC semantics were implemented, but using
+ * the O_SYNC flag.  We continue to use the existing numerical value
+ * for O_DSYNC semantics now, but using the correct symbolic name for it.
+ * This new value is used to request true Posix O_SYNC semantics.  It is
+ * defined in this strange way to make sure applications compiled against
+ * new headers get at least O_DSYNC semantics on older kernels.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+#define HGFS_FILECTL_SYNC(flags)            ((flags) & O_DSYNC)
+#else
+#define HGFS_FILECTL_SYNC(flags)            ((flags) & O_SYNC)
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+typedef struct iov_iter *hgfs_iov;
+#define HGFS_IOV_TO_COUNT(iov, nr_segs)                   (iov_iter_count(iov))
+#define HGFS_IOV_TO_SEGS(iov, nr_segs)                    (0)
+#define HGFS_IOCB_TO_POS(iocb, pos)                       (iocb->ki_pos)
+#else
+typedef const struct iovec *hgfs_iov;
+#define HGFS_IOV_TO_COUNT(iov, nr_segs)                   (iov_length(iov, nr_segs))
+#define HGFS_IOV_TO_SEGS(iov, nr_segs)                    (nr_segs)
+#define HGFS_IOCB_TO_POS(iocb, pos)                       (pos)
+#endif
+
 /* Private functions. */
 static int HgfsPackOpenRequest(struct inode *inode,
                                struct file *file,
-			       HgfsOp opUsed,
+                               HgfsOp opUsed,
                                HgfsReq *req);
 static int HgfsUnpackOpenReply(HgfsReq *req,
                                HgfsOp opUsed,
                                HgfsHandle *file,
-                               HgfsServerLock *lock);
-static int HgfsGetOpenFlags(uint32 flags);
+                               HgfsLockType *lock);
 
 /* HGFS file operations for files. */
 static int HgfsOpen(struct inode *inode,
                     struct file *file);
 #if defined VMW_USE_AIO
-static ssize_t HgfsAioRead(struct kiocb *iocb,
-                           const struct iovec *iov,
-                           unsigned long numSegs,
-                           loff_t offset);
-static ssize_t HgfsAioWrite(struct kiocb *iocb,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+static ssize_t HgfsFileRead(struct kiocb *iocb,
+                            struct iov_iter *to);
+static ssize_t HgfsFileWrite(struct kiocb *iocb,
+                            struct iov_iter *from);
+#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+static ssize_t HgfsFileRead(struct kiocb *iocb,
                             const struct iovec *iov,
                             unsigned long numSegs,
                             loff_t offset);
+static ssize_t HgfsFileWrite(struct kiocb *iocb,
+                             const struct iovec *iov,
+                             unsigned long numSegs,
+                             loff_t offset);
+#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 #else
 static ssize_t HgfsRead(struct file *file,
                         char __user *buf,
@@ -84,6 +115,15 @@ static ssize_t HgfsWrite(struct file *file,
 static loff_t HgfsSeek(struct file *file,
                        loff_t  offset,
                        int origin);
+static int HgfsFlush(struct file *file
+#if !defined VMW_FLUSH_HAS_1_ARG
+                     ,fl_owner_t id
+#endif
+                     );
+
+#if !defined VMW_FSYNC_31
+static int HgfsDoFsync(struct inode *inode);
+#endif
 
 static int HgfsFsync(struct file *file,
 #if defined VMW_FSYNC_OLD
@@ -126,9 +166,19 @@ struct file_operations HgfsFileFileOperations = {
    .owner      = THIS_MODULE,
    .open       = HgfsOpen,
    .llseek     = HgfsSeek,
+   .flush      = HgfsFlush,
 #if defined VMW_USE_AIO
-   .aio_read   = HgfsAioRead,
-   .aio_write  = HgfsAioWrite,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+   .read       = new_sync_read,
+   .write      = new_sync_write,
+   .read_iter  = HgfsFileRead,
+   .write_iter = HgfsFileWrite,
+#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+   .read       = do_sync_read,
+   .write      = do_sync_write,
+   .aio_read   = HgfsFileRead,
+   .aio_write  = HgfsFileWrite,
+#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 #else
    .read       = HgfsRead,
    .write      = HgfsWrite,
@@ -178,7 +228,7 @@ struct file_operations HgfsFileFileOperations = {
 static int
 HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
                     struct file *file,   // IN: File pointer for this open
-		    HgfsOp opUsed,       // IN: Op to use
+                    HgfsOp opUsed,       // IN: Op to use
                     HgfsReq *req)        // IN/OUT: Packet to write into
 {
    char *name;
@@ -231,6 +281,8 @@ HgfsPackOpenRequest(struct inode *inode, // IN: Inode of the file to open
       }
       requestV3->flags = result;
 
+      LOG(4, (KERN_DEBUG "VMware hgfs: %s: mode file %o inode %o -> user %o\n",
+              __func__, file->f_mode, inode->i_mode, (inode->i_mode & S_IRWXU) >> 6));
       /* Set permissions. */
       requestV3->specialPerms = (inode->i_mode & (S_ISUID | S_ISGID | S_ISVTX))
                                 >> 9;
@@ -379,7 +431,7 @@ static int
 HgfsUnpackOpenReply(HgfsReq *req,          // IN: Packet with reply inside
                     HgfsOp opUsed,         // IN: What request op did we send
                     HgfsHandle *file,      // OUT: Handle in reply packet
-                    HgfsServerLock *lock)  // OUT: The server lock we got
+                    HgfsLockType *lock)    // OUT: The server lock we got
 {
    HgfsReplyOpenV3 *replyV3;
    HgfsReplyOpenV2 *replyV2;
@@ -432,94 +484,6 @@ HgfsUnpackOpenReply(HgfsReq *req,          // IN: Packet with reply inside
 
 
 /*
- *----------------------------------------------------------------------
- *
- * HgfsGetOpenFlags --
- *
- *    Based on the flags requested by the process making the open()
- *    syscall, determine which flags to send to the server to open the
- *    file.
- *
- * Results:
- *    Returns the correct HgfsOpenFlags enumeration to send to the
- *    server, or -1 on failure.
- *
- * Side effects:
- *    None
- *
- *----------------------------------------------------------------------
- */
-
-static int
-HgfsGetOpenFlags(uint32 flags) // IN: Open flags
-{
-   uint32 mask = O_CREAT | O_TRUNC | O_EXCL;
-   int result = -1;
-
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsGetOpenFlags: entered\n"));
-
-   /*
-    * Mask the flags to only look at O_CREAT, O_EXCL, and O_TRUNC.
-    */
-
-   flags &= mask;
-
-   /* O_EXCL has no meaning if O_CREAT is not set. */
-   if (!(flags & O_CREAT)) {
-      flags &= ~O_EXCL;
-   }
-
-   /* Pick the right HgfsOpenFlags. */
-   switch (flags) {
-
-   case 0:
-      /* Regular open; fails if file nonexistant. */
-      result = HGFS_OPEN;
-      break;
-
-   case O_CREAT:
-      /* Create file; if it exists already just open it. */
-      result = HGFS_OPEN_CREATE;
-      break;
-
-   case O_TRUNC:
-      /* Truncate existing file; fails if nonexistant. */
-      result = HGFS_OPEN_EMPTY;
-      break;
-
-   case (O_CREAT | O_EXCL):
-      /* Create file; fail if it exists already. */
-      result = HGFS_OPEN_CREATE_SAFE;
-      break;
-
-   case (O_CREAT | O_TRUNC):
-      /* Create file; if it exists already, truncate it. */
-      result = HGFS_OPEN_CREATE_EMPTY;
-      break;
-
-   default:
-      /*
-       * This can only happen if all three flags are set, which
-       * conceptually makes no sense because O_EXCL and O_TRUNC are
-       * mutually exclusive if O_CREAT is set.
-       *
-       * However, the open(2) man page doesn't say you can't set all
-       * three flags, and certain apps (*cough* Nautilus *cough*) do
-       * so. To be friendly to those apps, we just silenty drop the
-       * O_TRUNC flag on the assumption that it's safer to honor
-       * O_EXCL.
-       */
-      LOG(4, (KERN_DEBUG "VMware hgfs: HgfsGetOpenFlags: invalid open "
-              "flags %o. Ignoring the O_TRUNC flag.\n", flags));
-      result = HGFS_OPEN_CREATE_SAFE;
-      break;
-   }
-
-   return result;
-}
-
-
-/*
  * HGFS file operations for files.
  */
 
@@ -552,7 +516,7 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
    HgfsOp opUsed;
    HgfsStatus replyStatus;
    HgfsHandle replyFile;
-   HgfsServerLock replyLock;
+   HgfsLockType replyLock;
    HgfsInodeInfo *iinfo;
    int result = 0;
 
@@ -563,6 +527,10 @@ HgfsOpen(struct inode *inode,  // IN: Inode of the file to open
    ASSERT(file->f_dentry->d_inode);
 
    iinfo = INODE_GET_II_P(inode);
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%s/%s)\n",
+           __func__, file->f_dentry->d_parent->d_name.name,
+           file->f_dentry->d_name.name));
 
    req = HgfsGetNewRequest();
    if (!req) {
@@ -725,7 +693,51 @@ out:
 /*
  *----------------------------------------------------------------------
  *
- * HgfsAioRead --
+ * HgfsGenericFileRead --
+ *
+ *    Called when the kernel initiates an asynchronous read from a file in
+ *    our filesystem. Our function is just a thin wrapper around
+ *    system generic read function.
+ *
+ *
+ * Results:
+ *    Returns the number of bytes read on success, or an error on
+ *    failure.
+ *
+ * Side effects:
+ *    None
+ *
+ *----------------------------------------------------------------------
+ */
+
+static ssize_t
+HgfsGenericFileRead(struct kiocb *iocb,          // IN: I/O control block
+                    hgfs_iov iov,                // IN: Array of I/O vectors
+                    unsigned long iovSegs,       // IN: Count of I/O vectors
+                    loff_t pos)                  // IN: Position at which to read
+{
+   ssize_t result;
+
+   LOG(8, (KERN_DEBUG "VMware hgfs: %s(%lu@%Ld)\n",
+           __func__, (unsigned long)HGFS_IOV_TO_COUNT(iov, iovSegs),
+           (long long) pos));
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+   result = generic_file_read_iter(iocb, iov);
+#else
+   result = generic_file_aio_read(iocb, iov, iovSegs, pos);
+#endif
+
+   LOG(8, (KERN_DEBUG "VMware hgfs: %s return %"FMTSZ"d\n",
+           __func__, result));
+   return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * HgfsFileRead --
  *
  *    Called when the kernel initiates an asynchronous read to a file in
  *    our filesystem. Our function is just a thin wrapper around
@@ -741,29 +753,46 @@ out:
  *----------------------------------------------------------------------
  */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 static ssize_t
-HgfsAioRead(struct kiocb *iocb,      // IN:  I/O control block
-            const struct iovec *iov, // OUT: Array of I/O buffers
-            unsigned long numSegs,   // IN:  Number of buffers
-            loff_t offset)           // IN:  Offset at which to read
+HgfsFileRead(struct kiocb *iocb,      // IN:  I/O control block
+             struct iov_iter *iov)    // OUT: Array of I/O buffers
+#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+static ssize_t
+HgfsFileRead(struct kiocb *iocb,      // IN:  I/O control block
+             const struct iovec *iov, // OUT: Array of I/O buffers
+             unsigned long numSegs,   // IN:  Number of buffers
+             loff_t offset)           // IN:  Offset at which to read
+#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 {
-   int result;
+   ssize_t result;
+   struct dentry *readDentry;
+   loff_t pos;
+   unsigned long iovSegs;
 
    ASSERT(iocb);
    ASSERT(iocb->ki_filp);
    ASSERT(iocb->ki_filp->f_dentry);
    ASSERT(iov);
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsAioRead: was called\n"));
+   pos = HGFS_IOCB_TO_POS(iocb, offset);
+   iovSegs = HGFS_IOV_TO_SEGS(iov, numSegs);
 
-   result = HgfsRevalidate(iocb->ki_filp->f_dentry);
+   readDentry = iocb->ki_filp->f_dentry;
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%s/%s)\n",
+           __func__, readDentry->d_parent->d_name.name,
+           readDentry->d_name.name));
+
+   result = HgfsRevalidate(readDentry);
    if (result) {
-      LOG(4, (KERN_DEBUG "VMware hgfs: HgfsAioRead: invalid dentry\n"));
+      LOG(4, (KERN_DEBUG "VMware hgfs: %s: invalid dentry\n", __func__));
       goto out;
    }
 
-   result = generic_file_aio_read(iocb, iov, numSegs, offset);
-  out:
+   result = HgfsGenericFileRead(iocb, iov, iovSegs, pos);
+
+out:
    return result;
 }
 
@@ -771,7 +800,51 @@ HgfsAioRead(struct kiocb *iocb,      // IN:  I/O control block
 /*
  *----------------------------------------------------------------------
  *
- * HgfsAioWrite --
+ * HgfsGenericFileWrite --
+ *
+ *    Called when the kernel initiates an asynchronous write to a file in
+ *    our filesystem. Our function is just a thin wrapper around
+ *    system generic write function.
+ *
+ *
+ * Results:
+ *    Returns the number of bytes written on success, or an error on
+ *    failure.
+ *
+ * Side effects:
+ *    None
+ *
+ *----------------------------------------------------------------------
+ */
+
+static ssize_t
+HgfsGenericFileWrite(struct kiocb *iocb,          // IN: I/O control block
+                     hgfs_iov iov,                // IN: Array of I/O vectors
+                     unsigned long iovSegs,       // IN: Count of I/O vectors
+                     loff_t pos)                  // IN: Position at which to write
+{
+   ssize_t result;
+
+   LOG(8, (KERN_DEBUG "VMware hgfs: %s(%lu@%Ld)\n",
+           __func__, (unsigned long)HGFS_IOV_TO_COUNT(iov, iovSegs),
+           (long long) pos));
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+   result = generic_file_write_iter(iocb, iov);
+#else
+   result = generic_file_aio_write(iocb, iov, iovSegs, pos);
+#endif
+
+   LOG(8, (KERN_DEBUG "VMware hgfs: %s return %"FMTSZ"d\n",
+           __func__, result));
+   return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * HgfsFileWrite --
  *
  *    Called when the kernel initiates an asynchronous write to a file in
  *    our filesystem. Our function is just a thin wrapper around
@@ -790,28 +863,60 @@ HgfsAioRead(struct kiocb *iocb,      // IN:  I/O control block
  *----------------------------------------------------------------------
  */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+ssize_t
+HgfsFileWrite(struct kiocb *iocb,     // IN:  I/O control block
+              struct iov_iter *iov)   // IN:  Array of I/O buffers
+#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 static ssize_t
-HgfsAioWrite(struct kiocb *iocb,      // IN:  I/O control block
-             const struct iovec *iov, // IN:  Array of I/O buffers
-             unsigned long numSegs,   // IN:  Number of buffers
-             loff_t offset)           // IN:  Offset at which to read
+HgfsFileWrite(struct kiocb *iocb,      // IN:  I/O control block
+              const struct iovec *iov, // IN:  Array of I/O buffers
+              unsigned long numSegs,   // IN:  Number of buffers
+              loff_t offset)           // IN:  Offset at which to write
+#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 {
-   int result;
+   ssize_t result;
+   struct dentry *writeDentry;
+   loff_t pos;
+   unsigned long iovSegs;
 
    ASSERT(iocb);
    ASSERT(iocb->ki_filp);
    ASSERT(iocb->ki_filp->f_dentry);
    ASSERT(iov);
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsAioWrite: was called\n"));
+   pos = HGFS_IOCB_TO_POS(iocb, offset);
+   iovSegs = HGFS_IOV_TO_SEGS(iov, numSegs);
 
-   result = HgfsRevalidate(iocb->ki_filp->f_dentry);
+   writeDentry = iocb->ki_filp->f_dentry;
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%s/%s)\n",
+          __func__, writeDentry->d_parent->d_name.name,
+          writeDentry->d_name.name));
+
+   result = HgfsRevalidate(writeDentry);
    if (result) {
-      LOG(4, (KERN_DEBUG "VMware hgfs: HgfsAioWrite: invalid dentry\n"));
+      LOG(4, (KERN_DEBUG "VMware hgfs: %s: invalid dentry\n", __func__));
       goto out;
    }
 
-   result = generic_file_aio_write(iocb, iov, numSegs, offset);
+   result = HgfsGenericFileWrite(iocb, iov, iovSegs, pos);
+
+   if (result >= 0) {
+      if (IS_SYNC(writeDentry->d_inode) ||
+          HGFS_FILECTL_SYNC(iocb->ki_filp->f_flags)) {
+         int error;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+         error = vfs_fsync(iocb->ki_filp, 0);
+#else
+         error = HgfsDoFsync(writeDentry->d_inode);
+#endif
+         if (error < 0) {
+            result = error;
+         }
+      }
+   }
+
   out:
    return result;
 }
@@ -850,8 +955,9 @@ HgfsRead(struct file *file,  // IN:  File to read from
    ASSERT(buf);
    ASSERT(offset);
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsRead: read %Zu bytes from fh %u "
-           "at offset %Lu\n", count, FILE_GET_FI_P(file)->handle, *offset));
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%s/%s,%Zu@%lld)\n",
+           __func__, file->f_dentry->d_parent->d_name.name,
+           file->f_dentry->d_name.name, count, (long long) *offset));
 
    result = HgfsRevalidate(file->f_dentry);
    if (result) {
@@ -901,8 +1007,9 @@ HgfsWrite(struct file *file,      // IN: File to write to
    ASSERT(buf);
    ASSERT(offset);
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsWrite: write %Zu bytes to fh %u "
-           "at offset %Lu\n", count, FILE_GET_FI_P(file)->handle, *offset));
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%s/%s,%Zu@%lld)\n",
+           __func__, file->f_dentry->d_parent->d_name.name,
+           file->f_dentry->d_name.name, count, (long long) *offset));
 
    result = HgfsRevalidate(file->f_dentry);
    if (result) {
@@ -946,12 +1053,15 @@ HgfsSeek(struct file *file,  // IN:  File to seek
    ASSERT(file);
    ASSERT(file->f_dentry);
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsSeek: seek to %Lu bytes from fh %u "
-           "from position %d\n", offset, FILE_GET_FI_P(file)->handle, origin));
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s(%s/%s, %u, %lld, %d)\n",
+           __func__,
+            file->f_dentry->d_parent->d_name.name,
+            file->f_dentry->d_name.name,
+            FILE_GET_FI_P(file)->handle, offset, origin));
 
    result = (loff_t) HgfsRevalidate(file->f_dentry);
    if (result) {
-      LOG(6, (KERN_DEBUG "VMware hgfs: HgfsSeek: invalid dentry\n"));
+      LOG(6, (KERN_DEBUG "VMware hgfs: %s: invalid dentry\n", __func__));
       goto out;
    }
 
@@ -962,27 +1072,57 @@ HgfsSeek(struct file *file,  // IN:  File to seek
 }
 
 
+#if !defined VMW_FSYNC_31
 /*
  *----------------------------------------------------------------------
  *
- * HgfsFsync --
+ * HgfsDoFsync --
  *
- *    Called when user process calls fsync() on hgfs file.
+ *    Helper for HgfsFlush() and HgfsFsync().
  *
- *    The hgfs protocol doesn't support fsync yet, so for now, we punt
- *    and just return success. This is a little less sketchy than it
- *    might sound, because hgfs skips the buffer cache in the guest
- *    anyway (we always write to the host immediately).
- *
- *    In the future we might want to try harder though, since
- *    presumably the intent of an app calling fsync() is to get the
- *    data onto persistent storage, and as things stand now we're at
+ *    The hgfs protocol doesn't support fsync explicityly yet.
+ *    So for now, we flush all the pages to presumably honor the
+ *    intent of an app calling fsync() which is to get the
+ *    data onto persistent storage. As things stand now we're at
  *    the whim of the hgfs server code running on the host to fsync or
  *    not if and when it pleases.
  *
- *    Note that do_fsync will call filemap_fdatawrite() before us and
- *    filemap_fdatawait() after us, so there's no need to do anything
- *    here w.r.t. writing out dirty pages.
+ *
+ * Results:
+ *    Returns zero on success. Otherwise an error.
+ *
+ * Side effects:
+ *    None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+HgfsDoFsync(struct inode *inode)            // IN: File we operate on
+{
+   int ret;
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%"FMT64"u)\n",
+            __func__,  INODE_GET_II_P(inode)->hostFileId));
+
+   ret = compat_filemap_write_and_wait(inode->i_mapping);
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s: returns %d\n",
+           __func__, ret));
+
+   return ret;
+}
+#endif
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * HgfsFlush --
+ *
+ *    Called when user process calls fflush() on an hgfs file.
+ *    Flush all dirty pages and check for write errors.
+ *
  *
  * Results:
  *    Returns zero on success. (Currently always succeeds).
@@ -994,18 +1134,103 @@ HgfsSeek(struct file *file,  // IN:  File to seek
  */
 
 static int
-HgfsFsync(struct file *file,		// IN: File we operate on
+HgfsFlush(struct file *file                        // IN: file to flush
+#if !defined VMW_FLUSH_HAS_1_ARG
+          ,fl_owner_t id                           // IN: id not used
+#endif
+         )
+{
+   int ret = 0;
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%s/%s)\n",
+            __func__, file->f_dentry->d_parent->d_name.name,
+            file->f_dentry->d_name.name));
+
+   if ((file->f_mode & FMODE_WRITE) == 0) {
+      goto exit;
+   }
+
+
+   /* Flush writes to the server and return any errors */
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s: calling vfs_sync ... \n",
+           __func__));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+   ret = vfs_fsync(file, 0);
+#else
+   ret = HgfsDoFsync(file->f_dentry->d_inode);
+#endif
+
+exit:
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s: returns %d\n",
+           __func__, ret));
+   return ret;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * HgfsFsync --
+ *
+ *    Called when user process calls fsync() on hgfs file.
+ *
+ *    The hgfs protocol doesn't support fsync explicitly yet,
+ *    so for now, we flush all the pages to presumably honor the
+ *    intent of an app calling fsync() which is to get the
+ *    data onto persistent storage, and as things stand now we're at
+ *    the whim of the hgfs server code running on the host to fsync or
+ *    not if and when it pleases.
+ *
+ * Results:
+ *    Returns zero on success. (Currently always succeeds).
+ *
+ * Side effects:
+ *    None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+HgfsFsync(struct file *file,            // IN: File we operate on
 #if defined VMW_FSYNC_OLD
           struct dentry *dentry,        // IN: Dentry for this file
 #elif defined VMW_FSYNC_31
           loff_t start,                 // IN: start of range to sync
           loff_t end,                   // IN: end of range to sync
 #endif
-          int datasync)	                // IN: fdatasync or fsync
+          int datasync)                 // IN: fdatasync or fsync
 {
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsFsync: was called\n"));
+   int ret = 0;
+   loff_t startRange;
+   loff_t endRange;
+   struct inode *inode;
 
-   return 0;
+#if defined VMW_FSYNC_31
+   startRange = start;
+   endRange = end;
+#else
+   startRange = 0;
+   endRange = MAX_INT64;
+#endif
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s(%s/%s, %lld, %lld, %d)\n",
+           __func__,
+           file->f_dentry->d_parent->d_name.name,
+           file->f_dentry->d_name.name,
+           startRange, endRange,
+           datasync));
+
+   /* Flush writes to the server and return any errors */
+   inode = file->f_dentry->d_inode;
+#if defined VMW_FSYNC_31
+   ret = filemap_write_and_wait_range(inode->i_mapping, startRange, endRange);
+#else
+   ret = HgfsDoFsync(inode);
+#endif
+
+   LOG(4, (KERN_DEBUG "VMware hgfs: %s: written pages  %lld, %lld returns %d)\n",
+           __func__, startRange, endRange, ret));
+   return ret;
 }
 
 
@@ -1029,8 +1254,8 @@ HgfsFsync(struct file *file,		// IN: File we operate on
  */
 
 static int
-HgfsMmap(struct file *file,		// IN: File we operate on
-         struct vm_area_struct *vma)	// IN/OUT: VM area information
+HgfsMmap(struct file *file,            // IN: File we operate on
+         struct vm_area_struct *vma)   // IN/OUT: VM area information
 {
    int result;
 
@@ -1038,11 +1263,14 @@ HgfsMmap(struct file *file,		// IN: File we operate on
    ASSERT(vma);
    ASSERT(file->f_dentry);
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsMmap: was called\n"));
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s(%s/%s)\n",
+           __func__,
+           file->f_dentry->d_parent->d_name.name,
+           file->f_dentry->d_name.name));
 
    result = HgfsRevalidate(file->f_dentry);
    if (result) {
-      LOG(4, (KERN_DEBUG "VMware hgfs: HgfsMmap: invalid dentry\n"));
+      LOG(4, (KERN_DEBUG "VMware hgfs: %s: invalid dentry\n", __func__));
       goto out;
    }
 
@@ -1085,7 +1313,11 @@ HgfsRelease(struct inode *inode,  // IN: Inode that this file points to
    ASSERT(file->f_dentry->d_sb);
 
    handle = FILE_GET_FI_P(file)->handle;
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsRelease: close fh %u\n", handle));
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s(%s/%s, %u)\n",
+           __func__,
+           file->f_dentry->d_parent->d_name.name,
+           file->f_dentry->d_name.name,
+           handle));
 
    /*
     * This may be our last open handle to an inode, so we should flush our
@@ -1267,16 +1499,20 @@ HgfsSpliceRead(struct file *file,            // IN: File to read from
    ASSERT(file);
    ASSERT(file->f_dentry);
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsSpliceRead: was called\n"));
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s(%s/%s, %lu@%Lu)\n",
+           __func__,
+           file->f_dentry->d_parent->d_name.name,
+           file->f_dentry->d_name.name,
+           (unsigned long) len, (unsigned long long) *offset));
 
    result = HgfsRevalidate(file->f_dentry);
    if (result) {
-      LOG(4, (KERN_DEBUG "VMware hgfs: HgfsSpliceRead: invalid dentry\n"));
+      LOG(4, (KERN_DEBUG "VMware hgfs: %s: invalid dentry\n", __func__));
       goto out;
    }
 
    result = generic_file_splice_read(file, offset, pipe, len, flags);
-  out:
+out:
    return result;
 
 }

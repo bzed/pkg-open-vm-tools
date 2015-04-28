@@ -2,8 +2,21 @@
 
 VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:||' -e 's|-.*$$||')
 
+UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' configure.ac | sed 's,.*=",,;s,",,'))
+
 %:
 	dh ${@} --with autotools_dev,dkms,autoreconf,systemd
+
+override_dh_autoreconf:
+	cp configure.ac configure.ac.autoreconf
+	sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' configure.ac
+	dh_autoreconf
+
+override_dh_autoreconf_clean:
+	dh_autoreconf_clean
+	if [ -f configure.ac.autoreconf ]; then \
+	    mv configure.ac.autoreconf configure.ac ;\
+	fi
 
 override_dh_auto_configure:
 	dh_auto_configure -- \

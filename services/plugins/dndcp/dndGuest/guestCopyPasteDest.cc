@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -25,6 +25,8 @@
 #include "guestCopyPaste.hh"
 
 extern "C" {
+   #include <glib.h>
+
    #include "dndClipboard.h"
    #include "debug.h"
 }
@@ -54,15 +56,15 @@ GuestCopyPasteDest::UISendClip(const CPClipboard *clip)
 {
    ASSERT(clip);
 
-   Debug("%s: state is %d\n", __FUNCTION__, mMgr->GetState());
+   g_debug("%s: state is %d\n", __FUNCTION__, mMgr->GetState());
    if (mMgr->GetState() != GUEST_CP_READY) {
       /* Reset DnD for any wrong state. */
-      Debug("%s: Bad state: %d\n", __FUNCTION__, mMgr->GetState());
+      g_debug("%s: Bad state: %d\n", __FUNCTION__, mMgr->GetState());
       goto error;
    }
 
    if (!mMgr->GetRpc()->DestSendClip(mMgr->GetSessionId(), mIsActive, clip)) {
-      Debug("%s: DestSendClip failed\n", __FUNCTION__);
+      g_debug("%s: DestSendClip failed\n", __FUNCTION__);
       goto error;
    }
 
@@ -83,7 +85,7 @@ void
 GuestCopyPasteDest::OnRpcRequestClip(bool isActive)
 {
    mIsActive = isActive;
-   Debug("%s: state is %d\n", __FUNCTION__, mMgr->GetState());
+   g_debug("%s: state is %d\n", __FUNCTION__, mMgr->GetState());
    mMgr->destRequestClipChanged.emit();
 }
 

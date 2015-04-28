@@ -173,7 +173,11 @@ typedef struct Vmxnet2_TxRingEntry {
  * functions below to be used.
  */
 typedef struct Vmxnet2_RxRingInfo {
+#ifdef VMX86_VMX
+   PA                      basePA;     /* starting PA of the ring */
+#else
    Vmxnet2_RxRingEntry    *base;       /* starting addr of the ring */
+#endif
    uint32                  nicNext;    /* next entry to use in the ring */
    uint32                  ringLength; /* # of entries in the ring */
    PA                      startPA;    /* PA of the starting addr of the ring */
@@ -183,7 +187,11 @@ typedef struct Vmxnet2_RxRingInfo {
 } Vmxnet2_RxRingInfo;
 
 typedef struct Vmxnet2_TxRingInfo {
+#ifdef VMX86_VMX
+   PA                      basePA;     /* starting PA of the ring */
+#else
    Vmxnet2_TxRingEntry    *base;       /* starting addr of the ring */
+#endif
    uint32                  nicNext;    /* next entry to use in the ring */
    uint32                  ringLength; /* # of entries in the ring */
    PA                      startPA;    /* PA of the starting addr of the ring */
@@ -196,25 +204,7 @@ typedef struct Vmxnet2_ImplData {
    Vmxnet2_RxRingInfo    rxRing;
    Vmxnet2_RxRingInfo    rxRing2;
    Vmxnet2_TxRingInfo    txRing;
-
-   struct PhysMem_Token	  *ddPhysMemToken;
 } Vmxnet2_ImplData;
-
-/* 
- * Used internally for performance studies. By default this will be off so there 
- * should be no compatibilty or other interferences.
- */
-
-/* #define ENABLE_VMXNET2_PROFILING    */
-
-
-#ifdef ENABLE_VMXNET2_PROFILING
-typedef struct Vmxnet2_VmmStats {
-   uint64      vIntTSC;             /* the time that virtual int was posted */
-   uint64      actionsCount;        /* Number of actions received */
-   uint64      numWasteActions;     /* Number of non-productive actions */
-}  Vmxnet2_VmmStats;
-#endif
 
 typedef struct Vmxnet2_DriverStats {
    uint32	transmits;	   /* # of times that the drivers transmit function */
@@ -237,10 +227,6 @@ typedef struct Vmxnet2_DriverStats {
    uint32	interrupts;	   /* # of times interrupted. */
    uint32	pktsReceived;	   /* # of packets received. */
    uint32	rxBuffersLow;	   /* # of times that the driver was low on */
-				   /*   receive buffers. */
-#ifdef ENABLE_VMXNET2_PROFILING
-    Vmxnet2_VmmStats  vmmStats;     /* vmm related stats for perf study */
-#endif
 } Vmxnet2_DriverStats;
 
 /*
@@ -349,7 +335,7 @@ typedef struct VmxnetVMKShared {
    uint32  dontPostActions;  
 } VmxnetVMKShared;
 
-#if defined VMX86_VMX || defined VMKERNEL
+#if defined VMKERNEL
 
 /*
  * Inline functions used to assist the implementation of the vmxnet interface.

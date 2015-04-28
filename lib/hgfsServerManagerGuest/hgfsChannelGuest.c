@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -24,6 +24,7 @@
  */
 
 #include <stdlib.h>
+#include "vm_basic_defs.h"
 #include "vm_assert.h"
 #include "vm_atomic.h"
 #include "util.h"
@@ -105,6 +106,11 @@ static HgfsChannelData gHgfsChannels[] = {
    { "guest", &gGuestBackdoorOps, 0, NULL, NULL, {0} },
 };
 
+static HgfsServerConfig gHgfsGuestCfgSettings = {
+   (HGFS_CONFIG_SHARE_ALL_HOST_DRIVES_ENABLED | HGFS_CONFIG_VOL_INFO_MIN),
+   HGFS_MAX_CACHED_FILENODES
+};
+
 /* HGFS server info state. Referenced by each separate channel that uses it. */
 static HgfsChannelServerData gHgfsChannelServerInfo = { NULL, {0} };
 
@@ -142,7 +148,7 @@ static uint32
 HgfsChannelGetServer(HgfsChannelServerData *serverInfo)   // IN/OUT: ref count
 {
    ASSERT(NULL != serverInfo);
-   return Atomic_FetchAndInc(&serverInfo->refCount);
+   return Atomic_ReadInc32(&serverInfo->refCount);
 }
 
 
@@ -168,7 +174,7 @@ static void
 HgfsChannelPutServer(HgfsChannelServerData *serverInfo)   // IN/OUT: ref count
 {
    ASSERT(NULL != serverInfo);
-   if (Atomic_FetchAndDec(&serverInfo->refCount) == 1) {
+   if (Atomic_ReadDec32(&serverInfo->refCount) == 1) {
       HgfsChannelTeardownServer(serverInfo);
    }
 }
@@ -198,8 +204,9 @@ HgfsChannelInitServer(HgfsChannelServerData *serverInfo)   // IN/OUT: ref count
    ASSERT(NULL == serverInfo->serverCBTable);
 
    Debug("%s: Initialize Hgfs server.\n", __FUNCTION__);
-   /* If we have a new connection initialize the server session. */
-   result = HgfsServer_InitState(&serverInfo->serverCBTable, NULL);
+
+   /* If we have a new connection initialize the server session with default settings. */
+   result = HgfsServer_InitState(&serverInfo->serverCBTable, &gHgfsGuestCfgSettings, NULL);
    if (!result) {
       Debug("%s: Could not init Hgfs server.\n", __FUNCTION__);
    }
@@ -286,7 +293,7 @@ uint32
 HgfsChannelGetChannel(HgfsChannelData *channel)   // IN/OUT: ref count
 {
    ASSERT(NULL != channel);
-   return Atomic_FetchAndInc(&channel->refCount);
+   return Atomic_ReadInc32(&channel->refCount);
 }
 
 
@@ -312,7 +319,7 @@ static void
 HgfsChannelPutChannel(HgfsChannelData *channel)   // IN/OUT: ref count
 {
    ASSERT(NULL != channel);
-   if (Atomic_FetchAndDec(&channel->refCount) == 1) {
+   if (Atomic_ReadDec32(&channel->refCount) == 1) {
       HgfsChannelTeardownChannel(channel);
    }
 }

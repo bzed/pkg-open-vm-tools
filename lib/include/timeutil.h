@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -32,6 +32,7 @@
 #include "includeCheck.h"
 
 #include "vm_basic_types.h"
+#include "vm_basic_defs.h"
 #include "vm_assert.h"
 
 
@@ -86,7 +87,7 @@ typedef struct TimeUtil_Expiration {
 } TimeUtil_Expiration;
 
 
-time_t TimeUtil_MakeTime(const TimeUtil_Date *d);
+time_t TimeUtil_MakeTime(const TimeUtil_Date *d); // IN
 
 Bool TimeUtil_StringToDate(TimeUtil_Date *d,    // IN/OUT
                            char const *date);   // IN: 'YYYYMMDD' or 'YYYY/MM/DD' or 'YYYY-MM-DD'
@@ -131,5 +132,7 @@ Bool TimeUtil_UTCTimeToSystemTime(const __time64_t utcTime,    // IN
 #endif
 
 int TimeUtil_GetLocalWindowsTimeZoneIndexAndName(char **ptzName);
+
+time_t TimeUtil_SecondsSinceEpoch(TimeUtil_Date *d); // IN
 
 #endif // _TIMEUTIL_H_

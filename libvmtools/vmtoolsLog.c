@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -43,6 +43,7 @@
 #include "glibUtils.h"
 #include "log.h"
 #if defined(G_PLATFORM_WIN32)
+#  include <dbghelp.h>
 #  include "coreDump.h"
 #  include "w32Messages.h"
 #endif
@@ -108,10 +109,13 @@ typedef struct LogHandler {
 static gchar *gLogDomain = NULL;
 static gboolean gEnableCoreDump = TRUE;
 static gboolean gLogEnabled = FALSE;
+static gboolean gGuestSDKMode = FALSE;
 static guint gPanicCount = 0;
 static LogHandler *gDefaultData;
 static LogHandler *gErrorData;
 static GPtrArray *gDomains = NULL;
+static gboolean gLogInitialized = FALSE;
+static gboolean gLoggingStopped = FALSE;
 
 /* Internal functions. */
 
@@ -323,6 +327,78 @@ VMToolsLog(const gchar *domain,
 
 /*
  *******************************************************************************
+ * VMToolsGetLogFilePath --                                               */ /**
+ *
+ * @brief Fetches sanitized path for the log file.
+ *
+ * @param[in] key       The key for log file path.
+ * @param[in] domain    Domain name.
+ * @param[in] cfg       Config dictionary.
+ *
+ * @return Sanitized path for the log file.
+ *
+ *******************************************************************************
+ */
+
+static gchar *
+VMToolsGetLogFilePath(const gchar *key,
+                      const gchar *domain,
+                      GKeyFile *cfg)
+{
+   gsize len = 0;
+   gchar *path = NULL;
+   gchar *origPath = NULL;
+
+   path = g_key_file_get_string(cfg, LOGGING_GROUP, key, NULL);
+   if (path == NULL) {
+      return NULL;
+   }
+
+   len = strlen(path);
+   origPath = path;
+
+   /*
+    * Drop all the preceding '"' chars
+    */
+   while (*path == '"') {
+      path++;
+      len--;
+   }
+
+   /*
+    * Ensure that path contains something more
+    * meaningful than just '"' chars
+    */
+   if (len == 0) {
+      g_warning("Invalid path for domain '%s'.", domain);
+      g_free(origPath);
+      path = NULL;
+   } else {
+      /* Drop the trailing '"' chars */
+      gchar *sanePath = g_strdup(path);
+      g_free(origPath);
+      path = sanePath;
+
+      if (path != NULL) {
+         while (*(path + len - 1) == '"') {
+            *(path + len - 1) = '\0';
+            len--;
+         }
+
+         if (len == 0) {
+            g_warning("Invalid path for domain '%s'.", domain);
+            g_free(origPath);
+            path = NULL;
+         }
+      }
+   }
+
+   return path;
+}
+
+
+/*
+ *******************************************************************************
  * VMToolsGetLogHandler --                                                */ /**
  *
  * @brief Instantiates the log handler for the given domain.
@@ -358,7 +434,7 @@ VMToolsGetLogHandler(const gchar *handler,
       handler = "file";
 
       g_snprintf(key, sizeof key, "%s.data", domain);
-      path = g_key_file_get_string(cfg, LOGGING_GROUP, key, NULL);
+      path = VMToolsGetLogFilePath(key, domain, cfg);
       if (path != NULL) {
          g_snprintf(key, sizeof key, "%s.maxLogSize", domain);
          maxSize = (guint) g_key_file_get_integer(cfg, LOGGING_GROUP, key, &err);
@@ -763,10 +839,25 @@ VMTools_ConfigLogging(const gchar *defaultDomain,
     * it's set to 5MB.
     */
    if (gEnableCoreDump) {
+      GError *err = NULL;
 #if defined(_WIN32)
+      if (g_key_file_has_key(cfg, LOGGING_GROUP, "coreDumpFlags", NULL)) {
+         guint coreDumpFlags;
+         coreDumpFlags = g_key_file_get_integer(cfg, LOGGING_GROUP, "coreDumpFlags", &err);
+         if (err != NULL) {
+            coreDumpFlags = 0;
+            g_clear_error(&err);
+         }
+         /*
+          * For flag values and information on their meanings see:
+          * http://msdn.microsoft.com/en-us/library/windows/desktop/ms680519(v=vs.85).aspx
+          */
+         coreDumpFlags &= MiniDumpValidTypeFlags;
+         g_message("Core dump flags set to %u", coreDumpFlags);
+         Panic_SetCoreDumpFlags(coreDumpFlags);
+      }
       CoreDump_SetUnhandledExceptionFilter();
 #else
-      GError *err = NULL;
       struct rlimit limit = { 0, 0 };
 
       getrlimit(RLIMIT_CORE, &limit);
@@ -794,6 +885,7 @@ VMTools_ConfigLogging(const gchar *defaultDomain,
    }
 
    gLogEnabled |= force;
+   gLogInitialized = TRUE;
 
    if (allocDict) {
       g_key_file_free(cfg);
@@ -819,6 +911,20 @@ VMToolsLogWrapper(GLogLevelFlags level,
                   const char *fmt,
                   va_list args)
 {
+   if (!gLogInitialized && !IS_FATAL(level)) {
+      /*
+       * Avoid logging without initialization because
+       * it leads to spamming of the console output.
+       * Fatal messages are exception.
+       */
+      return;
+   }
+
+   if (gLoggingStopped) {
+      /* This is to avoid nested logging in vmxLogger */
+      return;
+   }
+
    if (gPanicCount == 0) {
       char *msg = Str_Vasprintf(NULL, fmt, args);
       if (msg != NULL) {
@@ -835,6 +941,39 @@ VMToolsLogWrapper(GLogLevelFlags level,
 
 
 /**
+ * This is called to avoid nested logging in vmxLogger.
+ */
+
+void
+VMTools_StopLogging(void)
+{
+   gLoggingStopped = TRUE;
+}
+
+
+/**
+ * This is called to reset logging in vmxLogger.
+ */
+
+void
+VMTools_RestartLogging(void)
+{
+   gLoggingStopped = FALSE;
+}
+
+
+/**
+ * Called if vmtools lib is used along with Guestlib SDK.
+ */
+
+void
+VMTools_SetGuestSDKMode(void)
+{
+   gGuestSDKMode = TRUE;
+}
+
+
+/**
  * Logs a message using the G_LOG_LEVEL_DEBUG level.
  *
  * @param[in] fmt Log message format.
@@ -845,7 +984,11 @@ Debug(const char *fmt, ...)
 {
    va_list args;
    va_start(args, fmt);
-   VMToolsLogWrapper(G_LOG_LEVEL_DEBUG, fmt, args);
+   if (gGuestSDKMode) {
+      GuestSDK_Debug(fmt, args);
+   } else {
+      VMToolsLogWrapper(G_LOG_LEVEL_DEBUG, fmt, args);
+   }
    va_end(args);
 }
 
@@ -861,7 +1004,11 @@ Log(const char *fmt, ...)
 {
    va_list args;
    va_start(args, fmt);
-   VMToolsLogWrapper(G_LOG_LEVEL_INFO, fmt, args);
+   if (gGuestSDKMode) {
+      GuestSDK_Log(fmt, args);
+   } else {
+      VMToolsLogWrapper(G_LOG_LEVEL_INFO, fmt, args);
+   }
    va_end(args);
 }
 
@@ -927,31 +1074,37 @@ Panic(const char *fmt, ...)
    va_list args;
 
    va_start(args, fmt);
-   if (gPanicCount == 0) {
-      char *msg = Str_Vasprintf(NULL, fmt, args);
-      if (msg != NULL) {
-         g_log(gLogDomain, G_LOG_LEVEL_ERROR, "%s", msg);
-         free(msg);
-      }
-      /*
-       * In case an user-installed custom handler doesn't panic on error, force a
-       * core dump. Also force a dump in the recursive case.
-       */
-      VMToolsLogPanic();
-   } else if (gPanicCount == 1) {
-      /*
-       * Use a stack allocated string since we're in a recursive panic, so
-       * probably already in a weird state.
-       */
-      gchar msg[1024];
-      Str_Vsnprintf(msg, sizeof msg, fmt, args);
-      fprintf(stderr, "Recursive panic: %s\n", msg);
-      VMToolsLogPanic();
+
+   if (gGuestSDKMode) {
+      GuestSDK_Panic(fmt, args);
    } else {
-      fprintf(stderr, "Recursive panic, giving up.\n");
-      exit(-1);
+      if (gPanicCount == 0) {
+         char *msg = Str_Vasprintf(NULL, fmt, args);
+         if (msg != NULL) {
+            g_log(gLogDomain, G_LOG_LEVEL_ERROR, "%s", msg);
+            free(msg);
+         }
+         /*
+          * In case an user-installed custom handler doesn't panic on error,
+          * force a core dump. Also force a dump in the recursive case.
+          */
+         VMToolsLogPanic();
+      } else if (gPanicCount == 1) {
+         /*
+          * Use a stack allocated string since we're in a recursive panic, so
+          * probably already in a weird state.
+          */
+         gchar msg[1024];
+         Str_Vsnprintf(msg, sizeof msg, fmt, args);
+         fprintf(stderr, "Recursive panic: %s\n", msg);
+         VMToolsLogPanic();
+      } else {
+         fprintf(stderr, "Recursive panic, giving up.\n");
+         exit(-1);
+      }
    }
    va_end(args);
+   while (1) ; // avoid compiler warning
 }
 
 
@@ -966,7 +1119,11 @@ Warning(const char *fmt, ...)
 {
    va_list args;
    va_start(args, fmt);
-   VMToolsLogWrapper(G_LOG_LEVEL_WARNING, fmt, args);
+   if (gGuestSDKMode) {
+      GuestSDK_Warning(fmt, args);
+   } else {
+      VMToolsLogWrapper(G_LOG_LEVEL_WARNING, fmt, args);
+   }
    va_end(args);
 }
 

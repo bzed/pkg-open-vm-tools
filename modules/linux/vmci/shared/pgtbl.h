@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2002 VMware, Inc. All rights reserved.
+ * Copyright (C) 2002,2014 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -26,13 +26,6 @@
 #include "compat_spinlock.h"
 #include "compat_page.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 3, 11)
-# define compat_active_mm  mm
-#else
-# define compat_active_mm  active_mm
-#endif
-
-
 /*
  *-----------------------------------------------------------------------------
  *
@@ -53,13 +46,18 @@
  *-----------------------------------------------------------------------------
  */
 
-static INLINE MPN
+static INLINE MPN64
 PgtblPte2MPN(pte_t *pte)   // IN
 {
+   MPN64 mpn;
    if (pte_present(*pte) == 0) {
       return INVALID_MPN;
    }
-   return pte_pfn(*pte);
+   mpn = pte_pfn(*pte);
+   if (mpn >= INVALID_MPN) {
+      return INVALID_MPN;
+   }
+   return mpn;
 }
 
 
@@ -174,7 +172,7 @@ PgtblVa2PTELocked(struct mm_struct *mm, // IN: Mm structure of a process
  *
  *    Retrieve MPN for a given va.
  *
- *    Caller must call pte_unmap if valid pte returned. The mm->page_table_lock 
+ *    Caller must call pte_unmap if valid pte returned. The mm->page_table_lock
  *    must be held, so this function is not allowed to schedule() --hpreg
  *
  * Results:
@@ -187,7 +185,7 @@ PgtblVa2PTELocked(struct mm_struct *mm, // IN: Mm structure of a process
  *-----------------------------------------------------------------------------
  */
 
-static INLINE MPN
+static INLINE MPN64
 PgtblVa2MPNLocked(struct mm_struct *mm, // IN: Mm structure of a process
                   VA addr)              // IN: Address in the virtual address
 {
@@ -195,12 +193,12 @@ PgtblVa2MPNLocked(struct mm_struct *mm, // IN: Mm structure of a process
 
    pte = PgtblVa2PTELocked(mm, addr);
    if (pte != NULL) {
-      MPN mpn = PgtblPte2MPN(pte);
+      MPN64 mpn = PgtblPte2MPN(pte);
       pte_unmap(pte);
       return mpn;
    }
    return INVALID_MPN;
-} 
+}
 
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
@@ -224,7 +222,7 @@ PgtblVa2MPNLocked(struct mm_struct *mm, // IN: Mm structure of a process
  *-----------------------------------------------------------------------------
  */
 
-static INLINE MPN
+static INLINE MPN64
 PgtblKVa2MPNLocked(struct mm_struct *mm, // IN: Mm structure of a caller
                    VA addr)              // IN: Address in the virtual address
 {
@@ -232,7 +230,7 @@ PgtblKVa2MPNLocked(struct mm_struct *mm, // IN: Mm structure of a caller
 
    pte = PgtblPGD2PTELocked(compat_pgd_offset_k(mm, addr), addr);
    if (pte != NULL) {
-      MPN mpn = PgtblPte2MPN(pte);
+      MPN64 mpn = PgtblPte2MPN(pte);
       pte_unmap(pte);
       return mpn;
    }
@@ -292,14 +290,14 @@ PgtblVa2PageLocked(struct mm_struct *mm, // IN: Mm structure of a process
  *-----------------------------------------------------------------------------
  */
 
-static INLINE int
+static INLINE MPN64
 PgtblVa2MPN(VA addr)  // IN
 {
    struct mm_struct *mm;
-   MPN mpn;
+   MPN64 mpn;
 
    /* current->mm is NULL for kernel threads, so use active_mm. */
-   mm = current->compat_active_mm;
+   mm = current->active_mm;
    if (compat_get_page_table_lock(mm)) {
       spin_lock(compat_get_page_table_lock(mm));
    }
@@ -329,13 +327,12 @@ PgtblVa2MPN(VA addr)  // IN
  *-----------------------------------------------------------------------------
  */
 
-static INLINE int
+static INLINE MPN64
 PgtblKVa2MPN(VA addr)  // IN
 {
-   struct mm_struct *mm;
-   MPN mpn;
+   struct mm_struct *mm = current->active_mm;
+   MPN64 mpn;
 
-   mm = current->compat_active_mm;
    if (compat_get_page_table_lock(mm)) {
       spin_lock(compat_get_page_table_lock(mm));
    }
@@ -368,10 +365,9 @@ PgtblKVa2MPN(VA addr)  // IN
 static INLINE struct page *
 PgtblVa2Page(VA addr) // IN
 {
-   struct mm_struct *mm;
+   struct mm_struct *mm = current->active_mm;
    struct page *page;
 
-   mm = current->compat_active_mm;
    if (compat_get_page_table_lock(mm)) {
       spin_lock(compat_get_page_table_lock(mm));
    }

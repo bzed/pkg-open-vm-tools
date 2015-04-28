@@ -26,9 +26,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of VMware Inc. nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission of VMware Inc.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -68,11 +65,7 @@
 #define BALLOON_NAME_VERBOSE            "VMware memory control driver"
 
 #if defined __linux__ || defined __FreeBSD__ || defined _WIN32
-/*
- * FIXME: Even if the driver support batched commands keep using the
- * non-batched one until more testing has been done.
- */
-#define BALLOON_CAPABILITIES    BALLOON_BASIC_CMDS
+#define BALLOON_CAPABILITIES    (BALLOON_BASIC_CMDS|BALLOON_BATCHED_CMDS)
 #else
 #define BALLOON_CAPABILITIES    BALLOON_BASIC_CMDS
 #endif

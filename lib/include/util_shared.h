@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2002 VMware, Inc. All rights reserved.
+ * Copyright (C) 2002-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -79,8 +79,6 @@ Util_Throttle(uint32 count)  // IN:
  *
  *----------------------------------------------------------------------
  */
-
-#define UTIL_FASTRAND_SEED_MAX (0x7fffffff)
 
 uint32
 Util_FastRand(uint32 seed)

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2007-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -39,8 +39,6 @@
  * declaration of VM_VERSION_TO_STR).
  */
 #if !defined(_WIN32) && !defined(__APPLE__)
-
-#include "vm_version.h"
 
 #define VM_EMBED_VERSION(ver)                                    \
 const char vm_version[]                                          \

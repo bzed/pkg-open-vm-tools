@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -35,19 +35,12 @@ typedef struct HgfsServerStateLogger {
    void                       *loggerData;   // logger callback private data
 } HgfsServerStateLogger;
 
-typedef
-struct HgfsVmxIov {
+typedef struct HgfsVmxIov {
    void *va;           /* Virtual addr */
    uint64 pa;          /* Physical address passed by the guest */
    uint32 len;         /* length of data; should be <= PAGE_SIZE for VMCI; arbitrary for backdoor */
-   char *token;        /* Token for physMem_ APIs */
+   void *context;      /* Mapping context */
 } HgfsVmxIov;
-
-typedef
-struct HgfsVaIov {
-   void *va;
-   uint32 len;
-}HgfsVaIov;
 
 typedef enum {
    BUF_READABLE,      /* Establish readable mappings */
@@ -55,26 +48,26 @@ typedef enum {
    BUF_READWRITEABLE, /* Establish read-writeable mappings */
 } MappingType;
 
-typedef
-struct HgfsPacket {
+typedef uint64 HgfsStateFlags;
+#define HGFS_STATE_CLIENT_REQUEST         (1 << 0)
+#define HGFS_STATE_ASYNC_REQUEST          (1 << 1)
+typedef struct HgfsPacket {
    uint64 id;
 
-   /* Does the transport support Async operations ? */
-   Bool supportsAsync;
-
-   /* Does transport need to send Async reply ? */
-   Bool processedAsync;
-
-   /* Is the packet guest initiated ? */
-   Bool guestInitiated;
+   HgfsStateFlags state;
 
    /* For metapacket we always establish writeable mappings */
    void *metaPacket;
    size_t metaPacketSize;
+   uint32 metaPacketMappedIov;
+   size_t metaPacketDataSize;
    Bool metaPacketIsAllocated;
+   MappingType metaMappingType;
 
    void *dataPacket;
    size_t dataPacketSize;
+   uint32 dataPacketMappedIov;
+   size_t dataPacketDataSize;
    uint32 dataPacketIovIndex;
    Bool dataPacketIsAllocated;
    /* What type of mapping was established - readable/ writeable ? */
@@ -82,7 +75,11 @@ struct HgfsPacket {
 
    void *replyPacket;
    size_t replyPacketSize;
+   size_t replyPacketDataSize;
    Bool replyPacketIsAllocated;
+
+   /* Iov for the packet private to the channel. */
+   HgfsVmxIov channelIov[2];
 
    uint32 iovCount;
    HgfsVmxIov iov[1];
@@ -113,25 +110,46 @@ typedef uint32 HgfsSendFlags;
 #define HGFS_SEND_NO_COMPLETE       (1 << 1)
 
 // Channel capability flags
+typedef uint32 HgfsChannelFlags;
 #define HGFS_CHANNEL_SHARED_MEM     (1 << 0)
 #define HGFS_CHANNEL_ASYNC          (1 << 1)
 
-typedef Bool
-HgfsSessionSendFunc(void *opaqueSession,  // IN
-                    char *buffer,         // IN
-                    size_t bufferLen,     // IN
-                    HgfsSendFlags flags); // IN
+typedef struct HgfsServerChannelData {
+   HgfsChannelFlags flags;
+   uint32 maxPacketSize;
+}HgfsServerChannelData;
+
+
+/* Default maximum number of open nodes. */
+#define HGFS_MAX_CACHED_FILENODES   30
+
+typedef uint32 HgfsConfigFlags;
+#define HGFS_CONFIG_USE_HOST_TIME                    (1 << 0)
+#define HGFS_CONFIG_NOTIFY_ENABLED                   (1 << 1)
+#define HGFS_CONFIG_VOL_INFO_MIN                     (1 << 2)
+#define HGFS_CONFIG_OPLOCK_ENABLED                   (1 << 3)
+#define HGFS_CONFIG_SHARE_ALL_HOST_DRIVES_ENABLED    (1 << 4)
+
+typedef struct HgfsServerConfig {
+   HgfsConfigFlags flags;
+   uint32 maxCachedOpenNodes;
+}HgfsServerConfig;
+
+typedef Bool (*HgfsChannelSendFunc)(void *opaqueSession,
+                                    HgfsPacket *packet,
+                                    HgfsSendFlags flags);
+typedef void * (*HgfsChannelMapVirtAddrFunc)(uint64 pa, uint32 size, void **context);
+typedef void (*HgfsChannelUnmapVirtAddrFunc)(void **context);
 
 typedef struct HgfsServerChannelCallbacks {
-    void* (*getReadVa)(uint64 pa, uint32 size, char **token);
-    void* (*getWriteVa)(uint64 pa, uint32 size, char **token);
-    void (*putVa)(char **token);
-    Bool (*send)(void *opaqueSession, HgfsPacket *packet, char *buffer,
-                 size_t bufferLen, HgfsSendFlags flags);
+    HgfsChannelMapVirtAddrFunc getReadVa;
+    HgfsChannelMapVirtAddrFunc getWriteVa;
+    HgfsChannelUnmapVirtAddrFunc putVa;
+    HgfsChannelSendFunc send;
 }HgfsServerChannelCallbacks;
 
 typedef struct HgfsServerSessionCallbacks {
-   Bool (*connect)(void *, HgfsServerChannelCallbacks *, uint32 ,void **);
+   Bool (*connect)(void *, HgfsServerChannelCallbacks *, HgfsServerChannelData *,void **);
    void (*disconnect)(void *);
    void (*close)(void *);
    void (*receive)(HgfsPacket *packet, void *);
@@ -140,7 +158,9 @@ typedef struct HgfsServerSessionCallbacks {
    void (*sendComplete)(HgfsPacket *, void *);
 } HgfsServerSessionCallbacks;
 
-Bool HgfsServer_InitState(HgfsServerSessionCallbacks **, HgfsServerStateLogger *);
+Bool HgfsServer_InitState(HgfsServerSessionCallbacks **,
+                          HgfsServerConfig *,
+                          HgfsServerStateLogger *);
 void HgfsServer_ExitState(void);
 
 uint32 HgfsServer_GetHandleCounter(void);

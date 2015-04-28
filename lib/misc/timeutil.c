@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -25,6 +25,7 @@
 
 #include "safetime.h"
 #include "unicode.h"
+#include <stdio.h>
 
 #if defined(_WIN32)
 #  include <wtypes.h>
@@ -34,8 +35,6 @@
 #include <ctype.h>
 
 #include "vmware.h"
-/* For HARD_EXPIRE --hpreg */
-#include "vm_version.h"
 #include "vm_basic_asm.h"
 #include "timeutil.h"
 #include "str.h"
@@ -132,7 +131,7 @@ TimeUtil_MakeTime(const TimeUtil_Date *d) // IN
  *    while the time will be left unmodified.
  *    The string 'date' needs to be in the format of 'YYYYMMDD' or
  *    'YYYY/MM/DD' or 'YYYY-MM-DD'.
- *    Unsuccesful initialization will leave the 'd' argument unmodified.
+ *    Unsuccessful initialization will leave the 'd' argument unmodified.
  *
  * Results:
  *    TRUE or FALSE.
@@ -492,7 +491,7 @@ TimeUtil_PopulateWithCurrent(Bool local,       // IN
    } else {
       currentTime = gmtime_r(&utcTime, &tmbuf);
    }
-   ASSERT_NOT_IMPLEMENTED(currentTime);
+   VERIFY(currentTime);
    d->year   = 1900 + currentTime->tm_year;
    d->month  = currentTime->tm_mon + 1;
    d->day    = currentTime->tm_mday;
@@ -1548,3 +1547,60 @@ static int Win32TimeUtilLookupZoneIndex(const char* targetName)
    return timeZoneIndex;
 }
 #endif // _WIN32
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TimeUtil_SecondsSinceEpoch --
+ *
+ *    Converts a date into the the number of seconds since the unix epoch in UTC.
+ *
+ * Parameters:
+ *    date to be converted.
+ *
+ * Results:
+ *    Returns the numbers of seconds since the unix epoch.
+ *
+ * Side effects:
+ *    None.
+ *
+ *----------------------------------------------------------------------
+ */
+time_t
+TimeUtil_SecondsSinceEpoch(TimeUtil_Date *d) // IN
+{
+   struct tm tmval = {0};
+
+   /*
+    * We can't handle negative time.
+    */
+   if (d->year < 1970) {
+      ASSERT(0);
+      return -1;
+   }
+
+   tmval.tm_year = d->year - 1900;
+   tmval.tm_mon = d->month - 1;
+   tmval.tm_mday = d->day;
+   tmval.tm_hour = d->hour;
+   tmval.tm_min = d->minute;
+   tmval.tm_sec = d->second;
+
+#if defined(_WIN32)
+   /*
+   * Workaround since Win32 doesn't have timegm(). Use the win32
+   * _get_timezone to adjust to UTC.
+   */
+   {
+      int utcSeconds = 0;
+      _get_timezone(&utcSeconds);
+      return mktime(&tmval) - utcSeconds;
+   }
+#elif (defined(__linux__) || defined(__APPLE__)) && !defined(__ANDROID__)
+   return timegm(&tmval);
+#else
+   NOT_IMPLEMENTED();
+   return -1;
+#endif
+}

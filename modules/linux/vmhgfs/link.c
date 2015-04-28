@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -45,11 +45,20 @@ static int HgfsFollowlink(struct dentry *dentry,
 static int HgfsReadlink(struct dentry *dentry,
                         char __user *buffer,
                         int buflen);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 13)
+static void HgfsPutlink(struct dentry *dentry,
+                        struct nameidata *nd,
+                        void *cookie);
+#else
+static void HgfsPutlink(struct dentry *dentry,
+                        struct nameidata *nd);
+#endif
 
 /* HGFS inode operations structure for symlinks. */
 struct inode_operations HgfsLinkInodeOperations = {
    .follow_link   = HgfsFollowlink,
    .readlink      = HgfsReadlink,
+   .put_link      = HgfsPutlink,
 };
 
 /*
@@ -99,9 +108,11 @@ HgfsFollowlink(struct dentry *dentry, // IN: Dentry containing link
       goto out;
    }
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsFollowlink: calling "
-           "HgfsPrivateGetattr\n"));
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s: calling HgfsPrivateGetattr %s\n",
+           __func__, dentry->d_name.name));
    error = HgfsPrivateGetattr(dentry, &attr, &fileName);
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s: HgfsPrivateGetattr %s ret %d\n",
+           __func__, dentry->d_name.name, error));
    if (!error) {
 
       /* Let's make sure we got called on a symlink. */
@@ -109,12 +120,12 @@ HgfsFollowlink(struct dentry *dentry, // IN: Dentry containing link
          LOG(6, (KERN_DEBUG "VMware hgfs: HgfsFollowlink: got called "
                  "on something that wasn't a symlink\n"));
          error = -EINVAL;
+         kfree(fileName);
       } else {
-         LOG(6, (KERN_DEBUG "VMware hgfs: HgfsFollowlink: calling "
-                 "vfs_follow_link\n"));
-         error = vfs_follow_link(nd, fileName);
+         LOG(6, (KERN_DEBUG "VMware hgfs: %s: calling nd_set_link %s\n",
+                 __func__, fileName));
+         nd_set_link(nd, fileName);
       }
-      kfree(fileName);
    }
   out:
 
@@ -125,6 +136,13 @@ HgfsFollowlink(struct dentry *dentry, // IN: Dentry containing link
 #endif
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+#define HGFS_DO_READLINK(dentry,buffer,buflen,fileName) \
+         readlink_copy(buffer, buflen, fileName)
+#else
+#define HGFS_DO_READLINK(dentry,buffer,buflen,fileName) \
+         vfs_readlink(dentry, buffer, buflen, fileName)
+#endif
 
 /*
  *----------------------------------------------------------------------
@@ -161,8 +179,8 @@ HgfsReadlink(struct dentry *dentry,  // IN:  Dentry containing link
       return -EINVAL;
    }
 
-   LOG(6, (KERN_DEBUG "VMware hgfs: HgfsReadlink: calling "
-           "HgfsPrivateGetattr\n"));
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s: calling HgfsPrivateGetattr %s\n",
+           __func__, dentry->d_name.name));
    error = HgfsPrivateGetattr(dentry, &attr, &fileName);
    if (!error) {
 
@@ -172,11 +190,56 @@ HgfsReadlink(struct dentry *dentry,  // IN:  Dentry containing link
                  "on something that wasn't a symlink\n"));
          error = -EINVAL;
       } else {
-         LOG(6, (KERN_DEBUG "VMware hgfs: HgfsReadlink: calling "
-                 "vfs_readlink\n"));
-         error = vfs_readlink(dentry, buffer, buflen, fileName);
+         LOG(6, (KERN_DEBUG "VMware hgfs: %s: calling vfs_readlink %s\n",
+                 __func__, fileName));
+         error = HGFS_DO_READLINK(dentry, buffer, buflen, fileName);
+         LOG(6, (KERN_DEBUG "VMware hgfs: %s: vfs_readlink %s ret %dn",
+                 __func__, fileName, error));
       }
       kfree(fileName);
    }
    return error;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * HgfsPutlink --
+ *
+ *    Modeled after page_put_link from a 2.6.9 kernel so it'll work
+ *    across all kernel revisions we care about.
+ *
+ * Results:
+ *    None
+ *
+ * Side effects:
+ *    None
+ *
+ *----------------------------------------------------------------------
+ */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 13)
+static void
+HgfsPutlink(struct dentry *dentry, // dentry
+            struct nameidata *nd,  // lookup name information
+            void *cookie)          // cookie
+#else
+static void
+HgfsPutlink(struct dentry *dentry, // dentry
+            struct nameidata *nd)  // lookup name information
+#endif
+{
+   char *fileName = NULL;
+
+   LOG(6, (KERN_DEBUG "VMware hgfs: %s: put for %s\n",
+           __func__, dentry->d_name.name));
+
+   fileName = nd_get_link(nd);
+   if (!IS_ERR(fileName)) {
+      LOG(6, (KERN_DEBUG "VMware hgfs: %s: putting %s\n",
+              __func__, fileName));
+      kfree(fileName);
+      nd_set_link(nd, NULL);
+   }
 }

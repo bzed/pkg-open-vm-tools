@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -34,7 +34,6 @@
 #define INCLUDE_ALLOW_VMK_MODULE
 #define INCLUDE_ALLOW_DISTRIBUTE
 #define INCLUDE_ALLOW_VMCORE
-#define INCLUDE_ALLOW_VMIROM
 #include "includeCheck.h"
 #include "vm_basic_types.h" // For INLINE.
 #include "vm_basic_asm.h"   // For Div64...
@@ -68,6 +67,17 @@ IsPowerOfTwo(uint32 x)
 {
    /* Does not check for zero. Callers depend on this. */
    return !(x & (x - 1));
+}
+
+static INLINE uint32
+GetPowerOfTwo(uint32 x)
+{
+   /* Returns next-greatest power-of-two. */
+   uint32 power2 = 1;
+   while (x > power2) {
+      power2 = power2 << 1;
+   }
+   return power2;
 }
 
 #endif // ifndef _VM_BASIC_MATH_H_

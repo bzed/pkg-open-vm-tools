@@ -26,9 +26,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of VMware Inc. nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission of VMware Inc.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -75,9 +72,11 @@
 int Backdoor_MonitorStart(Balloon *b, uint32 protoVersion);
 int Backdoor_MonitorGuestType(Balloon *b);
 int Backdoor_MonitorGetTarget(Balloon *b, uint32 *target);
-int Backdoor_MonitorLockPage(Balloon *b, PPN64 ppn);
-int Backdoor_MonitorUnlockPage(Balloon *b, PPN64 ppn);
-int Backdoor_MonitorLockPagesBatched(Balloon *b, PPN64 ppn, uint32 nPages);
-int Backdoor_MonitorUnlockPagesBatched(Balloon *b, PPN64 ppn, uint32 nPages);
+int Backdoor_MonitorLockPage(Balloon *b, PPN64 ppn, uint32 *target);
+int Backdoor_MonitorUnlockPage(Balloon *b, PPN64 ppn, uint32 *target);
+int Backdoor_MonitorLockPagesBatched(Balloon *b, PPN64 ppn, uint32 nPages,
+                                     uint32 *target);
+int Backdoor_MonitorUnlockPagesBatched(Balloon *b, PPN64 ppn, uint32 nPages,
+                                       uint32 *target);
 
 #endif /* _BACKDOOR_BALLOON_H_ */

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -33,6 +33,46 @@
 #define LOGLEVEL_MODULE hgfs
 #include "loglevel_user.h"
 
+static void *HSPUGetBuf(HgfsServerChannelCallbacks *chanCb,
+                        MappingType mappingType,
+                        HgfsVmxIov *iov,
+                        uint32 iovCount,
+                        uint32 startIndex,
+                        size_t bufSize,
+                        void **buf,
+                        Bool *isAllocated,
+                        uint32 *iovMappedCount);
+static void HSPUPutBuf(HgfsServerChannelCallbacks *chanCb,
+                       MappingType mappingType,
+                       HgfsVmxIov *iov,
+                       uint32 iovCount,
+                       uint32 startIndex,
+                       size_t bufSize,
+                       void **buf,
+                       Bool *isAllocated,
+                       uint32 *iovMappedCount);
+static void HSPUCopyBufToIovec(HgfsVmxIov *iov,
+                               uint32 iovMapped,
+                               uint32 startIndex,
+                               void *buf,
+                               size_t bufSize);
+static void HSPUCopyIovecToBuf(HgfsVmxIov *iov,
+                               uint32 iovMapped,
+                               uint32 startIndex,
+                               void *buf,
+                               size_t bufSize);
+static Bool HSPUMapBuf(HgfsChannelMapVirtAddrFunc mapVa,
+                       HgfsChannelUnmapVirtAddrFunc putVa,
+                       size_t mapSize,
+                       uint32 startIndex,
+                       uint32 iovCount,
+                       HgfsVmxIov *iov,
+                       uint32 *mappedCount);
+static void HSPUUnmapBuf(HgfsChannelUnmapVirtAddrFunc unmapVa,
+                         uint32 startIndex,
+                         HgfsVmxIov *iov,
+                         uint32 *mappedCount);
+
 
 /*
  *-----------------------------------------------------------------------------
@@ -51,48 +91,58 @@
  */
 
 void *
-HSPU_GetReplyPacket(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
-                    size_t *replyPacketSize,   // IN/OUT: Size of reply Packet
-                    HgfsTransportSessionInfo *transportSession)  // IN: Session Info
+HSPU_GetReplyPacket(HgfsPacket *packet,                  // IN/OUT: Hgfs Packet
+                    HgfsServerChannelCallbacks *chanCb,  // IN: Channel callbacks
+                    size_t replyDataSize,                // IN: Size of reply data
+                    size_t *replyPacketSize)             // OUT: Size of reply Packet
 {
-   ASSERT(transportSession);
-   if (packet->replyPacket) {
+   if (packet->replyPacket != NULL) {
       /*
        * When we are transferring packets over backdoor, reply packet
        * is a static buffer. Backdoor should always return from here.
        */
+      packet->replyPacketDataSize = replyDataSize;
       LOG(4, ("Existing reply packet %s %"FMTSZ"u %"FMTSZ"u\n", __FUNCTION__,
-              *replyPacketSize, packet->replyPacketSize));
-      ASSERT_DEVEL(*replyPacketSize <= packet->replyPacketSize);
-   } else if (transportSession->channelCbTable && transportSession->channelCbTable->getWriteVa) {
-     /* Can we write directly into guest memory ? */
-      ASSERT_DEVEL(packet->metaPacket);
-      if (packet->metaPacket) {
-         LOG(10, ("%s Using meta packet for reply packet\n", __FUNCTION__));
-         ASSERT_DEVEL(*replyPacketSize <= packet->metaPacketSize);
-         packet->replyPacket = packet->metaPacket;
-         packet->replyPacketSize = packet->metaPacketSize;
-         LOG(10, ("%s Mapping meta packet for reply packet\n", __FUNCTION__));
-         packet->replyPacket = HSPU_GetBuf(packet,
-                                           0,
-                                           &packet->metaPacket,
-                                           packet->metaPacketSize,
-                                           &packet->metaPacketIsAllocated,
-                                           BUF_WRITEABLE,
-                                           transportSession);
+              replyDataSize, packet->replyPacketSize));
+      ASSERT(replyDataSize <= packet->replyPacketSize);
+   } else if (chanCb != NULL && chanCb->getWriteVa != NULL) {
+     /* Can we write directly into guest memory? */
+      if (packet->metaPacket != NULL) {
          /*
-          * Really this can never happen, we would have caught bad physical address
-          * during getMetaPacket.
+          * Use the mapped metapacket buffer for the reply.
+          * This currently makes assumptions about the mapping -
+          * - It is mapped read -write
+          * - It is always large enough for any reply
+          * This will change as it is grossly inefficient as the maximum size
+          * is always mapped and copied no matter how much data it really contains.
           */
-         ASSERT(packet->replyPacket);
+         LOG(10, ("%s Using meta packet for reply packet\n", __FUNCTION__));
+         ASSERT(replyDataSize <= packet->metaPacketDataSize);
+         ASSERT(BUF_READWRITEABLE == packet->metaMappingType);
+         ASSERT(replyDataSize <= packet->metaPacketSize);
+
+         packet->replyPacket = packet->metaPacket;
+         packet->replyPacketDataSize = replyDataSize;
          packet->replyPacketSize = packet->metaPacketSize;
+         packet->replyPacketIsAllocated = FALSE;
+         /*
+          * The reply is using the meta buffer so update the valid data size.
+          *
+          * Note, currently We know the reply size is going to be less than the
+          * incoming request valid data size. This will updated when that part is
+          * fixed. See the above comment about the assumptions and asserts.
+          */
+         packet->metaPacketDataSize = packet->replyPacketDataSize;
+      } else {
+         NOT_IMPLEMENTED();
       }
    } else {
       /* For sockets channel we always need to allocate buffer */
       LOG(10, ("%s Allocating reply packet\n", __FUNCTION__));
-      packet->replyPacket = Util_SafeMalloc(*replyPacketSize);
+      packet->replyPacket = Util_SafeMalloc(replyDataSize);
       packet->replyPacketIsAllocated = TRUE;
-      packet->replyPacketSize = *replyPacketSize;
+      packet->replyPacketDataSize = replyDataSize;
+      packet->replyPacketSize = replyDataSize;
    }
 
    *replyPacketSize = packet->replyPacketSize;
@@ -116,9 +166,14 @@ HSPU_GetReplyPacket(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
  */
 
 void
-HSPU_PutReplyPacket(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
-                    HgfsTransportSessionInfo *transportSession)  // IN: Session Info
+HSPU_PutReplyPacket(HgfsPacket *packet,                  // IN/OUT: Hgfs Packet
+                    HgfsServerChannelCallbacks *chanCb)  // IN: Channel callbacks
 {
+   /*
+    * If there wasn't an allocated buffer for the reply, there is nothing to
+    * do as the reply is in the metapacket buffer which will be handled by the
+    * put on the metapacket.
+    */
    if (packet->replyPacketIsAllocated) {
       LOG(10, ("%s Freeing reply packet", __FUNCTION__));
       free(packet->replyPacket);
@@ -146,42 +201,30 @@ HSPU_PutReplyPacket(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
  */
 
 void *
-HSPU_GetMetaPacket(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
-                   size_t *metaPacketSize,    // OUT: Size of metaPacket
-                   HgfsTransportSessionInfo *transportSession)  // IN: Session Info
+HSPU_GetMetaPacket(HgfsPacket *packet,                   // IN/OUT: Hgfs Packet
+                   size_t *metaPacketSize,               // OUT: Size of metaPacket
+                   HgfsServerChannelCallbacks *chanCb)   // IN: Channel callbacks
 {
-   *metaPacketSize = packet->metaPacketSize;
-   return HSPU_GetBuf(packet, 0, &packet->metaPacket,
-                      packet->metaPacketSize,
-                      &packet->metaPacketIsAllocated,
-                      BUF_READWRITEABLE, transportSession);
-}
+   *metaPacketSize = packet->metaPacketDataSize;
+   if (packet->metaPacket != NULL) {
+      return packet->metaPacket;
+   }
 
+   if (packet->metaPacketSize == 0) {
+      return NULL;
+   }
 
-/*
- *-----------------------------------------------------------------------------
- *
- * HSPU_GetDataPacketIov --
- *
- *    Get a data packet in an iov form given an hgfs packet.
- *    Guest mappings will be established.
- *
- * Results:
- *    Pointer to data packet iov.
- *
- * Side effects:
- *    Buffer may be allocated.
- *-----------------------------------------------------------------------------
- */
+   packet->metaMappingType = BUF_READWRITEABLE;
 
-void *
-HSPU_GetDataPacketIov(HgfsPacket *packet,       // IN/OUT: Hgfs Packet
-                      HgfsTransportSessionInfo *transportSession, // IN: Session Info
-                      HgfsVaIov iov)            // OUT: I/O vector
-{
-   NOT_IMPLEMENTED();
-   return NULL;
-
+   return HSPUGetBuf(chanCb,
+                     packet->metaMappingType,
+                     packet->iov,
+                     packet->iovCount,
+                     0,
+                     packet->metaPacketDataSize,
+                     &packet->metaPacket,
+                     &packet->metaPacketIsAllocated,
+                     &packet->metaPacketMappedIov);
 }
 
 
@@ -202,21 +245,35 @@ HSPU_GetDataPacketIov(HgfsPacket *packet,       // IN/OUT: Hgfs Packet
  */
 
 void *
-HSPU_GetDataPacketBuf(HgfsPacket *packet,       // IN/OUT: Hgfs Packet
-                      MappingType mappingType,  // IN: Writeable/Readable
-                      HgfsTransportSessionInfo *transportSession) // IN: Session Info
+HSPU_GetDataPacketBuf(HgfsPacket *packet,                   // IN/OUT: Hgfs Packet
+                      MappingType mappingType,              // IN: Writeable/Readable
+                      HgfsServerChannelCallbacks *chanCb)   // IN: Channel callbacks
 {
+   if (packet->dataPacket != NULL) {
+      return packet->dataPacket;
+   }
+
+   if (packet->dataPacketSize == 0) {
+      return NULL;
+   }
+
    packet->dataMappingType = mappingType;
-   return HSPU_GetBuf(packet, packet->dataPacketIovIndex,
-                      &packet->dataPacket, packet->dataPacketSize,
-                      &packet->dataPacketIsAllocated, mappingType, transportSession);
+   return HSPUGetBuf(chanCb,
+                     packet->dataMappingType,
+                     packet->iov,
+                     packet->iovCount,
+                     packet->dataPacketIovIndex,
+                     packet->dataPacketSize,
+                     &packet->dataPacket,
+                     &packet->dataPacketIsAllocated,
+                     &packet->dataPacketMappedIov);
 }
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * HSPU_GetBuf --
+ * HSPUGetBuf --
  *
  *    Get a {meta, data} packet given an hgfs packet.
  *    Guest mappings will be established.
@@ -229,109 +286,80 @@ HSPU_GetDataPacketBuf(HgfsPacket *packet,       // IN/OUT: Hgfs Packet
  *-----------------------------------------------------------------------------
  */
 
-void *
-HSPU_GetBuf(HgfsPacket *packet,           // IN/OUT: Hgfs Packet
-            uint32 startIndex,            // IN: start index of iov
-            void **buf,                   // OUT: Contigous buffer
-            size_t  bufSize,              // IN: Size of buffer
-            Bool *isAllocated,            // OUT: Was buffer allocated ?
-            MappingType mappingType,      // IN: Readable/Writeable ?
-            HgfsTransportSessionInfo *transportSession)     // IN: Session Info
+static void *
+HSPUGetBuf(HgfsServerChannelCallbacks *chanCb,  // IN: Channel callbacks
+           MappingType mappingType,             // IN: Access type Readable/Writeable
+           HgfsVmxIov *iov,                     // IN: iov array
+           uint32 iovCount,                     // IN: iov array size
+           uint32 startIndex,                   // IN: Start index of iov
+           size_t bufSize,                      // IN: Size of buffer
+           void **buf,                          // OUT: Contigous buffer
+           Bool *isAllocated,                   // OUT: Buffer allocated
+           uint32 *iovMappedCount)              // OUT: iov mapped count
 {
-   uint32 iovCount;
    uint32 iovMapped = 0;
-   int32 size = bufSize;
-   int i;
-   void* (*func)(uint64, uint32, char **);
-   ASSERT(buf);
+   HgfsChannelMapVirtAddrFunc mapVa;
+   Bool releaseMappings = FALSE;
 
-   if (*buf) {
-      return *buf;
-   } else if (bufSize == 0) {
-      return NULL;
-   }
+   ASSERT(buf != NULL);
 
-   if (!transportSession->channelCbTable) {
-      return NULL;
+   *buf = NULL;
+   *isAllocated = FALSE;
+
+   if (chanCb == NULL) {
+      goto exit;
    }
 
    if (mappingType == BUF_WRITEABLE ||
        mappingType == BUF_READWRITEABLE) {
-      func = transportSession->channelCbTable->getWriteVa;
+      mapVa = chanCb->getWriteVa;
    } else {
       ASSERT(mappingType == BUF_READABLE);
-      func = transportSession->channelCbTable->getReadVa;
+      mapVa = chanCb->getReadVa;
    }
 
    /* Looks like we are in the middle of poweroff. */
-   if (func == NULL) {
-      return NULL;
+   if (mapVa == NULL) {
+      goto exit;
    }
 
    /* Establish guest memory mappings */
-   for (iovCount = startIndex; iovCount < packet->iovCount && size > 0;
-        iovCount++) {
-
-      packet->iov[iovCount].token = NULL;
-
-      /* Debugging check: Iov in VMCI should never cross page boundary */
-      ASSERT_DEVEL(packet->iov[iovCount].len <=
-      (PAGE_SIZE - PAGE_OFFSET(packet->iov[iovCount].pa)));
-
-      packet->iov[iovCount].va = func(packet->iov[iovCount].pa,
-                                      packet->iov[iovCount].len,
-                                      &packet->iov[iovCount].token);
-      ASSERT_DEVEL(packet->iov[iovCount].va);
-      if (packet->iov[iovCount].va == NULL) {
-         /* Guest probably passed us bad physical address */
-         *buf = NULL;
-         goto freeMem;
-      }
-      iovMapped++;
-      size -= packet->iov[iovCount].len;
+   if (!HSPUMapBuf(mapVa,
+                   chanCb->putVa,
+                   bufSize,
+                   startIndex,
+                   iovCount,
+                   iov,
+                   &iovMapped)) {
+      /* Guest probably passed us bad physical address */
+      goto exit;
    }
 
-   if (iovMapped > 1) {
-      uint32 copiedAmount = 0;
-      uint32 copyAmount;
-      int32 remainingSize;
-      int i;
-
-      /* Seems like more than one page was requested. */
-      ASSERT_DEVEL(packet->iov[startIndex].len < bufSize);
-      *buf = Util_SafeMalloc(bufSize);
-      *isAllocated = TRUE;
-
-      LOG(10, ("%s: Hgfs Allocating buffer \n", __FUNCTION__));
-
-      if (mappingType == BUF_READABLE ||
-          mappingType == BUF_READWRITEABLE) {
-         /*
-          * Since we are allocating seperate buffer, it does not make sense
-          * to continue to hold on to mappings. Let's release it, we will
-          * reacquire mappings when we need in HSPU_CopyBufToIovec.
-          */
-         remainingSize = bufSize;
-         for (i = startIndex; i < packet->iovCount && remainingSize > 0; i++) {
-            copyAmount = remainingSize < packet->iov[i].len ?
-                         remainingSize : packet->iov[i].len;
-            memcpy((char *)*buf + copiedAmount, packet->iov[i].va, copyAmount);
-            copiedAmount += copyAmount;
-            remainingSize -= copyAmount;
-         }
-         ASSERT_DEVEL(copiedAmount == bufSize);
-      }
-   } else {
-      /* We will continue to hold on to guest mappings */
-      *buf = packet->iov[startIndex].va;
-      return *buf;
+   if (iovMapped == 1) {
+      /* A single page buffer is contiguous so hold on to guest mappings. */
+      *buf = iov[startIndex].va;
+      goto exit;
    }
 
-freeMem:
-   for (i = startIndex; i < iovCount; i++) {
-      transportSession->channelCbTable->putVa(&packet->iov[i].token);
-      packet->iov[i].va = NULL;
+   /* More than one page was mapped. */
+   ASSERT(iov[startIndex].len < bufSize);
+
+   LOG(10, ("%s: Hgfs Allocating buffer \n", __FUNCTION__));
+   *buf = Util_SafeMalloc(bufSize);
+   *isAllocated = TRUE;
+
+   if (mappingType == BUF_READABLE ||
+       mappingType == BUF_READWRITEABLE) {
+      HSPUCopyIovecToBuf(iov, iovMapped, startIndex, *buf, bufSize);
    }
+   releaseMappings = TRUE;
+
+
+exit:
+   if (releaseMappings) {
+      HSPUUnmapBuf(chanCb->putVa, startIndex, iov, &iovMapped);
+   }
+   *iovMappedCount = iovMapped;
 
    return *buf;
 }
@@ -354,36 +382,23 @@ freeMem:
  */
 
 void
-HSPU_PutMetaPacket(HgfsPacket *packet,       // IN/OUT: Hgfs Packet
-                   HgfsTransportSessionInfo *transportSession) // IN: Session Info
+HSPU_PutMetaPacket(HgfsPacket *packet,                   // IN/OUT: Hgfs Packet
+                   HgfsServerChannelCallbacks *chanCb)   // IN: Channel callbacks
 {
+   if (packet->metaPacket == NULL) {
+      return;
+   }
+
    LOG(4, ("%s Hgfs Putting Meta packet\n", __FUNCTION__));
-   HSPU_PutBuf(packet, 0, &packet->metaPacket,
-               &packet->metaPacketSize,
-               &packet->metaPacketIsAllocated,
-               BUF_WRITEABLE, transportSession);
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * HSPU_PutDataPacketIov --
- *
- *    Free data packet Iov if allocated.
- *
- * Results:
- *    void.
- *
- * Side effects:
- *    Guest mappings will be released.
- *-----------------------------------------------------------------------------
- */
-
-void
-HSPU_PutDataPacketIov()
-{
-   NOT_IMPLEMENTED();
+   HSPUPutBuf(chanCb,
+              packet->metaMappingType,
+              packet->iov,
+              packet->iovCount,
+              0,
+              packet->metaPacketDataSize,
+              &packet->metaPacket,
+              &packet->metaPacketIsAllocated,
+              &packet->metaPacketMappedIov);
 }
 
 
@@ -404,22 +419,30 @@ HSPU_PutDataPacketIov()
  */
 
 void
-HSPU_PutDataPacketBuf(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
-                      HgfsTransportSessionInfo *transportSession)  // IN: Session Info
+HSPU_PutDataPacketBuf(HgfsPacket *packet,                   // IN/OUT: Hgfs Packet
+                      HgfsServerChannelCallbacks *chanCb)   // IN: Channel callbacks
 {
+   if (packet->dataPacket == NULL) {
+      return;
+   }
 
    LOG(4, ("%s Hgfs Putting Data packet\n", __FUNCTION__));
-   HSPU_PutBuf(packet, packet->dataPacketIovIndex,
-               &packet->dataPacket, &packet->dataPacketSize,
-               &packet->dataPacketIsAllocated,
-               packet->dataMappingType, transportSession);
+   HSPUPutBuf(chanCb,
+              packet->dataMappingType,
+              packet->iov,
+              packet->iovCount,
+              packet->dataPacketIovIndex,
+              packet->dataPacketSize,
+              &packet->dataPacket,
+              &packet->dataPacketIsAllocated,
+              &packet->dataPacketMappedIov);
 }
 
 
 /*
  *-----------------------------------------------------------------------------
  *
- * HSPU_PutBuf --
+ * HSPUPutBuf --
  *
  *    Free buffer if allocated and release guest mappings.
  *
@@ -432,44 +455,54 @@ HSPU_PutDataPacketBuf(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
  */
 
 void
-HSPU_PutBuf(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
-            uint32 startIndex,         // IN: Start of iov
-            void **buf,                // IN/OUT: Buffer to be freed
-            size_t *bufSize,           // IN: Size of the buffer
-            Bool *isAllocated,         // IN: Was buffer allocated ?
-            MappingType mappingType,   // IN: Readable / Writeable ?
-            HgfsTransportSessionInfo *transportSession)  // IN: Session info
+HSPUPutBuf(HgfsServerChannelCallbacks *chanCb,  // IN: Channel callbacks
+           MappingType mappingType,             // IN: Access type Readable/Writeable
+           HgfsVmxIov *iov,                     // IN: iov array
+           uint32 iovCount,                     // IN: iov array size
+           uint32 startIndex,                   // IN: Start index of iov
+           size_t bufSize,                      // IN: Size of buffer
+           void **buf,                          // OUT: Contigous buffer
+           Bool *isAllocated,                   // OUT: Buffer allocated
+           uint32 *iovMappedCount)              // OUT: iov mapped count
 {
-   uint32 iovCount = 0;
-   int size = *bufSize;
-   ASSERT(buf);
+   ASSERT(buf != NULL);
 
-   if (!transportSession->channelCbTable) {
-      return;
+   if (chanCb == NULL || chanCb->putVa == NULL) {
+      goto exit;
    }
 
-   if (!transportSession->channelCbTable->putVa || *buf == NULL) {
-      return;
-   }
-
-   if (*isAllocated) {
-      if (mappingType == BUF_WRITEABLE) {
-         HSPU_CopyBufToIovec(packet, startIndex, *buf, *bufSize, transportSession);
+   if (*isAllocated &&
+       (mappingType == BUF_WRITEABLE || mappingType == BUF_READWRITEABLE)) {
+      /*
+       * 1. Map the iov's if required for the size into host addresses.
+       * 2. Write the buffer data into the iov host addresses.
+       * 3. Unmap the iov's host virtual addresses.
+       */
+      if (0 == *iovMappedCount) {
+         if (!HSPUMapBuf(chanCb->getWriteVa,
+                         chanCb->putVa,
+                         bufSize,
+                         startIndex,
+                         iovCount,
+                         iov,
+                         iovMappedCount)) {
+            goto exit;
+         }
       }
+      HSPUCopyBufToIovec(iov, *iovMappedCount, startIndex, *buf, bufSize);
+   }
+
+   if (0 < *iovMappedCount) {
+      HSPUUnmapBuf(chanCb->putVa, startIndex, iov, iovMappedCount);
+   }
+
+exit:
+   if (*isAllocated) {
       LOG(10, ("%s: Hgfs Freeing buffer \n", __FUNCTION__));
       free(*buf);
       *isAllocated = FALSE;
-   } else {
-      for (iovCount = startIndex;
-           iovCount < packet->iovCount && size > 0;
-           iovCount++) {
-         ASSERT_DEVEL(packet->iov[iovCount].token);
-         transportSession->channelCbTable->putVa(&packet->iov[iovCount].token);
-         size -= packet->iov[iovCount].len;
-      }
-      LOG(10, ("%s: Hgfs bufSize = %d \n", __FUNCTION__, size));
-      ASSERT(size <= 0);
    }
+
    *buf = NULL;
 }
 
@@ -477,7 +510,7 @@ HSPU_PutBuf(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
 /*
  *-----------------------------------------------------------------------------
  *
- * HSPU_CopyBufToMetaIovec --
+ * HSPUCopyBufToIovec --
  *
  *    Write out buffer to data Iovec.
  *
@@ -489,107 +522,170 @@ HSPU_PutBuf(HgfsPacket *packet,        // IN/OUT: Hgfs Packet
  *-----------------------------------------------------------------------------
  */
 
-void
-HSPU_CopyBufToMetaIovec(HgfsPacket *packet,      // IN/OUT: Hgfs packet
-                        void *buf,               // IN: Buffer to copy from
-                        size_t bufSize,          // IN: Size of buffer
-                        HgfsTransportSessionInfo *transportSession)// IN: Session Info
+static void
+HSPUCopyBufToIovec(HgfsVmxIov *iov,          // IN: iovs (array of mappings)
+                   uint32 iovCount,          // IN: iov count of mappings
+                   uint32 startIndex,        // IN: start index into iov
+                   void *buf,                // IN: Contigous Buffer
+                   size_t bufSize)           // IN: Size of buffer
 {
-   HSPU_CopyBufToIovec(packet, 0, buf, bufSize, transportSession);
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * HSPU_CopyBufToDataIovec --
- *
- *    Write out buffer to data Iovec.
- *
- * Results:
- *    void
- *
- * Side effects:
- *    @iov is populated with contents of @buf
- *-----------------------------------------------------------------------------
- */
-
-void
-HSPU_CopyBufToDataIovec(HgfsPacket *packet,   // IN: Hgfs packet
-                        void *buf,            // IN: Buffer to copy from
-                        uint32 bufSize,       // IN: Size of buffer
-                        HgfsTransportSessionInfo *transportSession)
-{
-   HSPU_CopyBufToIovec(packet, packet->dataPacketIovIndex, buf, bufSize,
-                       transportSession);
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * HSPU_CopyBufToDataIovec --
- *
- *    Write out buffer to data Iovec.
- *
- * Results:
- *    void
- *
- * Side effects:
- *    @iov is populated with contents of @buf
- *-----------------------------------------------------------------------------
- */
-
-void
-HSPU_CopyBufToIovec(HgfsPacket *packet,       // IN/OUT: Hgfs Packet
-                    uint32 startIndex,        // IN: start index into iov
-                    void *buf,                // IN: Contigous Buffer
-                    size_t bufSize,           // IN: Size of buffer
-                    HgfsTransportSessionInfo *transportSession) // IN: Session Info
-{
-   uint32 iovCount;
-   size_t remainingSize = bufSize;
-   size_t copyAmount;
+   size_t iovIndex;
+   size_t endIndex;
+   size_t remainingSize;
    size_t copiedAmount = 0;
 
-   ASSERT(packet);
-   ASSERT(buf);
+   ASSERT(buf != NULL);
 
-   if (!transportSession->channelCbTable) {
-      return;
+   for (iovIndex = startIndex,  endIndex = startIndex + iovCount, remainingSize = bufSize;
+        iovIndex < endIndex && remainingSize > 0;
+        iovIndex++) {
+      size_t copyAmount = remainingSize < iov[iovIndex].len ?
+                          remainingSize: iov[iovIndex].len;
+
+      ASSERT(iov[iovIndex].va != NULL);
+
+      memcpy(iov[iovIndex].va, (char *)buf + copiedAmount, copyAmount);
+      remainingSize -= copyAmount;
+      copiedAmount += copyAmount;
    }
 
-   ASSERT_DEVEL(transportSession->channelCbTable->getWriteVa);
-   if (!transportSession->channelCbTable->getWriteVa) {
-      return;
-   }
-
-   for (iovCount = startIndex; iovCount < packet->iovCount
-        && remainingSize > 0; iovCount++) {
-      copyAmount = remainingSize < packet->iov[iovCount].len ?
-                   remainingSize: packet->iov[iovCount].len;
-
-      packet->iov[iovCount].token = NULL;
-
-      /* Debugging check: Iov in VMCI should never cross page boundary */
-      ASSERT_DEVEL(packet->iov[iovCount].len <=
-                  (PAGE_SIZE - PAGE_OFFSET(packet->iov[iovCount].pa)));
-
-      packet->iov[iovCount].va = transportSession->channelCbTable->getWriteVa(packet->iov[iovCount].pa,
-                                                     packet->iov[iovCount].len,
-                                                     &packet->iov[iovCount].token);
-      ASSERT_DEVEL(packet->iov[iovCount].va);
-      if (packet->iov[iovCount].va != NULL) {
-         memcpy(packet->iov[iovCount].va, (char *)buf + copiedAmount, copyAmount);
-         transportSession->channelCbTable->putVa(&packet->iov[iovCount].token);
-         remainingSize -= copyAmount;
-         copiedAmount += copyAmount;
-      } else {
-         break;
-      }
-   }
-
-   ASSERT_DEVEL(remainingSize == 0);
+   ASSERT(remainingSize == 0);
 }
 
 
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HSPUCopyIovecToBuf --
+ *
+ *    Read Iovec into the buffer.
+ *
+ * Results:
+ *    void
+ *
+ * Side effects:
+ *    @iov is populated with contents of @buf
+ *-----------------------------------------------------------------------------
+ */
+
+static void
+HSPUCopyIovecToBuf(HgfsVmxIov *iov,          // IN: iovs (array of mappings)
+                   uint32 iovCount,          // IN: iov count of mappings
+                   uint32 startIndex,        // IN: start index into iov
+                   void *buf,                // IN: contigous Buffer
+                   size_t bufSize)           // IN: size of buffer
+{
+   size_t iovIndex;
+   size_t endIndex;
+   size_t remainingSize;
+   size_t copiedAmount = 0;
+
+   for (iovIndex = startIndex, endIndex = startIndex + iovCount, remainingSize = bufSize;
+        iovIndex < endIndex && remainingSize > 0;
+        iovIndex++) {
+      size_t copyAmount = remainingSize < iov[iovIndex].len ?
+                          remainingSize : iov[iovIndex].len;
+
+      memcpy((char *)buf + copiedAmount, iov[iovIndex].va, copyAmount);
+      copiedAmount += copyAmount;
+      remainingSize -= copyAmount;
+   }
+   ASSERT(copiedAmount == bufSize && remainingSize == 0);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HSPUMapBuf --
+ *
+ *    Map the buffer for the required size.
+ *
+ * Results:
+ *    TRUE if we mapped the requested size and the number of mappings performed.
+ *    Otherwise FALSE if something failed, and 0 mappings performed.
+ *
+ * Side effects:
+ *    None.
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+HSPUMapBuf(HgfsChannelMapVirtAddrFunc mapVa,    // IN: map virtual address function
+           HgfsChannelUnmapVirtAddrFunc putVa,  // IN: unmap virtual address function
+           size_t mapSize,                      // IN: size to map
+           uint32 startIndex,                   // IN: Start index of iovs to map
+           uint32 iovCount,                     // IN: iov count
+           HgfsVmxIov *iov,                     // IN/OUT: iovs (array) to map
+           uint32 *mappedCount)                 // OUT: mapped iov count
+{
+   uint32 iovIndex;
+   uint32 mappedIovCount;
+   size_t remainingSize;
+   Bool mapped = TRUE;
+
+   for (iovIndex = startIndex, mappedIovCount = 0, remainingSize = mapSize;
+        iovIndex < iovCount && remainingSize > 0;
+        iovIndex++, mappedIovCount++) {
+
+      iov[iovIndex].context = NULL;
+
+      /* Check: Iov in VMCI should never cross page boundary */
+      ASSERT(iov[iovIndex].len <= (PAGE_SIZE - PAGE_OFFSET(iov[iovIndex].pa)));
+
+      iov[iovIndex].va = mapVa(iov[iovIndex].pa,
+                               iov[iovIndex].len,
+                               &iov[iovIndex].context);
+      if (NULL == iov[iovIndex].va) {
+         /* Failed to map the physical address. */
+         break;
+      }
+      remainingSize = remainingSize < iov[iovIndex].len ?
+                      0: remainingSize - iov[iovIndex].len;
+   }
+
+   if (0 != remainingSize) {
+      /* Something failed in the mappings Undo any mappings we created. */
+      HSPUUnmapBuf(putVa, startIndex, iov, &mappedIovCount);
+      mapped = FALSE;
+   }
+
+   *mappedCount = mappedIovCount;
+   return mapped;
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * HSPUUnmapBuf --
+ *
+ *    Unmap the buffer and release guest mappings.
+ *
+ * Results:
+ *    None.
+ *
+ * Side effects:
+ *    None.
+ *-----------------------------------------------------------------------------
+ */
+
+static void
+HSPUUnmapBuf(HgfsChannelUnmapVirtAddrFunc unmapVa, // IN/OUT: Hgfs Packet
+             uint32 startIndex,                    // IN: Start index of iovs to map
+             HgfsVmxIov *iov,                      // IN/OUT: iovs (array) to map
+             uint32 *mappedCount)                  // IN/OUT: iov count to unmap
+{
+   uint32 iovIndex;
+   uint32 endIndex;
+
+   for (iovIndex = startIndex, endIndex = startIndex + *mappedCount;
+        iovIndex < endIndex;
+        iovIndex++) {
+      ASSERT(iov[iovIndex].context);
+      unmapVa(&iov[iovIndex].context);
+      iov[iovIndex].context = NULL;
+      iov[iovIndex].va = NULL;
+   }
+   *mappedCount = 0;
+}

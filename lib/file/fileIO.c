@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -521,7 +521,14 @@ FileIO_CloseAndUnlink(FileIODescriptor *fd)  // IN:
    ASSERT(FileIO_IsValid(fd));
 
    path = Unicode_Duplicate(fd->fileName);
-   ret = FileIO_Close(fd) || File_Unlink(path);
+
+   ret = FileIO_Close(fd);
+   if (!ret) {
+      if (File_UnlinkIfExists(path) == -1) {
+         ret = TRUE;
+      }
+   }
+
    Unicode_Free(path);
 
    return ret;
@@ -797,19 +804,11 @@ bail:
  *      On hosted products, uses rename to swap files, so "new" becomes "curr",
  *      and path to "new" no longer exists on success.
  *
- *      On ESX on NFS:
- *
- *      If renameOnNFS is TRUE, use rename, like on hosted.
- *
- *      If renameOnNFS is FALSE, returns -1 rather than trying to use rename,
- *      to avoid various bugs in the vmkernel NFSv3 client.  Bug 839283,
- *      bug 862647, bug 841185, bug 856752.
- *
  *      On success the caller must call FileIO_IsValid on newFD to verify it
  *      is still open before using it again.
  *
  * Results:
- *      1 if successful, 0 on failure, -1 if not supported on this filesystem.
+ *      TRUE if successful, FALSE otherwise
  *      errno is preserved.
  *
  * Side effects:
@@ -818,19 +817,22 @@ bail:
  *-----------------------------------------------------------------------------
  */
 
-int
+Bool
 FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
-                    FileIODescriptor *currFD,  // IN/OUT: file IO descriptor
-                    Bool renameOnNFS)          // IN: fall back to rename on NFS
+                    FileIODescriptor *currFD)  // IN/OUT: file IO descriptor
 {
-   char *currPath;
-   char *newPath;
+   char *currPath = NULL;
+   char *newPath = NULL;
+#if defined(_WIN32)
    uint32 currAccess;
    uint32 newAccess;
-   int ret = 0;
    FileIOResult status;
    FileIODescriptor tmpFD;
+#else
+   int fd;
+#endif
    int savedErrno = 0;
+   Bool ret = FALSE;
 
    ASSERT(FileIO_IsValid(newFD));
    ASSERT(FileIO_IsValid(currFD));
@@ -842,13 +844,22 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
       char *fileName = NULL;
       char *dstDirName = NULL;
       char *dstFileName = NULL;
-      int fd;
 
       currPath = File_FullPath(FileIO_Filename(currFD));
-      newPath = File_FullPath(FileIO_Filename(newFD));
+      if (!currPath) {
+         savedErrno = errno;
+         Log("%s: File_FullPath of '%s' failed.\n", __FUNCTION__,
+             FileIO_Filename(currFD));
+         goto swapdone;
+      }
 
-      ASSERT(currPath);
-      ASSERT(newPath);
+      newPath = File_FullPath(FileIO_Filename(newFD));
+      if (!newPath) {
+         savedErrno = errno;
+         Log("%s: File_FullPath of '%s' failed.\n", __FUNCTION__,
+             FileIO_Filename(newFD));
+         goto swapdone;
+      }
 
       File_GetPathName(newPath, &dirName, &fileName);
       File_GetPathName(currPath, &dstDirName, &dstFileName);
@@ -880,9 +891,8 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
 
       fd = Posix_Open(dirName, O_RDONLY);
       if (fd < 0) {
-         Log("%s: Open failed \"%s\" %d.\n", __FUNCTION__, dirName,
-             errno);
-         ASSERT_BUG_DEBUGONLY(615124, errno != EBUSY);
+         Log("%s: Open failed \"%s\" %d.\n", __FUNCTION__, dirName, errno);
+         ASSERT(errno != EBUSY);   /* #615124. */
          savedErrno = errno;
          goto swapdone;
       }
@@ -891,10 +901,10 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
          savedErrno = errno;
          if (errno != ENOSYS && errno != ENOTTY) {
             Log("%s: ioctl failed %d.\n", __FUNCTION__, errno);
-            ASSERT_BUG_DEBUGONLY(615124, errno != EBUSY);
+            ASSERT(errno != EBUSY);   /* #615124. */
          }
       } else {
-         ret = 1;
+         ret = TRUE;
       }
 
       close(fd);
@@ -907,35 +917,31 @@ FileIO_AtomicUpdate(FileIODescriptor *newFD,   // IN/OUT: file IO descriptor
        * Check for both ENOSYS and ENOTTY. PR 957695
        */
       if (savedErrno == ENOSYS || savedErrno == ENOTTY) {
-         if (renameOnNFS) {
-            /*
-             * NFS allows renames of locked files, even if both files
-             * are locked.  The file lock follows the file handle, not
-             * the name, so after the rename we can swap the underlying
-             * file descriptors instead of closing and reopening the
-             * target file.
-             *
-             * This is different than the hosted path below because
-             * ESX uses native file locks and hosted does not.
-             *
-             * We assume that all ESX file systems that support rename
-             * have the same file lock semantics as NFS.
-             */
+         /*
+          * NFS allows renames of locked files, even if both files
+          * are locked.  The file lock follows the file handle, not
+          * the name, so after the rename we can swap the underlying
+          * file descriptors instead of closing and reopening the
+          * target file.
+          *
+          * This is different than the hosted path below because
+          * ESX uses native file locks and hosted does not.
+          *
+          * We assume that all ESX file systems that support rename
+          * have the same file lock semantics as NFS.
+          */
 
-            if (File_Rename(newPath, currPath)) {
-               Log("%s: rename of '%s' to '%s' failed %d.\n",
-                   __FUNCTION__, newPath, currPath, errno);
-               savedErrno = errno;
-               goto swapdone;
-            }
-            ret = 1;
-            fd = newFD->posix;
-            newFD->posix = currFD->posix;
-            currFD->posix = fd;
-            FileIO_Close(newFD);
-         } else {
-            ret = -1;
+         if (File_Rename(newPath, currPath)) {
+            Log("%s: rename of '%s' to '%s' failed %d.\n",
+                __FUNCTION__, newPath, currPath, errno);
+            savedErrno = errno;
+            goto swapdone;
          }
+         ret = TRUE;
+         fd = newFD->posix;
+         newFD->posix = currFD->posix;
+         currFD->posix = fd;
+         FileIO_Close(newFD);
       }
 
 swapdone:
@@ -953,7 +959,7 @@ swapdone:
       NOT_REACHED();
 #endif
    }
-
+#if defined(_WIN32)
    currPath = Unicode_Duplicate(FileIO_Filename(currFD));
    newPath = Unicode_Duplicate(FileIO_Filename(newFD));
 
@@ -971,13 +977,8 @@ swapdone:
     * middle of transferring ownership.
     */
 
-#if defined(_WIN32)
    CloseHandle(currFD->win32);
    currFD->win32 = INVALID_HANDLE_VALUE;
-#else
-   close(currFD->posix);
-   currFD->posix = -1;
-#endif
    if (File_RenameRetry(newPath, currPath, 10) == 0) {
       ret = TRUE;
    } else {
@@ -1003,11 +1004,7 @@ swapdone:
    }
    ASSERT(tmpFD.lockToken == NULL);
 
-#if defined(_WIN32)
    currFD->win32 = tmpFD.win32;
-#else
-   currFD->posix = tmpFD.posix;
-#endif
 
    FileIO_Cleanup(&tmpFD);
    Unicode_Free(currPath);
@@ -1015,4 +1012,24 @@ swapdone:
    errno = savedErrno;
 
    return ret;
+#else
+   currPath = (char *)FileIO_Filename(currFD);
+   newPath = (char *)FileIO_Filename(newFD);
+
+   if (File_Rename(newPath, currPath)) {
+      Log("%s: rename of '%s' to '%s' failed %d.\n",
+          __FUNCTION__, newPath, currPath, errno);
+          savedErrno = errno;
+   } else {
+      ret = TRUE;
+      fd = newFD->posix;
+      newFD->posix = currFD->posix;
+      currFD->posix = fd;
+      FileIO_Close(newFD);
+   }
+
+   errno = savedErrno;
+
+   return ret;
+#endif
 }

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2007-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -172,7 +172,7 @@ Unicode_AllocWithUTF16(const utf16_t *utf16String) // IN
 
 
 Unicode Unicode_Duplicate(ConstUnicode str);
-void Unicode_Free(Unicode str);
+void Unicode_Free(void *str);
 
 
 Unicode *Unicode_AllocList(char **srcList, ssize_t length,

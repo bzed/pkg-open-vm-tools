@@ -1,5 +1,5 @@
 /* **********************************************************
- * Copyright 1998 VMware, Inc.  All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc.  All rights reserved.
  * **********************************************************/
 
 /*
@@ -604,15 +604,14 @@ CodeSet_Init(const char *icuDataDir) // IN: ICU data file location in Current co
    } else {
       /* Use a default ICU data dir. */
 #   if defined __APPLE__
-      Location_GetLibrary_Type *Location_GetLibrary =
-         Location_GetLibrary_Addr();
+      Location_Get_Type *Location_Get = Location_Get_Addr();
 
-      if (Location_GetLibrary) {
-         char *libDir = Location_GetLibrary();
-         Bool success =    libDir
-                        && DynBuf_Append(&dbpath, libDir, strlen(libDir));
+      if (Location_Get) {
+         char *icuDir = Location_Get("icuDir");
+         Bool success =    icuDir
+                        && DynBuf_Append(&dbpath, icuDir, strlen(icuDir));
 
-         free(libDir);
+         free(icuDir);
          if (!success) {
             goto exit;
          }
@@ -620,13 +619,10 @@ CodeSet_Init(const char *icuDataDir) // IN: ICU data file location in Current co
 #   endif
 
       {
-         if (!DynBuf_Append(&dbpath, POSIX_ICU_DIR, strlen(POSIX_ICU_DIR))) {
+         if (!DynBuf_Append(&dbpath, POSIX_ICU_DIR, strlen(POSIX_ICU_DIR)) ||
+             !DynBuf_Append(&dbpath, "/icu", strlen("/icu"))) {
             goto exit;
          }
-      }
-
-      if (!DynBuf_Append(&dbpath, "/icu", strlen("/icu"))) {
-         goto exit;
       }
    }
    if (!DynBuf_Append(&dbpath, DIRSEPS, strlen(DIRSEPS)) ||
@@ -1682,7 +1678,7 @@ CodeSet_Validate(const char *buf,   // IN: the string
    UErrorCode uerr;
 
    // ucnv_toUChars takes 32-bit int size
-   ASSERT_NOT_IMPLEMENTED(size <= (size_t) MAX_INT32);
+   VERIFY(size <= (size_t) MAX_INT32);
 
    if (size == 0) {
       return TRUE;
@@ -1705,9 +1701,9 @@ CodeSet_Validate(const char *buf,   // IN: the string
 
    uerr = U_ZERO_ERROR;
    cv = ucnv_open(code, &uerr);
-   ASSERT_NOT_IMPLEMENTED(uerr == U_ZERO_ERROR);
+   VERIFY(uerr == U_ZERO_ERROR);
    ucnv_setToUCallBack(cv, UCNV_TO_U_CALLBACK_STOP, NULL, NULL, NULL, &uerr);
-   ASSERT_NOT_IMPLEMENTED(uerr == U_ZERO_ERROR);
+   VERIFY(uerr == U_ZERO_ERROR);
    ucnv_toUChars(cv, NULL, 0, buf, size, &uerr);
    ucnv_close(cv);
 

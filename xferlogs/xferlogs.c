@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -55,6 +55,7 @@
 #include "strutil.h"
 
 #include "xferlogs_version.h"
+#include "vm_version.h"
 #include "embed_version.h"
 VM_EMBED_VERSION(XFERLOGS_VERSION_STRING);
 

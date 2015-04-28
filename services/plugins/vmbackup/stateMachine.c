@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2007-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -43,25 +43,18 @@
 #include "strutil.h"
 #include "util.h"
 #include "vmBackupSignals.h"
-#if defined(_WIN32)
-#include "vmware/guestrpc/guestQuiesce.h"
-#endif
+#include "guestQuiesce.h"
 #include "vmware/tools/utils.h"
 #include "vmware/tools/vmbackup.h"
 #include "xdrutil.h"
 
 #if !defined(__APPLE__)
+#include "vm_version.h"
 #include "embed_version.h"
 #include "vmtoolsd_version.h"
 VM_EMBED_VERSION(VMTOOLSD_VERSION_STRING);
 #endif
 
-#if defined(__linux__)
-#include <sys/io.h>
-#include <errno.h>
-#include <string.h>
-#include "ioplGet.h"
-#endif
 
 #define VMBACKUP_ENQUEUE_EVENT() do {                                         \
    gBackupState->timerEvent = g_timeout_source_new(gBackupState->pollPeriod); \
@@ -154,12 +147,9 @@ VmBackup_SendEvent(const char *event,
                    const char *desc)
 {
    Bool success;
-   char *result = NULL;
+   char *result;
    size_t resultLen;
    gchar *msg;
-#if defined(__linux__)
-   unsigned int oldLevel;
-#endif
 
    ASSERT(gBackupState != NULL);
 
@@ -169,32 +159,13 @@ VmBackup_SendEvent(const char *event,
       g_source_unref(gBackupState->keepAlive);
    }
 
-   msg = g_strdup_printf(VMBACKUP_PROTOCOL_EVENT_SET" %s %u %s", event, code,
-                         desc);
-   g_debug("sending vmbackup event, %s\n", msg);
-
-#if defined(__linux__)
-   oldLevel = Iopl_Get();
-
-   if (iopl(3) < 0) {
-      g_debug("Error raising the IOPL, %s", strerror(errno));
-   }
-#endif
-
+   msg = g_strdup_printf(VMBACKUP_PROTOCOL_EVENT_SET" %s %u %s", event, code, desc);
    success = RpcChannel_Send(gBackupState->ctx->rpc, msg, strlen(msg) + 1,
                              &result, &resultLen);
 
-#if defined(__linux__)
-   if (iopl(oldLevel) < 0) {
-      g_debug("Error restoring the IOPL, %s", strerror(errno));
-   }
-#endif
-
    if (!success) {
-      g_warning("Failed to send vmbackup event to the VMX: %s.\n", result);
+      g_warning("Failed to send event to the VMX: %s.\n", result);
    }
-
-   vm_free(result);
 
    gBackupState->keepAlive = g_timeout_source_new(VMBACKUP_KEEP_ALIVE_PERIOD / 2);
    VMTOOLSAPP_ATTACH_SOURCE(gBackupState->ctx,
@@ -599,15 +570,17 @@ VmBackupConfigGetBoolean(GKeyFile *config,
  * Starts the quiesce operation according to the supplied specification unless
  * some unexpected error occurs.
  *
- * @param[in]  data      RPC data.
- * @param[in]  forceVss  Only allow Vss quiescing or no quiescing.
+ * @param[in]  data          RPC data.
+ * @param[in]  forceQuiesce  Only allow Vss quiescing on Windows platform or
+ *                           SyncDriver quiescing on Linux platform ( only file
+ *                           system quiescing )
  *
  * @return TRUE on success.
  */
 
 static gboolean
 VmBackupStartCommon(RpcInData *data,
-                    gboolean forceVss)
+                    gboolean forceQuiesce)
 {
    GError *err = NULL;
    ToolsAppCtx *ctx = data->appCtx;
@@ -627,12 +600,24 @@ VmBackupStartCommon(RpcInData *data,
       { VmBackup_NewNullProvider, NULL },
    };
 
-   if (forceVss) {
+   if (forceQuiesce) {
       if (gBackupState->quiesceApps || gBackupState->quiesceFS) {
-          /* If quiescing is requested, only allow VSS provider */
+         /*
+          * If quiescing is requested on windows platform,
+          * only allow VSS provider
+          */
 #if defined(_WIN32)
-          if (VmBackupConfigGetBoolean(ctx->config, "enableVSS", TRUE)) {
-             provider = VmBackup_NewVssProvider();
+         if (VmBackupConfigGetBoolean(ctx->config, "enableVSS", TRUE)) {
+            provider = VmBackup_NewVssProvider();
+         }
+#elif defined(_LINUX) || defined(__linux__)
+         /*
+          * If quiescing is requested on linux platform,
+          * only allow SyncDriver provider
+          */
+         if (gBackupState->quiesceFS &&
+             VmBackupConfigGetBoolean(ctx->config, "enableSyncDriver", TRUE)) {
+            provider = VmBackup_NewSyncDriverOnlyProvider();
           }
 #endif
       } else {
@@ -664,12 +649,17 @@ VmBackupStartCommon(RpcInData *data,
    gBackupState->pollPeriod = 1000;
    gBackupState->machineState = VMBACKUP_MSTATE_IDLE;
    gBackupState->provider = provider;
+   gBackupState->enableNullDriver = VmBackupConfigGetBoolean(ctx->config,
+                                                             "enableNullDriver",
+                                                             TRUE);
+
    g_debug("Using quiesceApps = %d, quiesceFS = %d, allowHWProvider = %d,"
-           "execScripts = %d, scriptArg = %s, timeout = %u\n",
+           " execScripts = %d, scriptArg = %s, timeout = %u,"
+           " enableNullDriver = %d, forceQuiesce = %d\n",
            gBackupState->quiesceApps, gBackupState->quiesceFS,
            gBackupState->allowHWProvider, gBackupState->execScripts,
            (gBackupState->scriptArg != NULL) ? gBackupState->scriptArg : "",
-           gBackupState->timeout);
+           gBackupState->timeout, gBackupState->enableNullDriver, forceQuiesce);
    g_debug("Quiescing volumes: %s",
            (gBackupState->volumes) ? gBackupState->volumes : "(null)");
 
@@ -787,7 +777,6 @@ VmBackupStart(RpcInData *data)
    return VmBackupStartCommon(data, FALSE);
 }
 
-#if defined(_WIN32)
 
 /**
  * Handler for the "vmbackup.startWithOpts" message. Starts processing the
@@ -854,7 +843,6 @@ VmBackupStartWithOpts(RpcInData *data)
    return retval;
 }
 
-#endif
 
 /**
  * Aborts the current operation if one is active, and stops the backup
@@ -1000,11 +988,9 @@ ToolsOnLoad(ToolsAppCtx *ctx)
 
    RpcChannelCallback rpcs[] = {
       { VMBACKUP_PROTOCOL_START, VmBackupStart, NULL, NULL, NULL, 0 },
-#if defined(_WIN32)
       /* START_WITH_OPTS command supported only on Windows for now */
       { VMBACKUP_PROTOCOL_START_WITH_OPTS, VmBackupStartWithOpts, NULL,
                     xdr_GuestQuiesceParams, NULL, sizeof (GuestQuiesceParams) },
-#endif
       { VMBACKUP_PROTOCOL_ABORT, VmBackupAbort, NULL, NULL, NULL, 0 },
       { VMBACKUP_PROTOCOL_SNAPSHOT_DONE, VmBackupSnapshotDone, NULL, NULL, NULL, 0 }
    };

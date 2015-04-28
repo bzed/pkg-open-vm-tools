@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -37,6 +37,7 @@
 #include "util.h"
 #include "vmcheck.h"
 #include "vm_tools_version.h"
+#include "vm_version.h"
 #include "vmware/guestrpc/tclodefs.h"
 #include "vmware/tools/log.h"
 #include "vmware/tools/utils.h"
@@ -60,6 +61,7 @@ ToolsCoreCleanup(ToolsServiceState *state)
    ToolsCorePool_Shutdown(&state->ctx);
    ToolsCore_UnloadPlugins(state);
    if (state->ctx.rpc != NULL) {
+      RpcChannel_Stop(state->ctx.rpc);
       RpcChannel_Destroy(state->ctx.rpc);
       state->ctx.rpc = NULL;
    }
@@ -345,7 +347,10 @@ ToolsCore_ReloadConfig(ToolsServiceState *state,
    if (!first && loaded) {
       g_debug("Config file reloaded.\n");
 
-      /* Inform plugins of config file update. */
+      /*
+       * Inform plugins of config file update.
+       */
+      ASSERT(state->ctx.serviceObj != NULL);
       g_signal_emit_by_name(state->ctx.serviceObj,
                             TOOLS_CORE_SIG_CONF_RELOAD,
                             &state->ctx);
@@ -380,8 +385,6 @@ ToolsCore_Setup(ToolsServiceState *state)
    if (!g_thread_supported()) {
       g_thread_init(NULL);
    }
-
-   ToolsCore_ReloadConfig(state, FALSE);
 
    /*
     * Useful for debugging purposes. Log the vesion and build information.

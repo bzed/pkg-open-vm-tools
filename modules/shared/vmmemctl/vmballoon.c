@@ -26,9 +26,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of VMware Inc. nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission of VMware Inc.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -105,16 +102,16 @@ extern "C" {
 /*
  * Balloon operations
  */
-static int  BalloonPageFree(Balloon *b);
-static int  BalloonAdjustSize(Balloon *b, uint32 target);
+static void BalloonPageFree(Balloon *b);
+static void BalloonAdjustSize(Balloon *b, uint32 target);
 static void BalloonReset(Balloon *b);
 
 static void BalloonAddPage(Balloon *b, uint16 idx, PageHandle page);
 static void BalloonAddPageBatched(Balloon *b, uint16 idx, PageHandle page);
-static int  BalloonLock(Balloon *b, uint16 nPages);
-static int  BalloonLockBatched(Balloon *b, uint16 nPages);
-static int  BalloonUnlock(Balloon *b, uint16 nPages);
-static int  BalloonUnlockBatched(Balloon *b, uint16 nPages);
+static int  BalloonLock(Balloon *b, uint16 nPages, uint32 *target);
+static int  BalloonLockBatched(Balloon *b, uint16 nPages, uint32 *target);
+static int  BalloonUnlock(Balloon *b, uint16 nPages, uint32 *target);
+static int  BalloonUnlockBatched(Balloon *b, uint16 nPages, uint32 *target);
 
 /*
  * Globals
@@ -254,13 +251,13 @@ BalloonChunk_Destroy(BalloonChunk *chunk) // IN
  */
 
 static void
-Balloon_Deallocate(Balloon *b) // IN
+Balloon_Deallocate(Balloon *b) // IN/OUT
 {
    unsigned int cnt = 0;
 
    /* free all pages, skipping monitor unlock */
    while (b->nChunks > 0) {
-      (void) BalloonPageFree(b);
+      BalloonPageFree(b);
       if (++cnt >= b->rateFree) {
          cnt = 0;
          OS_Yield();
@@ -297,7 +294,7 @@ Balloon_Deallocate(Balloon *b) // IN
  */
 
 static int
-BalloonInitBatching(Balloon *b) // IN
+BalloonInitBatching(Balloon *b) // OUT
 {
    b->batchMaxPages = BALLOON_BATCH_MAX_PAGES;
 
@@ -336,7 +333,7 @@ BalloonInitBatching(Balloon *b) // IN
  */
 
 static void
-BalloonReset(Balloon *b) // IN
+BalloonReset(Balloon *b) // OUT
 {
    int status;
 
@@ -421,7 +418,7 @@ Balloon_QueryAndExecute(void)
    if (status == BALLOON_SUCCESS) {
       /* update target, adjust size */
       b->nPagesTarget = target;
-      (void) BalloonAdjustSize(b, target);
+      BalloonAdjustSize(b, target);
    }
 }
 
@@ -445,7 +442,7 @@ Balloon_QueryAndExecute(void)
  */
 
 static int
-BalloonErrorPageStore(Balloon *b,      // IN
+BalloonErrorPageStore(Balloon *b,      // IN/OUT
                       PageHandle page) // IN
 {
    /* fail if list already full */
@@ -477,7 +474,7 @@ BalloonErrorPageStore(Balloon *b,      // IN
  */
 
 static void
-BalloonErrorPagesFree(Balloon *b) // IN
+BalloonErrorPagesFree(Balloon *b) // IN/OUT
 {
    unsigned int i;
 
@@ -509,7 +506,7 @@ BalloonErrorPagesFree(Balloon *b) // IN
  */
 
 static BalloonChunk *
-BalloonGetChunk(Balloon *b)         // IN
+BalloonGetChunk(Balloon *b)         // IN/OUT
 {
    BalloonChunk *chunk;
 
@@ -553,7 +550,7 @@ BalloonGetChunk(Balloon *b)         // IN
  */
 
 static BalloonChunk *
-BalloonGetChunkOrFallback(Balloon *b)   // IN
+BalloonGetChunkOrFallback(Balloon *b)   // IN/OUT
 {
    BalloonChunk *chunk = BalloonGetChunk(b);
    if (chunk == NULL) {
@@ -584,7 +581,8 @@ BalloonGetChunkOrFallback(Balloon *b)   // IN
  */
 
 static void
-BalloonPageStore(BalloonChunk *chunk, PageHandle page)
+BalloonPageStore(BalloonChunk *chunk,   // IN/OUT
+                 PageHandle page)       // IN
 {
    chunk->page[chunk->pageCount++] = page;
 }
@@ -599,7 +597,7 @@ BalloonPageStore(BalloonChunk *chunk, PageHandle page)
  *      Never informs monitor.
  *
  * Results:
- *      Returns BALLOON_SUCCESS if successful, otherwise error code.
+ *      None.
  *
  * Side effects:
  *      None.
@@ -607,17 +605,13 @@ BalloonPageStore(BalloonChunk *chunk, PageHandle page)
  *----------------------------------------------------------------------
  */
 
-static int
-BalloonPageFree(Balloon *b)     // IN
+static void
+BalloonPageFree(Balloon *b)     // IN/OUT
 {
    BalloonChunk *chunk;
    PageHandle page;
 
-   if (!DblLnkLst_IsLinked(&b->chunks)) {
-      /* The chunk list is empty, the balloon cannot be deflated */
-      return BALLOON_FAILURE;
-   }
-
+   ASSERT(DblLnkLst_IsLinked(&b->chunks));
    chunk = DblLnkLst_Container(b->chunks.next, BalloonChunk, node);
 
    /* deallocate last page */
@@ -639,8 +633,6 @@ BalloonPageFree(Balloon *b)     // IN
       /* update stats */
       b->nChunks--;
    }
-
-   return BALLOON_SUCCESS;
 }
 
 /*
@@ -651,7 +643,7 @@ BalloonPageFree(Balloon *b)     // IN
  *      Attempts to allocate physical pages to inflate balloon.
  *
  * Results:
- *      Returns BALLOON_SUCCESS if successful, otherwise error code.
+ *      None.
  *
  * Side effects:
  *      None.
@@ -659,15 +651,14 @@ BalloonPageFree(Balloon *b)     // IN
  *----------------------------------------------------------------------
  */
 
-static int
-BalloonInflate(Balloon *b,      // IN
+static void
+BalloonInflate(Balloon *b,      // IN/OUT
                uint32 target)   // IN
 {
-   uint32 goal, nPages;
+   uint32 nPages;
    unsigned int rate;
-   unsigned int i;
    unsigned int allocations = 0;
-   int status = 0;
+   int status = BALLOON_SUCCESS;
    BalloonPageAllocType allocType = BALLOON_PAGE_ALLOC_NOSLEEP;
 
    /*
@@ -685,7 +676,6 @@ BalloonInflate(Balloon *b,      // IN
     * slowdown page allocations considerably.
     */
 
-   goal = target - b->nPages;
    /*
     * Start with no sleep allocation rate which may be higher
     * than sleeping allocation rate.
@@ -694,14 +684,15 @@ BalloonInflate(Balloon *b,      // IN
                 b->rateAlloc : BALLOON_NOSLEEP_ALLOC_MAX;
 
    nPages = 0;
-   for (i = 0; i < goal; i++) {
-      PageHandle        handle;
+   while (b->nPages < target && nPages < target - b->nPages) {
+      PageHandle handle;
 
       STATS_INC(b->stats.primAlloc[allocType]);
       handle = OS_ReservedPageAlloc(allocType);
       if (handle == PAGE_HANDLE_INVALID) {
          STATS_INC(b->stats.primAllocFail[allocType]);
 
+         status = BALLOON_PAGE_ALLOC_FAILURE;
          if (allocType == BALLOON_PAGE_ALLOC_CANSLEEP) {
             /*
              * CANSLEEP page allocation failed, so guest is under severe
@@ -729,11 +720,11 @@ BalloonInflate(Balloon *b,      // IN
          rate = b->rateAlloc;
          continue;
       }
-
       allocations++;
+
       b->balloonOps->addPage(b, nPages++, handle);
       if (nPages == b->batchMaxPages) {
-         status = b->balloonOps->lock(b, nPages);
+         status = b->balloonOps->lock(b, nPages, &target);
          nPages = 0;
 
          if (status != BALLOON_SUCCESS) {
@@ -752,15 +743,15 @@ BalloonInflate(Balloon *b,      // IN
    }
 
    if (nPages > 0) {
-      status = b->balloonOps->lock(b, nPages);
+      b->balloonOps->lock(b, nPages, NULL);
    }
 
    /*
     * We reached our goal without failures so try increasing
     * allocation rate.
     */
-   if (status == BALLOON_SUCCESS && i >= b->rateAlloc) {
-      unsigned int mult = i / b->rateAlloc;
+   if (status == BALLOON_SUCCESS && allocations >= b->rateAlloc) {
+      unsigned int mult = allocations / b->rateAlloc;
 
       b->rateAlloc = MIN(b->rateAlloc + mult * BALLOON_RATE_ALLOC_INC,
                          BALLOON_RATE_ALLOC_MAX);
@@ -768,9 +759,7 @@ BalloonInflate(Balloon *b,      // IN
 
    /* release non-balloonable pages, succeed */
    BalloonErrorPagesFree(b);
-   return BALLOON_SUCCESS;
 }
-
 
 /*
  *----------------------------------------------------------------------
@@ -781,7 +770,8 @@ BalloonInflate(Balloon *b,      // IN
  *      BalloonAddPageBatched.
  *
  * Results:
- *      BALLOON_SUCCESS or an error code.
+ *      BALLOON_SUCCESS or an error code. On success, *target is filled
+ *      with the balloon target.
  *
  * Side effects:
  *      None.
@@ -789,8 +779,9 @@ BalloonInflate(Balloon *b,      // IN
  *----------------------------------------------------------------------
  */
 static int
-BalloonLockBatched(Balloon *b,       // IN
-                   uint16 nPages)    // IN
+BalloonLockBatched(Balloon *b,       // IN/OUT
+                   uint16 nPages,    // IN
+                   uint32 *target)   // OUT
 {
    int          status;
    uint32       i;
@@ -810,7 +801,8 @@ BalloonLockBatched(Balloon *b,       // IN
    if (b->fallbackChunk == NULL) {
       status = BALLOON_PAGE_ALLOC_FAILURE;
    } else {
-      status = Backdoor_MonitorLockPagesBatched(b, batchPagePPN, nPages);
+      status = Backdoor_MonitorLockPagesBatched(b, batchPagePPN, nPages,
+                                                target);
    }
 
    if (status != BALLOON_SUCCESS) {
@@ -887,7 +879,8 @@ out:
  *      BalloonAddPageBatched.
  *
  * Results:
- *      BALLOON_SUCCESS or an error code.
+ *      BALLOON_SUCCESS or an error code. On success, *target is filled
+ *      with the balloon target.
  *
  * Side effects:
  *      None.
@@ -895,8 +888,9 @@ out:
  *----------------------------------------------------------------------
  */
 static int
-BalloonUnlockBatched(Balloon *b,     // IN
-                     uint16 nPages)  // IN
+BalloonUnlockBatched(Balloon *b,     // IN/OUT
+                     uint16 nPages,  // IN
+                     uint32 *target) // OUT
 {
    uint32 i;
    int status = BALLOON_SUCCESS;
@@ -905,7 +899,7 @@ BalloonUnlockBatched(Balloon *b,     // IN
    BalloonChunk *chunk = NULL;
 
    batchPagePPN = PA_2_PPN(OS_ReservedPageGetPA(b->pageHandle));
-   status = Backdoor_MonitorUnlockPagesBatched(b, batchPagePPN, nPages);
+   status = Backdoor_MonitorUnlockPagesBatched(b, batchPagePPN, nPages, target);
 
    if (status != BALLOON_SUCCESS) {
       for (i = 0; i < nPages; i++) {
@@ -980,7 +974,8 @@ BalloonAddPageBatched(Balloon *b,            // IN
  *      by notifying the monitor.
  *
  * Results:
- *      BALLOON_SUCCESS or an error code.
+ *      BALLOON_SUCCESS or an error code. On success, *target is filled
+ *      with the balloon target.
  *
  * Side effects:
  *      None.
@@ -989,8 +984,9 @@ BalloonAddPageBatched(Balloon *b,            // IN
  */
 
 static int
-BalloonLock(Balloon *b,       // IN
-            uint16 nPages)    // IN
+BalloonLock(Balloon *b,       // IN/OUT
+            uint16 nPages,    // IN
+            uint32 *target)   // OUT
 {
    PPN pagePPN;
    BalloonChunk *chunk;
@@ -1006,7 +1002,7 @@ BalloonLock(Balloon *b,       // IN
 
    /* inform monitor via backdoor */
    pagePPN = PA_2_PPN(OS_ReservedPageGetPA(b->pageHandle));
-   status = Backdoor_MonitorLockPage(b, pagePPN);
+   status = Backdoor_MonitorLockPage(b, pagePPN, target);
    if (status != BALLOON_SUCCESS) {
       int old_status = status;
 
@@ -1043,11 +1039,12 @@ out:
  *
  * BalloonUnlock --
  *
- *      Unlock a page, previously stored with a call to
- *      BalloonAddPage, by notifying the monitor.
+ *      Unlock a page, previously stored with a call to BalloonAddPage,
+ *      by notifying the monitor.
  *
  * Results:
- *      BALLOON_SUCCESS or an error code.
+ *      BALLOON_SUCCESS or an error code. On success, *target is filled
+ *      with the balloon target.
  *
  * Side effects:
  *      None.
@@ -1056,11 +1053,12 @@ out:
  */
 
 static int
-BalloonUnlock(Balloon *b,     // IN
-              uint16 nPages)  // IN
+BalloonUnlock(Balloon *b,     // IN/OUT
+              uint16 nPages,  // IN
+              uint32 *target) // OUT
 {
    PPN pagePPN = PA_2_PPN(OS_ReservedPageGetPA(b->pageHandle));
-   int status = Backdoor_MonitorUnlockPage(b, pagePPN);
+   int status = Backdoor_MonitorUnlockPage(b, pagePPN, target);
 
    if (status != BALLOON_SUCCESS) {
       BalloonChunk *chunk = BalloonGetChunkOrFallback(b);
@@ -1100,7 +1098,7 @@ out:
  */
 
 static void
-BalloonAddPage(Balloon *b,            // IN
+BalloonAddPage(Balloon *b,            // IN/OUT
                uint16 idx,            // IN
                PageHandle page)       // IN
 {
@@ -1117,7 +1115,7 @@ BalloonAddPage(Balloon *b,            // IN
  *      Frees physical pages to deflate balloon.
  *
  * Results:
- *      Returns BALLOON_SUCCESS if successful, otherwise error code.
+ *      None.
  *
  * Side effects:
  *      None.
@@ -1125,30 +1123,25 @@ BalloonAddPage(Balloon *b,            // IN
  *----------------------------------------------------------------------
  */
 
-static int
-BalloonDeflate(Balloon *b,      // IN
+static void
+BalloonDeflate(Balloon *b,      // IN/OUT
                uint32 target)   // IN
 {
    int                  status = BALLOON_SUCCESS;
-   uint32               goal, nPages;
+   uint32               nPages, deallocations = 0;
    BalloonChunk         *chunk = NULL;
 
-   goal = b->nPages - target;
-
-   /* limit deallocation rate */
-   goal = MIN(goal, b->rateFree);
-
    nPages = 0;
-   for ( ; goal > 0; goal--) {
+   while (b->nPages > target && nPages < b->nPages - target) {
       PageHandle lockedHandle;
 
       if (chunk == NULL) {
-         if (!DblLnkLst_IsLinked(&b->chunks)) {
-            /* The chunk list is empty, the balloon cannot be deflated */
-            status = BALLOON_FAILURE;
-            goto out;
-         }
-
+         /*
+          * The chunk should never be empty. If it is, then there is a
+          * deviation between the guest balloon size, and tracked
+          * pages...
+          */
+         ASSERT(DblLnkLst_IsLinked(&b->chunks));
          chunk = DblLnkLst_Container(b->chunks.next, BalloonChunk, node);
       }
 
@@ -1164,34 +1157,37 @@ BalloonDeflate(Balloon *b,      // IN
          chunk = NULL;
       }
 
+      deallocations++;
       b->balloonOps->addPage(b, nPages++, lockedHandle);
       if (nPages == b->batchMaxPages) {
-         status = b->balloonOps->unlock(b, nPages);
+         status = b->balloonOps->unlock(b, nPages, &target);
          nPages = 0;
 
          if (status != BALLOON_SUCCESS) {
-            if (BALLOON_RATE_ADAPT) {
-               /* quickly decrease rate if error */
-               b->rateFree = MAX(b->rateFree / 2, BALLOON_RATE_FREE_MIN);
-            }
-            goto out;
+            break;
          }
+      }
 
+      if (deallocations >= b->rateFree) {
+         /* We released enough pages, let's take a break. */
+         break;
       }
    }
 
    if (nPages) {
-      status = b->balloonOps->unlock(b, nPages);
+      b->balloonOps->unlock(b, nPages, NULL);
    }
 
-   if (status == BALLOON_SUCCESS && BALLOON_RATE_ADAPT) {
-      /* slowly increase rate if no errors */
-      b->rateFree = MIN(b->rateFree + BALLOON_RATE_FREE_INC,
-                        BALLOON_RATE_FREE_MAX);
+   if (BALLOON_RATE_ADAPT) {
+      if (status == BALLOON_SUCCESS) {
+         /* slowly increase rate if no errors */
+         b->rateFree = MIN(b->rateFree + BALLOON_RATE_FREE_INC,
+                           BALLOON_RATE_FREE_MAX);
+      } else {
+         /* quickly decrease rate if error */
+         b->rateFree = MAX(b->rateFree / 2, BALLOON_RATE_FREE_MIN);
+      }
    }
-
-out:
-   return status;
 }
 
 
@@ -1204,7 +1200,7 @@ out:
  *      to reach desired "target" size for balloon "b".
  *
  * Results:
- *      Returns BALLOON_SUCCESS if successful, otherwise error code.
+ *      None.
  *
  * Side effects:
  *      None.
@@ -1212,17 +1208,14 @@ out:
  *----------------------------------------------------------------------
  */
 
-static int
-BalloonAdjustSize(Balloon *b,    // IN
+static void
+BalloonAdjustSize(Balloon *b,    // IN/OUT
                   uint32 target) // IN
 {
    if (b->nPages < target) {
-      return BalloonInflate(b, target);
+      BalloonInflate(b, target);
    } else if (b->nPages > target) {
-      return BalloonDeflate(b, target);
-   } else {
-      /* already at target */
-      return BALLOON_SUCCESS;
+      BalloonDeflate(b, target);
    }
 }
 
@@ -1243,7 +1236,7 @@ BalloonAdjustSize(Balloon *b,    // IN
  */
 
 Bool
-Balloon_Init(BalloonGuest guestType)
+Balloon_Init(BalloonGuest guestType)    // IN
 {
    Balloon *b = &globalBalloon;
 

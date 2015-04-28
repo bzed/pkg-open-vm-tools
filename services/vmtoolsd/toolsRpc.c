@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "vm_basic_defs.h"
 #include "vm_assert.h"
 #include "conf.h"
 #include "str.h"
@@ -34,13 +35,7 @@
 #include "toolsCoreInt.h"
 #include "vm_tools_version.h"
 #include "vmware/tools/utils.h"
-
-#if defined(__linux__)
-#include <sys/io.h>
-#include <errno.h>
-#include <string.h>
-#include "ioplGet.h"
-#endif
+#include "vm_version.h"
 
 /**
  * Take action after an RPC channel reset.
@@ -51,11 +46,12 @@
  */
 
 static void
-ToolsCoreCheckReset(struct RpcChannel *chan,
+ToolsCoreCheckReset(RpcChannel *chan,
                     gboolean success,
                     gpointer _state)
 {
    ToolsServiceState *state = _state;
+   static gboolean version_sent = FALSE;
 
    ASSERT(state != NULL);
 
@@ -75,13 +71,17 @@ ToolsCoreCheckReset(struct RpcChannel *chan,
       }
       g_free(msg);
 
-      /*
-       * Log the Tools build number to the VMX log file. We don't really care
-       * if sending the message fails.
-       */
-      msg = g_strdup_printf("log %s: Version: %s", app, BUILD_NUMBER);
-      RpcChannel_Send(state->ctx.rpc, msg, strlen(msg) + 1, NULL, NULL);
-      g_free(msg);
+      if (!version_sent) {
+         /*
+          * Log the Tools build number to the VMX log file. We don't really care
+          * if sending the message fails.
+          */
+         msg = g_strdup_printf("log %s: Version: %s", app, BUILD_NUMBER);
+         RpcChannel_Send(state->ctx.rpc, msg, strlen(msg) + 1, NULL, NULL);
+         g_free(msg);
+         /* send message only once to prevent log spewing: */
+         version_sent = TRUE;
+      }
 
       g_signal_emit_by_name(state->ctx.serviceObj,
                             TOOLS_CORE_SIG_RESET,
@@ -157,37 +157,6 @@ ToolsCoreRpcCapReg(RpcInData *data)
       vm_free(result);
       g_free(toolsVersion);
    }
-
-#if defined (__linux__)
-   /* Send the IOPL elevation capability to VMX. */
-   if (state->mainService) {
-      unsigned int oldLevel;
-      char *result = NULL;
-      size_t resultLen;
-
-      const char ioplElev[] = "tools.capability.iopl_elevation";
-
-      oldLevel = Iopl_Get();
-      g_debug("%s: old IOPL = %u\n", __FUNCTION__, oldLevel);
-
-      if (iopl(3) < 0) {
-         g_debug("Error raising the IOPL, %s", strerror(errno));
-      }
-
-      g_debug("%s: new IOPL = %u\n", __FUNCTION__, Iopl_Get());
-
-      if (!RpcChannel_Send(state->ctx.rpc, ioplElev, sizeof ioplElev,
-                           &result, &resultLen)) {
-         g_debug("Error setting tools iopl elevation capability: %s\n",
-                 result);
-         vm_free(result);
-      }
-
-      if (iopl(oldLevel) < 0) {
-         g_debug("Error restoring the IOPL, %s", strerror(errno));
-      }
-   }
-#endif
 
    state->capsRegistered = TRUE;
    free(confPath);
@@ -278,11 +247,11 @@ ToolsCore_InitRpc(ToolsServiceState *state)
        * XXX: this should be relaxed when we try to bring up a VMCI or TCP channel.
        */
       if (!state->ctx.isVMware) {
-         g_warning("The %s service needs to run inside a virtual machine.\n",
-                   state->name);
+         g_debug("The %s service needs to run inside a virtual machine.\n",
+                 state->name);
          state->ctx.rpc = NULL;
       } else {
-         state->ctx.rpc = BackdoorChannel_New();
+         state->ctx.rpc = RpcChannel_New();
       }
       app = ToolsCore_GetTcloName(state);
       if (app == NULL) {
@@ -390,4 +359,3 @@ ToolsCore_SetCapabilities(RpcChannel *chan,
       g_free(newcaps);
    }
 }
-

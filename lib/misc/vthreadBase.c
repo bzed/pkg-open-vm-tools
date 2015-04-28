@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2010 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -19,7 +19,7 @@
 /*
  * vthreadBase.c --
  *
- *	Base thread management functionality.  Does not care whether threads
+ *      Base thread management functionality.  Does not care whether threads
  *      are used or not.
  *
  *      For full thread management (e.g. creation/destruction), see lib/thread.
@@ -61,18 +61,18 @@
  *      threads.  If lib/thread is used on top of this library, the lib/thread
  *      NoID function may introduce a smaller limit.
  *
- *      On Windows and Mac, there is no way to compile single-threaded,
- *      so just make all the multi-threaded calls.
- *
- *      On Linux, use some more complex logic to operate in two modes:
- *      - if _REENTRANT is defined (or implied by -pthread), link
- *        directly to all multithreaded symbols.
- *      - otherwise, compile in fake-pthread functions and choose at
- *        runtime whether to use them, depending on if pthreads are loaded.
+ *      On Linux we make use of a combination of __thread and pthread support.
+ *      On Mac our only option is to use pthreads.
+ *      On Windows we could use the compiler supported thread locals but
+ *      that has issues when dynamically loaded from a library, so instead
+ *      we use the safer Tls* functions.
  */
 
-#if defined __linux__ && !defined _REENTRANT
-#  define FAKE_PTHREADS
+#if defined __linux__
+#  include <features.h>  /* for __GLIBC_PREREQ */
+#  if __GLIBC_PREREQ(2, 3)
+#    define HAVE_TLS
+#  endif
 #endif
 
 #if defined _WIN32
@@ -128,18 +128,26 @@ typedef pthread_key_t VThreadBaseKeyType;
 #endif
 #endif
 
+#ifdef HAVE_TLS
+static __thread VThreadBaseData *tlsBaseCache = NULL;
+static __thread VThreadID tlsIDCache = VTHREAD_INVALID_ID;
+#endif
+
+static void VThreadBaseInit(void);
 static void VThreadBaseSimpleNoID(void);
 static void VThreadBaseSimpleFreeID(void *tlsData);
 static void VThreadBaseSafeDeleteTLS(void *data);
 
 static struct {
-   Atomic_Int   key;
+   Atomic_Int   baseKey;
+   Atomic_Int   threadIDKey;
    Atomic_Int   dynamicID;
    Atomic_Int   numThreads;
    Atomic_Ptr   nativeHash;
    void       (*noIDFunc)(void);
    void       (*freeIDFunc)(void *);
 } vthreadBaseGlobals = {
+   { VTHREADBASE_INVALID_KEY },
    { VTHREADBASE_INVALID_KEY },
    { VTHREAD_ALLOCSTART_ID },
    { 0 },
@@ -148,183 +156,11 @@ static struct {
    VThreadBaseSimpleFreeID,
 };
 
+typedef enum VThreadLocal {
+   VTHREAD_LOCAL_BASE,
+   VTHREAD_LOCAL_ID
+} VThreadLocal;
 
-#if defined FAKE_PTHREADS
-/*
- * glibc can either be used with pthreads or without.
- *
- * Nominally, glibc-without-pthreads is useful in cases like embedded systems
- * where the overhead of libpthread (in terms of memory or CPU time) is not
- * justified.  Unfortunately for us, ESX userworlds are close enough to
- * embedded systems that it's easier to navigate the pain than argue in favor
- * of linking extraneous libraries.  (Eventually, we should just link.)
- *
- * A quick run-through of all the different ways to run a Linux program:
- *
- * Compile with -pthread: (best, but uncommon)
- * Compiler passes -pthread to gcc, which implicitly defines _REENTRANT.
- * If this constant is defined, it is OK to link directly to all pthread
- * symbols: the program is known multithreaded at compile-time.  We will
- * also accept somebody passing -D_REENTRANT as an indication they know
- * what they are doing and want compile-time threading support.
- *
- * Compile without -pthread, link with -lpthread (common)
- * Running multi-threaded, but this cannot be distinguised from running
- * single-threaded without peeking into the dynamic linker.
- * at run-time.
- *
- * Compile without -pthread, link without -lpthread, dlopen("libpthread.so")
- * This is broken.  libc starts using a simplified pthread implementation,
- * then the dynamic load changes the implementation mid-stream.  Any locks
- * created before the dynamic open are thus unsafe.  DO NOT DO THIS.
- *
- * Compile without -pthread, link without -lpthread, no dlopen() (common)
- * Running single-threaded.
- *
- *
- * After much experimentation, the only sane way to construct VThreadBase is
- * with weak symbols, and require a ((sym != NULL) ? pthread_sym : fake_sym)
- * construct for all pthread symbols used herein.  This approach has two
- * downsides:
- * - extra branch on all TLS lookups (though easily predicted)
- * - some compilers (gcc-4.1.0, gcc-4.1.1) have a buggy weak-symbol
- *   optimizer.
- * Both of these downsides can be avoided by passing -D_REENTRANT to
- * the compilation of this environment and supplying -lpthread at link time.
- *
- * Rejected approaches:
- * - use dl_xxx to detect libpthread and link at runtime.  This adds a libdl
- *   dependency that is as bad as the libpthread dependency in the first place.
- * - use __libc_dlxxx@_GLIBC_PRIVATE symbols to detect libpthread and link
- *   at runtime.  This works; however, 'rpm' refuses to package binaries
- *   with @_GLIBC_PRIVATE symbols and so builds break.
- * - use a fake TLS backed by a locked hash table.  Unfortunately,
- *   pthread_mutex_lock isn't async-signal-safe and we do read TLS within
- *   our signal handlers.  (Oddly enough, pthread_getspecific is not marked
- *   as async-signal-safe either, but it happens to work fine.)
- * - use a fake TLS backed by an atomic hash table.  Alas, our atomic
- *   hash tables are insert-only, which causes a memory leak even if threads
- *   exit cleanly.
- *
- * If anything here ever breaks, the best thing to do is simply admit that
- * this is the 21st century and always compile with -pthread.
- */
-
-#if defined __GNUC__
-/* gcc-4.1.0 and gcc-4.1.1 have buggy weak-symbol optimization. */
-#  if __GNUC__ == 4 && __GNUC_MINOR__ == 1 && \
-     (__GNUC_PATCHLEVEL__ == 0 || __GNUC_PATCHLEVEL__ == 1)
-#  error Cannot build VThreadBase with weak symbols: buggy gcc version
-#  endif
-#endif
-
-extern int pthread_key_create(pthread_key_t *key, void (*destr_function)(void *))
-   __attribute__ ((weak));
-extern int pthread_key_delete(pthread_key_t key)
-   __attribute__ ((weak));
-extern int pthread_setspecific(pthread_key_t key, const void *pointer)
-   __attribute__ ((weak));
-extern void * pthread_getspecific(pthread_key_t key)
-   __attribute__ ((weak));
-extern int pthread_sigmask(int how, const sigset_t *newmask, sigset_t *oldmask)
-   __attribute__ ((weak));
-
-
-static const pthread_key_t nothreadTLSKey = 0x12345;  /* Chosen to be obvious */
-static void *nothreadTLSData;
-
-/*
- *-----------------------------------------------------------------------------
- *
- * fake_key_create --
- * fake_key_delete --
- * fake_setspecific --
- * fake_getspecific --
- * fake_sigmask --
- *
- *      Trivial implementations of equivalent pthread functions, to be used
- *      when the weak pthread_xxx symbols are not defined (e.g. when
- *      libpthread.so is not loaded).
- *
- *      These versions always succeed and are hard-coded to assume one thread.
- *
- *      NOTE: These functions will not work if libpthread is dlopen()ed.
- *      That said, any pthread functions (like pthread_mutex_lock) also
- *      will not work, so we have lost nothing.
- *
- * Results:
- *      See pthread_xxx; these versions always succeed.
- *
- * Side effects:
- *      See pthread_xxx.
- *
- *-----------------------------------------------------------------------------
- */
-
-static int
-fake_key_create(pthread_key_t *key,
-                void (*destr_function)(void *))
-{
-   *key = nothreadTLSKey;
-   return 0;
-}
-
-static int
-fake_key_delete(pthread_key_t key)
-{
-   /*
-    * fake_key_delete will not be called if there are no threads because:
-    * - fake_key_create does not fail with no threads
-    * - single threads cannot race with themselves in VThreadBaseGetKey
-    *   (a race requires deleting extra keys)
-    */
-   NOT_REACHED();
-}
-
-static int
-fake_setspecific(pthread_key_t key,
-                 const void *pointer)
-{
-   ASSERT(key == nothreadTLSKey);
-   ASSERT(Atomic_Read(&vthreadBaseGlobals.numThreads) <= 1);
-   nothreadTLSData = (void *)pointer;
-   return 0;
-}
-
-static void *
-fake_getspecific(pthread_key_t key)
-{
-   ASSERT(key == nothreadTLSKey);
-   ASSERT(Atomic_Read(&vthreadBaseGlobals.numThreads) <= 1);
-   return nothreadTLSData;
-}
-
-static int
-fake_sigmask(int how, const sigset_t *newmask, sigset_t *oldmask)
-{
-   /*
-    * Verified against glibc sources: pthread_sigmask and sigprocmask
-    * use the same implementation for any kernel that supports
-    * the rt_sigprocmask syscall (and all kernels we support do).
-    */
-   return sigprocmask(how, newmask, oldmask);
-}
-
-
-/*
- * Replace all pthread_xxx calls with a runtime choice.  This
- * code is not quite optimal; if perfection is necessary,
- * compile with -D_REENTRANT to link directly to pthreads.
- */
-#define WRAP_WEAK(_fn)   \
-   ((pthread_##_fn != NULL) ? pthread_##_fn : fake_##_fn)
-#define pthread_key_create   WRAP_WEAK(key_create)
-#define pthread_key_delete   WRAP_WEAK(key_delete)
-#define pthread_getspecific  WRAP_WEAK(getspecific)
-#define pthread_setspecific  WRAP_WEAK(setspecific)
-#define pthread_sigmask      WRAP_WEAK(sigmask)
-
-#endif  /* FAKE_PTHREADS */
 
 /*
  * Code to mask all asynchronous signals
@@ -359,13 +195,55 @@ fake_sigmask(int how, const sigset_t *newmask, sigset_t *oldmask)
    } while(0)
 #endif
 
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VThreadBaseInitKeysWork --
+ *
+ *      Helper function to be only used by VThreadBaseInitKeys.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static void
+VThreadBaseInitKeyWork(Atomic_Int *key, void (*deletePtr)(void*))
+{
+   if (Atomic_Read(key) == VTHREADBASE_INVALID_KEY) {
+      VThreadBaseKeyType newKey;
+
+#if defined _WIN32
+      newKey = TlsAlloc();
+      VERIFY(newKey != VTHREADBASE_INVALID_KEY);
+#else
+      Bool success = pthread_key_create(&newKey, deletePtr) == 0;
+      if (success && newKey == 0) {
+         /*
+          * Leak TLS key 0.  System libraries have a habit of destroying
+          * it.  See bugs 702818 and 773420.
+          */
+         success = pthread_key_create(&newKey, deletePtr) == 0;
+      }
+      VERIFY(success);
+#endif
+
+      if (Atomic_ReadIfEqualWrite(key, VTHREADBASE_INVALID_KEY, newKey) !=
+          VTHREADBASE_INVALID_KEY) {
+         /* Race: someone else init'd */
+#if defined _WIN32
+         TlsFree(newKey);
+#else
+         pthread_key_delete(newKey);
+#endif
+      }
+   }
+}
 
 /*
  *-----------------------------------------------------------------------------
  *
- * VThreadBaseGetKey --
+ * VThreadBaseInitKeys --
  *
- *      Get the host-specific TLS slot.
+ *      Initialize the host-specific TLS slots.
  *
  *      Failure to allocate a TLS slot is immediately fatal.  Note that
  *      a TLS slot is generally allocated at the first of:
@@ -378,56 +256,160 @@ fake_sigmask(int how, const sigset_t *newmask, sigset_t *oldmask)
  *      one of the above functions very early to "prime" the TLS slot.
  *
  * Results:
- *      OS-specific TLS key.
- *
- * Side effects:
  *      None.
  *
  *-----------------------------------------------------------------------------
  */
 
-static VThreadBaseKeyType
-VThreadBaseGetKey(void)
+static void
+VThreadBaseInitKeys(void)
 {
-   VThreadBaseKeyType key = Atomic_Read(&vthreadBaseGlobals.key);
+   VThreadBaseInitKeyWork(&vthreadBaseGlobals.baseKey,
+                          &VThreadBaseSafeDeleteTLS);
+   VThreadBaseInitKeyWork(&vthreadBaseGlobals.threadIDKey, NULL);
+}
 
-   if (key == VTHREADBASE_INVALID_KEY) {
-      VThreadBaseKeyType newKey;
 
-#if defined _WIN32
-      newKey = TlsAlloc();
-      ASSERT_NOT_IMPLEMENTED(newKey != VTHREADBASE_INVALID_KEY);
-#else
-      Bool success = pthread_key_create(&newKey, 
-                                        &VThreadBaseSafeDeleteTLS) == 0;
-      if (success && newKey == 0) {
-         /* 
-          * Leak TLS key 0.  System libraries have a habit of destroying
-          * it.  See bugs 702818 and 773420.
-          */
+static INLINE Bool
+VThreadBaseAreKeysInited(void)
+{
+   return Atomic_Read(&vthreadBaseGlobals.baseKey) != VTHREADBASE_INVALID_KEY &&
+      Atomic_Read(&vthreadBaseGlobals.threadIDKey) != VTHREADBASE_INVALID_KEY;
+}
 
-         success = pthread_key_create(&newKey, 
-                                      &VThreadBaseSafeDeleteTLS) == 0;
-      }
-      ASSERT_NOT_IMPLEMENTED(success);
-#endif
 
-      if (Atomic_ReadIfEqualWrite(&vthreadBaseGlobals.key,
-                                  VTHREADBASE_INVALID_KEY,
-                                  newKey) != VTHREADBASE_INVALID_KEY) {
-         /* Race: someone else init'd */
-#if defined _WIN32
-         TlsFree(newKey);
-#else
-         pthread_key_delete(newKey);
-#endif
-      }
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VThreadBaseSetLocal --
+ *
+ *      Sets the specified thread local variable to the supplied
+ *      value.  This abstracts between pthread, the Windows TLS
+ *      supports, and the use of __thread.  Requires that the TLS keys
+ *      are initialized before calling this function.  We encourage
+ *      the compiler to inline this with the expectation that "local"
+ *      is a compile time constant.
+ *
+ *      To facilitate lazy initialization we special case
+ *      VTHREAD_LOCAL_ID slightly and arrange so that if its value is
+ *      read before it is initialized we return -1 instead of 0 (since
+ *      0 is used as a real thread id).
+ *
+ *      Note that we use store the thread local value using pthreads
+ *      even when HAVE_TLS is defined.  This way we continue to use
+ *      the same pthread destructor path for cleanup as we would
+ *      without HAVE_TLS.
+ *
+ *-----------------------------------------------------------------------------
+ */
 
-      key = Atomic_Read(&vthreadBaseGlobals.key);
-      ASSERT(key != VTHREADBASE_INVALID_KEY);
+static INLINE Bool
+VThreadBaseSetLocal(VThreadLocal local, void *value)
+{
+   VThreadBaseKeyType key;
+   void *adjustedValue = value;
+   Bool success;
+   ASSERT(VThreadBaseAreKeysInited());
+   if (local == VTHREAD_LOCAL_BASE) {
+      key = Atomic_Read(&vthreadBaseGlobals.baseKey);
+   } else {
+      ASSERT(local == VTHREAD_LOCAL_ID);
+      /* VThreadGetLocal compensates for this, lets the default be -1.  */
+      adjustedValue = (void*)((uintptr_t)adjustedValue + 1);
+      key = Atomic_Read(&vthreadBaseGlobals.threadIDKey);
    }
+   ASSERT(key != VTHREADBASE_INVALID_KEY);
+#if defined _WIN32
+   success = TlsSetValue(key, adjustedValue);
+#else
+   success = pthread_setspecific(key, adjustedValue) == 0;
+#endif
+#ifdef HAVE_TLS
+   if (success) {
+      if (local == VTHREAD_LOCAL_BASE) {
+         tlsBaseCache = value;
+      } else {
+         ASSERT(local == VTHREAD_LOCAL_ID);
+         tlsIDCache = (VThreadID)(uintptr_t)value;
+      }
+   }
+#endif
+   return success;
+}
 
-   return key;
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VThreadBaseGetLocal --
+ *
+ *      Retrives the specified thread local variable.  This abstracts
+ *      between pthread, the Windows TLS supports, and the use of
+ *      __thread.  See VThreadSetLocal for more details.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static INLINE void *
+VThreadBaseGetLocal(VThreadLocal local) 
+{
+   void *result;
+#ifdef HAVE_TLS
+   if (local == VTHREAD_LOCAL_BASE) {
+      result = tlsBaseCache;
+   } else {
+      ASSERT(local == VTHREAD_LOCAL_ID);
+      result = (void*)(uintptr_t)tlsIDCache;
+   }
+#else 
+   VThreadBaseKeyType key;
+   Atomic_Int *keyPtr;
+
+   keyPtr = local == VTHREAD_LOCAL_BASE ? &vthreadBaseGlobals.baseKey :
+                                          &vthreadBaseGlobals.threadIDKey;
+   key = Atomic_Read(keyPtr);
+   if (UNLIKELY(key == VTHREADBASE_INVALID_KEY)) {
+      VThreadBaseInitKeys();
+      key = Atomic_Read(keyPtr);
+   }      
+   ASSERT(VThreadBaseAreKeysInited());
+
+#if defined _WIN32
+   result = TlsGetValue(key);
+#else
+   result = pthread_getspecific(key);
+#endif
+   if (local == VTHREAD_LOCAL_ID) {
+      result = (void*)((uintptr_t)result - 1); /* See VThreadBaseSetLocal. */
+   }
+#endif
+
+   return result;
+}
+
+
+static INLINE VThreadBaseData *
+VThreadBaseGetBase(void)
+{
+   return (VThreadBaseData *)VThreadBaseGetLocal(VTHREAD_LOCAL_BASE);
+}
+
+static INLINE Bool
+VThreadBaseSetBase(VThreadBaseData *base)
+{
+   return VThreadBaseSetLocal(VTHREAD_LOCAL_BASE, base);
+}
+
+static INLINE VThreadID
+VThreadBaseGetID(void)
+{
+   return (VThreadID)(uintptr_t)VThreadBaseGetLocal(VTHREAD_LOCAL_ID);
+}
+
+static INLINE Bool
+VThreadBaseSetID(VThreadID id)
+{
+   return VThreadBaseSetLocal(VTHREAD_LOCAL_ID, (void*)(uintptr_t)id);
 }
 
 
@@ -459,42 +441,7 @@ VThreadBaseGetNativeHash(void)
 /*
  *-----------------------------------------------------------------------------
  *
- * VThreadBaseRaw --
- *
- *      Get the per-thread data, but do not assign data if not present.
- *
- *      Inlined; hitting TLS needs to be a fastpath.
- *
- * Results:
- *      A VThreadBaseData *, or NULL if thread has not been initialized.
- *
- * Side effects:
- *      Does NOT assign data to the TLS slot.
- *
- *-----------------------------------------------------------------------------
- */
-
-static INLINE VThreadBaseData *
-VThreadBaseRaw(void)
-{
-   VThreadBaseKeyType key = Atomic_Read(&vthreadBaseGlobals.key);
-
-   if (UNLIKELY(key == VTHREADBASE_INVALID_KEY)) {
-      key = VThreadBaseGetKey(); /* Non-inlined slow path */
-   }
-
-#if defined _WIN32
-   return (VThreadBaseData *) TlsGetValue(key);
-#else
-   return (VThreadBaseData *) pthread_getspecific(key);
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * VThreadBaseCooked --
+ * VThreadGetAndInitBase --
  *
  *      Get the per-thread data, and assign if there is no data.
  *
@@ -508,32 +455,17 @@ VThreadBaseRaw(void)
  */
 
 static VThreadBaseData *
-VThreadBaseCooked(void)
+VThreadBaseGetAndInitBase(void)
 {
-   VThreadBaseData *base = VThreadBaseRaw();
+   VThreadBaseData *base = VThreadBaseGetBase();
 
-   ASSERT(vthreadBaseGlobals.noIDFunc);
+   ASSERT(vthreadBaseGlobals.noIDFunc != NULL);
 
    if (UNLIKELY(base == NULL)) {
-      /* Just saw a new thread.  Ensure atomics are correct... */
-      Atomic_Init();
-
-      /*
-       * The code between the last pthread_getspecific and the eventual
-       * call to pthread_setspecific either needs to run with async signals
-       * blocked or tolerate reentrancy.  Simpler to just block the signals.
-       * See bugs 295686 & 477318.  Here, the problem is that we could allocate
-       * two VThreadIDs (via a signal during the NoID callback).
-       */
-      NO_ASYNC_SIGNALS_START;
-      if (VThreadBaseRaw() == NULL) {
-         (*vthreadBaseGlobals.noIDFunc)();
-      }
-      NO_ASYNC_SIGNALS_END;
-
-      base = VThreadBaseRaw();
-      ASSERT(base);
+      VThreadBaseInit();
+      base = VThreadBaseGetBase();
    }
+   ASSERT(base != NULL);
 
    return base;
 }
@@ -558,7 +490,14 @@ VThreadBaseCooked(void)
 VThreadID
 VThreadBase_CurID(void)
 {
-   return VThreadBaseCooked()->id;
+   VThreadID tid = VThreadBaseGetID();
+   if (UNLIKELY(tid == VTHREAD_INVALID_ID)) {
+      VThreadBaseInit();
+      tid = VThreadBaseGetID();
+   }
+   ASSERT(tid != VTHREAD_INVALID_ID);
+   ASSERT(tid == VThreadBaseGetAndInitBase()->id);
+   return tid;
 }
 
 
@@ -587,14 +526,14 @@ const char *
 VThreadBase_CurName(void)
 {
    static Atomic_Int curNameRecursion;
-   VThreadBaseData *base = VThreadBaseRaw();
+   VThreadBaseData *base = VThreadBaseGetBase();
 
    if (LIKELY(base != NULL)) {
       return base->name;
    } else if (Atomic_Read(&curNameRecursion) == 0) {
       /* Unnamed thread, try to name it. */
       Atomic_Inc(&curNameRecursion);
-      base = VThreadBaseCooked(); /* Assigns name as side effect */
+      base = VThreadBaseGetAndInitBase(); /* Assigns name as side effect */
       Atomic_Dec(&curNameRecursion);
 
       return base->name;
@@ -668,14 +607,12 @@ Bool
 VThreadBase_InitWithTLS(VThreadBaseData *base)  // IN: caller-managed storage
 {
    Bool firstTime, success;
-   /* Require key allocation before TLS read */
-   VThreadBaseKeyType key = VThreadBaseGetKey();
 
+   VThreadBaseInitKeys(); /* Require key allocation before TLS read */
    ASSERT(base != NULL && base->id != VTHREAD_INVALID_ID);
 
    NO_ASYNC_SIGNALS_START;
-   if (VThreadBaseRaw() == NULL) {
-#if defined _WIN32
+   if (VThreadBaseGetBase() == NULL) {
       /*
        * Windows potentially has the async-signal problem mentioned
        * below due to APCs, but in practice it will not happen:
@@ -683,16 +620,13 @@ VThreadBase_InitWithTLS(VThreadBaseData *base)  // IN: caller-managed storage
        * and we obviously do not make those between TlsGetValue and
        * TlsSetValue.
        */
-      success = TlsSetValue(key, base);
-#else
       /*
        * The code between the check of pthread_getspecific and the eventually
        * call to pthread_setspecific MUST run with async signals blocked, see
        * bugs 295686 & 477318.  Here, the problem is that we could
        * accidentally set the TLS slot twice (it's not atomic).
        */
-      success = pthread_setspecific(key, base) == 0;
-#endif
+      success = VThreadBaseSetBase(base) && VThreadBaseSetID(base->id);
       firstTime = TRUE;
    } else {
       success = TRUE;
@@ -700,13 +634,13 @@ VThreadBase_InitWithTLS(VThreadBaseData *base)  // IN: caller-managed storage
    }
    NO_ASYNC_SIGNALS_END;
    /* Try not to ASSERT while signals are blocked */
-   ASSERT_NOT_IMPLEMENTED(success);
-   ASSERT(!firstTime || (base == VThreadBaseRaw()));
+   VERIFY(success);
+   ASSERT(!firstTime || (base == VThreadBaseGetBase()));
 
    if (firstTime) {
       Atomic_Inc(&vthreadBaseGlobals.numThreads);
    } else {
-      VThreadBaseData *realBase = VThreadBaseRaw();
+      VThreadBaseData *realBase = VThreadBaseGetBase();
 
       /*
        * If this happens, it means:
@@ -755,7 +689,6 @@ VThreadBaseSafeDeleteTLS(void *tlsData)
 
    if (data != NULL) {
       if (vthreadBaseGlobals.freeIDFunc != NULL) {
-         VThreadBaseKeyType key = VThreadBaseGetKey();
          Bool success;
          VThreadBaseData tmpData = *data;
 
@@ -765,24 +698,17 @@ VThreadBaseSafeDeleteTLS(void *tlsData)
           * enough for the VThreadBase services, clean up, then clear the
           * TLS slot.
           */
-#if defined _WIN32
-         success = TlsSetValue(key, &tmpData);
-#else
-         success = pthread_setspecific(key, &tmpData) == 0;
-#endif
-         ASSERT_NOT_IMPLEMENTED(success);
+         success = VThreadBaseSetBase(&tmpData);
+         VERIFY(success);
 
          if (vmx86_debug) {
             Log("Forgetting VThreadID %d (\"%s\").\n", data->id, data->name);
          }
          (*vthreadBaseGlobals.freeIDFunc)(data);
 
-#if defined _WIN32
-         success = TlsSetValue(key, NULL);
-#else
-         success = pthread_setspecific(key, NULL) == 0;
-#endif
-         ASSERT_NOT_IMPLEMENTED(success);
+         success = VThreadBaseSetBase(NULL) &&
+                   VThreadBaseSetID(VTHREAD_INVALID_ID);
+         VERIFY(success);
       }
       Atomic_Dec(&vthreadBaseGlobals.numThreads);
    }
@@ -812,18 +738,7 @@ VThreadBaseSafeDeleteTLS(void *tlsData)
 void
 VThreadBase_ForgetSelf(void)
 {
-   VThreadBaseKeyType key = VThreadBaseGetKey();
-   VThreadBaseData *data = VThreadBaseRaw();
-   Bool success;
-
-#if defined _WIN32
-   success = TlsSetValue(key, NULL);
-#else
-   success = pthread_setspecific(key, NULL) == 0;
-#endif
-   ASSERT_NOT_IMPLEMENTED(success);
-
-   VThreadBaseSafeDeleteTLS(data);
+   VThreadBaseSafeDeleteTLS(VThreadBaseGetBase());
 }
 
 
@@ -851,7 +766,7 @@ void
 VThreadBase_SetName(const char *name)  // IN: new name
 {
    uint32 len = strlen(name);
-   VThreadBaseData *base = VThreadBaseCooked();
+   VThreadBaseData *base = VThreadBaseGetAndInitBase();
 
    ASSERT(name);
 
@@ -987,7 +902,7 @@ VThreadBaseSimpleNoID(void)
    VThreadBaseData *base;
 
    /* Require key allocation before TLS read */
-   VThreadBaseGetKey();
+   ASSERT(VThreadBaseAreKeysInited());
 
    /* Before allocating a new ID, try to reclaim any old IDs. */
    for (newID = 0;
@@ -1019,17 +934,17 @@ VThreadBaseSimpleNoID(void)
    if (!reused) {
       void *newKey;
 
-      newID = Atomic_FetchAndInc(&vthreadBaseGlobals.dynamicID);
+      newID = Atomic_ReadInc32(&vthreadBaseGlobals.dynamicID);
       /*
        * Detect VThreadID overflow (~0 is used as a sentinel).
        * Leave a space of ~10 IDs, since the increment and bounds-check
        * are not atomic.
        */
-      ASSERT_NOT_IMPLEMENTED(newID < VTHREAD_INVALID_ID - 10);
+      VERIFY(newID < VTHREAD_INVALID_ID - 10);
 
       newKey = (void *)(uintptr_t)newID;
       result = HashTable_Insert(ht, newKey, newNative);
-      ASSERT_NOT_IMPLEMENTED(result);
+      VERIFY(result);
    }
 
    /* ID picked.  Now do the important stuff. */
@@ -1042,10 +957,6 @@ VThreadBaseSimpleNoID(void)
 
    if (vmx86_debug && reused) {
       Log("VThreadBase reused VThreadID %d.\n", newID);
-   }
-
-   if (Atomic_Read(&vthreadBaseGlobals.numThreads) > 1) {
-      LOG_ONCE(("VThreadBase detected multiple threads.\n"));
    }
 }
 
@@ -1131,6 +1042,39 @@ VThreadBase_SetNoIDFunc(void (*hookFunc)(void),       // IN: new hook function
 }
 
 
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VThreadBaseInit --
+ *
+ *      Performs basic initialization of this thread including setting
+ *      up the thread local storage and assigning a thread id.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static void
+VThreadBaseInit(void)
+{
+   Atomic_Init();
+   VThreadBaseInitKeys();
+
+   /*
+    * The code between the last pthread_getspecific and the eventual
+    * call to pthread_setspecific either needs to run with async signals
+    * blocked or tolerate reentrancy.  Simpler to just block the signals.
+    * See bugs 295686 & 477318.  Here, the problem is that we could allocate
+    * two VThreadIDs (via a signal during the NoID callback).
+    */
+   
+   NO_ASYNC_SIGNALS_START;
+   if (VThreadBaseGetBase() == NULL) {
+      (*vthreadBaseGlobals.noIDFunc)();
+   }
+   NO_ASYNC_SIGNALS_END;
+}
+
+
 #if !defined _WIN32
 /*
  *-----------------------------------------------------------------------------
@@ -1152,7 +1096,7 @@ VThreadBase_SetNoIDFunc(void (*hookFunc)(void),       // IN: new hook function
 Bool
 VThreadBase_IsInSignal(void)
 {
-   VThreadBaseData *base = VThreadBaseCooked();
+   VThreadBaseData *base = VThreadBaseGetAndInitBase();
 
    return Atomic_Read(&base->signalNestCount) > 0;
 }
@@ -1179,7 +1123,7 @@ void
 VThreadBase_SetIsInSignal(VThreadID tid,    // IN:
                           Bool isInSignal)  // IN:
 {
-   VThreadBaseData *base = VThreadBaseCooked();
+   VThreadBaseData *base = VThreadBaseGetAndInitBase();
 
    /* It is an error to clear isInSignal while not in a signal. */
    ASSERT(Atomic_Read(&base->signalNestCount) > 0 || isInSignal);

@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -35,7 +35,6 @@
 #include "vm_tools_version.h"
 #if !defined(WINNT_DDK)
 #  include "hostinfo.h"
-#  include "str.h"
 #endif
 
 /*
@@ -255,35 +254,19 @@ VmCheck_IsVirtualWorld(void)
    uint32 dummy;
 
 #if !defined(WINNT_DDK)
-   char *hypervisorSig;
+   if (VmCheckSafe(Hostinfo_TouchXen)) {
+      Debug("%s: detected Xen.\n", __FUNCTION__);
+      return FALSE;
+   }
 
-   /*
-    * Check for other environments like Xen and VirtualPC only if we haven't
-    * already detected that we are on a VMware hypervisor. See PR 1035346.
-    */
-   hypervisorSig = Hostinfo_HypervisorCPUIDSig();
-   if (hypervisorSig == NULL ||
-         Str_Strcmp(hypervisorSig, CPUID_VMWARE_HYPERVISOR_VENDOR_STRING) != 0) {
+   if (VmCheckSafe(Hostinfo_TouchVirtualPC)) {
+      Debug("%s: detected Virtual PC.\n", __FUNCTION__);
+      return FALSE;
+   }
 
-      free(hypervisorSig);
-
-      if (VmCheckSafe(Hostinfo_TouchXen)) {
-         Debug("%s: detected Xen.\n", __FUNCTION__);
-         return FALSE;
-      }
-
-      if (VmCheckSafe(Hostinfo_TouchVirtualPC)) {
-         Debug("%s: detected Virtual PC.\n", __FUNCTION__);
-         return FALSE;
-      }
-
-      if (!VmCheckSafe(Hostinfo_TouchBackDoor)) {
-         Debug("%s: backdoor not detected.\n", __FUNCTION__);
-         return FALSE;
-      }
-
-   } else {
-      free(hypervisorSig);
+   if (!VmCheckSafe(Hostinfo_TouchBackDoor)) {
+      Debug("%s: backdoor not detected.\n", __FUNCTION__);
+      return FALSE;
    }
 
    /* It should be safe to use the backdoor without a crash handler now. */

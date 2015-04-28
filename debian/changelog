@@ -1,11 +1,31 @@
-open-vm-tools (2:9.4.6-1770165-8~bpo70+1) wheezy-backports; urgency=medium
+open-vm-tools (2:9.10.0-2476743-1~bpo70+1) wheezy-backports; urgency=medium
 
   * Rebuild for wheezy-backports.
   * [683b294b] Add gbp.conf for backports.
   * [31093435] Enable more dkms modules for wheezy.
   * [bdabb3e3] Let open-vm-tools-desktop depend on bpo systemd.
 
- -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Apr 2015 09:52:16 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 28 Apr 2015 12:01:35 +0200
+
+open-vm-tools (2:9.10.0-2476743-2) unstable; urgency=medium
+
+  * [7967f7c1] Fix version number in configure.ac.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 18 Apr 2015 16:37:13 +0200
+
+open-vm-tools (2:9.10.0-2476743-1) unstable; urgency=medium
+
+  * [4de8ff44] Add script to update patches.
+  * [52b74910] Merge tag 'upstream/9.10.0-2476743'
+    Upstream version 9.10.0-2476743
+    (Closes: #781784)
+  * [fddc317d] Refreshing patches for new upstream version.
+  * [7b53f258] Add libmspack-dev as build-dependency.
+  * [6b5841da] Add libssl-dev as build-dependency.
+  * [de52be8e] Add libxerces-c-dev as build-dependency.
+  * [17b2788a] Add libxml-security-c-dev as build-dependency.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 18 Apr 2015 15:41:58 +0200
 
 open-vm-tools (2:9.4.6-1770165-8) unstable; urgency=medium
 

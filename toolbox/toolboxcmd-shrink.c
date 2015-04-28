@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -444,7 +444,8 @@ ShrinkDoWipeAndShrink(char *mountPoint,         // IN: mount point
       }
 
       if (!quiet) {
-         g_print("\rProgress: %d [", progress);
+         g_print(SU_(disk.wiper.progress, "\rProgress: %d"), progress);
+         g_print(" [");
          for (i = 0; i <= progress / 10; i++) {
             putchar('=');
          }

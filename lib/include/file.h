@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 1998 VMware, Inc. All rights reserved.
+ * Copyright (C) 1998-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -117,6 +117,9 @@ struct FS_PartitionListResult;
 
 int File_GetVMFSAttributes(ConstUnicode pathName,
                            struct FS_PartitionListResult **fsAttrs);
+int File_GetVMFSFSType(ConstUnicode pathName,
+                       int fd,
+                       uint16 *fsTypeNum);
 int File_GetVMFSVersion(ConstUnicode pathName,
                         uint32 *versionNum);
 int File_GetVMFSBlockSize(ConstUnicode pathName,
@@ -180,6 +183,8 @@ Bool File_DeleteDirectoryTree(ConstUnicode pathName);
 int File_ListDirectory(ConstUnicode pathName,
                        Unicode **ids);
 
+Bool File_IsOsfsVolumeEmpty(ConstUnicode pathName);
+
 /*
  * Simple file-system walk.
  */
@@ -198,6 +203,8 @@ Bool File_IsFile(ConstUnicode pathName);
 Bool File_IsSymLink(ConstUnicode pathName);
 
 Bool File_IsCharDevice(ConstUnicode pathName);
+
+Bool File_GetParent(Unicode *canPath);
 
 Bool File_IsRemote(ConstUnicode pathName);
 
@@ -224,11 +231,17 @@ int File_MakeTempEx2(ConstUnicode dir,
                      void *createFuncData,
                      Unicode *presult);
 
+Unicode File_MakeSafeTempDir(ConstUnicode prefix);
+
 int64 File_GetModTime(ConstUnicode pathName);
 
 char *File_GetModTimeString(ConstUnicode pathName);
 
 char *File_GetUniqueFileSystemID(const char *pathName);
+
+#ifdef _WIN32
+Unicode File_GetVolumeGUID(ConstUnicode pathName);
+#endif
 
 Bool File_GetTimes(ConstUnicode pathName,
                    VmTimeType *createTime,
@@ -253,10 +266,6 @@ Bool File_SupportsFileSize(ConstUnicode pathName,
 
 Bool File_GetMaxFileSize(ConstUnicode pathName,
                          uint64 *maxFileSize);
-
-#ifdef VMX86_SERVER
-Bool File_Is2TiBEnabled(void);
-#endif
 
 Bool File_SupportsLargeFiles(ConstUnicode pathName);
 
@@ -291,7 +300,8 @@ Bool File_CopyFromNameToName(ConstUnicode srcName,
 
 Bool File_MoveTree(ConstUnicode srcName,
                    ConstUnicode dstName,
-                   Bool overwriteExisting);
+                   Bool overwriteExisting,
+                   Bool *asMove);
 
 Bool File_CopyTree(ConstUnicode srcName,
                    ConstUnicode dstName,

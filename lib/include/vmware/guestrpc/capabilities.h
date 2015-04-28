@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -72,6 +72,9 @@ typedef enum {
    CAP_UPDATE_AGENT                     = 27, // supports guest update agent
    HGFSU_CAP_MIRROR_DOWNLOADS           = 28, // supports remapping GOS Downloads to HGFS
    HGFSU_CAP_MIRROR_MOVIES              = 29, // supports remapping GOS Movies to HGFS
+   GHI_CAP_TOGGLE_START_UI              = 30, // supports showing/hiding the Start UI
+   GHI_CAP_SET_DISPLAY_SCALING          = 31, // supports setting the display scaling (DPI)
+   UNITY_CAP_DISABLE_MOUSE_BUTTON_SWAPPING     = 32, // supports disabling mouse button swapping
 } GuestCapabilities;
 
 typedef struct {
@@ -143,6 +146,9 @@ static GuestCapElem guestCapTable[] = {
    { CAP_UPDATE_AGENT,                     CAP_VMDB_PATH,       "updateAgent"},
    { HGFSU_CAP_MIRROR_DOWNLOADS,           HGFSU_CAP_VMDB_PATH, "mirrorDownloads" },
    { HGFSU_CAP_MIRROR_MOVIES,              HGFSU_CAP_VMDB_PATH, "mirrorMovies" },
+   { GHI_CAP_TOGGLE_START_UI,              GHI_CAP_VMDB_PATH,   "toggleStartUI"},
+   { GHI_CAP_SET_DISPLAY_SCALING,          GHI_CAP_VMDB_PATH,   "setDisplayScaling"},
+   { UNITY_CAP_DISABLE_MOUSE_BUTTON_SWAPPING, UNITY_CAP_VMDB_PATH, "mouseButtonSwapping" },
 };
 
 #endif // VM_NEED_VMDB_GUEST_CAP_MAPPING

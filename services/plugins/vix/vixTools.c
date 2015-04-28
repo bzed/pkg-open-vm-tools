@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2007 VMware, Inc. All rights reserved.
+ * Copyright (C) 2007-2015 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -120,18 +120,12 @@
 #endif
 
 /*
- * Only support Linux right now.
- *
- * On Windows, the SAML impersonation story is too shaky to trust,
- * and without that, there's no reason to support AliasManager APIs.
- *
- * No support for open-vm-tools.
+ * No support for userworld.  Enable support for open vm tools when
+ * USE_VGAUTH is defined.
  */
-#if defined(linux) && !defined(OPEN_VM_TOOLS)
-/*
- * XXX turned off for prod2013-stage branch
- */
-#define SUPPORT_VGAUTH 0
+#if ((defined(__linux__) && !defined(USERWORLD)) || defined(_WIN32)) && \
+     (!defined(OPEN_VM_TOOLS) || defined(USE_VGAUTH))
+#define SUPPORT_VGAUTH 1
 #else
 #define SUPPORT_VGAUTH 0
 #endif
@@ -146,11 +140,7 @@
 #define VMTOOLSD_APP_NAME "vmtoolsd"
 
 #define VIXTOOLS_CONFIG_USE_VGAUTH_NAME "useVGAuth"
-/*
- * XXX Leave this off by default until the VGAuth service is being
- * officially installed.
- */
-#define USE_VGAUTH_DEFAULT FALSE
+#define USE_VGAUTH_DEFAULT TRUE
 
 static gboolean gSupportVGAuth = USE_VGAUTH_DEFAULT;
 static gboolean QueryVGAuthConfig(GKeyFile *confDictRef);
@@ -193,6 +183,17 @@ static VGAuthUserHandle *currentUserHandle = NULL;
 #define  VIX_TOOLS_CONFIG_API_GROUPNAME               "guestoperations"
 
 /*
+ * Authentication configuration.
+ * There are various forms of authentication supported,
+ * e.g. InfrastructureAgents, NamePassword, SSPI, SAML etc.
+ *
+ * NOTE: "InfrastructureAgents" refers to hashed shared
+ * secret form of authentication.
+ */
+#define  VIX_TOOLS_CONFIG_API_AUTHENTICATION          "Authentication"
+#define  VIX_TOOLS_CONFIG_AUTHTYPE_AGENTS             "InfrastructureAgents"
+
+/*
  * The switch that controls all APIs
  */
 #define  VIX_TOOLS_CONFIG_API_ALL_NAME                "disabled"
@@ -224,8 +225,8 @@ static VGAuthUserHandle *currentUserHandle = NULL;
 #define  VIX_TOOLS_CONFIG_API_RELEASE_CREDENTIALS_NAME   "ReleaseCredentialsInGuest"
 
 #define VIX_TOOLS_CONFIG_API_ADD_GUEST_ALIAS_NAME      "AddGuestAlias"
-// controls both RemoveGuestAlias and RemoveGuestAliasByCert
 #define VIX_TOOLS_CONFIG_API_REMOVE_GUEST_ALIAS_NAME   "RemoveGuestAlias"
+#define VIX_TOOLS_CONFIG_API_REMOVE_GUEST_ALIAS_BY_CERT_NAME   "RemoveGuestAliasByCert"
 #define VIX_TOOLS_CONFIG_API_LIST_GUEST_ALIASES_NAME    "ListGuestAliases"
 #define VIX_TOOLS_CONFIG_API_LIST_GUEST_MAPPED_ALIASES_NAME  "ListGuestMappedAliases"
 
@@ -350,6 +351,25 @@ static Bool allowConsoleUserOps = FALSE;
 static VixToolsReportProgramDoneProcType reportProgramDoneProc = NULL;
 static void *reportProgramDoneData = NULL;
 
+/*
+ * Reference to global configuration dictionary.
+ * This reference is initialized right before processing
+ * any VIX command and is reset afterwards.
+ */
+static GKeyFile *gConfDictRef = NULL;
+
+/*
+ * Global state to decide if VIX commands should be restricted.
+ *
+ * Performing most of the VIX commands when quiesce snapshot operation
+ * has frozen the guest filesystem could lead to deadlock in the tools
+ * service (bug 1210773). This does not happen with VIM clients using
+ * guestOps because hostd enforces the ordering of all VM operations.
+ * However, it is possible for VIX clients to issue an op that ends up
+ * accessing the guest filesystem in frozen state.
+ */
+static gboolean gRestrictCommands = FALSE;
+
 #ifndef _WIN32
 typedef struct VixToolsEnvironmentTableIterator {
    char **envp;
@@ -402,9 +422,7 @@ static const char *fileInfoFormatString = "<FileInfo>"
                                           "<ModTime>%"FMT64"d</ModTime>"
                                           "</FileInfo>";
 
-#if !defined(OPEN_VM_TOOLS) || defined(HAVE_GLIB_REGEX)
 static const char *listFilesRemainingFormatString = "<rem>%d</rem>";
-#endif
 
 #ifdef _WIN32
 static const char *fileExtendedInfoWindowsFormatString = "<fxi>"
@@ -606,6 +624,8 @@ static void VixToolsFreeEnvp(char **envp);
 
 #endif
 
+static VixError FoundryToolsDaemon_TranslateSystemErr(void);
+
 static VixError VixToolsRewriteError(uint32 opCode,
                                      VixError origError);
 
@@ -622,6 +642,9 @@ VixError GuestAuthSAMLAuthenticateAndImpersonate(
    void **userToken);
 
 void GuestAuthUnimpersonate();
+
+static Bool VixToolsCheckIfAuthenticationTypeEnabled(GKeyFile *confDictRef,
+                                                     const char *typeName);
 
 #if SUPPORT_VGAUTH
 
@@ -731,6 +754,28 @@ VixTools_Uninitialize(void) // IN
    }
 
    HgfsServerManager_Unregister(&gVixHgfsBkdrConn);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * VixTools_RestrictCommands --
+ *
+ *
+ * Return value:
+ *    None
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+VixTools_RestrictCommands(gboolean restricted) // IN
+{
+   gRestrictCommands = restricted;
 }
 
 
@@ -1564,16 +1609,14 @@ VixToolsStartProgramImpl(const char *requestName,            // IN
     */
 
    programExists = File_Exists(startProgramFileName);
+   if (!programExists) {
+      err = FoundryToolsDaemon_TranslateSystemErr();
+      goto abort;
+   }
+
    programIsExecutable =
       (FileIO_Access(startProgramFileName, FILEIO_ACCESS_EXEC) ==
                                                        FILEIO_SUCCESS);
-
-   free(tempCommandLine);
-
-   if (!programExists) {
-      err = VIX_E_FILE_NOT_FOUND;
-      goto abort;
-   }
    if (!programIsExecutable) {
       err = VIX_E_GUEST_USER_PERMISSIONS;
       goto abort;
@@ -1722,6 +1765,7 @@ VixToolsStartProgramImpl(const char *requestName,            // IN
    asyncState = NULL;
 
 abort:
+   free(tempCommandLine);
    free(fullCommandLine);
    free(workingDirectory);
 #ifdef _WIN32
@@ -1777,11 +1821,19 @@ VixToolsMonitorAsyncProc(void *clientData) // IN
    ASSERT(asyncState);
 
    /*
-    * Check if the program has completed.
+    * Check if the program has completed and VIX commands
+    * are not being restricted. Performing cleanup involving
+    * IO would deadlock the operations like quiesce snapshot
+    * that freeze the filesystem.
     */
    procIsRunning = ProcMgr_IsAsyncProcRunning(asyncState->procState);
    if (!procIsRunning) {
-      goto done;
+      if (gRestrictCommands) {
+         Debug("%s: Deferring RunScript cleanup due to IO freeze\n",
+               __FUNCTION__);
+      } else {
+         goto cleanup;
+      }
    }
 
    timer = g_timeout_source_new(SECONDS_BETWEEN_POLL_TEST_FINISHED * 1000);
@@ -1790,7 +1842,7 @@ VixToolsMonitorAsyncProc(void *clientData) // IN
    g_source_unref(timer);
    return FALSE;
 
-done:
+cleanup:
 
    /*
     * We need to always check the exit code, even if there is no need to
@@ -2688,6 +2740,7 @@ VixToolsGetAPIDisabledFromConf(GKeyFile *confDictRef,            // IN
    if (NULL != varName) {
       if ((strcmp(varName, VIX_TOOLS_CONFIG_API_ADD_GUEST_ALIAS_NAME) == 0) ||
           (strcmp(varName, VIX_TOOLS_CONFIG_API_REMOVE_GUEST_ALIAS_NAME) == 0) ||
+          (strcmp(varName, VIX_TOOLS_CONFIG_API_REMOVE_GUEST_ALIAS_BY_CERT_NAME) == 0) ||
           (strcmp(varName, VIX_TOOLS_CONFIG_API_LIST_GUEST_ALIASES_NAME) == 0) ||
           (strcmp(varName, VIX_TOOLS_CONFIG_API_LIST_GUEST_MAPPED_ALIASES_NAME) == 0)) {
          disabled = TRUE;
@@ -2975,6 +3028,13 @@ VixToolsSetAPIEnabledProperties(VixPropertyListImpl *propList,    // IN
       goto exit;
    }
 
+   err = VixPropertyList_SetBool(propList,
+                                 VIX_PROPERTY_GUEST_REMOVE_AUTH_ALIAS_BY_CERT_ENABLED,
+                                 VixToolsComputeEnabledProperty(confDictRef,
+                                    VIX_TOOLS_CONFIG_API_REMOVE_GUEST_ALIAS_BY_CERT_NAME));
+   if (VIX_OK != err) {
+      goto exit;
+   }
 exit:
    Debug("finished %s, err %"FMT64"d\n", __FUNCTION__, err);
    return err;
@@ -3270,7 +3330,7 @@ VixToolsDeleteObject(VixCommandRequestHeader *requestMsg)  // IN
        */
       if (FALSE == File_IsSymLink(pathName)) {
          if (!(File_Exists(pathName))) {
-            err = VIX_E_FILE_NOT_FOUND;
+            err = FoundryToolsDaemon_TranslateSystemErr();
             goto abort;
          }
 
@@ -3295,7 +3355,7 @@ VixToolsDeleteObject(VixCommandRequestHeader *requestMsg)  // IN
    } else if (VIX_COMMAND_DELETE_GUEST_DIRECTORY == requestMsg->opCode) {
       resultBool = File_Exists(pathName);
       if (!resultBool) {
-         err = VIX_E_FILE_NOT_FOUND;
+         err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
       }
       resultBool = File_IsDirectory(pathName);
@@ -3312,7 +3372,7 @@ VixToolsDeleteObject(VixCommandRequestHeader *requestMsg)  // IN
    } else if (VIX_COMMAND_DELETE_GUEST_EMPTY_DIRECTORY == requestMsg->opCode) {
       resultBool = File_Exists(pathName);
       if (!resultBool) {
-         err = VIX_E_FILE_NOT_FOUND;
+         err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
       }
       resultBool = File_IsDirectory(pathName);
@@ -3420,7 +3480,7 @@ VixToolsDeleteDirectory(VixCommandRequestHeader *requestMsg)  // IN
 
    success = File_Exists(directoryPath);
    if (!success) {
-      err = VIX_E_FILE_NOT_FOUND;
+      err = FoundryToolsDaemon_TranslateSystemErr();
       goto abort;
    }
 
@@ -4299,7 +4359,7 @@ VixToolsMoveObject(VixCommandRequestHeader *requestMsg)        // IN
    impersonatingVMWareUser = TRUE;
 
    if (!(File_Exists(srcFilePathName))) {
-      err = VIX_E_FILE_NOT_FOUND;
+      err = FoundryToolsDaemon_TranslateSystemErr();
       goto abort;
    }
 
@@ -4495,7 +4555,7 @@ VixToolsInitiateFileTransferFromGuest(VixCommandRequestHeader *requestMsg,    //
    }
 
    if (!File_Exists(filePathName)) {
-      err = VIX_E_FILE_NOT_FOUND;
+      err = FoundryToolsDaemon_TranslateSystemErr();
       goto abort;
    }
 
@@ -5152,7 +5212,7 @@ VixToolsListProcessesEx(VixCommandRequestHeader *requestMsg, // IN
                         char **result)                       // OUT
 {
    VixError err = VIX_OK;
-   char *fullResultBuffer;
+   char *fullResultBuffer = NULL;
    char *finalResultBuffer = NULL;
    size_t fullResultSize = 0;
    size_t curPacketLen = 0;
@@ -5948,7 +6008,6 @@ VixToolsListFiles(VixCommandRequestHeader *requestMsg,    // IN
                   size_t maxBufferSize,                   // IN
                   char **result)                          // OUT
 {
-#if !defined(OPEN_VM_TOOLS) || defined(HAVE_GLIB_REGEX)
    VixError err = VIX_OK;
    const char *dirPathName = NULL;
    char *fileList = NULL;
@@ -6071,7 +6130,7 @@ VixToolsListFiles(VixCommandRequestHeader *requestMsg,    // IN
           * We don't know what they intended to list, but we'll
           * assume file since that gives a fairly sane error.
           */
-         err = VIX_E_FILE_NOT_FOUND;
+         err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
       }
    }
@@ -6197,9 +6256,6 @@ abort:
    }
 
    return err;
-#else
-   return VIX_E_NOT_SUPPORTED;
-#endif
 } // VixToolsListFiles
 
 
@@ -7257,6 +7313,20 @@ VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
       break;
    }
    case VIX_USER_CREDENTIAL_ROOT:
+   {
+      if ((requestMsg->requestFlags & VIX_REQUESTMSG_HAS_HASHED_SHARED_SECRET) &&
+          !VixToolsCheckIfAuthenticationTypeEnabled(gConfDictRef,
+                                            VIX_TOOLS_CONFIG_AUTHTYPE_AGENTS)) {
+          /*
+           * Don't accept hashed shared secret if disabled.
+           */
+          Debug("%s: Requested authentication type has been disabled.\n",
+                __FUNCTION__);
+          return VIX_E_GUEST_AUTHTYPE_DISABLED;
+      }
+   }
+   // fall through
+
    case VIX_USER_CREDENTIAL_CONSOLE_USER:
       err = VixToolsImpersonateUserImplEx(NULL,
                                           credentialType,
@@ -7295,6 +7365,7 @@ VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
       }
       break;
    }
+#if SUPPORT_VGAUTH
    case VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN:
    {
       VixCommandSAMLToken *samlStruct =
@@ -7307,6 +7378,7 @@ VixToolsImpersonateUser(VixCommandRequestHeader *requestMsg,   // IN
                                           userToken);
       break;
    }
+#endif
    case VIX_USER_CREDENTIAL_SSPI:
       /*
        * SSPI currently only supported in ticketed sessions
@@ -7484,22 +7556,6 @@ VixToolsImpersonateUserImplEx(char const *credentialTypeStr,         // IN
          }
       }
 
-      /*
-       * Other credential types, like guest, are all turned into a name/password
-       * by the VMX. If this is something else, then we are talking to a newer
-       * version of the VMX.
-       */
-      if ((VIX_USER_CREDENTIAL_NAME_PASSWORD != credentialType)
-            && (VIX_USER_CREDENTIAL_NAME_PASSWORD_OBFUSCATED != credentialType)
-            && (VIX_USER_CREDENTIAL_TICKETED_SESSION != credentialType)
-#if SUPPORT_VGAUTH
-            && (VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN != credentialType)
-#endif
-            ) {
-         err = VIX_E_NOT_SUPPORTED;
-         goto abort;
-      }
-
 
       /*
        * Use the GuestAuth library to do name-password authentication
@@ -7507,27 +7563,26 @@ VixToolsImpersonateUserImplEx(char const *credentialTypeStr,         // IN
        */
 
       if (GuestAuthEnabled() &&
-          ((VIX_USER_CREDENTIAL_NAME_PASSWORD == credentialType) ||
-           (VIX_USER_CREDENTIAL_NAME_PASSWORD_OBFUSCATED == credentialType))) {
+          (VIX_USER_CREDENTIAL_NAME_PASSWORD == credentialType ||
+           VIX_USER_CREDENTIAL_NAME_PASSWORD_OBFUSCATED == credentialType)) {
          err =
             GuestAuthPasswordAuthenticateImpersonate(obfuscatedNamePassword,
                                                      userToken);
-
-         goto abort;
       }
 
-      if (VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN == credentialType) {
+#if SUPPORT_VGAUTH
+      else if (VIX_USER_CREDENTIAL_SAML_BEARER_TOKEN == credentialType) {
          if (GuestAuthEnabled()) {
             err = GuestAuthSAMLAuthenticateAndImpersonate(obfuscatedNamePassword,
                                                           userToken);
          } else {
             err = VIX_E_NOT_SUPPORTED;
          }
-         goto abort;
       }
+#endif
 
       /* Get the authToken and impersonate */
-      if (VIX_USER_CREDENTIAL_TICKETED_SESSION == credentialType) {
+      else if (VIX_USER_CREDENTIAL_TICKETED_SESSION == credentialType) {
 #ifdef _WIN32
          char *username;
 
@@ -7541,11 +7596,24 @@ VixToolsImpersonateUserImplEx(char const *credentialTypeStr,         // IN
 
          unobfuscatedUserName = Util_SafeStrdup(username);
          *userToken = (void *) authToken;
+         success = Impersonate_Do(unobfuscatedUserName, authToken);
+         if (!success) {
+            err = VIX_E_INVALID_LOGIN_CREDENTIALS;
+            goto abort;
+         }
+
+         err = VIX_OK;
 #else
          err = VIX_E_NOT_SUPPORTED;
-         goto abort;
 #endif
-      } else {
+      } else if (VIX_USER_CREDENTIAL_NAME_PASSWORD == credentialType ||
+                 VIX_USER_CREDENTIAL_NAME_PASSWORD_OBFUSCATED == credentialType) {
+
+         /*
+          * Other credential types, like guest, are all turned into
+          * a name/password by the VMX.
+          */
+
          err = VixMsg_DeObfuscateNamePassword(obfuscatedNamePassword,
                                               &unobfuscatedUserName,
                                               &unobfuscatedPassword);
@@ -7553,29 +7621,37 @@ VixToolsImpersonateUserImplEx(char const *credentialTypeStr,         // IN
             goto abort;
          }
 
-         authToken = Auth_AuthenticateUser(unobfuscatedUserName, unobfuscatedPassword);
+         authToken = Auth_AuthenticateUser(unobfuscatedUserName,
+                                           unobfuscatedPassword);
          if (NULL == authToken) {
             err = VIX_E_INVALID_LOGIN_CREDENTIALS;
             goto abort;
          }
 
          *userToken = (void *) authToken;
-      }
 #ifdef _WIN32
-      success = Impersonate_Do(unobfuscatedUserName, authToken);
+         success = Impersonate_Do(unobfuscatedUserName, authToken);
 #else
-      /*
-       * Use a tools-special version of user impersonation, since
-       * lib/impersonate model isn't quite what we want on linux.
-       */
-      success = ProcMgr_ImpersonateUserStart(unobfuscatedUserName, authToken);
+         /*
+          * Use a tools-special version of user impersonation, since
+          * lib/impersonate model isn't quite what we want on linux.
+          */
+         success = ProcMgr_ImpersonateUserStart(unobfuscatedUserName,
+                                                authToken);
 #endif
-      if (!success) {
-         err = VIX_E_INVALID_LOGIN_CREDENTIALS;
-         goto abort;
-      }
+         if (!success) {
+            err = VIX_E_INVALID_LOGIN_CREDENTIALS;
+            goto abort;
+         }
 
-      err = VIX_OK;
+         err = VIX_OK;
+      } else {
+         /*
+          * If this is something else, then we are talking to a newer
+          * version of the VMX.
+          */
+         err = VIX_E_NOT_SUPPORTED;
+      }
 
 abort:
       free(unobfuscatedUserName);
@@ -7960,7 +8036,7 @@ VixToolsGetTempFile(VixCommandRequestHeader *requestMsg,   // IN
           * File_MakeTempEx2().
           */
          if (!File_Exists(directoryPath)) {
-            err = VIX_E_FILE_NOT_FOUND;
+            err = FoundryToolsDaemon_TranslateSystemErr();
             goto abort;
          }
 
@@ -8013,7 +8089,7 @@ VixToolsGetTempFile(VixCommandRequestHeader *requestMsg,   // IN
        * File_MakeTempEx2().
        */
       if (!File_Exists(directoryPath)) {
-         err = VIX_E_FILE_NOT_FOUND;
+         err = FoundryToolsDaemon_TranslateSystemErr();
          goto abort;
       }
 
@@ -8991,8 +9067,16 @@ VixToolsRemoveAuthAlias(VixCommandRequestHeader *requestMsg)    // IN
    }
 
    if (VIX_GUEST_AUTH_SUBJECT_TYPE_NONE == req->subjectType) {
+#ifdef notyet
+      /*
+       * XXX turn on this assert() 'soon' -- if done now it could be hit
+       * with these tools and an old hostd/VMX that still shares the opcode.
+       */
+      ASSERT(requestMsg->opCode == VIX_COMMAND_REMOVE_AUTH_ALIAS_BY_CERT);
+#endif
       vgErr = VGAuth_RemoveAliasByCert(ctx, userName, pemCert, 0, NULL);
    } else {
+      ASSERT(requestMsg->opCode == VIX_COMMAND_REMOVE_AUTH_ALIAS);
       subj.type = (req->subjectType == VIX_GUEST_AUTH_SUBJECT_TYPE_NAMED) ?
          VGAUTH_SUBJECT_NAMED : VGAUTH_SUBJECT_ANY;
       subj.val.name = (char *) subjectName;
@@ -9202,7 +9286,7 @@ abort:
       vgErr = VGAuth_Shutdown(ctx);
       if (VGAUTH_FAILED(vgErr)) {
          err = VixToolsTranslateVGAuthError(vgErr);
-         goto abort;
+         // fall thru
       }
    }
 
@@ -9951,6 +10035,11 @@ VixToolsCheckIfVixCommandEnabled(int opcode,                          // IN
                                VIX_TOOLS_CONFIG_API_REMOVE_GUEST_ALIAS_NAME);
          break;
 
+      case VIX_COMMAND_REMOVE_AUTH_ALIAS_BY_CERT:
+         enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
+                               VIX_TOOLS_CONFIG_API_REMOVE_GUEST_ALIAS_BY_CERT_NAME);
+         break;
+
       case VIX_COMMAND_LIST_AUTH_PROVIDER_ALIASES:
          enabled = !VixToolsGetAPIDisabledFromConf(confDictRef,
                                 VIX_TOOLS_CONFIG_API_LIST_GUEST_ALIASES_NAME);
@@ -10031,6 +10120,39 @@ VixToolsCheckIfVixCommandEnabled(int opcode,                          // IN
 /*
  *-----------------------------------------------------------------------------
  *
+ * VixToolsCheckIfAuthenticationTypeEnabled --
+ *
+ *    Checks to see if a given authentication type has been
+ *    disabled via the tools configuration.
+ *
+ * Return value:
+ *    TRUE if enabled, FALSE otherwise.
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+static Bool
+VixToolsCheckIfAuthenticationTypeEnabled(GKeyFile *confDictRef,     // IN
+                                         const char *typeName)      // IN
+{
+   char authenticationType[64]; // Authentication.<AuthenticationType>
+
+   Str_Snprintf(authenticationType, sizeof(authenticationType),
+                VIX_TOOLS_CONFIG_API_AUTHENTICATION ".%s",
+                typeName);
+
+   ASSERT(confDictRef != NULL);
+
+   return !VixToolsGetAPIDisabledFromConf(confDictRef, authenticationType);
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
  * VixTools_ProcessVixCommand --
  *
  *
@@ -10073,6 +10195,44 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
 
    Debug("%s: command %d\n", __FUNCTION__, requestMsg->opCode);
 
+   /*
+    * PR 1210773: Check if new VIX commands can be processed.
+    *
+    * Most of the VIX commands require access to the guest
+    * filesystem and therefore they could block when quiesced
+    * snapshot operation has frozen the guest filesystem. A
+    * blocked VIX command would not allow Tools service to
+    * process other important ops like resuming filesystem
+    * because Tools service is single threaded. Effectively,
+    * a VIX command could deadlock a quiesce snapshot operation.
+    *
+    * A quiesce snapshot operation that follows a long running
+    * VIX command like runprogram/startprogram is not an issue
+    * because the running command gets blocked temporarily
+    * only when it needs to access the filesystem, otherwise
+    * it continues to run like any other application inside
+    * guest.
+    *
+    * Return a generic error to make clients retry the command
+    * in a graceful manner.
+    */
+   if (gRestrictCommands) {
+      Warning("%s: IO freeze restricted command %d\n",
+              __FUNCTION__, requestMsg->opCode);
+      err = VIX_E_OBJECT_IS_BUSY;
+      goto abort;
+   }
+
+   /*
+    * Set the global reference to configuration dictionary.
+    * We do this to avoid passing this reference through multiple
+    * interfaces for consumers like VixToolsImpersonateUser().
+    *
+    * ASSUMPTION: We are single threaded here, so we don't need
+    * to acquire any locks for this step.
+    */
+   ASSERT(confDictRef != NULL);
+   gConfDictRef = confDictRef;
 
    if (!VixToolsCheckIfVixCommandEnabled(requestMsg->opCode, confDictRef)) {
       err = VIX_E_OPERATION_DISABLED;
@@ -10342,6 +10502,7 @@ VixTools_ProcessVixCommand(VixCommandRequestHeader *requestMsg,   // IN
          err = VixToolsAddAuthAlias(requestMsg);
          break;
       case VIX_COMMAND_REMOVE_AUTH_ALIAS:
+      case VIX_COMMAND_REMOVE_AUTH_ALIAS_BY_CERT:
          err = VixToolsRemoveAuthAlias(requestMsg);
          break;
       case VIX_COMMAND_LIST_AUTH_PROVIDER_ALIASES:
@@ -10440,6 +10601,11 @@ abort:
     * Remaps specific errors for backward compatibility purposes.
     */
    err = VixToolsRewriteError(requestMsg->opCode, err);
+
+   /*
+    * Reset the global reference to configuration dictionary
+    */
+   gConfDictRef = NULL;
 
    return(err);
 } // VixTools_ProcessVixCommand
@@ -11056,6 +11222,54 @@ GuestAuthUnimpersonate(void)
 }
 
 
+/**
+ *-----------------------------------------------------------------------------
+ * VixTools_ConfigGetBoolean
+ *
+ *    Get boolean entry for the key from the config file.
+ *
+ * Return value:
+ *    Value for the key if key is found; otherwise defValue.
+ *
+ * Side effects:
+ *    None
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+gboolean
+VixTools_ConfigGetBoolean(GKeyFile *confDictRef,      // IN
+                          const char *group,          // IN
+                          const char *key,            // IN
+                          gboolean defValue)          // IN
+{
+   GError *gErr = NULL;
+   gboolean value = defValue;
+
+   ASSERT(confDictRef != NULL && group != NULL && key != NULL);
+
+   if (confDictRef == NULL || group == NULL || key == NULL) {
+      goto done;
+   }
+
+   value = g_key_file_get_boolean(confDictRef, group, key, &gErr);
+
+   /*
+    * g_key_file_get_boolean() will return FALSE and set an error
+    * if the value isn't in config, so use the default in that
+    * case.
+    */
+   if (!value && gErr != NULL) {
+      g_clear_error(&gErr);
+      value = defValue;
+   }
+
+done:
+
+   return value;
+}
+
+
 #if SUPPORT_VGAUTH
 /*
  *-----------------------------------------------------------------------------
@@ -11076,27 +11290,13 @@ GuestAuthUnimpersonate(void)
 static gboolean
 QueryVGAuthConfig(GKeyFile *confDictRef)                       // IN
 {
-   gboolean useVGAuth;
    gboolean retVal = USE_VGAUTH_DEFAULT;
-   GError *gErr = NULL;
 
    if (confDictRef != NULL) {
-      useVGAuth = g_key_file_get_boolean(confDictRef,
+      retVal = VixTools_ConfigGetBoolean(confDictRef,
                                          VIX_TOOLS_CONFIG_API_GROUPNAME,
                                          VIXTOOLS_CONFIG_USE_VGAUTH_NAME,
-                                         &gErr);
-
-      /*
-       * g_key_file_get_boolean() will return FALSE and set an error
-       * if the value isn't in config, so use the default in that
-       * case.
-       */
-      if (!useVGAuth && (NULL != gErr)) {
-         g_error_free(gErr);
-         retVal = USE_VGAUTH_DEFAULT;
-      } else {
-         retVal = useVGAuth;
-      }
+                                         USE_VGAUTH_DEFAULT);
    }
 
    Debug("%s: vgauth usage is: %d\n", __FUNCTION__, retVal);

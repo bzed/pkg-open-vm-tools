@@ -50,10 +50,9 @@ typedef struct VSockVmciSock {
    struct sock  sk;
    struct sockaddr_vm localAddr;
    struct sockaddr_vm remoteAddr;
-   /* Links for the global tables of bound, connected and sequential sockets. */
+   /* Links for the global tables of bound and connected sockets. */
    struct list_head boundTable;
    struct list_head connectedTable;
-   struct list_head seqTable;
    /*
     * Accessed without the socket lock held. This means it can never be
     * modified outsided of socket create or destruct.
@@ -61,7 +60,11 @@ typedef struct VSockVmciSock {
    Bool trusted;
    Bool cachedPeerAllowDgram; /* Dgram communication allowed to cached peer? */
    VMCIId cachedPeer; /* Context ID of last dgram destination check. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+   kuid_t owner;
+#else
    uid_t owner;
+#endif
    VMCIHandle dgHandle;           /* For SOCK_DGRAM only. */
    /* Rest are SOCK_STREAM only. */
    VMCIHandle qpHandle;
