@@ -1,3 +1,9 @@
+open-vm-tools (2:9.10.0-2476743-4) unstable; urgency=medium
+
+  * [d7d898c4] Update package version in dkms file.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 May 2015 17:14:31 +0200
+
 open-vm-tools (2:9.10.0-2476743-3) unstable; urgency=medium
 
   * [4148c544] Also fix version number in modules/linux/dkms.sh.
