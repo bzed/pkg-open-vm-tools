@@ -1,4 +1,4 @@
-open-vm-tools (2:9.10.0-2476743-3~bpo70+1) wheezy-backports-sloppy; urgency=medium
+open-vm-tools (2:9.10.0-2476743-4~bpo70+1) wheezy-backports-sloppy; urgency=medium
 
   * Rebuild for wheezy-backports.
   * [683b294b] Add gbp.conf for backports.
@@ -6,7 +6,13 @@ open-vm-tools (2:9.10.0-2476743-3~bpo70+1) wheezy-backports-sloppy; urgency=medi
   * [bdabb3e3] Let open-vm-tools-desktop depend on bpo systemd.
   * [dff2ad00] Add --disable-deploypkg as configure flags.
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 28 Apr 2015 12:01:35 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 May 2015 17:16:25 +0200
+
+open-vm-tools (2:9.10.0-2476743-4) unstable; urgency=medium
+
+  * [d7d898c4] Update package version in dkms file.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 May 2015 17:14:31 +0200
 
 open-vm-tools (2:9.10.0-2476743-3) unstable; urgency=medium
 
