@@ -1,9 +1,18 @@
-open-vm-tools (2:9.10.0-2476743-4~bpo8+1) jessie-backports; urgency=medium
+open-vm-tools (2:9.10.2-2822639-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
   * Adding debian/gbp.conf for jessie-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 May 2015 17:47:53 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 24 Jun 2015 09:32:56 +0200
+
+open-vm-tools (2:9.10.2-2822639-1) unstable; urgency=medium
+
+  * [a4125bd1] Merge tag 'upstream/9.10.2-2822639'
+    Upstream version 9.10.2-2822639
+    (Closes: #789722)
+  * Quiescing Filesystems should work as expected.  (Closes: #784398)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 24 Jun 2015 09:20:25 +0200
 
 open-vm-tools (2:9.10.0-2476743-4) unstable; urgency=medium
 
