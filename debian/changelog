@@ -6,7 +6,7 @@ open-vm-tools (2:9.10.2-2822639-1~bpo70+1) wheezy-backports-sloppy; urgency=medi
   * [bdabb3e3] Let open-vm-tools-desktop depend on bpo systemd.
   * [dff2ad00] Add --disable-deploypkg as configure flags.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 May 2015 17:16:25 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 02 Jul 2015 19:19:51 +0200
 
 open-vm-tools (2:9.10.2-2822639-1) unstable; urgency=medium
 
