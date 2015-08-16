@@ -1,3 +1,9 @@
+open-vm-tools (2:9.10.2-2822639-1~bpo70+2) wheezy-backports-sloppy; urgency=medium
+
+  * [d60a054] Check for d_alias/d_u.d_alias. (Closes: #784230)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 16 Aug 2015 14:17:46 +0200
+
 open-vm-tools (2:9.10.2-2822639-1~bpo70+1) wheezy-backports-sloppy; urgency=medium
 
   * Rebuild for wheezy-backports.
