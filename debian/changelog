@@ -1,3 +1,19 @@
+open-vm-tools (2:9.10.2-2822639-2) unstable; urgency=medium
+
+  * [6537e76] Update package version in dkms file.
+  * [c3a1d4a] Add patch to support backing dev info.
+    Thanks to Peter Vrabel (Closes: #794843)
+  * [be97f01] Add missing #DEBHELPER# statement.
+  * [eac5b6a] Updating Standards Version
+  * [a508cfe] Remove path from command in maintainer script.
+  * [085d637] Remove executable bit from config files.
+  * [b084140] Move all dev files into the -dev package.
+  * [ac965de] Fix building vmghfs for kernel >= 4.1.
+    Thanks to Achim Schaefer (Closes: #794707)
+  * [16ca60a] Update gbp config header in debian/gbp.conf.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 16 Aug 2015 16:27:27 +0200
+
 open-vm-tools (2:9.10.2-2822639-1) unstable; urgency=medium
 
   * [a4125bd1] Merge tag 'upstream/9.10.2-2822639'
