@@ -48,6 +48,8 @@ Package: open-vm-tools-dev
 Section: devel
 Architecture: all
 Depends: ${misc:Depends}
+Breaks: open-vm-tools (<< 2:9.10.2-2822639-2~)
+Replaces: open-vm-tools (<< 2:9.10.2-2822639-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (development)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source
  implementation of VMware Tools. It is a suite of virtualization utilities and

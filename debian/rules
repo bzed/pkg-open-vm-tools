@@ -55,6 +55,14 @@ override_dh_auto_install:
 	# open-vm-tools-dev
 	mkdir -p debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
 	mv debian/open-vm-tools/usr/share/doc/open-vm-tools/api debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
+	mkdir -p debian/open-vm-tools-dev/usr/lib
+	mv \
+	    debian/open-vm-tools/usr/lib/*.a \
+	    debian/open-vm-tools/usr/lib/*.so \
+	    debian/open-vm-tools/usr/lib/pkgconfig \
+	    debian/open-vm-tools-dev/usr/lib
+	mv debian/open-vm-tools/usr/include debian/open-vm-tools-dev/usr
+
 
 	# open-vm-tools-dkms
 	mkdir -p debian/open-vm-tools-dkms/usr/src
