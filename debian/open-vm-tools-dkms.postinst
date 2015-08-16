@@ -11,7 +11,7 @@ case "${1}" in
 			update-initramfs -u
 		fi
 
-		if [ -x /sbin/udevadm ]
+		if which udevadm 1>/dev/null
 		then
 			udevadm trigger
 		fi
