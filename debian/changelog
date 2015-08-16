@@ -1,3 +1,9 @@
+open-vm-tools (2:9.10.2-2822639-3) unstable; urgency=medium
+
+  * [41f90f1] Make open-vm-tools-dev amd64/i386 instead of all.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 16 Aug 2015 17:51:24 +0200
+
 open-vm-tools (2:9.10.2-2822639-2) unstable; urgency=medium
 
   * [6537e76] Update package version in dkms file.
