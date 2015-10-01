@@ -2,7 +2,3 @@ debian/0001-kvers.patch
 debian/pam-use-common-auth-account
 debian/max_nic_count
 from_arch/0001-Fix-vmxnet-module-on-kernels-3.16.patch
-from_arch/0002-Fix-d_alias-to-d_u.d_alias-for-kernel-3.18.patch
-from_arch/0003-Fix-f_dentry-msghdr-kernel-3.19.patch
-from_arch/0004-Support-backing-dev-info-kernel-4.0.patch
-debian/new_sync_write_4.1_fix
