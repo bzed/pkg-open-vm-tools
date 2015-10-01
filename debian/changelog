@@ -1,3 +1,12 @@
+open-vm-tools (2:10.0.0-3000743-1~1.gbpb0ae43) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @b0ae431255dacfd1d4c08c1a7bedc4ba6a8d96ce **
+
+  * [b0ae431] Merge tag 'upstream/10.0.0-3000743'
+    Upstream version 10.0.0-3000743
+
+ -- Bernd Zeimetz <bernd@bzed.de>  Thu, 01 Oct 2015 15:21:31 +0200
+
 open-vm-tools (2:9.10.2-2822639-3) unstable; urgency=medium
 
   * [41f90f1] Make open-vm-tools-dev amd64/i386 instead of all.
