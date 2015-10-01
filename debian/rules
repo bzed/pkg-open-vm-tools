@@ -98,6 +98,7 @@ override_dh_dkms:
 
 override_dh_fixperms:
 	find debian/open-vm-tools/etc -type f -print0 | xargs -0 chmod ugo-x
+	chmod ug+x debian/open-vm-tools/etc/vmware-tools/scripts/vmware/*
 	dh_fixperms -Xsbin/mount.vmhgfs -Xvmware-user-suid-wrapper
 
 override_dh_strip:
