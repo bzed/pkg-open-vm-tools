@@ -30,7 +30,8 @@ override_dh_auto_configure:
 			--without-kernel-modules \
 			--with-pic \
 			CFLAGS="-fPIC -Wno-deprecated-declarations $(CFLAGS)" \
-			CUSTOM_PROCPS_NAME=procps
+			CUSTOM_PROCPS_NAME=procps \
+			CXXFLAGS='-std=gnu++11'
 
 override_dh_auto_install:
 	dh_auto_install -- DESTDIR=$(CURDIR)/debian/open-vm-tools
