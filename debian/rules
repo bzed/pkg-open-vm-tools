@@ -79,6 +79,7 @@ override_dh_auto_install:
 	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmusr debian/open-vm-tools-desktop/usr/lib/open-vm-tools/plugins
 
 	mkdir -p debian/open-vm-tools-desktop/usr/bin
+	mv debian/open-vm-tools/usr/bin/*-fuse debian/open-vm-tools-desktop/usr/bin
 	mv debian/open-vm-tools/usr/bin/vmware-user-suid-wrapper debian/open-vm-tools-desktop/usr/bin
 
 	mkdir -p debian/open-vm-tools-desktop/etc/xdg/autostart
