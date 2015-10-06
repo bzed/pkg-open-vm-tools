@@ -94,6 +94,7 @@ override_dh_dkms:
 	dh_dkms -popen-vm-tools-dkms -V $(VERSION)
 
 override_dh_fixperms:
+	dh_testroot
 	find debian/open-vm-tools/etc -type f -print0 | xargs -0 chmod ugo-x
 	chmod ugo+x debian/open-vm-tools/etc/vmware-tools/scripts/vmware/*
 	chmod ugo+x debian/open-vm-tools/etc/vmware-tools/vm-support
