@@ -1,0 +1,16 @@
+--- a/vmhgfs-fuse/config.c
++++ b/vmhgfs-fuse/config.c
+@@ -349,11 +349,13 @@ SysCompatCheck(char *prog_name)  // IN
+       release = KERNEL_RELEASE(k[0], k[1], k[2]);
+    }
+ 
++/*
+    if (release < KERNEL_RELEASE(4, 0, 0)) {
+       fprintf(stderr, "%s: incompatible kernel version %02d.%02d.%02d\n",
+               __func__, k[0], k[1], k[2]);
+       goto exit;
+    }
++*/
+ 
+    if (!SysCompatIsRegisteredFuse()) {
+       /* Check if FUSE is installed but not loaded yet. */
