@@ -1,11 +1,25 @@
-open-vm-tools (2:10.0.0-3000743-1~1.gbpb0ae43) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @b0ae431255dacfd1d4c08c1a7bedc4ba6a8d96ce **
+open-vm-tools (2:10.0.0-3000743-1) unstable; urgency=medium
 
   * [b0ae431] Merge tag 'upstream/10.0.0-3000743'
     Upstream version 10.0.0-3000743
+    Closes: #797725
+  * [27f0147] Snapshot changelog
+  * [236554b] Refreshing patches.
+  * [711f1e2] Merge remote-tracking branch 'origin/master'
+  * [bfc0ed3] Remove the vmhgfs module and tools.
+  * [6ab9fc7] Move fuse binaries into open-vm-tools-desktop package.
+  * [2617cef] Use -std=gnu++11
+  * [e5e0c1f] ensure dh_fixperms runs as root
+  * [4c57986] Remove paths from maintainer scripts.
+  * [03db1df] Fix dkms destination folder.
+  * [fb5a5a1] Merge branch 'master' of github.com:bzed/pkg-open-vm-tools
+  * [ba55c8a] Work around broken cflags from libsigc++.
+  * [c78bd75] Always use vmhgfs-fuse.
+    We want to avoid the need to patch the module for every new kernel.
+    VMware officially supports vmhgfs-fuse for kernels >= 4.0, but
+    it should just work fine for older kernels. (Closes: #800322)
 
- -- Bernd Zeimetz <bernd@bzed.de>  Thu, 01 Oct 2015 15:21:31 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 25 Oct 2015 08:52:49 +0100
 
 open-vm-tools (2:9.10.2-2822639-3) unstable; urgency=medium
 
