@@ -1,3 +1,9 @@
+open-vm-tools (2:10.0.0-3000743-3) unstable; urgency=medium
+
+  * [8b49d5b] fix open-vm-tools-dkms description
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 31 Oct 2015 23:28:22 +0100
+
 open-vm-tools (2:10.0.0-3000743-2) unstable; urgency=medium
 
   * [e42d6de] Fix dkms config file.
