@@ -1,10 +1,13 @@
 open-vm-tools (2:10.0.0-3000743-2~bpo7+1) wheezy-backports-sloppy; urgency=medium
 
   * Rebuild for wheezy-backports-sloppy.
-  * [683b294b] Add gbp.conf for backports.
-  * [bdabb3e3] Let open-vm-tools-desktop depend on bpo systemd.
+  * [683b294] Add gbp.conf for backports.
+  * [bdabb3e] Let open-vm-tools-desktop depend on bpo systemd.
+  * [dff2ad0] Add --disable-deploypkg as configure flags.
+    Necessary libraries are missing in wheezy.
+  * [a088133] Drop -std=gnu++11 from CXXFLAGS.
 
- -- Bernd Zeimetz <bzed@debian.org>  Sat, 31 Oct 2015 18:16:59 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 31 Oct 2015 18:31:21 +0100
 
 open-vm-tools (2:10.0.0-3000743-2) unstable; urgency=medium
 
