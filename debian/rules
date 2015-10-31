@@ -31,9 +31,7 @@ override_dh_auto_configure:
 			--with-pic \
 			--disable-deploypkg \
 			CFLAGS="-fPIC -Wno-deprecated-declarations $(CFLAGS)" \
-			CUSTOM_PROCPS_NAME=procps \
-			CXXFLAGS='-std=gnu++11'
-	find . -name Makefile -exec sed -i '/.*CPPFLAGS.*/s,-std=c++11,,' '{}' \;
+			CUSTOM_PROCPS_NAME=procps 
 
 override_dh_auto_install:
 	dh_auto_install -- DESTDIR=$(CURDIR)/debian/open-vm-tools
