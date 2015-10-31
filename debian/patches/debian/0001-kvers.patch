@@ -23,17 +23,6 @@ Description: Replacing uname call with KVERS, overwriting seemed not to work.
  
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
---- a/modules/linux/vmhgfs/Makefile
-+++ b/modules/linux/vmhgfs/Makefile
-@@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
- endif
- 
- 
--VM_UNAME = $(shell uname -r)
-+VM_UNAME = $(KVERS)
- 
- # Header directory for the running kernel
- ifdef LINUXINCLUDE
 --- a/modules/linux/vmsync/Makefile
 +++ b/modules/linux/vmsync/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared

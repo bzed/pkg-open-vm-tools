@@ -4,7 +4,7 @@ set -e
 
 case "${1}" in
 	configure)
-		if [ -x /sbin/udevadm ]
+		if which udevadm 1>/dev/null
 		then
 			udevadm trigger
 		fi
