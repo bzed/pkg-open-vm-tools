@@ -1,4 +1,4 @@
-open-vm-tools (2:10.0.0-3000743-2~bpo7+1) wheezy-backports-sloppy; urgency=medium
+open-vm-tools (2:10.0.0-3000743-3~bpo7+1) wheezy-backports-sloppy; urgency=medium
 
   * Rebuild for wheezy-backports-sloppy.
   * [683b294] Add gbp.conf for backports.
@@ -8,6 +8,12 @@ open-vm-tools (2:10.0.0-3000743-2~bpo7+1) wheezy-backports-sloppy; urgency=mediu
   * [a088133] Drop -std=gnu++11 from CXXFLAGS.
 
  -- Bernd Zeimetz <bzed@debian.org>  Sat, 31 Oct 2015 18:31:21 +0100
+
+open-vm-tools (2:10.0.0-3000743-3) unstable; urgency=medium
+
+  * [8b49d5b] fix open-vm-tools-dkms description
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 31 Oct 2015 23:28:22 +0100
 
 open-vm-tools (2:10.0.0-3000743-2) unstable; urgency=medium
 
