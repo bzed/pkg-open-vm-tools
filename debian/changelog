@@ -3,7 +3,7 @@ open-vm-tools (2:10.0.0-3000743-3~bpo8+1) jessie-backports; urgency=medium
   * Rebuild for jessie-backports.
   * Adding debian/gbp.conf for jessie-backports. 
 
- -- Bernd Zeimetz <bzed@debian.org>  Sat, 31 Oct 2015 17:50:24 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 10 Nov 2015 11:52:36 +0100
 
 open-vm-tools (2:10.0.0-3000743-3) unstable; urgency=medium
 
