@@ -1,3 +1,11 @@
+open-vm-tools (2:10.0.5-3227872-1) unstable; urgency=medium
+
+  * [c973a13] Merge tag 'upstream/10.0.5-3227872'
+    Upstream version 10.0.5-3227872
+  * [d10e230] Auto-update version in open-vm-tools-dkms.dkms
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 26 Dec 2015 17:26:52 +0100
+
 open-vm-tools (2:10.0.0-3000743-3) unstable; urgency=medium
 
   * [8b49d5b] fix open-vm-tools-dkms description
