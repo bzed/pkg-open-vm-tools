@@ -69,7 +69,6 @@ open-vm-tools (2:9.10.2-2822639-2) unstable; urgency=medium
   * [16ca60a] Update gbp config header in debian/gbp.conf.
 
  -- Bernd Zeimetz <bzed@debian.org>  Sun, 16 Aug 2015 16:27:27 +0200
->>>>>>> master
 
 open-vm-tools (2:9.10.2-2822639-1) unstable; urgency=medium
 
