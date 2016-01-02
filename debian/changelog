@@ -1,4 +1,4 @@
-open-vm-tools (2:10.0.0-3000743-3~bpo7+1) wheezy-backports-sloppy; urgency=medium
+open-vm-tools (2:10.0.5-3227872-1~bpo7+1) wheezy-backports-sloppy; urgency=medium
 
   * Rebuild for wheezy-backports-sloppy.
   * [683b294] Add gbp.conf for backports.
@@ -7,7 +7,15 @@ open-vm-tools (2:10.0.0-3000743-3~bpo7+1) wheezy-backports-sloppy; urgency=mediu
     Necessary libraries are missing in wheezy.
   * [a088133] Drop -std=gnu++11 from CXXFLAGS.
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 10 Nov 2015 12:07:38 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 02 Jan 2016 15:07:31 +0100
+
+open-vm-tools (2:10.0.5-3227872-1) unstable; urgency=medium
+
+  * [c973a13] Merge tag 'upstream/10.0.5-3227872'
+    Upstream version 10.0.5-3227872
+  * [d10e230] Auto-update version in open-vm-tools-dkms.dkms
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 26 Dec 2015 17:26:52 +0100
 
 open-vm-tools (2:10.0.0-3000743-3) unstable; urgency=medium
 
