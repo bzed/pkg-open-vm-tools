@@ -76,6 +76,9 @@ override_dh_auto_install:
 	rm -f debian/open-vm-tools/usr/lib/open-vm-tools/plugins/*/*.la
 	rm -rf debian/open-vm-tools/usr/share/open-vm-tools/tests
 
+	# mount(8) calls the program as /sbin/mount.vmhgfs
+	mv debian/open-vm-tools/usr/sbin/mount.vmhgfs debian/open-vm-tools/sbin/
+
 	# moving open-vm-tools-desktop files
 	mkdir -p debian/open-vm-tools-desktop/usr/lib/open-vm-tools/plugins
 	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmusr debian/open-vm-tools-desktop/usr/lib/open-vm-tools/plugins
