@@ -1,3 +1,11 @@
+open-vm-tools (2:10.0.5-3227872-2) unstable; urgency=medium
+
+  * [da26597] Merge pull request #3 from rfc1036/usrmerge.
+    Move mount.vmhgfs to /sbin/
+    Closes: #810274
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 16 Jan 2016 15:27:14 +0100
+
 open-vm-tools (2:10.0.5-3227872-1) unstable; urgency=medium
 
   * [c973a13] Merge tag 'upstream/10.0.5-3227872'
