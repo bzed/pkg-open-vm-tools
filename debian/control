@@ -16,8 +16,10 @@ Vcs-Browser: https://github.com/bzed/pkg-open-vm-tools
 Package: open-vm-tools
 Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Recommends: ethtool, zerofree
+Recommends: ethtool, zerofree, fuse
 Suggests: open-vm-tools-desktop
+Breaks: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
+Replaces: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source
  implementation of VMware Tools. It is a suite of virtualization utilities and
