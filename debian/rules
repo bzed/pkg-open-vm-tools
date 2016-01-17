@@ -111,9 +111,6 @@ override_dh_fixperms:
 
 	dh_fixperms -Xvmware-user-suid-wrapper
 
-override_dh_strip:
-	dh_strip --dbg-package=open-vm-tools-dbg
-
 override_dh_systemd_start:
 	dh_systemd_start
 	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper

@@ -60,18 +60,6 @@ Description: Open VMware Tools for virtual machines hosted on VMware (developmen
  .
  This package contains the development files.
 
-Package: open-vm-tools-dbg
-Section: debug
-Architecture: amd64 i386
-Depends: ${misc:Depends}, open-vm-tools (= ${binary:Version}), open-vm-tools-desktop (= ${binary:Version})
-Description: Open VMware Tools for virtual machines hosted on VMware (debug)
- The Open Virtual Machine Tools (open-vm-tools) project is an open source
- implementation of VMware Tools. It is a suite of virtualization utilities and
- drivers to improve the functionality, user experience and administration of
- VMware virtual machines.
- .
- This package contains the debugging symbols.
-
 Package: open-vm-tools-dkms
 Architecture: all
 Section: kernel
