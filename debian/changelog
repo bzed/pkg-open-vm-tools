@@ -1,17 +1,12 @@
-open-vm-tools (2:10.0.7-3227872-1~1.gbp806e1e) UNRELEASED; urgency=medium
+open-vm-tools (2:10.0.7-3227872-1) unstable; urgency=medium
 
-  ** SNAPSHOT build @806e1e9dd4457c6761a9a5580ab19e02da5ff557 **
-
-  * [a4458f2] Move vmhgfs-fuse to open-vm-tools.
-    As suggested by Sebastian Krause: vmhgfs-fuse is useful on server
-    installations by mounting it from fstab, without having GTK installed.
   * [537ed0a] Drop -dbg package.
     Creating debug packages is handled by dh_strip automatically.
   * [3bef19a] Updating debian/watch to use github.
   * [806e1e9] Merge tag 'upstream/10.0.7-3227872'
     Upstream version 10.0.7-3227872
 
- -- Bernd Zeimetz <bernd@bzed.de>  Wed, 16 Mar 2016 14:24:51 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 23 Mar 2016 14:30:13 +0100
 
 open-vm-tools (2:10.0.5-3227872-2) unstable; urgency=medium
 
