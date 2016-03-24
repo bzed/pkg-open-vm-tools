@@ -91,6 +91,11 @@ override_dh_auto_install:
 	mv debian/open-vm-tools/etc/xdg/autostart/vmware-user.desktop debian/open-vm-tools-desktop/etc/xdg/autostart
 	rm -rf debian/open-vm-tools/etc/xdg
 
+	# fix dkms folder, upstream fails on it sometimes...
+	if ! test -d debian/open-vm-tools-dkms/usr/src/open-vm-tools-$(VERSION); then \
+	    mv debian/open-vm-tools-dkms/usr/src/open-vm-tools-* debian/open-vm-tools-dkms/usr/src/open-vm-tools-$(VERSION) ; \
+	fi
+
 override_dh_builddeb:
 	dh_builddeb -- -Zxz
 
