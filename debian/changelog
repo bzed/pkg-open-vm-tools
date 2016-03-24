@@ -1,3 +1,13 @@
+open-vm-tools (2:10.0.7-3227872-2) unstable; urgency=medium
+
+  * [f2f4971] Work around wrong dkms versions.
+  * [1be403b] Move vmhgfs-fuse to open-vm-tools.
+    As suggested by various people: vmhgfs-fuse is useful on server
+    installations by mounting it from fstab, without having GTK installed.
+    This closes bzed/pkg-open-vm-tools#4
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 24 Mar 2016 07:13:23 +0100
+
 open-vm-tools (2:10.0.7-3227872-1) unstable; urgency=medium
 
   * [537ed0a] Drop -dbg package.
