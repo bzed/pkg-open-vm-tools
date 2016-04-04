@@ -75,17 +75,24 @@ override_dh_auto_install:
 	rm -f debian/open-vm-tools/usr/lib/open-vm-tools/plugins/*/*.la
 	rm -rf debian/open-vm-tools/usr/share/open-vm-tools/tests
 
+	# mount(8) calls the program as /sbin/mount.vmhgfs
+	mv debian/open-vm-tools/usr/sbin/mount.vmhgfs debian/open-vm-tools/sbin/
+
 	# moving open-vm-tools-desktop files
 	mkdir -p debian/open-vm-tools-desktop/usr/lib/open-vm-tools/plugins
 	mv debian/open-vm-tools/usr/lib/open-vm-tools/plugins/vmusr debian/open-vm-tools-desktop/usr/lib/open-vm-tools/plugins
 
 	mkdir -p debian/open-vm-tools-desktop/usr/bin
-	mv debian/open-vm-tools/usr/bin/*-fuse debian/open-vm-tools-desktop/usr/bin
 	mv debian/open-vm-tools/usr/bin/vmware-user-suid-wrapper debian/open-vm-tools-desktop/usr/bin
 
 	mkdir -p debian/open-vm-tools-desktop/etc/xdg/autostart
 	mv debian/open-vm-tools/etc/xdg/autostart/vmware-user.desktop debian/open-vm-tools-desktop/etc/xdg/autostart
 	rm -rf debian/open-vm-tools/etc/xdg
+
+	# fix dkms folder, upstream fails on it sometimes...
+	if ! test -d debian/open-vm-tools-dkms/usr/src/open-vm-tools-$(VERSION); then \
+	    mv debian/open-vm-tools-dkms/usr/src/open-vm-tools-* debian/open-vm-tools-dkms/usr/src/open-vm-tools-$(VERSION) ; \
+	fi
 
 override_dh_builddeb:
 	dh_builddeb -- -Zxz
@@ -102,9 +109,6 @@ override_dh_fixperms:
 	chmod ugo+x debian/open-vm-tools/etc/vmware-tools/*-vm-default
 
 	dh_fixperms -Xvmware-user-suid-wrapper
-
-override_dh_strip:
-	dh_strip --dbg-package=open-vm-tools-dbg
 
 override_dh_systemd_start:
 	dh_systemd_start
