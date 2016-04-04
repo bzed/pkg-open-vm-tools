@@ -1,9 +1,37 @@
-open-vm-tools (2:10.0.5-3227872-1~bpo8+1) jessie-backports; urgency=medium
+open-vm-tools (2:10.0.7-3227872-2~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
   * Adding debian/gbp.conf for jessie-backports. 
 
- -- Bernd Zeimetz <bzed@debian.org>  Sat, 02 Jan 2016 14:36:42 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 Apr 2016 19:32:53 +0200
+
+open-vm-tools (2:10.0.7-3227872-2) unstable; urgency=medium
+
+  * [f2f4971] Work around wrong dkms versions.
+  * [1be403b] Move vmhgfs-fuse to open-vm-tools.
+    As suggested by various people: vmhgfs-fuse is useful on server
+    installations by mounting it from fstab, without having GTK installed.
+    This closes bzed/pkg-open-vm-tools#4
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 24 Mar 2016 07:13:23 +0100
+
+open-vm-tools (2:10.0.7-3227872-1) unstable; urgency=medium
+
+  * [537ed0a] Drop -dbg package.
+    Creating debug packages is handled by dh_strip automatically.
+  * [3bef19a] Updating debian/watch to use github.
+  * [806e1e9] Merge tag 'upstream/10.0.7-3227872'
+    Upstream version 10.0.7-3227872
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 23 Mar 2016 14:30:13 +0100
+
+open-vm-tools (2:10.0.5-3227872-2) unstable; urgency=medium
+
+  * [da26597] Merge pull request #3 from rfc1036/usrmerge.
+    Move mount.vmhgfs to /sbin/
+    Closes: #810274
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 16 Jan 2016 15:27:14 +0100
 
 open-vm-tools (2:10.0.5-3227872-1) unstable; urgency=medium
 
