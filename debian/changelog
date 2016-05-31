@@ -1,3 +1,10 @@
+open-vm-tools (2:10.0.7-3227872-3) unstable; urgency=medium
+
+  * [5060f42] Notify vmware when removing open-vm-tools.
+    Thanks to Yanhui He (Closes: #825810)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 31 May 2016 11:15:30 +0200
+
 open-vm-tools (2:10.0.7-3227872-2) unstable; urgency=medium
 
   * [f2f4971] Work around wrong dkms versions.
