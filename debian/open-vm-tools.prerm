@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+
+# let debhelper stop the service first...
+
+#DEBHELPER#
+
+# then notify vmware about it
+
+if [ -x /usr/bin/vmware-checkvm -a -x /usr/bin/vmware-checkvm ]; then
+    if vmware-checkvm &>/dev/null; then
+        vmware-rpctool 'tools.set.version 0' &> /dev/null || /bin/true
+    fi
+fi
+
+exit 0
