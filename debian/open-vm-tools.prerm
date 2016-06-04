@@ -8,7 +8,7 @@ set -e
 
 # then notify vmware about it
 
-if [ -x /usr/bin/vmware-checkvm -a -x /usr/bin/vmware-checkvm ]; then
+if which vmware-checkvm 1>/dev/null && which vmware-rpctool 1>/dev/null; then
     if vmware-checkvm &>/dev/null; then
         vmware-rpctool 'tools.set.version 0' &> /dev/null || /bin/true
     fi
