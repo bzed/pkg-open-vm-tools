@@ -1,4 +1,4 @@
-open-vm-tools (2:10.0.7-3227872-2~bpo7+1) wheezy-backports-sloppy; urgency=medium
+open-vm-tools (2:10.0.7-3227872-4~bpo7+1) wheezy-backports-sloppy; urgency=medium
 
   * Rebuild for wheezy-backports-sloppy.
   * [683b294] Add gbp.conf for backports.
@@ -7,7 +7,20 @@ open-vm-tools (2:10.0.7-3227872-2~bpo7+1) wheezy-backports-sloppy; urgency=mediu
     Necessary libraries are missing in wheezy.
   * [a088133] Drop -std=gnu++11 from CXXFLAGS.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 Apr 2016 19:42:35 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 11 Jun 2016 08:48:51 +0200
+
+open-vm-tools (2:10.0.7-3227872-4) unstable; urgency=medium
+
+  * [007eacb] Better check for availability of vmware-checkvm and -rpctool.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 04 Jun 2016 07:31:17 +0200
+
+open-vm-tools (2:10.0.7-3227872-3) unstable; urgency=medium
+
+  * [5060f42] Notify vmware when removing open-vm-tools.
+    Thanks to Yanhui He (Closes: #825810)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 31 May 2016 11:15:30 +0200
 
 open-vm-tools (2:10.0.7-3227872-2) unstable; urgency=medium
 
