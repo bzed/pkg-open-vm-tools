@@ -13,10 +13,10 @@ Fixes: https://bugzilla.redhat.com/show_bug.cgi?id=1305108
  open-vm-tools/libDeployPkg/linuxDeployment.c | 13 +++++++++----
  2 files changed, 10 insertions(+), 5 deletions(-)
 
-diff --git a/open-vm-tools/lib/include/x86cpuid.h b/open-vm-tools/lib/include/x86cpuid.h
+diff --git a/lib/include/x86cpuid.h b/open-vm-tools/lib/include/x86cpuid.h
 index 161a8ac..f57099f 100644
---- a/open-vm-tools/lib/include/x86cpuid.h
-+++ b/open-vm-tools/lib/include/x86cpuid.h
+--- a/lib/include/x86cpuid.h
++++ b/lib/include/x86cpuid.h
 @@ -909,7 +909,7 @@ FIELD(81E,  0, ECX,  8,  3, NODES_PER_PKG,                         NA,  FALSE)
   * Note: The MASK definitions must use some gymnastics to get
   * around a warning when shifting left by 32.
@@ -26,10 +26,10 @@ index 161a8ac..f57099f 100644
  
  #define FIELD(lvl, ecxIn, reg, bitpos, size, name, s, c3)      \
     CPUID_##name##_SHIFT        = bitpos,                       \
-diff --git a/open-vm-tools/libDeployPkg/linuxDeployment.c b/open-vm-tools/libDeployPkg/linuxDeployment.c
+diff --git a/libDeployPkg/linuxDeployment.c b/open-vm-tools/libDeployPkg/linuxDeployment.c
 index 951258e..48b8db2 100644
---- a/open-vm-tools/libDeployPkg/linuxDeployment.c
-+++ b/open-vm-tools/libDeployPkg/linuxDeployment.c
+--- a/libDeployPkg/linuxDeployment.c
++++ b/libDeployPkg/linuxDeployment.c
 @@ -67,7 +67,6 @@
   * Constant definitions
   */
