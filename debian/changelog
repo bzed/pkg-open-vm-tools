@@ -1,3 +1,16 @@
+open-vm-tools (2:10.0.7-3227872-4.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+
+  [ Bernd Zeimetz ]
+  * [0176637] Recommend lsb_release for consistent hostinfo.
+
+  [ Raphaël Hertzog ]
+  * [257c90b] Fix build failure with GCC 6.
+    Thanks to Paul Wise for the patch. (Closes: #812046)
+
+ -- Raphaël Hertzog <hertzog@debian.org>  Thu, 21 Jul 2016 17:24:34 +0200
+
 open-vm-tools (2:10.0.7-3227872-4) unstable; urgency=medium
 
   * [007eacb] Better check for availability of vmware-checkvm and -rpctool.

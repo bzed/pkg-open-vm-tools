@@ -3,3 +3,4 @@ debian/pam-use-common-auth-account
 debian/max_nic_count
 from_arch/0001-Fix-vmxnet-module-on-kernels-3.16.patch
 debian/enable_vmhgfs-fuse_by_default
+debian/Fix-build-failure-with-GCC-6.patch
