@@ -1,2 +1,2 @@
 compression = xz
-extend-diff-ignore = "^\.travis\.yml$"
+extend-diff-ignore = '^\.travis\.yml$'
