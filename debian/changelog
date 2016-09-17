@@ -1,3 +1,11 @@
+open-vm-tools (2:10.0.7-3227872-5) unstable; urgency=medium
+
+  * [9295c22] Add .travis.yml from http://travis.debian.net.
+  * [af7da59] Fix building the vmxnet module for kernel 4.7.
+    Thanks to Hilmar Preuße (Closes: #836915)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 17 Sep 2016 23:26:58 +0200
+
 open-vm-tools (2:10.0.7-3227872-4.1) unstable; urgency=medium
 
   * Non-maintainer upload.
