@@ -3,21 +3,20 @@
 set -e
 
 case "${1}" in
-	configure)
-		if which udevadm 1>/dev/null
-		then
-			udevadm trigger
-		fi
-		;;
+    configure)
+        if which udevadm 1>/dev/null; then
+            udevadm trigger
+        fi
+        ;;
 
-	abort-upgrade|abort-remove|abort-deconfigure)
+    abort-upgrade|abort-remove|abort-deconfigure)
 
-		;;
+        ;;
 
-	*)
-		echo "postinst called with unknown argument \`${1}'" >&2
-		exit 1
-		;;
+    *)
+        echo "postinst called with unknown argument \`${1}'" >&2
+        exit 1
+        ;;
 esac
 
 #DEBHELPER#
