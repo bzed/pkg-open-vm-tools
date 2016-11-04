@@ -1,2 +1,1 @@
-compression = xz
 extend-diff-ignore = '^\.travis\.yml$'
