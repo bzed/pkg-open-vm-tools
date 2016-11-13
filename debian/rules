@@ -17,7 +17,7 @@ override_dh_autoreconf:
 	dh_autoreconf --sourcedirectory=open-vm-tools
 
 override_dh_autoreconf_clean:
-	dh_autoreconf_clean --sourcedirectory=open-vm-tools
+	dh_autoreconf_clean 
 	set -e ;\
 	    cd open-vm-tools ; \
 	    if [ -f configure.ac.autoreconf ]; then \
