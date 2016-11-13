@@ -119,3 +119,6 @@ override_dh_systemd_start:
 	dh_systemd_start
 	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
 
+override_dh_installchangelogs:
+	dh_installchangelogs ReleaseNotes.md
+
