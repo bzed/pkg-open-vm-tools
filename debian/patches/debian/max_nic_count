@@ -1,5 +1,5 @@
---- a/lib/guestRpc/nicinfo.x
-+++ b/lib/guestRpc/nicinfo.x
+--- a/open-vm-tools/lib/guestRpc/nicinfo.x
++++ b/open-vm-tools/lib/guestRpc/nicinfo.x
 @@ -39,7 +39,7 @@ enum NicInfoVersion {
   */
  const NICINFO_MAX_IP_LEN   = 64;
