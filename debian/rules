@@ -71,7 +71,7 @@ override_dh_auto_install:
 
 	# open-vm-tools-dkms
 	mkdir -p debian/open-vm-tools-dkms/usr/src
-	sh open-vm-tools/modules/linux/dkms.sh . debian/open-vm-tools-dkms/usr/src
+	cd open-vm-tools && sh modules/linux/dkms.sh . ../debian/open-vm-tools-dkms/usr/src
 	find debian/open-vm-tools-dkms/usr/src -name COPYING | xargs rm -f
 	find debian/open-vm-tools-dkms/usr/src -name "Makefile*" | xargs chmod 0755
 
