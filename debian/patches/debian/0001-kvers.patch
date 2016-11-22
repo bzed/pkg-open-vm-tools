@@ -1,8 +1,8 @@
 Author: Cyril Brulebois <cyril.brulebois@enst-bretagne.fr>
 Description: Replacing uname call with KVERS, overwriting seemed not to work.
 
---- a/modules/linux/vmblock/Makefile
-+++ b/modules/linux/vmblock/Makefile
+--- a/open-vm-tools/modules/linux/vmblock/Makefile
++++ b/open-vm-tools/modules/linux/vmblock/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -12,8 +12,8 @@ Description: Replacing uname call with KVERS, overwriting seemed not to work.
  
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
---- a/modules/linux/vmci/Makefile
-+++ b/modules/linux/vmci/Makefile
+--- a/open-vm-tools/modules/linux/vmci/Makefile
++++ b/open-vm-tools/modules/linux/vmci/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -23,8 +23,8 @@ Description: Replacing uname call with KVERS, overwriting seemed not to work.
  
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
---- a/modules/linux/vmsync/Makefile
-+++ b/modules/linux/vmsync/Makefile
+--- a/open-vm-tools/modules/linux/vmsync/Makefile
++++ b/open-vm-tools/modules/linux/vmsync/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -34,8 +34,8 @@ Description: Replacing uname call with KVERS, overwriting seemed not to work.
  
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
---- a/modules/linux/vmxnet/Makefile
-+++ b/modules/linux/vmxnet/Makefile
+--- a/open-vm-tools/modules/linux/vmxnet/Makefile
++++ b/open-vm-tools/modules/linux/vmxnet/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  
@@ -45,8 +45,8 @@ Description: Replacing uname call with KVERS, overwriting seemed not to work.
  
  # Header directory for the running kernel
  ifdef LINUXINCLUDE
---- a/modules/linux/vsock/Makefile
-+++ b/modules/linux/vsock/Makefile
+--- a/open-vm-tools/modules/linux/vsock/Makefile
++++ b/open-vm-tools/modules/linux/vsock/Makefile
 @@ -43,7 +43,7 @@ INCLUDE      += -I$(SRCROOT)/shared
  endif
  

@@ -1,5 +1,5 @@
---- a/vmhgfs-fuse/config.c
-+++ b/vmhgfs-fuse/config.c
+--- a/open-vm-tools/vmhgfs-fuse/config.c
++++ b/open-vm-tools/vmhgfs-fuse/config.c
 @@ -349,11 +349,13 @@ SysCompatCheck(char *prog_name)  // IN
        release = KERNEL_RELEASE(k[0], k[1], k[2]);
     }

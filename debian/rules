@@ -2,29 +2,33 @@
 
 VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:||' -e 's|-.*$$||')
 
-UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' configure.ac | sed 's,.*=",,;s,",,'))
+UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' open-vm-tools/configure.ac | sed 's,.*=",,;s,",,'))
 
 %:
-	dh ${@} --with autotools_dev,dkms,autoreconf,systemd
+	dh ${@} --with autotools_dev,dkms,autoreconf,systemd --sourcedirectory=open-vm-tools
 
 override_dh_autoreconf:
-	cp configure.ac configure.ac.autoreconf
-	cp modules/linux/dkms.sh modules/linux/dkms.sh.autoreconf
-	sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' configure.ac
-	sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' modules/linux/dkms.sh
-	dh_autoreconf
+	set -e; \
+	    cd open-vm-tools ; \
+	    cp configure.ac configure.ac.autoreconf ; \
+	    cp modules/linux/dkms.sh modules/linux/dkms.sh.autoreconf ;\
+	    sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' configure.ac ;\
+	    sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' modules/linux/dkms.sh
+	dh_autoreconf --sourcedirectory=open-vm-tools
 
 override_dh_autoreconf_clean:
-	dh_autoreconf_clean
-	if [ -f configure.ac.autoreconf ]; then \
-	    mv configure.ac.autoreconf configure.ac ;\
-	fi
-	if [ -f modules/linux/dkms.sh.autoreconf ]; then \
-	    mv modules/linux/dkms.sh.autoreconf modules/linux/dkms.sh ;\
-	fi
+	dh_autoreconf_clean 
+	set -e ;\
+	    cd open-vm-tools ; \
+	    if [ -f configure.ac.autoreconf ]; then \
+	        mv configure.ac.autoreconf configure.ac ;\
+	    fi ;\
+	    if [ -f modules/linux/dkms.sh.autoreconf ]; then \
+	        mv modules/linux/dkms.sh.autoreconf modules/linux/dkms.sh ;\
+	    fi
 
 override_dh_auto_configure:
-	dh_auto_configure -- \
+	dh_auto_configure --sourcedirectory=open-vm-tools -- \
 			--prefix=/usr \
 			--libdir=\$${prefix}/lib \
 			--without-kernel-modules \
@@ -34,7 +38,7 @@ override_dh_auto_configure:
 			CUSTOM_PROCPS_NAME=procps 
 
 override_dh_auto_install:
-	dh_auto_install -- DESTDIR=$(CURDIR)/debian/open-vm-tools
+	dh_auto_install --sourcedirectory=open-vm-tools -- DESTDIR=$(CURDIR)/debian/open-vm-tools
 
 	if [ -e debian/open-vm-tools/etc/pam.d/vmtoolsd-x64 ]; \
 	then \
@@ -66,7 +70,7 @@ override_dh_auto_install:
 
 	# open-vm-tools-dkms
 	mkdir -p debian/open-vm-tools-dkms/usr/src
-	sh modules/linux/dkms.sh . debian/open-vm-tools-dkms/usr/src
+	cd open-vm-tools && sh modules/linux/dkms.sh . ../debian/open-vm-tools-dkms/usr/src
 	find debian/open-vm-tools-dkms/usr/src -name COPYING | xargs rm -f
 	find debian/open-vm-tools-dkms/usr/src -name "Makefile*" | xargs chmod 0755
 
@@ -113,4 +117,12 @@ override_dh_fixperms:
 override_dh_systemd_start:
 	dh_systemd_start
 	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
+
+override_dh_installchangelogs:
+	dh_installchangelogs ReleaseNotes.md
+
+override_dh_md5sums:
+	dh_md5sums
+	# remove broken \ escaping from md5sums
+	sed -i 's,^\\,,' debian/open-vm-tools-desktop/DEBIAN/md5sums
 
