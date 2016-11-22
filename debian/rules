@@ -14,7 +14,7 @@ override_dh_autoreconf:
 	    cp modules/linux/dkms.sh modules/linux/dkms.sh.autoreconf ;\
 	    sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' configure.ac ;\
 	    sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' modules/linux/dkms.sh
-	dh_autoreconf --sourcedirectory=open-vm-tools
+	dh_autoreconf
 
 override_dh_autoreconf_clean:
 	dh_autoreconf_clean 
