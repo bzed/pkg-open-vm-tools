@@ -1,9 +1,48 @@
-open-vm-tools (2:10.0.7-3227872-4~bpo8+1) jessie-backports; urgency=medium
+open-vm-tools (2:10.1.0-4449150-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
   * Adding debian/gbp.conf for jessie-backports. 
 
  -- Bernd Zeimetz <bzed@debian.org>  Sat, 11 Jun 2016 08:29:42 +0200
+
+open-vm-tools (2:10.1.0-4449150-1) unstable; urgency=medium
+
+  * [72150f0] Merge tag 'upstream/10.1.0-4449150'
+    Upstream version 10.1.0-4449150
+  * [d4743dd] Bump dh compat level to 10.
+  * [acce982] Handle open-vm-tools subdirectory as shipped by upstream.
+  * [9047555] Install upstream changelog.
+  * [fafb845] Remove extra \ from md5sums file.
+    See #843163
+    dpkg: -V fails on files with \ in the name
+    for details.
+  * [1455af1] Refreshing patches.
+  * [776971c] dh_autoreconf_clean doesn't need --sourcedirectory.
+  * [d50714b] Stay with libssl1.0 for now. (Closes: #828476)
+  * [a0c6696] Fix dkms.sh call for new directory structure.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 16 Nov 2016 03:35:44 +0100
+
+open-vm-tools (2:10.0.7-3227872-5) unstable; urgency=medium
+
+  * [9295c22] Add .travis.yml from http://travis.debian.net.
+  * [af7da59] Fix building the vmxnet module for kernel 4.7.
+    Thanks to Hilmar Preuße (Closes: #836915)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 17 Sep 2016 23:26:58 +0200
+
+open-vm-tools (2:10.0.7-3227872-4.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+
+  [ Bernd Zeimetz ]
+  * [0176637] Recommend lsb_release for consistent hostinfo.
+
+  [ Raphaël Hertzog ]
+  * [257c90b] Fix build failure with GCC 6.
+    Thanks to Paul Wise for the patch. (Closes: #812046)
+
+ -- Raphaël Hertzog <hertzog@debian.org>  Thu, 21 Jul 2016 17:24:34 +0200
 
 open-vm-tools (2:10.0.7-3227872-4) unstable; urgency=medium
 

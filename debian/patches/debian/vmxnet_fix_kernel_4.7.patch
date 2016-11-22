@@ -1,0 +1,14 @@
+--- a/open-vm-tools/modules/linux/vmxnet/vmxnet.c
++++ b/open-vm-tools/modules/linux/vmxnet/vmxnet.c
+@@ -2468,7 +2468,11 @@ vmxnet_tx(struct sk_buff *skb, struct ne
+       status = VMXNET_CALL_TRANSMIT;
+    }
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+    dev->trans_start = jiffies;
++#else
++   netif_trans_update(dev);
++#endif   
+ 
+    lp->stats.tx_packets++;
+    dd->stats.pktsTransmitted++;
