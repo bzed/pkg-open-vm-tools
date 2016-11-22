@@ -7,8 +7,11 @@ open-vm-tools (2:10.1.0-4449150-1~bpo7+1) wheezy-backports-sloppy; urgency=mediu
     Necessary libraries are missing in wheezy.
   * [a088133] Drop -std=gnu++11 from CXXFLAGS.
   * Revert "Stay with libssl1.0 for now."
+  * Avoid --sourcedirectory on dh_autoreconf call.
+  * Depend on old debhelper version, with the dh_autoreconf changes
+    it is recent enough to build the package.
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 22 Nov 2016 20:35:19 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 22 Nov 2016 20:58:00 +0100
 
 open-vm-tools (2:10.1.0-4449150-1) unstable; urgency=medium
 
