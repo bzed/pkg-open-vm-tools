@@ -1,3 +1,17 @@
+open-vm-tools (2:10.1.0-4449150-2) unstable; urgency=medium
+
+  * [fe8ae94] Stay with .gz as compression.
+  * [afb2f52] Use systemd-detect-virt if available.
+    Use systemd-detect-virt to detect VMware platform because
+    vmware-checkvm might misbehave on non-VMware platforms.
+    (RHBZ#1251656)
+  * [1505d5f] Re-indent files properly.
+  * [1b0b7eb] vm-support script needs lspci from pciutils.
+    (RHBZ#1388766)
+  * [1e2eb34] Make dpkg --verify happy now. (Closes: #847221)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 06 Dec 2016 22:58:30 +0100
+
 open-vm-tools (2:10.1.0-4449150-1) unstable; urgency=medium
 
   * [72150f0] Merge tag 'upstream/10.1.0-4449150'
