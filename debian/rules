@@ -125,5 +125,5 @@ override_dh_installchangelogs:
 override_dh_md5sums:
 	dh_md5sums
 	# remove broken \ escaping from md5sums
-	sed -i 's,^\\,,' debian/open-vm-tools-desktop/DEBIAN/md5sums
+	sed -i -e 's,^\\,,' -e 's,\\\\,\\,' debian/open-vm-tools-desktop/DEBIAN/md5sums
 
