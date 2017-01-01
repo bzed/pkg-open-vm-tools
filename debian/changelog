@@ -1,3 +1,10 @@
+open-vm-tools (2:10.1.0-4449150-3) unstable; urgency=medium
+
+  * [17b04da] Override dh_md5sums for arch-dependent packages only.
+    Thanks to Santiago Vila (Closes: #849876)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 01 Jan 2017 22:11:18 +0100
+
 open-vm-tools (2:10.1.0-4449150-2) unstable; urgency=medium
 
   * [fe8ae94] Stay with .gz as compression.
