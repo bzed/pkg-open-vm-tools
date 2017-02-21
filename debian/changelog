@@ -1,3 +1,23 @@
+open-vm-tools (2:10.1.0-4449150-4) unstable; urgency=medium
+
+  [ Chris Glass ]
+  * [d55b33f] Point the control file's homepage to the new one.
+    The upstream open-vm-tools switched from sourceforge to github. This
+    simply updates the link to reflect that.
+    Signed-off-by: Chris Glass <chris.glass@canonical.com>
+
+  [ Bernd Zeimetz ]
+  * [f44a9a8] Drop duplicate udev rules.
+    Timeouts are set in 99-vmware-scsi-udev.rules now,
+    shipped by upstream.
+    Thanks to Bernhard Schmidt (Closes: #851240)
+  * [21df3fa] Install vgauth.service.
+    vgauth is a service that allows authentication in the guest using SAML
+    tokens. Necessary for guest operations initiated from the vSphere
+    datacenter. (Closes: #855337)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 21 Feb 2017 22:45:06 +0100
+
 open-vm-tools (2:10.1.0-4449150-3) unstable; urgency=medium
 
   * [17b04da] Override dh_md5sums for arch-dependent packages only.
