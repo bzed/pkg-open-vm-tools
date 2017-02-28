@@ -1,3 +1,31 @@
+open-vm-tools (2:10.1.5-5055683-1) unstable; urgency=medium
+
+  * [60d1417] Merge tag 'upstream/10.1.5-5055683'
+    Upstream version 10.1.5-5055683
+    Closes: #856330
+
+    10.1.5 is a point release fixing the following issues:
+    - Authentication failure is reported as unknown general system error.
+      Attempts to authenticate through VGAuth service might result
+      in an authentication-specific error such as an expired account or
+      password. The authentication-specific error might then be incorrectly
+      reported as an unknown general system error, similar to the following:
+      CommunicationException: Failed to create temp file on target
+      <IP_ADDRESS>: A general system error occurred: Unknown error
+
+    - Unable to backup virtual machines with active Docker containers.
+      This bug should not happen in Debian stretch at all, but might
+      be relevant for backports.
+
+    - Fix ISO mappings for CentOS/OracleLinux. Not relevant for Debian
+
+    - Thaw Filesystems if snapshot commit message to VMX fails.
+
+    - Add missing agent configuration files that were accidentally
+      ignored by .gitignore
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 28 Feb 2017 15:54:58 +0100
+
 open-vm-tools (2:10.1.0-4449150-4) unstable; urgency=medium
 
   [ Chris Glass ]
