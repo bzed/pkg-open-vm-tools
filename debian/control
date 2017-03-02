@@ -15,7 +15,7 @@ Vcs-Browser: https://github.com/bzed/pkg-open-vm-tools
 
 Package: open-vm-tools
 Architecture: amd64 i386
-Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils
+Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils, iproute2
 Recommends: ethtool, zerofree, fuse, lsb-release
 Suggests: open-vm-tools-desktop
 Breaks: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
