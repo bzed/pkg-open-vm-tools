@@ -33,6 +33,8 @@ override_dh_auto_configure:
 			--libdir=\$${prefix}/lib \
 			--without-kernel-modules \
 			--with-pic \
+			--without-xmlsecurity \
+			--without-xerces \
 			CFLAGS="-fPIC -Wno-deprecated-declarations $(CFLAGS)" \
 			CUSTOM_PROCPS_NAME=procps \
 			CXXFLAGS='-std=gnu++11'

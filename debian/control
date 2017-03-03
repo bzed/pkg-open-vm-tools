@@ -8,8 +8,8 @@ Build-Depends:
  libicu-dev, libnotify-dev, libpam0g-dev, libprocps-dev, libx11-dev,
  libxinerama-dev, libxss-dev, libxtst-dev, dh-autoreconf, dh-systemd,
  libmspack-dev,
- libssl1.0-dev | libssl-dev,
- libxerces-c-dev, libxml-security-c-dev
+ libssl1.1-dev | libssl-dev,
+ libxmlsec1-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/vmware/open-vm-tools
 Vcs-Git: https://github.com/bzed/pkg-open-vm-tools.git
