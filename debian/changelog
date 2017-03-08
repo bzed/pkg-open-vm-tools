@@ -1,3 +1,14 @@
+open-vm-tools (2:10.1.5-5055683-2) experimental; urgency=medium
+
+  * [651cdfe] Depend on iproute2.
+    Necessary for /etc/vmware-tools/scripts/vmware/network.
+  * [ed95c1d] Depend on libssl1.0-dev | libssl-dev.
+    Thanks to Tiago Daitx (Closes: #856569)
+  * [cfb44de] experimental in gbp.conf
+  * [942e6d7] Build against libxmlsec1 and openssl 1.1
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 03 Mar 2017 22:54:22 +0100
+
 open-vm-tools (2:10.1.5-5055683-1) unstable; urgency=medium
 
   * [60d1417] Merge tag 'upstream/10.1.5-5055683'
