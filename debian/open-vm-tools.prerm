@@ -8,8 +8,14 @@ set -e
 
 # then notify vmware about it
 
-if which vmware-checkvm 1>/dev/null && which vmware-rpctool 1>/dev/null; then
-    if vmware-checkvm &>/dev/null; then
+if which systemd-detect-virt 1>/dev/null; then
+    checktool='systemd-detect-virt'
+else
+    checktool='vmware-checkvm'
+fi
+
+if which ${checktool} 1>/dev/null && which vmware-rpctool 1>/dev/null; then
+    if ${checktool} | grep -iq vmware; then
         vmware-rpctool 'tools.set.version 0' &> /dev/null || /bin/true
     fi
 fi
