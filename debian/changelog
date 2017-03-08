@@ -10,6 +10,7 @@ open-vm-tools (2:10.1.5-5055683-1~bpo7+1) wheezy-backports-sloppy; urgency=mediu
   * Avoid --sourcedirectory on dh_autoreconf call.
   * Depend on old debhelper version, with the dh_autoreconf changes
     it is recent enough to build the package.
+  * [baf1798] Install vgauth init script.
 
  -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Mar 2017 10:29:01 +0100
 
