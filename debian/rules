@@ -131,3 +131,7 @@ override_dh_md5sums-arch:
 	# remove broken \ escaping from md5sums
 	sed -i -e 's,^\\,,' -e 's,\\\\,\\,' debian/open-vm-tools-desktop/DEBIAN/md5sums
 
+override_dh_installinit:
+	dh_installinit
+	dh_installinit -popen-vm-tools --name=vgauth
+
