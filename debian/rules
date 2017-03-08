@@ -115,15 +115,20 @@ override_dh_fixperms:
 
 	dh_fixperms -Xvmware-user-suid-wrapper
 
+override_dh_systemd_enable:
+	dh_systemd_enable -popen-vm-tools
+	dh_systemd_enable -popen-vm-tools --name vgauth
+
 override_dh_systemd_start:
-	dh_systemd_start
+	dh_systemd_start -popen-vm-tools
+	dh_systemd_start -popen-vm-tools --name vgauth
 	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
 
 override_dh_installchangelogs:
 	dh_installchangelogs ReleaseNotes.md
 
-override_dh_md5sums:
+override_dh_md5sums-arch:
 	dh_md5sums
 	# remove broken \ escaping from md5sums
-	sed -i 's,^\\,,' debian/open-vm-tools-desktop/DEBIAN/md5sums
+	sed -i -e 's,^\\,,' -e 's,\\\\,\\,' debian/open-vm-tools-desktop/DEBIAN/md5sums
 

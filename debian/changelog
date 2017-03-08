@@ -1,10 +1,79 @@
-open-vm-tools (2:10.1.0-4449150-1~bpo8+1) jessie-backports; urgency=medium
+open-vm-tools (2:10.1.5-5055683-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
   * Adding debian/gbp.conf for jessie-backports. 
   * Revert "Stay with libssl1.0 for now."
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 22 Nov 2016 20:03:22 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Mar 2017 09:57:06 +0100
+
+open-vm-tools (2:10.1.5-5055683-1) unstable; urgency=medium
+
+  * [60d1417] Merge tag 'upstream/10.1.5-5055683'
+    Upstream version 10.1.5-5055683
+    Closes: #856330
+
+    10.1.5 is a point release fixing the following issues:
+    - Authentication failure is reported as unknown general system error.
+      Attempts to authenticate through VGAuth service might result
+      in an authentication-specific error such as an expired account or
+      password. The authentication-specific error might then be incorrectly
+      reported as an unknown general system error, similar to the following:
+      CommunicationException: Failed to create temp file on target
+      <IP_ADDRESS>: A general system error occurred: Unknown error
+
+    - Unable to backup virtual machines with active Docker containers.
+      This bug should not happen in Debian stretch at all, but might
+      be relevant for backports.
+
+    - Fix ISO mappings for CentOS/OracleLinux. Not relevant for Debian
+
+    - Thaw Filesystems if snapshot commit message to VMX fails.
+
+    - Add missing agent configuration files that were accidentally
+      ignored by .gitignore
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 28 Feb 2017 15:54:58 +0100
+
+open-vm-tools (2:10.1.0-4449150-4) unstable; urgency=medium
+
+  [ Chris Glass ]
+  * [d55b33f] Point the control file's homepage to the new one.
+    The upstream open-vm-tools switched from sourceforge to github. This
+    simply updates the link to reflect that.
+    Signed-off-by: Chris Glass <chris.glass@canonical.com>
+
+  [ Bernd Zeimetz ]
+  * [f44a9a8] Drop duplicate udev rules.
+    Timeouts are set in 99-vmware-scsi-udev.rules now,
+    shipped by upstream.
+    Thanks to Bernhard Schmidt (Closes: #851240)
+  * [21df3fa] Install vgauth.service.
+    vgauth is a service that allows authentication in the guest using SAML
+    tokens. Necessary for guest operations initiated from the vSphere
+    datacenter. (Closes: #855337)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 21 Feb 2017 22:45:06 +0100
+
+open-vm-tools (2:10.1.0-4449150-3) unstable; urgency=medium
+
+  * [17b04da] Override dh_md5sums for arch-dependent packages only.
+    Thanks to Santiago Vila (Closes: #849876)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 01 Jan 2017 22:11:18 +0100
+
+open-vm-tools (2:10.1.0-4449150-2) unstable; urgency=medium
+
+  * [fe8ae94] Stay with .gz as compression.
+  * [afb2f52] Use systemd-detect-virt if available.
+    Use systemd-detect-virt to detect VMware platform because
+    vmware-checkvm might misbehave on non-VMware platforms.
+    (RHBZ#1251656)
+  * [1505d5f] Re-indent files properly.
+  * [1b0b7eb] vm-support script needs lspci from pciutils.
+    (RHBZ#1388766)
+  * [1e2eb34] Make dpkg --verify happy now. (Closes: #847221)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 06 Dec 2016 22:58:30 +0100
 
 open-vm-tools (2:10.1.0-4449150-1) unstable; urgency=medium
 
