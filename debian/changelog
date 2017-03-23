@@ -1,3 +1,15 @@
+open-vm-tools (2:10.1.5-5055683-2) unstable; urgency=medium
+
+  * [651cdfe] Depend on iproute2.
+    Necessary for /etc/vmware-tools/scripts/vmware/network.
+  * [ed95c1d] Depend on libssl1.0-dev | libssl-dev.
+    Thanks to Tiago Daitx (Closes: #856569)
+    Makes building the package in Ubuntu easier.
+  * [2750700] Add o-v-t as dependency of o-v-t-dev.
+    Thanks to Andreas Beckmann (Closes: #858494)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 23 Mar 2017 09:35:16 +0100
+
 open-vm-tools (2:10.1.5-5055683-1) unstable; urgency=medium
 
   * [60d1417] Merge tag 'upstream/10.1.5-5055683'
