@@ -1,3 +1,12 @@
+open-vm-tools (2:10.1.5-5055683-3) unstable; urgency=medium
+
+  * [0aa95b6] Start open-vm-tools before cloud-init-local.service.
+    Required for a working guest customization as reported by VMware.
+    Also add cloud-init to 'Suggests'.
+    Thanks to Sankar Tanguturi (Closes: #859677)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 09 Apr 2017 21:54:21 +0200
+
 open-vm-tools (2:10.1.5-5055683-2) unstable; urgency=medium
 
   * [651cdfe] Depend on iproute2.
