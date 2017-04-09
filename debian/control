@@ -19,7 +19,7 @@ Package: open-vm-tools
 Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils, iproute2
 Recommends: ethtool, zerofree, fuse, lsb-release
-Suggests: open-vm-tools-desktop
+Suggests: open-vm-tools-desktop, cloud-init
 Breaks: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Replaces: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
