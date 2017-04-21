@@ -6,6 +6,7 @@ Before=umount.target
 ConditionVirtualization=vmware
 Requires=sys-fs-fuse-connections.mount
 Wants=open-vm-tools.service
+After=systemd-modules-load.service
 
 [Mount]
 What=vmware-vmblock-fuse

@@ -56,6 +56,7 @@ override_dh_auto_install:
 	install -D -m 0644 debian/local/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
 
 	install -D -m 0644 debian/local/run-vmblock\\x2dfuse.mount debian/open-vm-tools-desktop/lib/systemd/system/run-vmblock\\x2dfuse.mount
+	install -D -m 0644 debian/local/open-vm-tools-desktop.conf debian/open-vm-tools-desktop/usr/lib/modules-load.d/open-vm-tools-desktop.conf
 
 	# open-vm-tools-dev
 	mkdir -p debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
