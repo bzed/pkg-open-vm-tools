@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+# load the fuse module just in case its missing
+if ! lsmod | grep -qE '^fuse\s+'; then
+    modprobe fuse || true
+fi
+
+#DEBHELPER#
+

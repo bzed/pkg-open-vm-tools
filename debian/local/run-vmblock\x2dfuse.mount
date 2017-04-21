@@ -2,11 +2,10 @@
 Description=VMware vmblock fuse mount
 Documentation=https://github.com/vmware/open-vm-tools/blob/master/open-vm-tools/vmblock-fuse/design.txt
 DefaultDependencies=no
-Before=umount.target
+Before=umount.target open-vm-tools.service
 ConditionVirtualization=vmware
-Requires=sys-fs-fuse-connections.mount
+After=sys-fs-fuse-connections.mount
 Wants=open-vm-tools.service
-After=systemd-modules-load.service
 
 [Mount]
 What=vmware-vmblock-fuse
