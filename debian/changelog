@@ -1,3 +1,27 @@
+open-vm-tools (2:10.1.5-5055683-4) unstable; urgency=medium
+
+  * [27689b3] Load the fuse module before mounting /run/vmblock-fuse.
+    Thanks to Norbert Lange (Closes: #860875, #860861)
+  * [008bdde] Don't recommend -dkms for -desktop.
+    The dkms package is clearly not necessary anymore here.
+    Thanks to Oliver Kurth (Closes: #860857)
+  * [ffc37f2] Let -desktop depend on fuse.
+    Mounting fuse filesystems requires mount.fuse - and doing so
+    is required for a working desktop running under VMware.
+  * [cf1f9b3] Ensure /run/vmblock-fuse is mounted properly.
+    - open-vm-tools-desktop.postinst: Add the fuse module if it was
+      not loaded into the kernel before
+    - Handle the mount unit with dh_systemd_*
+    - Ensure /run/vmblock-fuse is mounted before open-vm-tools.service
+      is started.
+  * [1f479db] Do not restart run-vmblock\x2dfuse.mount on upgrades.
+    Restarting won't work if people are using the mountpoint,
+    also it would require to restart vmtoolsd.
+  * Unfortunately mounting the fuse filesystem properly depends
+    on a fix in deb-systemd-invoke, see #861204.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 30 Apr 2017 06:21:41 +0200
+
 open-vm-tools (2:10.1.5-5055683-3) unstable; urgency=medium
 
   * [0aa95b6] Start open-vm-tools before cloud-init-local.service.
