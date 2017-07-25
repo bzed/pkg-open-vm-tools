@@ -1,3 +1,10 @@
+open-vm-tools (2:10.1.5-5055683-5) unstable; urgency=high
+
+  * [dec8df6] Upstream fix for CVE-2015-5191 (Closes: #869633)
+  * [718133e] Enable PrivateTmp for the open-vm-tools.service.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 25 Jul 2017 10:46:40 +0200
+
 open-vm-tools (2:10.1.5-5055683-4) unstable; urgency=medium
 
   * [27689b3] Load the fuse module before mounting /run/vmblock-fuse.
