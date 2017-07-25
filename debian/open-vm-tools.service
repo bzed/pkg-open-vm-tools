@@ -8,6 +8,7 @@ Before=cloud-init-local.service
 [Service]
 ExecStart=/usr/bin/vmtoolsd
 TimeoutStopSec=5
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
