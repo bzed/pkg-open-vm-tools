@@ -1,4 +1,4 @@
-open-vm-tools (2:10.1.5-5055683-6~bpo8+1) jessie-backports-sloppy; urgency=high
+open-vm-tools (2:10.1.5-5055683-5~bpo8+1) jessie-backports-sloppy; urgency=high
 
   * Rebuild for stretch-backports.
   * [ac9c6e5] Add gbp.conf
