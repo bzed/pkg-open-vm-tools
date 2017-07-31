@@ -1,3 +1,9 @@
+open-vm-tools (2:10.1.5-5055683-5~bpo9+1) stretch-backports; urgency=high
+
+  * Rebuild for stretch-backports.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 31 Jul 2017 10:24:15 +0200
+
 open-vm-tools (2:10.1.5-5055683-5) unstable; urgency=high
 
   * [dec8df6] Upstream fix for CVE-2015-5191 (Closes: #869633)
