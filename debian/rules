@@ -55,6 +55,7 @@ override_dh_auto_install:
 	install -D -m 0644 debian/local/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
 
 	install -D -m 0644 debian/local/run-vmblock\\x2dfuse.mount debian/open-vm-tools-desktop/lib/systemd/system/run-vmblock\\x2dfuse.mount
+	install -D -m 0644 debian/local/open-vm-tools-desktop.conf debian/open-vm-tools-desktop/usr/lib/modules-load.d/open-vm-tools-desktop.conf
 
 	# open-vm-tools-dev
 	mkdir -p debian/open-vm-tools-dev/usr/share/doc/open-vm-tools
@@ -117,10 +118,12 @@ override_dh_fixperms:
 override_dh_systemd_enable:
 	dh_systemd_enable -popen-vm-tools
 	dh_systemd_enable -popen-vm-tools --name vgauth
+	dh_systemd_enable -popen-vm-tools-desktop run-vmblock\\x2dfuse.mount
 
 override_dh_systemd_start:
 	dh_systemd_start -popen-vm-tools
 	dh_systemd_start -popen-vm-tools --name vgauth
+	dh_systemd_start -popen-vm-tools-desktop -r --no-restart-after-upgrade run-vmblock\\x2dfuse.mount
 	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
 
 override_dh_installchangelogs:

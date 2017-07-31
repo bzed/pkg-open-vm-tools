@@ -15,9 +15,9 @@ Vcs-Browser: https://github.com/bzed/pkg-open-vm-tools
 
 Package: open-vm-tools
 Architecture: amd64 i386
-Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils
+Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils, iproute2
 Recommends: ethtool, zerofree, fuse, lsb-release
-Suggests: open-vm-tools-desktop
+Suggests: open-vm-tools-desktop, cloud-init
 Breaks: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Replaces: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
@@ -30,12 +30,14 @@ Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
 
 Package: open-vm-tools-desktop
 Architecture: amd64 i386
-Depends: ${misc:Depends}, ${shlibs:Depends}, open-vm-tools (= ${binary:Version})
+Depends: ${misc:Depends}, ${shlibs:Depends},
+ open-vm-tools (= ${binary:Version}),
+ fuse
 Breaks: open-vm-tools (<< 2:10.0.0~)
 Replaces: open-vm-tools (<< 2:10.0.0~)
 Recommends:
- open-vm-tools-dkms, xauth, xserver-xorg-input-vmmouse,
- xserver-xorg-video-vmware, fuse, systemd (>= 204-14~)
+ xauth, xserver-xorg-input-vmmouse,
+ xserver-xorg-video-vmware
 Suggests: xdg-utils
 Description: Open VMware Tools for virtual machines hosted on VMware (GUI)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source
@@ -49,7 +51,7 @@ Description: Open VMware Tools for virtual machines hosted on VMware (GUI)
 Package: open-vm-tools-dev
 Section: devel
 Architecture: amd64 i386
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, open-vm-tools (= ${binary:Version})
 Breaks: open-vm-tools (<< 2:9.10.2-2822639-2~)
 Replaces: open-vm-tools (<< 2:9.10.2-2822639-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (development)

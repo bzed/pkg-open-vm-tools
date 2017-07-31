@@ -3,3 +3,4 @@ debian/pam-use-common-auth-account
 debian/max_nic_count
 debian/enable_vmhgfs-fuse_by_default
 debian/vmxnet_fix_kernel_4.7.patch
+debian/cve-2015-5191.patch
