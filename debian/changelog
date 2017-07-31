@@ -1,10 +1,63 @@
-open-vm-tools (2:10.1.5-5055683-1~bpo8+1) jessie-backports; urgency=medium
+open-vm-tools (2:10.1.5-5055683-6~bpo8+1) jessie-backports; urgency=high
 
-  * Rebuild for jessie-backports.
-  * Adding debian/gbp.conf for jessie-backports. 
-  * Revert "Stay with libssl1.0 for now."
+  * Rebuild for stretch-backports.
+  * [ac9c6e5] Add gbp.conf
+  * [cca5401] Revert "Stay with libssl1.0 for now."
+    This reverts commit d50714b27e07a494be0d29fb81e0a48e7e38435d.
 
- -- Bernd Zeimetz <bzed@debian.org>  Wed, 08 Mar 2017 09:57:06 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 31 Jul 2017 11:33:22 +0200
+
+open-vm-tools (2:10.1.5-5055683-5) unstable; urgency=high
+
+  * [dec8df6] Upstream fix for CVE-2015-5191 (Closes: #869633)
+  * [718133e] Enable PrivateTmp for the open-vm-tools.service.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 25 Jul 2017 10:46:40 +0200
+
+open-vm-tools (2:10.1.5-5055683-4) unstable; urgency=medium
+
+  * [27689b3] Load the fuse module before mounting /run/vmblock-fuse.
+    Thanks to Norbert Lange (Closes: #860875, #860861)
+  * [008bdde] Don't recommend -dkms for -desktop.
+    The dkms package is clearly not necessary anymore here.
+    Thanks to Oliver Kurth (Closes: #860857)
+  * [ffc37f2] Let -desktop depend on fuse.
+    Mounting fuse filesystems requires mount.fuse - and doing so
+    is required for a working desktop running under VMware.
+  * [cf1f9b3] Ensure /run/vmblock-fuse is mounted properly.
+    - open-vm-tools-desktop.postinst: Add the fuse module if it was
+      not loaded into the kernel before
+    - Handle the mount unit with dh_systemd_*
+    - Ensure /run/vmblock-fuse is mounted before open-vm-tools.service
+      is started.
+  * [1f479db] Do not restart run-vmblock\x2dfuse.mount on upgrades.
+    Restarting won't work if people are using the mountpoint,
+    also it would require to restart vmtoolsd.
+  * Unfortunately mounting the fuse filesystem properly depends
+    on a fix in deb-systemd-invoke, see #861204.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 30 Apr 2017 06:21:41 +0200
+
+open-vm-tools (2:10.1.5-5055683-3) unstable; urgency=medium
+
+  * [0aa95b6] Start open-vm-tools before cloud-init-local.service.
+    Required for a working guest customization as reported by VMware.
+    Also add cloud-init to 'Suggests'.
+    Thanks to Sankar Tanguturi (Closes: #859677)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 09 Apr 2017 21:54:21 +0200
+
+open-vm-tools (2:10.1.5-5055683-2) unstable; urgency=medium
+
+  * [651cdfe] Depend on iproute2.
+    Necessary for /etc/vmware-tools/scripts/vmware/network.
+  * [ed95c1d] Depend on libssl1.0-dev | libssl-dev.
+    Thanks to Tiago Daitx (Closes: #856569)
+    Makes building the package in Ubuntu easier.
+  * [2750700] Add o-v-t as dependency of o-v-t-dev.
+    Thanks to Andreas Beckmann (Closes: #858494)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 23 Mar 2017 09:35:16 +0100
 
 open-vm-tools (2:10.1.5-5055683-1) unstable; urgency=medium
 
