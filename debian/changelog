@@ -11,6 +11,9 @@ open-vm-tools (2:10.1.5-5055683-5~bpo7+1) wheezy-backports-sloppy; urgency=mediu
   * Depend on old debhelper version, with the dh_autoreconf changes
     it is recent enough to build the package.
   * [baf1798] Install vgauth init script.
+  * [b18f653] Revert "Do not restart run-vmblock\x2dfuse.mount on
+    upgrades."
+    This reverts commit 1f479db29375fb0c6d05e137d499cc0d3951243d.
 
  -- Bernd Zeimetz <bzed@debian.org>  Mon, 31 Jul 2017 12:27:11 +0200
 
