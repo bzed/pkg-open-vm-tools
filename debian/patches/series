@@ -4,3 +4,4 @@ debian/max_nic_count
 from_arch/0001-Fix-vmxnet-module-on-kernels-3.16.patch
 debian/enable_vmhgfs-fuse_by_default
 debian/vmxnet_fix_kernel_4.7.patch
+debian/scsi-udev-rule
