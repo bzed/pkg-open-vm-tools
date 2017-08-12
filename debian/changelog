@@ -1,3 +1,17 @@
+open-vm-tools (2:10.1.10-1) unstable; urgency=medium
+
+  * Drop the extra part of the version string.
+    Easier to handle in the short variant.
+  * [6be6a49] Updating watch file.
+    Use tags from github.
+  * [8c25235] Updated version 10.1.10 from 'upstream/10.1.10'
+    with Debian dir 3dddea7985f21457b294b5f554d5ecdf32aabfff
+  * [195cead] Refreshing patches.
+    Removing cve-2015-5191.patch as it is part of the upstream release.
+  * [e6b3fd5] Build using libssl-dev and libxmlsec1-dev. (Closes: #859416)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 12 Aug 2017 23:57:40 +0200
+
 open-vm-tools (2:10.1.5-5055683-5) unstable; urgency=high
 
   * [dec8df6] Upstream fix for CVE-2015-5191 (Closes: #869633)
