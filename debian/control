@@ -7,7 +7,9 @@ Build-Depends:
  libdumbnet-dev, libfuse-dev, libgtk2.0-dev, libgtkmm-2.4-dev,
  libicu-dev, libnotify-dev, libpam0g-dev, libprocps-dev, libx11-dev,
  libxinerama-dev, libxss-dev, libxtst-dev, dh-autoreconf, dh-systemd,
- libmspack-dev, libssl-dev, libxerces-c-dev, libxml-security-c-dev
+ libmspack-dev,
+ libssl-dev,
+ libxerces-c-dev, libxml-security-c-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/vmware/open-vm-tools
 Vcs-Git: https://github.com/bzed/pkg-open-vm-tools.git
@@ -15,9 +17,9 @@ Vcs-Browser: https://github.com/bzed/pkg-open-vm-tools
 
 Package: open-vm-tools
 Architecture: amd64 i386
-Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils
+Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils, iproute2
 Recommends: ethtool, zerofree, fuse, lsb-release
-Suggests: open-vm-tools-desktop
+Suggests: open-vm-tools-desktop, cloud-init
 Breaks: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Replaces: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
@@ -30,12 +32,14 @@ Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
 
 Package: open-vm-tools-desktop
 Architecture: amd64 i386
-Depends: ${misc:Depends}, ${shlibs:Depends}, open-vm-tools (= ${binary:Version})
+Depends: ${misc:Depends}, ${shlibs:Depends},
+ open-vm-tools (= ${binary:Version}),
+ fuse
 Breaks: open-vm-tools (<< 2:10.0.0~)
 Replaces: open-vm-tools (<< 2:10.0.0~)
 Recommends:
- open-vm-tools-dkms, xauth, xserver-xorg-input-vmmouse,
- xserver-xorg-video-vmware, fuse
+ xauth, xserver-xorg-input-vmmouse,
+ xserver-xorg-video-vmware
 Suggests: xdg-utils
 Description: Open VMware Tools for virtual machines hosted on VMware (GUI)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source
@@ -49,7 +53,7 @@ Description: Open VMware Tools for virtual machines hosted on VMware (GUI)
 Package: open-vm-tools-dev
 Section: devel
 Architecture: amd64 i386
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, open-vm-tools (= ${binary:Version})
 Breaks: open-vm-tools (<< 2:9.10.2-2822639-2~)
 Replaces: open-vm-tools (<< 2:9.10.2-2822639-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (development)
