@@ -1,3 +1,15 @@
+open-vm-tools (2:10.1.10-2) unstable; urgency=medium
+
+  [ Shota Aratono ]
+  * [5ab87bd] Fix scsi timeout setting error on debian stretch
+  * [c0847eb] Fix attempting change setting to unintentional target
+
+  [ Raphaël Hertzog ]
+  * [dc2e27f] Add patch to support resolution switching with KMS.
+    This is needed for proper support of Wayland sessions. (Closes: #872779)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 29 Aug 2017 23:32:32 +0200
+
 open-vm-tools (2:10.1.10-1) unstable; urgency=medium
 
   * Drop the extra part of the version string.
