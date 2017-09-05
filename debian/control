@@ -9,7 +9,9 @@ Build-Depends:
  libxinerama-dev, libxss-dev, libxtst-dev, dh-autoreconf, dh-systemd,
  libmspack-dev,
  libssl-dev,
- libxerces-c-dev, libxml-security-c-dev
+ libxmlsec1-dev,
+ libudev-dev,
+ libdrm-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/vmware/open-vm-tools
 Vcs-Git: https://github.com/bzed/pkg-open-vm-tools.git

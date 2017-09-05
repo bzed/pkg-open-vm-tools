@@ -1,11 +1,37 @@
 open-vm-tools (2:10.1.5-5055683-5~bpo8+1) jessie-backports-sloppy; urgency=high
 
-  * Rebuild for stretch-backports.
+  * Rebuild for jessie-backports-sloppy.
   * [ac9c6e5] Add gbp.conf
   * [cca5401] Revert "Stay with libssl1.0 for now."
     This reverts commit d50714b27e07a494be0d29fb81e0a48e7e38435d.
 
  -- Bernd Zeimetz <bzed@debian.org>  Mon, 31 Jul 2017 11:33:22 +0200
+
+open-vm-tools (2:10.1.10-2) unstable; urgency=medium
+
+  [ Shota Aratono ]
+  * [5ab87bd] Fix scsi timeout setting error on debian stretch
+  * [c0847eb] Fix attempting change setting to unintentional target
+
+  [ Raphaël Hertzog ]
+  * [dc2e27f] Add patch to support resolution switching with KMS.
+    This is needed for proper support of Wayland sessions. (Closes: #872779)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 29 Aug 2017 23:32:32 +0200
+
+open-vm-tools (2:10.1.10-1) unstable; urgency=medium
+
+  * Drop the extra part of the version string.
+    Easier to handle in the short variant.
+  * [6be6a49] Updating watch file.
+    Use tags from github.
+  * [8c25235] Updated version 10.1.10 from 'upstream/10.1.10'
+    with Debian dir 3dddea7985f21457b294b5f554d5ecdf32aabfff
+  * [195cead] Refreshing patches.
+    Removing cve-2015-5191.patch as it is part of the upstream release.
+  * [e6b3fd5] Build using libssl-dev and libxmlsec1-dev. (Closes: #859416)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 12 Aug 2017 23:57:40 +0200
 
 open-vm-tools (2:10.1.5-5055683-5) unstable; urgency=high
 
