@@ -5,7 +5,7 @@ open-vm-tools (2:10.1.5-5055683-5~bpo8+1) jessie-backports-sloppy; urgency=high
   * [cca5401] Revert "Stay with libssl1.0 for now."
     This reverts commit d50714b27e07a494be0d29fb81e0a48e7e38435d.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 31 Jul 2017 11:33:22 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 05 Sep 2017 14:01:00 +0200
 
 open-vm-tools (2:10.1.10-2) unstable; urgency=medium
 
