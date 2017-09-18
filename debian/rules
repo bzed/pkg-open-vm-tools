@@ -36,7 +36,7 @@ override_dh_auto_configure:
 			--enable-xmlsec1 \
 			CFLAGS="-fPIC -Wno-deprecated-declarations $(CFLAGS)" \
 			CUSTOM_PROCPS_NAME=procps \
-			CXXFLAGS='-std=gnu++11'
+			CXXFLAGS='-std=c++14'
 	find . -name Makefile -exec sed -i '/.*CPPFLAGS.*/s,-std=c++11,,' '{}' \;
 
 override_dh_auto_install:
