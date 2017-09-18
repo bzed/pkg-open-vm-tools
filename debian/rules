@@ -126,6 +126,7 @@ override_dh_systemd_start:
 	dh_systemd_start -popen-vm-tools
 	dh_systemd_start -popen-vm-tools --name vgauth
 	dh_systemd_start -popen-vm-tools-desktop -r --no-restart-after-upgrade run-vmblock\\x2dfuse.mount
+	sed -i 's,run-vmblock\\x2dfuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
 	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
 
 override_dh_installchangelogs:
