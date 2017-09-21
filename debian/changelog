@@ -1,8 +1,21 @@
-open-vm-tools (2:10.1.10-2~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.1.10-3~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 05 Sep 2017 13:57:47 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 21 Sep 2017 13:27:57 +0200
+
+open-vm-tools (2:10.1.10-3) unstable; urgency=medium
+
+  * [00bc9bb] Build with CXXFLAGS=-std=c++14.
+    Thanks to Rene Engelhard and Oliver Kurth (Closes: #876121)
+  * [6b61376] Re-add .travis.yml.
+    Seems it went missing with the last merge.
+  * [bf07ae8] Work around dh_systemd escaping bugs again.
+    Seems the unit escaping changed with a new dh version.
+    Work around the known and reported fails again.
+    Thanks to Christian Ehrhardt (Closes: #875657)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 21 Sep 2017 13:24:08 +0200
 
 open-vm-tools (2:10.1.10-2) unstable; urgency=medium
 
