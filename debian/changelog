@@ -1,11 +1,24 @@
-open-vm-tools (2:10.1.5-5055683-5~bpo8+1) jessie-backports-sloppy; urgency=high
+open-vm-tools (2:10.1.10-3~bpo8+1) jessie-backports-sloppy; urgency=high
 
   * Rebuild for jessie-backports-sloppy.
   * [ac9c6e5] Add gbp.conf
   * [cca5401] Revert "Stay with libssl1.0 for now."
     This reverts commit d50714b27e07a494be0d29fb81e0a48e7e38435d.
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 05 Sep 2017 14:01:00 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 21 Sep 2017 13:28:54 +0200
+
+open-vm-tools (2:10.1.10-3) unstable; urgency=medium
+
+  * [00bc9bb] Build with CXXFLAGS=-std=c++14.
+    Thanks to Rene Engelhard and Oliver Kurth (Closes: #876121)
+  * [6b61376] Re-add .travis.yml.
+    Seems it went missing with the last merge.
+  * [bf07ae8] Work around dh_systemd escaping bugs again.
+    Seems the unit escaping changed with a new dh version.
+    Work around the known and reported fails again.
+    Thanks to Christian Ehrhardt (Closes: #875657)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 21 Sep 2017 13:24:08 +0200
 
 open-vm-tools (2:10.1.10-2) unstable; urgency=medium
 
