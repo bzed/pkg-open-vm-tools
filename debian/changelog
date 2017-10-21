@@ -1,3 +1,12 @@
+open-vm-tools (2:10.1.15-1) unstable; urgency=medium
+
+  * [78a17f1] Remove fixed CXX std setting.
+  * [f96f479] Updated version 10.1.15 from 'upstream/10.1.15'
+    with Debian dir c44394c71e055f4cfd3a15ee578fc9895d64ebb1
+  * [682790b] Refreshing patches.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 21 Oct 2017 15:02:46 +0200
+
 open-vm-tools (2:10.1.10-3) unstable; urgency=medium
 
   * [00bc9bb] Build with CXXFLAGS=-std=c++14.
