@@ -40,8 +40,6 @@ Signed-off-by: Thomas Hellstrom <thellstrom@vmware.com>
  create mode 100644 open-vm-tools/services/plugins/resolutionSet/resolutionDL.c
  create mode 100644 open-vm-tools/services/plugins/resolutionSet/resolutionDL.h
 
-diff --git a/open-vm-tools/configure.ac b/open-vm-tools/configure.ac
-index 7610f55..acc1e4e 100644
 --- a/open-vm-tools/configure.ac
 +++ b/open-vm-tools/configure.ac
 @@ -235,6 +235,14 @@ AC_ARG_ENABLE(
@@ -98,7 +96,7 @@ index 7610f55..acc1e4e 100644
  AM_CONDITIONAL(BUILD_HGFSMOUNTER, test "$buildHgfsmounter" = "yes")
  AM_CONDITIONAL(LINUX, test "$os" = "linux")
  AM_CONDITIONAL(SOLARIS, test "$os" = "solaris")
-@@ -1382,6 +1408,7 @@ AM_CONDITIONAL(ENABLE_CAF, test "$enable_caf" = "yes")
+@@ -1382,6 +1408,7 @@ AM_CONDITIONAL(ENABLE_CAF, test "$enable
  AM_CONDITIONAL(HAVE_VSOCK, test "$os" = "linux")
  AM_CONDITIONAL(HAVE_MKDTEMP, test "$have_mkdtemp" = "yes")
  AM_CONDITIONAL(HAVE_UDEV, test "$have_udev" = "yes")
@@ -122,8 +120,6 @@ index 7610f55..acc1e4e 100644
     services/plugins/timeSync/Makefile  \
     services/plugins/vix/Makefile       \
     services/plugins/vmbackup/Makefile  \
-diff --git a/open-vm-tools/services/plugins/Makefile.am b/open-vm-tools/services/plugins/Makefile.am
-index 5d75718..5deb281 100644
 --- a/open-vm-tools/services/plugins/Makefile.am
 +++ b/open-vm-tools/services/plugins/Makefile.am
 @@ -34,6 +34,14 @@ endif
@@ -141,9 +137,6 @@ index 5d75718..5deb281 100644
  SUBDIRS += timeSync
  SUBDIRS += vix
  SUBDIRS += vmbackup
-diff --git a/open-vm-tools/services/plugins/resolutionKMS/COPYING b/open-vm-tools/services/plugins/resolutionKMS/COPYING
-new file mode 100644
-index 0000000..9c6a6cc
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionKMS/COPYING
 @@ -0,0 +1,502 @@
@@ -649,9 +642,6 @@ index 0000000..9c6a6cc
 +  Ty Coon, President of Vice
 +
 +That's all there is to it!
-diff --git a/open-vm-tools/services/plugins/resolutionKMS/Makefile.am b/open-vm-tools/services/plugins/resolutionKMS/Makefile.am
-new file mode 100644
-index 0000000..4503dc6
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionKMS/Makefile.am
 @@ -0,0 +1,37 @@
@@ -692,9 +682,6 @@ index 0000000..4503dc6
 +
 +libresolutionKMS_la_DEPENDENCIES =
 +libresolutionKMS_la_DEPENDENCIES += $(top_builddir)/services/plugins/resolutionSet/libresolutionCommon.la
-diff --git a/open-vm-tools/services/plugins/resolutionKMS/resolutionKMS.c b/open-vm-tools/services/plugins/resolutionKMS/resolutionKMS.c
-new file mode 100644
-index 0000000..2229271
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionKMS/resolutionKMS.c
 @@ -0,0 +1,493 @@
@@ -1191,9 +1178,6 @@ index 0000000..2229271
 +   regData.regs = VMTools_WrapArray(regs, sizeof *regs, ARRAYSIZE(regs));
 +   return &regData;
 +}
-diff --git a/open-vm-tools/services/plugins/resolutionKMS/resolutionKMS.c.orig b/open-vm-tools/services/plugins/resolutionKMS/resolutionKMS.c.orig
-new file mode 100644
-index 0000000..6aff018
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionKMS/resolutionKMS.c.orig
 @@ -0,0 +1,465 @@
@@ -1662,8 +1646,6 @@ index 0000000..6aff018
 +   regData.regs = VMTools_WrapArray(regs, sizeof *regs, ARRAYSIZE(regs));
 +   return &regData;
 +}
-diff --git a/open-vm-tools/services/plugins/resolutionSet/Makefile.am b/open-vm-tools/services/plugins/resolutionSet/Makefile.am
-index 3d8dbc4..b3cf81e 100644
 --- a/open-vm-tools/services/plugins/resolutionSet/Makefile.am
 +++ b/open-vm-tools/services/plugins/resolutionSet/Makefile.am
 @@ -16,6 +16,9 @@
@@ -1704,9 +1686,6 @@ index 3d8dbc4..b3cf81e 100644
  
 +libresolutionCommon_la_LIBADD =
 +libresolutionCommon_la_LIBADD += @LIBUDEV_LIBS@
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionCommon.c b/open-vm-tools/services/plugins/resolutionSet/resolutionCommon.c
-new file mode 100644
-index 0000000..0777fe3
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionCommon.c
 @@ -0,0 +1,447 @@
@@ -2157,9 +2136,6 @@ index 0000000..0777fe3
 +   g_debug("%s: No version info found.\n", __func__);
 +   return -1;
 +}
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionCommon.h b/open-vm-tools/services/plugins/resolutionSet/resolutionCommon.h
-new file mode 100644
-index 0000000..6565190
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionCommon.h
 @@ -0,0 +1,53 @@
@@ -2216,9 +2192,6 @@ index 0000000..6565190
 +			    int *level);
 +
 +#endif /*  _RESOLUTION_COMMON_H_ */
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionDL.c b/open-vm-tools/services/plugins/resolutionSet/resolutionDL.c
-new file mode 100644
-index 0000000..571ab39
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionDL.c
 @@ -0,0 +1,208 @@
@@ -2430,9 +2403,6 @@ index 0000000..571ab39
 +
 +#endif /* !HAVE_LIBUDEV */
 +#endif /* ENABLE_RESOLUTIONKMS */
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionDL.h b/open-vm-tools/services/plugins/resolutionSet/resolutionDL.h
-new file mode 100644
-index 0000000..c27166a
 --- /dev/null
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionDL.h
 @@ -0,0 +1,223 @@
@@ -2659,8 +2629,6 @@ index 0000000..c27166a
 +#endif /* HAVE_LIBUDEV */
 +#endif /* ENABLE_RESOLUTIONKMS */
 +#endif
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionInt.h b/open-vm-tools/services/plugins/resolutionSet/resolutionInt.h
-index 55bb704..877a7bc 100644
 --- a/open-vm-tools/services/plugins/resolutionSet/resolutionInt.h
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionInt.h
 @@ -74,13 +74,20 @@ typedef struct {
@@ -2685,7 +2653,7 @@ index 55bb704..877a7bc 100644
  void ResolutionBackendCleanup(void);
  Bool ResolutionSetResolution(uint32 width, uint32 height);
  #if defined(RESOLUTION_WIN32)
-@@ -90,9 +97,4 @@ void ResolutionSetSessionChange(DWORD code, DWORD sessionID);
+@@ -90,9 +97,4 @@ void ResolutionSetSessionChange(DWORD co
  Bool ResolutionSetTopology(unsigned int ndisplays, DisplayTopologyInfo displays[]);
  Bool ResolutionSetTopologyModes(unsigned int screen, unsigned int cmd, unsigned int ndisplays, DisplayTopologyInfo displays[]);
  
@@ -2695,8 +2663,6 @@ index 55bb704..877a7bc 100644
 -#define G_LOG_DOMAIN "resolutionSet"
 -
  #endif // ifndef _LIB_RESOLUTIONINT_H_
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionRandR12.c b/open-vm-tools/services/plugins/resolutionSet/resolutionRandR12.c
-index 84b788b..b5fc835 100644
 --- a/open-vm-tools/services/plugins/resolutionSet/resolutionRandR12.c
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionRandR12.c
 @@ -139,7 +139,7 @@ static FILE *_ofile;
@@ -2708,8 +2674,6 @@ index 84b788b..b5fc835 100644
  #define LOG_STOP
  #endif
  
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionSet.c b/open-vm-tools/services/plugins/resolutionSet/resolutionSet.c
-index 96c8349..bee1fee 100644
 --- a/open-vm-tools/services/plugins/resolutionSet/resolutionSet.c
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionSet.c
 @@ -76,8 +76,7 @@ ResolutionInfoType resolutionInfo;
@@ -2735,8 +2699,6 @@ index 96c8349..bee1fee 100644
  
     regs[0].data = VMTools_WrapArray(rpcs, sizeof *rpcs, ARRAYSIZE(rpcs));
     regData.regs = VMTools_WrapArray(regs, sizeof *regs, ARRAYSIZE(regs));
-diff --git a/open-vm-tools/services/plugins/resolutionSet/resolutionX11.c b/open-vm-tools/services/plugins/resolutionSet/resolutionX11.c
-index 3c5c120..916ff62 100644
 --- a/open-vm-tools/services/plugins/resolutionSet/resolutionX11.c
 +++ b/open-vm-tools/services/plugins/resolutionSet/resolutionX11.c
 @@ -35,8 +35,6 @@
@@ -2773,7 +2735,7 @@ index 3c5c120..916ff62 100644
  
  
  /*
-@@ -88,28 +90,45 @@ static Bool SelectResolution(uint32 width, uint32 height);
+@@ -88,28 +90,45 @@ static Bool SelectResolution(uint32 widt
   * X11 back-end initializer.  Records caller's X11 display, then determines
   * which capabilities are available.
   *
@@ -2924,7 +2886,7 @@ index 3c5c120..916ff62 100644
        g_debug("XRRSetScreenConfig returned %d (result: %dx%d)\n", rc,
                xrrSizes[bestFitIndex].width, xrrSizes[bestFitIndex].height);
     } else {
-@@ -623,30 +595,29 @@ ResolutionX11ErrorHandler(Display *d,      // IN: Pointer to display connection
+@@ -623,30 +595,29 @@ ResolutionX11ErrorHandler(Display *d,
  
  
  /**
@@ -2970,6 +2932,3 @@ index 3c5c120..916ff62 100644
 +
 +   return (InitHandle) resInfoX;
  }
--- 
-2.9.4
-
