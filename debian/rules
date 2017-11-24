@@ -34,6 +34,7 @@ override_dh_auto_configure:
 			--without-kernel-modules \
 			--with-pic \
 			--enable-xmlsec1 \
+			--with-gtk3  \
 			CFLAGS="-fPIC -Wno-deprecated-declarations $(CFLAGS)" \
 			CUSTOM_PROCPS_NAME=procps
 
