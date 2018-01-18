@@ -3,7 +3,7 @@ Section: admin
 Priority: extra
 Maintainer: Bernd Zeimetz <bzed@debian.org>
 Build-Depends:
- debhelper (>= 9.20160402~), autotools-dev, dkms, doxygen, libcunit1-dev,
+ debhelper (>= 9.20160402~), autotools-dev, doxygen, libcunit1-dev,
  libdumbnet-dev, libfuse-dev, libgtkmm-3.0-dev, libgtk-3-dev,
  libicu-dev, libnotify-dev, libpam0g-dev, libprocps-dev, libx11-dev,
  libxinerama-dev, libxss-dev, libxtst-dev, dh-autoreconf, dh-systemd,
@@ -65,22 +65,3 @@ Description: Open VMware Tools for virtual machines hosted on VMware (developmen
  VMware virtual machines.
  .
  This package contains the development files.
-
-Package: open-vm-tools-dkms
-Architecture: all
-Section: kernel
-Depends: ${misc:Depends}, dkms, make
-Breaks: open-vm-tools (<< 2:9.4.0-1280544-8~)
-Replaces: open-vm-tools (<< 2:9.4.0-1280544-8~)
-Recommends: open-vm-tools
-Suggests: open-vm-tools-desktop
-Description: Open VMware Tools vmxnet kernel module (deprecated)
- The Open Virtual Machine Tools (open-vm-tools) project is an open source
- implementation of VMware Tools. It is a suite of virtualization utilities and
- drivers to improve the functionality, user experience and administration of
- VMware virtual machines.
- .
- This package provides the source code for the vmxnet module, which was
- superseded by vmxnet3. You should only install this package if you know
- that you need the legacy vnxnet module.
- Kernel source or headers are required to compile it using DKMS.
