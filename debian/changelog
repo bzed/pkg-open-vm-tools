@@ -1,3 +1,19 @@
+open-vm-tools (2:10.2.0-1~1.gbp236cdb) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @236cdbac571c8de70d5a81f024601f957eb2c7da **
+
+  * [f0bf956] Add .travis.yml which was removed by gbp.
+  * [892e2f6] Build with gtk3.
+  * [03a655b] Check if debhelper handles \ in systemd units.
+    Thanks to Oliver Kurth (Closes: #886191)
+  * [5bf9301] Drop -dkms package.
+    Thanks to Christian Ehrhardt (Closes: #884656)
+  * [236cdba] Update upstream source from tag 'upstream/10.2.0'
+    Update to upstream version '10.2.0'
+    with Debian dir d5190e486b6beb65ee7ed31c0c23a789b8f60cab
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 19 Jan 2018 00:27:10 +0100
+
 open-vm-tools (2:10.1.15-1) unstable; urgency=medium
 
   * [78a17f1] Remove fixed CXX std setting.
