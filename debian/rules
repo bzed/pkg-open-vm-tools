@@ -4,7 +4,8 @@ VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -
 
 UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' open-vm-tools/configure.ac | sed 's,.*=",,;s,",,'))
 
-DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions `dpkg-query -f '${Version}' -W debhelper` ge 10.9.1~; echo $$?))
+DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '${Version}' -W debhelper))
+DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions $(DEBHELPER_VERSION) ge 10.9.1~; echo $$?))
 
 %:
 	dh ${@} --with autotools_dev,autoreconf,systemd --sourcedirectory=open-vm-tools
