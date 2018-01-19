@@ -1,6 +1,4 @@
-open-vm-tools (2:10.2.0-1~1.gbp236cdb) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @236cdbac571c8de70d5a81f024601f957eb2c7da **
+open-vm-tools (2:10.2.0-1) unstable; urgency=medium
 
   * [f0bf956] Add .travis.yml which was removed by gbp.
   * [892e2f6] Build with gtk3.
@@ -11,8 +9,19 @@ open-vm-tools (2:10.2.0-1~1.gbp236cdb) UNRELEASED; urgency=medium
   * [236cdba] Update upstream source from tag 'upstream/10.2.0'
     Update to upstream version '10.2.0'
     with Debian dir d5190e486b6beb65ee7ed31c0c23a789b8f60cab
+    (Closes: #884496)
+  * [692beff] snapshot changelog.
+  * [45aa743] Add .travis.yml which was removed by gbp.
+  * [aabeded] Fix dpkg --compare-versions call
+  * [0697425] Better debhelper version parsing.
+  * [390ec09] fix even more makefile bugs.
+  * [6e5fa38] Refreshing patches.
+    Dropping kernel-module related patches.
+  * [cbfec05] Drop dh_autoreconf, not needed anymore.
+  * [d5fef50] autotools-dev is done by dh now.
+  * [b66ab14] use dh_installsystemd
 
- -- Bernd Zeimetz <bzed@debian.org>  Fri, 19 Jan 2018 00:27:10 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 19 Jan 2018 12:52:49 +0100
 
 open-vm-tools (2:10.1.15-1) unstable; urgency=medium
 
