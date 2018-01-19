@@ -4,7 +4,7 @@ DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '$${Version}' -W debhelper))
 DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions $(DEBHELPER_VERSION) ge 10.9.1~; echo $$?))
 
 %:
-	dh ${@} --with autotools_dev,systemd --sourcedirectory=open-vm-tools
+	dh ${@} --with systemd --sourcedirectory=open-vm-tools
 
 override_dh_auto_configure:
 	dh_auto_configure --sourcedirectory=open-vm-tools -- \
