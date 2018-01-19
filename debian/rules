@@ -4,7 +4,7 @@ VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -
 
 UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' open-vm-tools/configure.ac | sed 's,.*=",,;s,",,'))
 
-DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '${Version}' -W debhelper))
+DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '$${Version}' -W debhelper))
 DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions $(DEBHELPER_VERSION) ge 10.9.1~; echo $$?))
 
 %:
@@ -107,8 +107,7 @@ override_dh_systemd_start:
 	dh_systemd_start -popen-vm-tools
 	dh_systemd_start -popen-vm-tools --name vgauth
 	dh_systemd_start -popen-vm-tools-desktop -r --no-restart-after-upgrade run-vmblock\\x2dfuse.mount
-
-ifneq($(DEBHELPER_SYSTEMD_OK),0)
+ifneq ($(DEBHELPER_SYSTEMD_OK),0)
 	sed -i 's,run-vmblock\\x2dfuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
 	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
 endif
