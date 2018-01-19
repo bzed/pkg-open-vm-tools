@@ -1,29 +1,10 @@
 #!/usr/bin/make -f
 
-VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:||' -e 's|-.*$$||')
-
-UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' open-vm-tools/configure.ac | sed 's,.*=",,;s,",,'))
-
 DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '$${Version}' -W debhelper))
 DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions $(DEBHELPER_VERSION) ge 10.9.1~; echo $$?))
 
 %:
-	dh ${@} --with autotools_dev,autoreconf,systemd --sourcedirectory=open-vm-tools
-
-override_dh_autoreconf:
-	set -e; \
-	    cd open-vm-tools ; \
-	    cp configure.ac configure.ac.autoreconf ; \
-	    sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' configure.ac ;\
-	dh_autoreconf --sourcedirectory=open-vm-tools
-
-override_dh_autoreconf_clean:
-	dh_autoreconf_clean 
-	set -e ;\
-	    cd open-vm-tools ; \
-	    if [ -f configure.ac.autoreconf ]; then \
-	        mv configure.ac.autoreconf configure.ac ;\
-	    fi ;\
+	dh ${@} --with autotools_dev,systemd --sourcedirectory=open-vm-tools
 
 override_dh_auto_configure:
 	dh_auto_configure --sourcedirectory=open-vm-tools -- \
