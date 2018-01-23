@@ -1,3 +1,11 @@
+open-vm-tools (2:10.2.0-2) unstable; urgency=medium
+
+  * [249d54c] Fix wayland segfault.
+    Adding a patch from Fedora to fix a wayland/gnome related segfault.
+    Thanks to Oliver Kurth (Closes: #887755)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 23 Jan 2018 23:50:17 +0100
+
 open-vm-tools (2:10.2.0-1) unstable; urgency=medium
 
   * [f0bf956] Add .travis.yml which was removed by gbp.
