@@ -1,0 +1,33 @@
+--- a/open-vm-tools/services/plugins/desktopEvents/x11Lock.c
++++ b/open-vm-tools/services/plugins/desktopEvents/x11Lock.c
+@@ -364,6 +364,13 @@ X11Lock_Init(ToolsAppCtx *ctx,
+    g_set_prgname(VMUSER_TITLE);
+    argv[0] = VMUSER_TITLE;
+ 
++#if defined(GTK3) && GTK_MINOR_VERSION >= 10
++   /*
++    * There is no Wayland support yet, only X11 backend is supported.
++    */
++   gdk_set_allowed_backends("x11");
++#endif
++
+    /* XXX: is calling gtk_init() multiple times safe? */
+    gtk_init(&argc, (char ***) &argv);
+ 
+--- a/open-vm-tools/services/plugins/dndcp/copyPasteDnDX11.cpp
++++ b/open-vm-tools/services/plugins/dndcp/copyPasteDnDX11.cpp
+@@ -211,6 +211,14 @@ gboolean
+ CopyPasteDnDX11::Init(ToolsAppCtx *ctx)
+ {
+    TRACE_CALL();
++
++#if defined(GTK3) && GTK_MINOR_VERSION >= 10
++   /*
++    * There is no Wayland support yet, only X11 backend is supported.
++    */
++   gdk_set_allowed_backends("x11");
++#endif
++
+    CopyPasteDnDWrapper *wrapper = CopyPasteDnDWrapper::GetInstance();
+ 
+    ASSERT(ctx);

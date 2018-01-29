@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2009-2016 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009-2017 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -28,19 +28,19 @@
 #define __DND_UI_X11_H__
 
 #include "stringxx/string.hh"
-
-extern "C" {
-#include "debug.h"
 #include "dnd.h"
 #include "str.h"
 #include "util.h"
 #include "vmblock.h"
-#include "dndClipboard.h"
 #include "dynbuf.h"
-#include "../dnd/dndFileContentsUtil.h"
 #include "dynxdr.h"
-#include "cpNameUtil.h"
 #include "posix.h"
+
+extern "C" {
+#include "debug.h"
+#include "dndClipboard.h"
+#include "../dnd/dndFileContentsUtil.h"
+#include "cpNameUtil.h"
 #include "vmware/tools/guestrpc.h"
 #include "vmware/tools/plugin.h"
 }
@@ -192,7 +192,8 @@ private:
 
    static inline bool TargetIsRichText(const utf::string& target) {
       return    target == TARGET_NAME_APPLICATION_RTF
-             || target == TARGET_NAME_TEXT_RICHTEXT;
+             || target == TARGET_NAME_TEXT_RICHTEXT
+             || target == TARGET_NAME_TEXT_RTF;
    }
 
    void OnWorkAreaChanged(Glib::RefPtr<Gdk::Screen> screen);

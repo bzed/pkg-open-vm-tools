@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2006-2016 VMware, Inc. All rights reserved.
+ * Copyright (C) 2006-2017 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -24,15 +24,17 @@
 
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <regex.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <stdarg.h>
 #include <time.h>
-#include <stdbool.h>
+#include <unistd.h>
 
 #include "mspackWrapper.h"
 #include "deployPkgFormat.h"
@@ -43,6 +45,18 @@
 #include "mspackWrapper.h"
 #include "rpcout.h"
 #include "toolsDeployPkg.h"
+#include <strutil.h>
+#include <util.h>
+
+#include "embed_version.h"
+#include "vm_version.h"
+
+#if defined(OPEN_VM_TOOLS) || defined(USERWORLD)
+#include "vmtoolsd_version.h"
+VM_EMBED_VERSION(VMTOOLSD_VERSION_STRING "-vmtools");
+#else
+VM_EMBED_VERSION(SYSIMAGE_VERSION_EXT_STR);
+#endif
 
 /*
  * These are covered by #ifndef to give the ability to change these
@@ -52,12 +66,17 @@
 
 #define CLEANUPCMD  "/bin/rm -r -f "
 
-#ifndef EXTRACTPATH
-#define EXTRACTPATH "/tmp/.vmware/linux/deploy"
+#ifndef TMP_PATH_VAR
+#define TMP_PATH_VAR "/tmp/.vmware/linux/deploy"
 #endif
 
-#ifndef CLEANUPPATH
-#define CLEANUPPATH "/tmp/.vmware"
+#ifndef IMC_TMP_PATH_VAR
+#define IMC_TMP_PATH_VAR "@@IMC_TMP_PATH_VAR@@"
+#endif
+
+// '/tmp' below will be addressed by PR 1601405.
+#ifndef TMP_DIR_PATH_PATTERN
+#define TMP_DIR_PATH_PATTERN "/tmp/.vmware-imgcust-dXXXXXX"
 #endif
 
 #ifndef BASEFILENAME
@@ -74,7 +93,6 @@
  * Constant definitions
  */
 
-static const char  ENDOFLINEMARKER = '\n';
 static const char  SPACECHAR       = ' ';
 static const char  TABCHAR         = '\t';
 static const char  QUOTECHAR       = '"';
@@ -115,16 +133,17 @@ struct List {
 // Private functions
 static Bool GetPackageInfo(const char* pkgName, char** cmd, uint8* type, uint8* flags);
 static Bool ExtractZipPackage(const char* pkg, const char* dest);
-static Bool CreateDir(const char *path);
 static void Init(void);
 static struct List* AddToList(struct List* head, const char* token);
 static int ListSize(struct List* head);
 static int Touch(const char*  state);
 static int UnTouch(const char* state);
 static int TransitionState(const char* stateFrom, const char* stateTo);
+static bool CopyFileToDirectory(const char* srcPath, const char* destPath,
+                                const char* fileName);
 static int Deploy(const char* pkgName);
 static char** GetFormattedCommandLine(const char* command);
-static int ForkExecAndWaitCommand(const char* command);
+int ForkExecAndWaitCommand(const char* command);
 static void SetDeployError(const char* format, ...);
 static const char* GetDeployError(void);
 static void NoLogging(int level, const char* fmtstr, ...);
@@ -134,7 +153,7 @@ static void NoLogging(int level, const char* fmtstr, ...);
  */
 
 static char* gDeployError = NULL;
-static LogFunction sLog = NoLogging;
+LogFunction sLog = NoLogging;
 
 // .....................................................................................
 
@@ -151,8 +170,17 @@ static LogFunction sLog = NoLogging;
 NORETURN void
 Panic(const char *fmtstr, ...)
 {
-   /* Ignored */
-   sLog(log_warning, "Panic callback invoked. \n");
+   va_list args;
+
+   char *tmp = Util_SafeMalloc(MAXSTRING);
+
+   va_start(args, fmtstr);
+   vsprintf(tmp, fmtstr, args);
+
+   sLog(log_error, "Panic callback invoked: %s\n", tmp);
+
+   free(tmp);
+
    exit(1);
 }
 
@@ -169,12 +197,19 @@ Panic(const char *fmtstr, ...)
  *
  **/
 void
-Debug(const char *fmtstr,
-      va_list args)
+Debug(const char *fmtstr, ...)
 {
-   /* Ignored */
 #ifdef VMX86_DEBUG
-   sLog(log_warning, "Debug callback invoked. \n");
+   va_list args;
+
+   char *tmp = Util_SafeMalloc(MAXSTRING);
+
+   va_start(args, fmtstr);
+   vsprintf(tmp, fmtstr, args);
+
+   sLog(log_debug, "Debug callback invoked: %s\n", tmp);
+
+   free(tmp);
 #endif
 }
 
@@ -874,11 +909,13 @@ static int
 CloudInitSetup(const char *tmpDirPath)
 {
    int deployStatus = DEPLOY_ERROR;
-   const char *cloudInitTmpDirPath = "/var/run/vmware-imc";
+   static const char *cloudInitTmpDirPath = "/var/run/vmware-imc";
    int forkExecResult;
    char command[1024];
    Bool cloudInitTmpDirCreated = FALSE;
-
+   char* customScriptName = NULL;
+   sLog(log_info, "Creating temp directory %s to copy customization files",
+        cloudInitTmpDirPath);
    snprintf(command, sizeof(command),
             "/bin/mkdir -p %s", cloudInitTmpDirPath);
    command[sizeof(command) - 1] = '\0';
@@ -893,26 +930,9 @@ CloudInitSetup(const char *tmpDirPath)
 
    cloudInitTmpDirCreated = TRUE;
 
-   snprintf(command, sizeof(command),
-            "/bin/rm -f %s/cust.cfg %s/nics.txt",
-            cloudInitTmpDirPath, cloudInitTmpDirPath);
-   command[sizeof(command) - 1] = '\0';
-
-   forkExecResult = ForkExecAndWaitCommand(command);
-
-   snprintf(command, sizeof(command),
-            "/bin/cp %s/cust.cfg %s/cust.cfg",
-            tmpDirPath, cloudInitTmpDirPath);
-   command[sizeof(command) - 1] = '\0';
-
-   forkExecResult = ForkExecAndWaitCommand(command);
-
-   if (forkExecResult != 0) {
-      SetDeployError("Error copying cust.cfg file: %s",
-                     strerror(errno));
-      goto done;
-   }
-
+   // Copy required files for cloud-init to a temp name initially and then
+   // rename in order to avoid race conditions with partial writes.
+   sLog(log_info, "Check if nics.txt exists. Copy if exists, skip otherwise");
    snprintf(command, sizeof(command),
             "/usr/bin/test -f %s/nics.txt", tmpDirPath);
    command[sizeof(command) - 1] = '\0';
@@ -925,26 +945,49 @@ CloudInitSetup(const char *tmpDirPath)
     * We need to copy the nics.txt only if it exists.
     */
    if (forkExecResult == 0) {
-      snprintf(command, sizeof(command),
-               "/bin/cp %s/nics.txt %s/nics.txt",
-               tmpDirPath, cloudInitTmpDirPath);
-      command[sizeof(command) - 1] = '\0';
+      sLog(log_info, "nics.txt file exists. Copying..");
+      if(!CopyFileToDirectory(tmpDirPath, cloudInitTmpDirPath, "nics.txt")) {
+         goto done;
+       }
+   }
 
-      forkExecResult = ForkExecAndWaitCommand(command);
-      if (forkExecResult != 0) {
-         SetDeployError("Error copying nics.txt file: %s",
-                        strerror(errno));
+   // Get custom script name.
+   if (HasCustomScript(tmpDirPath, &customScriptName)) {
+      char scriptPath[1024];
+
+      sLog(log_info, "Custom script present.");
+      sLog(log_info, "Copying script to execute post customization.");
+      snprintf(scriptPath, sizeof(scriptPath), "%s/scripts", tmpDirPath);
+      scriptPath[sizeof(scriptPath) - 1] = '\0';
+      if (!CopyFileToDirectory(scriptPath, cloudInitTmpDirPath,
+                               "post-customize-guest.sh")) {
          goto done;
       }
+
+      sLog(log_info, "Copying user uploaded custom script %s",
+           customScriptName);
+      if (!CopyFileToDirectory(tmpDirPath, cloudInitTmpDirPath,
+                               customScriptName)) {
+         goto done;
+      }
+   }
+
+   sLog(log_info, "Copying main configuration file cust.cfg");
+   if(!CopyFileToDirectory(tmpDirPath, cloudInitTmpDirPath, "cust.cfg")) {
+      goto done;
    }
 
    deployStatus = DEPLOY_SUCCESS;
 
 done:
+   free(customScriptName);
    if (DEPLOY_SUCCESS == deployStatus) {
+      sLog(log_info, "Deployment for cloud-init succeeded.");
       TransitionState(INPROGRESS, DONE);
    } else {
+      sLog(log_error, "Deployment for cloud-init failed.");
       if (cloudInitTmpDirCreated) {
+         sLog(log_info, "Removing temporary folder %s", cloudInitTmpDirPath);
          snprintf(command, sizeof(command),
                   "/bin/rm -rf %s",
                   cloudInitTmpDirPath);
@@ -964,6 +1007,103 @@ done:
 
 //......................................................................................
 
+static bool
+CopyFileToDirectory(const char* srcPath, const char* destPath,
+                    const char* fileName)
+{
+   char command[1024];
+   int forkExecResult;
+   snprintf(command, sizeof(command), "/bin/cp %s/%s %s/%s.tmp", srcPath,
+            fileName, destPath, fileName);
+   command[sizeof(command) - 1] = '\0';
+   forkExecResult = ForkExecAndWaitCommand(command);
+   if (forkExecResult != 0) {
+      SetDeployError("Error while copying file %s: %s", fileName,
+                     strerror(errno));
+      return false;
+   }
+   snprintf(command, sizeof(command), "/bin/mv -f %s/%s.tmp %s/%s", destPath,
+            fileName, destPath, fileName);
+   command[sizeof(command) - 1] = '\0';
+
+   forkExecResult = ForkExecAndWaitCommand(command);
+   if (forkExecResult != 0) {
+      SetDeployError("Error while renaming temp file %s: %s", fileName,
+                     strerror(errno));
+      return false;
+   }
+   return true;
+}
+
+
+//......................................................................................
+
+/**
+ *----------------------------------------------------------------------------
+ *
+ * UseCloudInitWorkflow --
+ *
+ * Function which checks if cloud-init should be used for customization.
+ * Essentially it checks if
+ * - customization specificaion file (cust.cfg) is present.
+ * - cloud-init is installed
+ * - cloud-init is enabled.
+ *
+ * @param   [IN]  dirPath  Path where the package is extracted.
+ * @returns true if cloud-init should be used for guest customization.
+ *
+ *----------------------------------------------------------------------------
+ * */
+
+static bool
+UseCloudInitWorkflow(const char* dirPath)
+{
+   char *cfgFullPath = NULL;
+   int cfgFullPathSize;
+   static const char cfgName[] = "cust.cfg";
+   static const char cloudInitConfigFilePath[] = "/etc/cloud/cloud.cfg";
+   static const char cloudInitCommand[] = "/usr/bin/cloud-init -v";
+   int forkExecResult;
+
+   if (NULL == dirPath) {
+      return false;
+   }
+
+   sLog(log_debug, "Check if cust.cfg exists.");
+
+   cfgFullPathSize = strlen(dirPath) + 1 /* For '/' */ + sizeof(cfgName);
+   cfgFullPath = (char *) malloc(cfgFullPathSize);
+   if (cfgFullPath == NULL) {
+      sLog(log_error, "Failed to allocate memory. (%s)", strerror(errno));
+      return false;
+   }
+
+   snprintf(cfgFullPath, cfgFullPathSize, "%s/%s", dirPath, cfgName);
+   cfgFullPath[cfgFullPathSize - 1] = '\0';
+
+   if (access(cfgFullPath, R_OK) != 0) {
+      sLog(log_info, "cust.cfg is missing in '%s' directory. Error: (%s)",
+           dirPath, strerror(errno));
+      free(cfgFullPath);
+      return false;
+   } else {
+      sLog(log_info, "cust.cfg is found in '%s' directory.", dirPath);
+   }
+
+   forkExecResult = ForkExecAndWaitCommand(cloudInitCommand);
+   if (forkExecResult != 0) {
+      sLog(log_info, "cloud-init is not installed");
+      free(cfgFullPath);
+      return false;
+   } else {
+      sLog(log_info, "cloud-init is installed");
+   }
+
+   free(cfgFullPath);
+   return IsCloudInitEnabled(cloudInitConfigFilePath);
+}
+
+
 /**
  *
  * Core function which takes care of deployment in Linux.
@@ -979,6 +1119,7 @@ static int
 Deploy(const char* packageName)
 {
    int deployStatus = DEPLOY_SUCCESS;
+   char* pkgCommand = NULL;
    char* command = NULL;
    int deploymentResult = 0;
    char *nics;
@@ -986,10 +1127,8 @@ Deploy(const char* packageName)
    uint8 archiveType;
    uint8 flags;
    bool forceSkipReboot = false;
-   Bool cloudInitEnabled = FALSE;
-   const char *cloudInitConfigFilePath = "/etc/cloud/cloud.cfg";
-   char cloudCommand[1024];
-   int forkExecResult;
+   char *tmpDirPath;
+   bool useCloudInitWorkflow = false;
 
    TransitionState(NULL, INPROGRESS);
 
@@ -997,68 +1136,78 @@ Deploy(const char* packageName)
    SetCustomizationStatusInVmx(TOOLSDEPLOYPKG_RUNNING,
                                TOOLSDEPLOYPKG_ERROR_SUCCESS,
                                NULL);
+   tmpDirPath = mkdtemp((char *)Util_SafeStrdup(TMP_DIR_PATH_PATTERN));
+   if (tmpDirPath == NULL) {
+      SetDeployError("Error creating tmp dir: %s", strerror(errno));
+      return DEPLOY_ERROR;
+   }
 
    sLog(log_info, "Reading cabinet file %s. \n", packageName);
 
    // Get the command to execute
-   if (!GetPackageInfo(packageName, &command, &archiveType, &flags)) {
+   if (!GetPackageInfo(packageName, &pkgCommand, &archiveType, &flags)) {
       SetDeployError("Error extracting package header information. (%s)",
                      GetDeployError());
+      free(tmpDirPath);
       return DEPLOY_ERROR;
    }
 
-   // Print the header command
-#ifdef VMX86_DEBUG
-   sLog(log_debug, "Header command: %s \n ", command);
-#endif
+   sLog(log_info, "Flags in the header: %d\n", (int) flags);
 
-   // create the destination directory
-   if (!CreateDir(EXTRACTPATH "/")) {
-      free(command);
-      return DEPLOY_ERROR;
+   sLog(log_info, "Original deployment command: %s\n", pkgCommand);
+   if (strstr(pkgCommand, IMC_TMP_PATH_VAR) != NULL) {
+      command = StrUtil_ReplaceAll(pkgCommand, IMC_TMP_PATH_VAR, tmpDirPath);
+   } else {
+      command = StrUtil_ReplaceAll(pkgCommand, TMP_PATH_VAR, tmpDirPath);
    }
+   free(pkgCommand);
+
+   sLog(log_info, "Actual deployment command: %s\n", command);
 
    if (archiveType == VMWAREDEPLOYPKG_PAYLOAD_TYPE_CAB) {
-      if (!ExtractCabPackage(packageName, EXTRACTPATH)) {
+      if (!ExtractCabPackage(packageName, tmpDirPath)) {
+         free(tmpDirPath);
          free(command);
          return DEPLOY_ERROR;
       }
    } else if (archiveType == VMWAREDEPLOYPKG_PAYLOAD_TYPE_ZIP) {
-      if (!ExtractZipPackage(packageName, EXTRACTPATH)) {
+      if (!ExtractZipPackage(packageName, tmpDirPath)) {
+         free(tmpDirPath);
          free(command);
          return DEPLOY_ERROR;
       }
    }
 
-   // check if cloud-init installed
-   snprintf(cloudCommand, sizeof(cloudCommand),
-            "/usr/bin/cloud-init -h");
-   cloudCommand[sizeof(cloudCommand) - 1] = '\0';
-   forkExecResult = ForkExecAndWaitCommand(cloudCommand);
-   // if cloud-init is installed, check if it is enabled
-   if (forkExecResult == 0 && IsCloudInitEnabled(cloudInitConfigFilePath)) {
-      cloudInitEnabled = TRUE;
+   if (!(flags & VMWAREDEPLOYPKG_HEADER_FLAGS_IGNORE_CLOUD_INIT)) {
+      useCloudInitWorkflow = UseCloudInitWorkflow(tmpDirPath);
+   } else {
+      sLog(log_info, "Ignoring cloud-init.");
+   }
+
+   if (useCloudInitWorkflow) {
+      sLog(log_info, "Executing cloud-init workflow");
       sSkipReboot = TRUE;
       free(command);
-      deployStatus =  CloudInitSetup(EXTRACTPATH);
+      deployStatus =  CloudInitSetup(tmpDirPath);
    } else {
-      // Run the deployment command
-      sLog(log_info, "Launching deployment %s.  \n", command);
+      sLog(log_info, "Executing traditional GOSC workflow");
       deploymentResult = ForkExecAndWaitCommand(command);
       free(command);
 
-      if (deploymentResult != 0) {
+      if (deploymentResult != CUST_SUCCESS) {
          sLog(log_error, "Customization process returned with error. \n");
          sLog(log_debug, "Deployment result = %d \n", deploymentResult);
 
          if (deploymentResult == CUST_NETWORK_ERROR ||
-             deploymentResult == CUST_NIC_ERROR) {
+             deploymentResult == CUST_NIC_ERROR ||
+             deploymentResult == CUST_DNS_ERROR) {
             sLog(log_info, "Setting network error status in vmx. \n");
             SetCustomizationStatusInVmx(TOOLSDEPLOYPKG_RUNNING,
                                         GUESTCUST_EVENT_NETWORK_SETUP_FAILED,
                                         NULL);
          } else {
-            sLog(log_info, "Setting generic error status in vmx. \n");
+            sLog(log_info, "Setting %s error status in vmx. \n",
+                 deploymentResult == CUST_GENERIC_ERROR ? "generic" : "unknown");
             SetCustomizationStatusInVmx(TOOLSDEPLOYPKG_RUNNING,
                                         GUESTCUST_EVENT_CUSTOMIZE_FAILED,
                                         NULL);
@@ -1072,6 +1221,20 @@ Deploy(const char* packageName)
          sLog(log_error, "Deployment failed. "
                          "The forked off process returned error code. \n");
       } else {
+         nics = GetNicsToEnable(tmpDirPath);
+         if (nics) {
+            // XXX: Sleep before the last SetCustomizationStatusInVmx
+            //      This is a temporary-hack for PR 422790
+            sleep(5);
+            sLog(log_info, "Wait before set enable-nics stats in vmx.\n");
+
+            TryToEnableNics(nics);
+
+            free(nics);
+         } else {
+            sLog(log_info, "No nics to enable.\n");
+         }
+
          SetCustomizationStatusInVmx(TOOLSDEPLOYPKG_DONE,
                                      TOOLSDEPLOYPKG_ERROR_SUCCESS,
                                      NULL);
@@ -1079,47 +1242,27 @@ Deploy(const char* packageName)
          TransitionState(INPROGRESS, DONE);
 
          deployStatus = DEPLOY_SUCCESS;
-         sLog(log_info, "Deployment succeded. \n");
+         sLog(log_info, "Deployment succeeded. \n");
       }
    }
 
-   if (!cloudInitEnabled || DEPLOY_SUCCESS != deployStatus) {
-      /*
-       * Read in nics to enable from the nics.txt file. We do it irrespective
-       * of the sucess/failure of the customization so that at the end of it we
-       * always have nics enabled.
-       */
-      nics = GetNicsToEnable(EXTRACTPATH);
-      if (nics) {
-         // XXX: Sleep before the last SetCustomizationStatusInVmx
-         //      This is a temporary-hack for PR 422790
-         sleep(5);
-         sLog(log_info, "Wait before set enable-nics stats in vmx.\n");
-
-         TryToEnableNics(nics);
-
-         free(nics);
-      } else {
-         sLog(log_info, "No nics to enable.\n");
-      }
-   }
-
-   cleanupCommand = malloc(strlen(CLEANUPCMD) + strlen(CLEANUPPATH) + 1);
+   cleanupCommand = malloc(strlen(CLEANUPCMD) + strlen(tmpDirPath) + 1);
    if (!cleanupCommand) {
       SetDeployError("Error allocating memory.");
+      free(tmpDirPath);
       return DEPLOY_ERROR;
    }
 
    strcpy(cleanupCommand, CLEANUPCMD);
-   strcat(cleanupCommand, CLEANUPPATH);
+   strcat(cleanupCommand, tmpDirPath);
 
    sLog(log_info, "Launching cleanup. \n");
    if (ForkExecAndWaitCommand(cleanupCommand) != 0) {
-      sLog(log_warning, "Error while clean up. Error removing directory %s. (%s)",
-           EXTRACTPATH, strerror (errno));
-      //TODO: What should be done if cleanup fails ??
+      sLog(log_warning, "Error while clean up tmp directory %s: (%s)",
+           tmpDirPath, strerror (errno));
    }
    free (cleanupCommand);
+   free(tmpDirPath);
 
    if (flags & VMWAREDEPLOYPKG_HEADER_FLAGS_SKIP_REBOOT) {
       forceSkipReboot = true;
@@ -1357,7 +1500,7 @@ GetFormattedCommandLine(const char* command)
  * @return  Return code from the process (or DEPLOY_ERROR)
  *
  **/
-static int
+int
 ForkExecAndWaitCommand(const char* command)
 {
    ProcessHandle hp;
@@ -1388,62 +1531,7 @@ ForkExecAndWaitCommand(const char* command)
    return retval;
 }
 
-/**
- * Sets up the path for exracting file. For e.g. if the file is /a/b/c/d.abc
- * then it creates /a/b/c (skips if any of the directories along the path
- * exists). If the the path ends in '/', then the the entire input is assumed
- * to be a directory and is created as such.
- *
- * @param path  IN: Complete path of the file
- * @return TRUE on success
- */
-
-Bool
-CreateDir(const char* path)
-{
-   struct stat stats;
-   char* token;
-   char* copy;
-
-   // make a copy we can modify
-   copy = strdup(path);
-
-   // walk through the path (it employs in string replacement)
-   for (token = copy + 1; *token; ++token) {
-
-      // find
-      if (*token != '/') {
-         continue;
-      }
-
-      /*
-       * cut it off here for e.g. on first iteration /a/b/c/d.abc will have
-       * token /a, on second /a/b etc
-       */
-      *token = 0;
-
-      sLog(log_debug, "Creating directory %s", copy);
-
-      // ignore if the directory exists
-      if (!((stat(copy, &stats) == 0) && S_ISDIR(stats.st_mode))) {
-         // make directory and check error (accessible only by owner)
-         if (mkdir(copy, 0700) == -1) {
-            sLog(log_error, "Unable to create directory %s (%s)", copy,
-                 strerror(errno));
-            free(copy);
-            return FALSE;
-         }
-      }
-
-      // restore the token
-      *token = '/';
-   }
-
-   free(copy);
-   return TRUE;
-}
-
-//......................................................................................
+//.............................................................................
 
 /**
  *

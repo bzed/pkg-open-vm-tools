@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2009-2016 VMware, Inc. All rights reserved.
+ * Copyright (C) 2009-2017 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -42,15 +42,16 @@ extern "C" {
 #include "copyPasteCompat.h"
 #include "cpName.h"
 #include "cpNameUtil.h"
-#include "dnd.h"
 #include "dndClipboard.h"
-#include "dndMsg.h"
-#include "file.h"
 #include "hgfsUri.h"
-#include "hostinfo.h"
 #include "rpcout.h"
-#include "vmblock.h"
 }
+
+#include "dnd.h"
+#include "dndMsg.h"
+#include "hostinfo.h"
+#include "file.h"
+#include "vmblock.h"
 
 /* IsXExtensionPointer may be not defined with old Xorg. */
 #ifndef IsXExtensionPointer
@@ -259,6 +260,7 @@ DnDUIX11::InitGtk()
    /* RTF text DnD. */
    targets.push_back(Gtk::TargetEntry(TARGET_NAME_APPLICATION_RTF));
    targets.push_back(Gtk::TargetEntry(TARGET_NAME_TEXT_RICHTEXT));
+   targets.push_back(Gtk::TargetEntry(TARGET_NAME_TEXT_RTF));
 
    /* Plain text DnD. */
    targets.push_back(Gtk::TargetEntry(TARGET_NAME_UTF8_STRING));
@@ -400,6 +402,7 @@ DnDUIX11::OnSrcDragBegin(const CPClipboard *clip,       // IN
    if (CPClipboard_ItemExists(&mClipboard, CPFORMAT_RTF)) {
       targets->add(Glib::ustring(TARGET_NAME_APPLICATION_RTF));
       targets->add(Glib::ustring(TARGET_NAME_TEXT_RICHTEXT));
+      targets->add(Glib::ustring(TARGET_NAME_TEXT_RTF));
    }
 
    actions = Gdk::ACTION_COPY | Gdk::ACTION_MOVE;
@@ -1407,7 +1410,7 @@ DnDUIX11::SetCPClipboardFromGtk(const Gtk::SelectionData& sd) // IN
       while ((newPath = DnD_UriListGetNextFile(source.c_str(),
                                                &index,
                                                &newPathLen)) != NULL) {
-#if defined(linux)
+#if defined(__linux__)
          if (DnD_UriIsNonFileSchemes(newPath)) {
             /* Try to get local file path for non file uri. */
             GFile *file = g_file_new_for_uri(newPath);
@@ -1438,7 +1441,7 @@ DnDUIX11::SetCPClipboardFromGtk(const Gtk::SelectionData& sd) // IN
          g_debug("%s: Adding newPath '%s' newRelPath '%s'\n", __FUNCTION__,
                newPath, newRelPath);
          fileList.AddFile(newPath, newRelPath);
-#if defined(linux)
+#if defined(__linux__)
          char *newUri = HgfsUri_ConvertFromPathToHgfsUri(newPath, false);
          fileList.AddFileUri(newUri);
          free(newUri);
@@ -1453,7 +1456,7 @@ DnDUIX11::SetCPClipboardFromGtk(const Gtk::SelectionData& sd) // IN
                               DynBuf_GetSize(&buf));
       }
       DynBuf_Destroy(&buf);
-#if defined(linux)
+#if defined(__linux__)
       if (fileList.ToUriClipboard(&buf)) {
          CPClipboard_SetItem(&mClipboard, CPFORMAT_FILELIST_URI, DynBuf_Get(&buf),
                              DynBuf_GetSize(&buf));
@@ -1559,9 +1562,11 @@ DnDUIX11::RequestData(
    /* Then check RTF. */
    targets->add(Glib::ustring(TARGET_NAME_APPLICATION_RTF));
    targets->add(Glib::ustring(TARGET_NAME_TEXT_RICHTEXT));
+   targets->add(Glib::ustring(TARGET_NAME_TEXT_RTF));
    target = mDetWnd->drag_dest_find_target(dc, targets);
    targets->remove(Glib::ustring(TARGET_NAME_APPLICATION_RTF));
    targets->remove(Glib::ustring(TARGET_NAME_TEXT_RICHTEXT));
+   targets->remove(Glib::ustring(TARGET_NAME_TEXT_RTF));
    if (target != "") {
       mDetWnd->drag_get_data(dc, target, time);
       mNumPendingRequest++;

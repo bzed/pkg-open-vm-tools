@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008-2016 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2017 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -58,6 +58,10 @@
 #     undef G_INLINE_FUNC
 #  endif
 #  define G_INLINE_FUNC static __inline
+#endif
+
+#ifndef ABS
+#  define ABS(x) (((x) >= 0) ? (x) : -(x))
 #endif
 
 
@@ -125,19 +129,19 @@ gboolean
 VMTools_ConfigGetBoolean(GKeyFile *config,
                          const gchar *section,
                          const gchar *key,
-                         gboolean defValue);
+                         const gboolean defValue);
 
 gint
 VMTools_ConfigGetInteger(GKeyFile *config,
                          const gchar *section,
                          const gchar *key,
-                         gint defValue);
+                         const gint defValue);
 
 gchar *
 VMTools_ConfigGetString(GKeyFile *config,
                         const gchar *section,
                         const gchar *key,
-                        gchar *defValue);
+                        const gchar *defValue);
 
 #if defined(G_PLATFORM_WIN32)
 
