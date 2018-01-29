@@ -1,31 +1,10 @@
 #!/usr/bin/make -f
 
-VERSION = $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed -e 's|^.*:||' -e 's|-.*$$||')
-
-UPSTREAM_VERSION = $(strip $(shell grep '^TOOLS_VERSION' open-vm-tools/configure.ac | sed 's,.*=",,;s,",,'))
+DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '$${Version}' -W debhelper))
+DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions $(DEBHELPER_VERSION) ge 10.9.1~; echo $$?))
 
 %:
-	dh ${@} --with autotools_dev,dkms,autoreconf,systemd --sourcedirectory=open-vm-tools
-
-override_dh_autoreconf:
-	set -e; \
-	    cd open-vm-tools ; \
-	    cp configure.ac configure.ac.autoreconf ; \
-	    cp modules/linux/dkms.sh modules/linux/dkms.sh.autoreconf ;\
-	    sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' configure.ac ;\
-	    sed -i 's,$(UPSTREAM_VERSION),$(VERSION),g' modules/linux/dkms.sh
-	dh_autoreconf --sourcedirectory=open-vm-tools
-
-override_dh_autoreconf_clean:
-	dh_autoreconf_clean 
-	set -e ;\
-	    cd open-vm-tools ; \
-	    if [ -f configure.ac.autoreconf ]; then \
-	        mv configure.ac.autoreconf configure.ac ;\
-	    fi ;\
-	    if [ -f modules/linux/dkms.sh.autoreconf ]; then \
-	        mv modules/linux/dkms.sh.autoreconf modules/linux/dkms.sh ;\
-	    fi
+	dh ${@} --sourcedirectory=open-vm-tools
 
 override_dh_auto_configure:
 	dh_auto_configure --sourcedirectory=open-vm-tools -- \
@@ -34,10 +13,9 @@ override_dh_auto_configure:
 			--without-kernel-modules \
 			--with-pic \
 			--enable-xmlsec1 \
+			--with-gtk3  \
 			CFLAGS="-fPIC -Wno-deprecated-declarations $(CFLAGS)" \
-			CUSTOM_PROCPS_NAME=procps \
-			CXXFLAGS='-std=c++14'
-	find . -name Makefile -exec sed -i '/.*CPPFLAGS.*/s,-std=c++11,,' '{}' \;
+			CUSTOM_PROCPS_NAME=procps
 
 override_dh_auto_install:
 	dh_auto_install --sourcedirectory=open-vm-tools -- DESTDIR=$(CURDIR)/debian/open-vm-tools
@@ -52,7 +30,6 @@ override_dh_auto_install:
 	chmod 0644 debian/*/etc/pam.d/*
 	chmod 4755 debian/*/usr/bin/vmware-user-suid-wrapper
 
-	install -D -m 0755 debian/local/vmxnet.hook debian/open-vm-tools-dkms/usr/share/initramfs-tools/hooks/vmxnet
 	install -D -m 0644 debian/local/xautostart.conf debian/open-vm-tools-desktop/etc/vmware-tools/xautostart.conf
 	install -D -m 0644 debian/local/tools.conf debian/open-vm-tools/etc/vmware-tools/tools.conf
 
@@ -70,12 +47,6 @@ override_dh_auto_install:
 	    debian/open-vm-tools-dev/usr/lib
 	mv debian/open-vm-tools/usr/include debian/open-vm-tools-dev/usr
 
-
-	# open-vm-tools-dkms
-	mkdir -p debian/open-vm-tools-dkms/usr/src
-	cd open-vm-tools && sh modules/linux/dkms.sh . ../debian/open-vm-tools-dkms/usr/src
-	find debian/open-vm-tools-dkms/usr/src -name COPYING | xargs rm -f
-	find debian/open-vm-tools-dkms/usr/src -name "Makefile*" | xargs chmod 0755
 
 	# removing useless files
 	rm -f debian/open-vm-tools/usr/lib/*.la
@@ -96,17 +67,8 @@ override_dh_auto_install:
 	mv debian/open-vm-tools/etc/xdg/autostart/vmware-user.desktop debian/open-vm-tools-desktop/etc/xdg/autostart
 	rm -rf debian/open-vm-tools/etc/xdg
 
-	# fix dkms folder, upstream fails on it sometimes...
-	if ! test -d debian/open-vm-tools-dkms/usr/src/open-vm-tools-$(VERSION); then \
-	    mv debian/open-vm-tools-dkms/usr/src/open-vm-tools-* debian/open-vm-tools-dkms/usr/src/open-vm-tools-$(VERSION) ; \
-	fi
-
 override_dh_builddeb:
 	dh_builddeb -- -Zxz
-
-override_dh_dkms:
-	sed 's,DEBIAN_VERSION,$(VERSION),g' debian/open-vm-tools-dkms.dkms.in > debian/open-vm-tools-dkms.dkms
-	dh_dkms -popen-vm-tools-dkms -V $(VERSION)
 
 override_dh_fixperms:
 	dh_testroot
@@ -117,17 +79,10 @@ override_dh_fixperms:
 
 	dh_fixperms -Xvmware-user-suid-wrapper
 
-override_dh_systemd_enable:
-	dh_systemd_enable -popen-vm-tools
-	dh_systemd_enable -popen-vm-tools --name vgauth
-	dh_systemd_enable -popen-vm-tools-desktop run-vmblock\\x2dfuse.mount
-
-override_dh_systemd_start:
-	dh_systemd_start -popen-vm-tools
-	dh_systemd_start -popen-vm-tools --name vgauth
-	dh_systemd_start -popen-vm-tools-desktop -r --no-restart-after-upgrade run-vmblock\\x2dfuse.mount
-	sed -i 's,run-vmblock\\x2dfuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
-	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
+override_dh_installsystemd:
+	dh_installsystemd -popen-vm-tools
+	dh_installsystemd -popen-vm-tools --name vgauth
+	dh_installsystemd -popen-vm-tools-desktop --restart-after-upgrade --no-stop-on-upgrade run-vmblock\\x2dfuse.mount
 
 override_dh_installchangelogs:
 	dh_installchangelogs ReleaseNotes.md

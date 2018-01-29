@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (C) 2008-2016 VMware, Inc. All rights reserved.
+ * Copyright (C) 2008-2017 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -177,6 +177,86 @@ ToolsCoreIOFreezeCb(gpointer src,
 
 /*
  ******************************************************************************
+ * ToolsCoreReportVersionData --                                         */ /**
+ *
+ * Report version info as guest variables.
+ *
+ * @param[in]  state       Service state.
+ *
+ ******************************************************************************
+ */
+
+static void
+ToolsCoreReportVersionData(ToolsServiceState *state)
+{
+   char *value;
+   const static char cmdPrefix[] = "info-set guestinfo.vmtools.";
+
+   /*
+    * These values are documented with specific formats.  Do not change
+    * the formats, as client code can depend on them.
+    */
+
+
+   /*
+    * Version description as a human-readable string.  This value should
+    * not be parsed, so its format can be modified if necessary.
+    */
+   value = g_strdup_printf("%sdescription "
+#ifdef OPEN_VM_TOOLS
+                           "open-vm-tools %s build %s",
+#else
+                           "VMware Tools %s build %s",
+#endif
+                           cmdPrefix,
+                           TOOLS_VERSION_CURRENT_STR,
+                           BUILD_NUMBER_NUMERIC_STRING);
+   if (!RpcChannel_Send(state->ctx.rpc, value,
+                        strlen(value) + 1, NULL, NULL)) {
+      g_warning("%s: failed to send description", __FUNCTION__);
+   }
+   g_free(value);
+
+   /*
+    * Version number as a code-readable string.  This value can
+    * be parsed, so its format should not be modified.
+    */
+   value = g_strdup_printf("%sversionString "
+                           "%s", cmdPrefix, TOOLS_VERSION_CURRENT_STR);
+   if (!RpcChannel_Send(state->ctx.rpc, value,
+                        strlen(value) + 1, NULL, NULL)) {
+      g_warning("%s: failed to send versionString", __FUNCTION__);
+   }
+   g_free(value);
+
+   /*
+    * Version number as a code-readable integer.  This value can
+    * be parsed, so its format should not be modified.
+    */
+   value = g_strdup_printf("%sversionNumber "
+                           "%d", cmdPrefix, TOOLS_VERSION_CURRENT);
+   if (!RpcChannel_Send(state->ctx.rpc, value,
+                         strlen(value) + 1, NULL, NULL)) {
+      g_warning("%s: failed to send versionNumber", __FUNCTION__);
+   }
+   g_free(value);
+
+   /*
+    * Build number as a code-readable integer.  This value can
+    * be parsed, so its format should not be modified.
+    */
+   value = g_strdup_printf("%sbuildNumber "
+                           "%d", cmdPrefix, BUILD_NUMBER_NUMERIC);
+   if (!RpcChannel_Send(state->ctx.rpc, value,
+                        strlen(value) + 1, NULL, NULL)) {
+      g_warning("%s: failed to send buildNumber", __FUNCTION__);
+   }
+   g_free(value);
+}
+
+
+/*
+ ******************************************************************************
  * ToolsCoreRunLoop --                                                  */ /**
  *
  * Loads and registers all plugins, and runs the service's main loop.
@@ -201,6 +281,11 @@ ToolsCoreRunLoop(ToolsServiceState *state)
     */
    if (state->ctx.rpc && !RpcChannel_Start(state->ctx.rpc)) {
       return 1;
+   }
+
+   /* Report version info as guest Vars */
+   if (state->ctx.rpc) {
+      ToolsCoreReportVersionData(state);
    }
 
    if (!ToolsCore_LoadPlugins(state)) {
@@ -421,7 +506,14 @@ ToolsCore_Setup(ToolsServiceState *state)
 #else
    state->ctx.mainLoop = g_main_loop_new(gctx, FALSE);
 #endif
+   /*
+    * Valgrind can't handle the backdoor check.
+    */
+#ifdef USE_VALGRIND
+   state->ctx.isVMware = TRUE;
+#else
    state->ctx.isVMware = VmCheck_IsVirtualWorld();
+#endif
    g_main_context_unref(gctx);
 
    g_type_init();
