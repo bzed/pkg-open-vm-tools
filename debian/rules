@@ -4,7 +4,7 @@ DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '$${Version}' -W debhelper))
 DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions $(DEBHELPER_VERSION) ge 10.9.1~; echo $$?))
 
 %:
-	dh ${@} --sourcedirectory=open-vm-tools
+	dh ${@} --with systemd --sourcedirectory=open-vm-tools
 
 override_dh_auto_configure:
 	dh_auto_configure --sourcedirectory=open-vm-tools -- \
@@ -79,10 +79,19 @@ override_dh_fixperms:
 
 	dh_fixperms -Xvmware-user-suid-wrapper
 
-override_dh_installsystemd:
-	dh_installsystemd -popen-vm-tools
-	dh_installsystemd -popen-vm-tools --name vgauth
-	dh_installsystemd -popen-vm-tools-desktop --restart-after-upgrade --no-stop-on-upgrade run-vmblock\\x2dfuse.mount
+override_dh_systemd_enable:
+	dh_systemd_enable -popen-vm-tools
+	dh_systemd_enable -popen-vm-tools --name vgauth
+	dh_systemd_enable -popen-vm-tools-desktop run-vmblock\\x2dfuse.mount
+
+override_dh_systemd_start:
+	dh_systemd_start -popen-vm-tools
+	dh_systemd_start -popen-vm-tools --name vgauth
+	dh_systemd_start -popen-vm-tools-desktop -r --no-restart-after-upgrade run-vmblock\\x2dfuse.mount
+ifneq ($(DEBHELPER_SYSTEMD_OK),0)
+	sed -i 's,run-vmblock\\x2dfuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
+	sed -i 's,run-vmblock-fuse,run-vmblock\\\\x2dfuse,g' debian/*.debhelper
+endif
 
 override_dh_installchangelogs:
 	dh_installchangelogs ReleaseNotes.md
