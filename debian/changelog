@@ -1,3 +1,11 @@
+open-vm-tools (2:10.2.0-3) unstable; urgency=medium
+
+  * [47e50a1] Fix debhelper dep for backports
+  * [34538a5] Make tools.conf useful.
+    Thanks to Dariusz Gadomski (Closes: #889884)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 14 Feb 2018 17:22:52 +0100
+
 open-vm-tools (2:10.2.0-2) unstable; urgency=medium
 
   * [249d54c] Fix wayland segfault.
