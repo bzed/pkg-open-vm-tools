@@ -1,8 +1,16 @@
-open-vm-tools (2:10.2.0-2~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.2.0-3~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 29 Jan 2018 10:24:36 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 09 Mar 2018 16:09:56 +0100
+
+open-vm-tools (2:10.2.0-3) unstable; urgency=medium
+
+  * [47e50a1] Fix debhelper dep for backports
+  * [34538a5] Make tools.conf useful.
+    Thanks to Dariusz Gadomski (Closes: #889884)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 14 Feb 2018 17:22:52 +0100
 
 open-vm-tools (2:10.2.0-2) unstable; urgency=medium
 
