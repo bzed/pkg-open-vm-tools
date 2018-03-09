@@ -1,6 +1,10 @@
 open-vm-tools (2:10.2.0-3~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
+  * Add After=local-fs.target for the open-vm-tools-service to work
+    around #888955. The real issue should be fixed in systemd for
+    buster - this workaround might create a dependency cycle for
+    upcoming cloud-init versions.
 
  -- Bernd Zeimetz <bzed@debian.org>  Fri, 09 Mar 2018 16:09:56 +0100
 
