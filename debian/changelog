@@ -4,8 +4,9 @@ open-vm-tools (2:10.2.0-3~bpo8+1) jessie-backports-sloppy; urgency=high
   * [ac9c6e5] Add gbp.conf
   * [cca5401] Revert "Stay with libssl1.0 for now."
     This reverts commit d50714b27e07a494be0d29fb81e0a48e7e38435d.
+  * [4956e09] Work around #888955.
 
- -- Bernd Zeimetz <bzed@debian.org>  Wed, 28 Mar 2018 18:02:22 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 28 Mar 2018 18:03:51 +0200
 
 open-vm-tools (2:10.2.0-3) unstable; urgency=medium
 
