@@ -1,11 +1,19 @@
-open-vm-tools (2:10.2.0-2~bpo8+1) jessie-backports-sloppy; urgency=high
+open-vm-tools (2:10.2.0-3~bpo8+1) jessie-backports-sloppy; urgency=high
 
   * Rebuild for jessie-backports-sloppy.
   * [ac9c6e5] Add gbp.conf
   * [cca5401] Revert "Stay with libssl1.0 for now."
     This reverts commit d50714b27e07a494be0d29fb81e0a48e7e38435d.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 29 Jan 2018 12:48:51 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 28 Mar 2018 18:02:22 +0200
+
+open-vm-tools (2:10.2.0-3) unstable; urgency=medium
+
+  * [47e50a1] Fix debhelper dep for backports
+  * [34538a5] Make tools.conf useful.
+    Thanks to Dariusz Gadomski (Closes: #889884)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 14 Feb 2018 17:22:52 +0100
 
 open-vm-tools (2:10.2.0-2) unstable; urgency=medium
 
