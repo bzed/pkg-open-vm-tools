@@ -1,8 +1,8 @@
 --- a/open-vm-tools/udev/99-vmware-scsi-udev.rules
 +++ b/open-vm-tools/udev/99-vmware-scsi-udev.rules
-@@ -1,3 +1,2 @@
--ACTION=="add", SUBSYSTEMS=="scsi", ATTRS{vendor}=="VMware*", ATTRS{timeout}=="?*", ATTRS{model}=="Virtual disk*", RUN+="/bin/sh -c 'echo 180 >/sys$DEVPATH/timeout'"
--ACTION=="add", SUBSYSTEMS=="scsi", ATTRS{vendor}=="VMware*", ATTRS{timeout}=="?*", ATTRS{model}=="VMware Virtual S", RUN+="/bin/sh -c 'echo 180 >/sys$DEVPATH/timeout'"
--
+@@ -1,3 +1,3 @@
+-ACTION=="add", SUBSYSTEMS=="scsi", ATTRS{vendor}=="VMware*", ATTRS{model}=="Virtual disk*", ENV{DEVTYPE}=="disk", RUN+="/bin/sh -c 'echo 180 >/sys$DEVPATH/device/timeout'"
+-ACTION=="add", SUBSYSTEMS=="scsi", ATTRS{vendor}=="VMware*", ATTRS{model}=="VMware Virtual S", ENV{DEVTYPE}=="disk", RUN+="/bin/sh -c 'echo 180 >/sys$DEVPATH/device/timeout'"
 +ACTION=="add", SUBSYSTEMS=="scsi", ENV{DEVTYPE}=="scsi_device", ATTRS{vendor}=="VMware*" , ATTRS{model}=="Virtual disk*", ATTRS{timeout}=="?*", ATTR{timeout}="180"
 +ACTION=="add", SUBSYSTEMS=="scsi", ENV{DEVTYPE}=="scsi_device", ATTRS{vendor}=="VMware*" , ATTRS{model}=="VMware Virtual S", ATTRS{timeout}=="?*", ATTR{timeout}="180"
+ 
