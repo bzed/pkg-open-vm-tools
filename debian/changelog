@@ -1,3 +1,12 @@
+open-vm-tools (2:10.2.5-1) unstable; urgency=medium
+
+  * [ea03a58] Update upstream source from tag 'upstream/10.2.5'
+    Update to upstream version '10.2.5'
+    with Debian dir 74e96286320224bb6d5b717034930169514dbd51
+  * [c1c18d3] Refreshing patches.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 06 Apr 2018 11:18:50 +0200
+
 open-vm-tools (2:10.2.0-3) unstable; urgency=medium
 
   * [47e50a1] Fix debhelper dep for backports
