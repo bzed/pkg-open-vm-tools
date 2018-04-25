@@ -1,4 +1,4 @@
-open-vm-tools (2:10.2.0-3~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.2.5-1~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
   * Add After=local-fs.target for the open-vm-tools-service to work
@@ -6,7 +6,16 @@ open-vm-tools (2:10.2.0-3~bpo9+1) stretch-backports; urgency=medium
     buster - this workaround might create a dependency cycle for
     upcoming cloud-init versions.
 
- -- Bernd Zeimetz <bzed@debian.org>  Fri, 09 Mar 2018 16:09:56 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 25 Apr 2018 09:24:20 +0200
+
+open-vm-tools (2:10.2.5-1) unstable; urgency=medium
+
+  * [ea03a58] Update upstream source from tag 'upstream/10.2.5'
+    Update to upstream version '10.2.5'
+    with Debian dir 74e96286320224bb6d5b717034930169514dbd51
+  * [c1c18d3] Refreshing patches.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 06 Apr 2018 11:18:50 +0200
 
 open-vm-tools (2:10.2.0-3) unstable; urgency=medium
 
