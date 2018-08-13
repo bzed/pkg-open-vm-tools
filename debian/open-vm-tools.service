@@ -4,12 +4,11 @@ Documentation=http://open-vm-tools.sourceforge.net/about.php
 ConditionVirtualization=vmware
 DefaultDependencies=no
 Before=cloud-init-local.service
-After=local-fs.target
+RequiresMountsFor=/tmp
 
 [Service]
 ExecStart=/usr/bin/vmtoolsd
 TimeoutStopSec=5
-PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
