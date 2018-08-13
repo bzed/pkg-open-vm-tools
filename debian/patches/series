@@ -1,4 +1,3 @@
 debian/pam-use-common-auth-account
 debian/max_nic_count
-debian/enable_vmhgfs-fuse_by_default
 debian/scsi-udev-rule
