@@ -1,4 +1,4 @@
-open-vm-tools (2:10.3.0-1~bpo8+1) jessie-backports-sloppy; urgency=high
+open-vm-tools (2:10.3.5-1~bpo8+1) jessie-backports-sloppy; urgency=high
 
   * Rebuild for jessie-backports-sloppy.
   * [ac9c6e5] Add gbp.conf
@@ -6,7 +6,15 @@ open-vm-tools (2:10.3.0-1~bpo8+1) jessie-backports-sloppy; urgency=high
     This reverts commit d50714b27e07a494be0d29fb81e0a48e7e38435d.
   * [4956e09] Work around #888955.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 13 Aug 2018 18:09:13 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 15 Nov 2018 11:01:55 +0100
+
+open-vm-tools (2:10.3.5-1) unstable; urgency=medium
+
+  * [7061cb7] Update upstream source from tag 'upstream/10.3.5'
+    Update to upstream version '10.3.5'
+    with Debian dir 9315f58cab8ba1356c1e4aa77d714257dc0651f2
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 09 Nov 2018 11:32:15 +0100
 
 open-vm-tools (2:10.3.0-1) unstable; urgency=medium
 
