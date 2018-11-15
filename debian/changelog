@@ -1,8 +1,16 @@
-open-vm-tools (2:10.3.0-1~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.3.5-1~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 13 Aug 2018 17:56:57 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 15 Nov 2018 11:00:14 +0100
+
+open-vm-tools (2:10.3.5-1) unstable; urgency=medium
+
+  * [7061cb7] Update upstream source from tag 'upstream/10.3.5'
+    Update to upstream version '10.3.5'
+    with Debian dir 9315f58cab8ba1356c1e4aa77d714257dc0651f2
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 09 Nov 2018 11:32:15 +0100
 
 open-vm-tools (2:10.3.0-1) unstable; urgency=medium
 
