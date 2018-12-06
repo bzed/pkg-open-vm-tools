@@ -66,6 +66,9 @@ override_dh_auto_install:
 	mkdir -p debian/open-vm-tools-desktop/etc/xdg/autostart
 	mv debian/open-vm-tools/etc/xdg/autostart/vmware-user.desktop debian/open-vm-tools-desktop/etc/xdg/autostart
 	rm -rf debian/open-vm-tools/etc/xdg
+	
+	mkdir -p debian/open-vm-tools-desktop/lib/systemd/system/open-vm-tools.service.d
+	cp debian/desktop.conf debian/open-vm-tools-desktop/lib/systemd/system/open-vm-tools.service.d/
 
 override_dh_builddeb:
 	dh_builddeb -- -Zxz
