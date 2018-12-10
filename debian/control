@@ -22,7 +22,7 @@ Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends}, pciutils, iproute2
 Recommends: ethtool, zerofree, fuse, lsb-release
 Suggests: open-vm-tools-desktop, cloud-init
-Breaks: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
+Breaks: open-vm-tools-desktop (<< 2:10.3.5-1~)
 Replaces: open-vm-tools-desktop (<< 2:10.0.7-3227872-2~)
 Description: Open VMware Tools for virtual machines hosted on VMware (CLI)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source
@@ -37,8 +37,8 @@ Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends},
  open-vm-tools (= ${binary:Version}),
  fuse
-Breaks: open-vm-tools (<< 2:10.0.0~)
-Replaces: open-vm-tools (<< 2:10.0.0~)
+Breaks: open-vm-tools (<< 2:10.3.5-1~)
+Replaces: open-vm-tools (<< 2:10.3.5-1~)
 Recommends:
  xauth, xserver-xorg-input-vmmouse,
  xserver-xorg-video-vmware
