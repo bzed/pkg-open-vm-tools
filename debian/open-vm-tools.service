@@ -5,6 +5,7 @@ ConditionVirtualization=vmware
 DefaultDependencies=no
 Before=cloud-init-local.service
 RequiresMountsFor=/tmp
+After=systemd-remount-fs.service systemd-tmpfiles-setup.service
 
 [Service]
 ExecStart=/usr/bin/vmtoolsd
