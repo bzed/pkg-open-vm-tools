@@ -4,6 +4,7 @@ Documentation=http://open-vm-tools.sourceforge.net/about.php
 ConditionVirtualization=vmware
 DefaultDependencies=no
 Before=cloud-init-local.service
+After=vgauth.service
 RequiresMountsFor=/tmp
 After=systemd-remount-fs.service systemd-tmpfiles-setup.service
 

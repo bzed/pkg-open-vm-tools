@@ -2,6 +2,7 @@
 Description=Authentication service for virtual machines hosted on VMware
 Documentation=http://github.com/vmware/open-vm-tools
 ConditionVirtualization=vmware
+DefaultDependencies=no
 PartOf=open-vm-tools.service
 
 [Service]
