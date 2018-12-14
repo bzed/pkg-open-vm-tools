@@ -1,3 +1,17 @@
+open-vm-tools (2:10.3.5-3) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * [d3d4703] Start vgauth before vmtoolsd.
+    VGAuthService needs to be ready when vmtoolsd runs. Certain cases - e.g.
+    Site Recovery Manager failover - will need vgauth to be up.
+    Therefore add an After=vgauth.service dependency to open-vm-tools.service
+    To have vgauth be able start early - and not pull cloud-init back late - it
+    is also required to drop default dependencies which according to VMware is
+    fine to do so.
+    (LP: #1804287)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 14 Dec 2018 09:55:04 +0100
+
 open-vm-tools (2:10.3.5-2) unstable; urgency=medium
 
   [ Raphaël Hertzog ]
