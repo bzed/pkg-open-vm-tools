@@ -1,8 +1,52 @@
-open-vm-tools (2:10.3.5-1~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.3.5-3~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Thu, 15 Nov 2018 11:00:14 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 29 Dec 2018 22:39:50 +0100
+
+open-vm-tools (2:10.3.5-3) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * [d3d4703] Start vgauth before vmtoolsd.
+    VGAuthService needs to be ready when vmtoolsd runs. Certain cases - e.g.
+    Site Recovery Manager failover - will need vgauth to be up.
+    Therefore add an After=vgauth.service dependency to open-vm-tools.service
+    To have vgauth be able start early - and not pull cloud-init back late - it
+    is also required to drop default dependencies which according to VMware is
+    fine to do so.
+    (LP: #1804287)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 14 Dec 2018 09:55:04 +0100
+
+open-vm-tools (2:10.3.5-2) unstable; urgency=medium
+
+  [ Raphaël Hertzog ]
+  * [db2a364] Ensure vmwgfx module is loaded before start of vmtoolsd.
+    This avoids a failure to start the resolutionKMS plugin and it's
+    achieved through a drop-in snippet extending open-vm-tools.service
+    adding an ExecStartPre directive loading the module prior to
+    the start of the service. (Closes: #915031)
+
+  [ Christian Ehrhardt ]
+  * [e6e0ab8] d/rules: fix dangling symlink of vmware-user.
+    Back in 2:9.4.0-1280544-6 vmware-user* was moved to the
+    open-vm-tools-desktop package and some follow on fixes moved bits that
+    were forgotten like the man page.
+    (LP: #1807441)
+    There still is a symlink in /usr/bin/vmware-user that is forgotten in
+    the base package and broken unless open-vm-tools-desktop is installed.
+    Change d/rules to move the symlink as well.
+    Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+  * [13d22e5] Breaks and Replaces for moving vmware-user.
+    Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+  * [d56826a] Bump breaks and replaces to next version to be released.
+    Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+
+  [ Bernd Zeimetz ]
+  * [e4697c7] Fix race condition between open-vm-tools and systemd-tmpfiles-setup.
+    Thanks to Jean-Louis Dupond (Closes: #914910)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 11 Dec 2018 20:40:48 +0100
 
 open-vm-tools (2:10.3.5-1) unstable; urgency=medium
 
