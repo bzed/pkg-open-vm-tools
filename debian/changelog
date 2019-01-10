@@ -1,8 +1,15 @@
-open-vm-tools (2:10.3.5-3~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.3.5-4~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Sat, 29 Dec 2018 22:39:50 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 10 Jan 2019 13:45:07 +0100
+
+open-vm-tools (2:10.3.5-4) unstable; urgency=medium
+
+  [ Alf Gaida ]
+  * [e13792d] udevadm trigger should not fail (Closes: #917642)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 29 Dec 2018 23:00:37 +0100
 
 open-vm-tools (2:10.3.5-3) unstable; urgency=medium
 
