@@ -5,6 +5,7 @@ ConditionVirtualization=vmware
 DefaultDependencies=no
 Before=cloud-init-local.service
 After=vgauth.service
+After=apparmor.service
 RequiresMountsFor=/tmp
 After=systemd-remount-fs.service systemd-tmpfiles-setup.service
 
