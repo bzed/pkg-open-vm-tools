@@ -1,3 +1,10 @@
+open-vm-tools (2:10.3.5-5) unstable; urgency=medium
+
+  * [54cce3e] Start vmtoolsd after apparmor.service.
+    Github issue #17
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 31 Jan 2019 13:13:06 +0100
+
 open-vm-tools (2:10.3.5-4) unstable; urgency=medium
 
   [ Alf Gaida ]
