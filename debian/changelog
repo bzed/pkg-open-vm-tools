@@ -1,8 +1,23 @@
-open-vm-tools (2:10.3.5-4~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.3.5-6~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Thu, 10 Jan 2019 13:45:07 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 26 Feb 2019 16:07:03 +0100
+
+open-vm-tools (2:10.3.5-6) unstable; urgency=medium
+
+  * [43ec618] Correct and/or improve handling of certain quiesced
+    snapshot failures.
+    Thanks to Oliver Kurth (Closes: #921470)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 11 Feb 2019 14:58:28 +0100
+
+open-vm-tools (2:10.3.5-5) unstable; urgency=medium
+
+  * [54cce3e] Start vmtoolsd after apparmor.service.
+    Github issue #17
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 31 Jan 2019 13:13:06 +0100
 
 open-vm-tools (2:10.3.5-4) unstable; urgency=medium
 
