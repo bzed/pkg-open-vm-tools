@@ -1,3 +1,46 @@
+open-vm-tools (2:10.3.5-7) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * [71b468f] make vgauth service execution more reliable.
+    Since d3d47039 "Start vgauth before vmtoolsd" there is a potential race
+    of starting vgauth so early that it might have issues. This was
+    discussed back in the day in [1] to [2], but confirmed to be ok by
+    VMWare.
+    We were all somewhat convinced by this, but a bad feeling remained not
+    only with me but also with Bernd [4].
+    A recent SRU review denial made me rethink all of it and I think we can
+    make it safer without thwarting the purpose of the original change.
+    Note: Disambiguation of service names used below:
+    vgauth     - open-vm-tools.vgauth.service
+    vmtoolsd   - open-vm-tools.service
+    fs         - systemd-remount-fs.service
+    tmp        - systemd-tmpfiles-setup.service
+    cloud-init - cloud-init-local.service
+    Currently we have these dependency requirements:
+    - vgauth should be before vmtoolsd
+    - cloud init should be before vmtoolsd
+    - cloud init has to be really early in general
+      - therefore this is using DefaultDependencies=No
+    That lead to this graph:
+     fs / tmp -> vmtoolsd -> cloud-init
+    And d3d47039 added it to be like:
+     fs / tmp -> vmtoolsd -> cloud-init
+                   ^
+     vgauth      --|
+    But there is no need to have vgauth without any pre-dependencies at all.
+    It is only needed to be "before" vmtoolsd, therefore we can make it:
+     fs / tmp -> vgauth -> vmtoolsd -> cloud-init
+    That will make execution of vgauth much less error-prone (even though I
+    have no hard issue to report) while at the same time holding up all
+    known required ordering constraints.
+    [1]: https://bugs.launchpad.net/ubuntu/+source/open-vm-tools/+bug/1804287/comments/3
+    [2]: https://bugs.launchpad.net/ubuntu/+source/open-vm-tools/+bug/1804287/comments/12
+    [3]: https://bugs.launchpad.net/ubuntu/+source/open-vm-tools/+bug/1804287/comments/25
+    [4]: https://github.com/bzed/pkg-open-vm-tools/pull/15#issuecomment-447237910
+    Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 Mar 2019 20:02:52 +0100
+
 open-vm-tools (2:10.3.5-6) unstable; urgency=medium
 
   * [43ec618] Correct and/or improve handling of certain quiesced
