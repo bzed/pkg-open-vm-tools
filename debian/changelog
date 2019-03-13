@@ -1,3 +1,22 @@
+open-vm-tools (2:10.3.5-8) unstable; urgency=medium
+
+  [ Jean-Baptiste Lallement ]
+  * [0f35aee] Add modaliases to open-vm-tools-desktop.
+    Added Modaliases to open-vm-tools-desktop to auto-discover and
+    auto-install the driver on Ubuntu via ubuntu-drivers. The driver is then
+    installed at installation time and available on first boot for an
+    improved user experience (LP: #1819207)
+
+  [ Bernd Zeimetz ]
+  * [dc4e1ce] Load vmwgfx module before vmtoolsd starts.
+    As discussed on github in vmware/open-vm-tools#214
+    we need to load the vmwgfx module before starting vmtoolsd
+    for desktop users. Otherwise it is not able to retrieve the KMS
+    resolutions and resizing the VM desktop fails.
+    Thanks to @thomashvmw @rhertzog (Closes: #924518)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 13 Mar 2019 22:15:22 +0100
+
 open-vm-tools (2:10.3.5-7) unstable; urgency=medium
 
   [ Christian Ehrhardt ]
