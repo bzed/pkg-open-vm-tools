@@ -1,3 +1,43 @@
+open-vm-tools (2:10.3.10-1) unstable; urgency=high
+
+  * [122e511] Update upstream source from tag 'upstream/10.3.10'
+    Update to upstream version '10.3.10'
+    with Debian dir fb12c7cfc99a9497795475c29306e78d08cc3712
+    - Closes: #925940
+    - Bugfix release for the 10.3 series.
+      - Correct and/or improve handling of certain quiesced
+        snapshot failures (shipped as patch in 2:10.3.5-6).
+      - Fix some bad derefs in primary NIC gather code
+      - Fix possible security issue with the permissions of the
+        intermediate staging directory and path.
+        Closes: #925959
+      - CONSTANT_EXPRESSION_RESULT in TimeUtil_StringToDate()
+        Found by coverity.
+      - Deploypkg log files of linux should not be world readable.
+        They might contain sensitive data.
+      - General code clean-up:
+        - Treat local variables "len" consistently as "size_t"
+          type in Posix_Getmntent_r()
+        - Improve readability of error handling logic in
+          ShrinkDoWipeAndShrink() and remove another line of dead code.
+        - Setting "errno" to ENOENT when there is no passwd entry
+          for the user.
+      - Fix NULL pointer dereference and remove three lines of dead code.
+    - Other changes/fixes, not related to Debian:
+      - Update copyright years
+      - Fix CentOS 7.6 detection
+      - Include vmware/tools/log.h to define g_info (fix for SLES)
+      - Special-case profile loading for StartProgram
+        (Win32 only)
+      - Changes to common source files not applicable to
+        open-vm-tools. (Code used by other vmware tools, unrelated
+        to open-vm-tools).
+      - Bump up the SYSIMAGE_VERSION for VMware tools 10.3.10
+      
+  * [18de70f] Removing backported patches, shipped in 10.3.10.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 29 Mar 2019 11:58:17 +0100
+
 open-vm-tools (2:10.3.5-8) unstable; urgency=medium
 
   [ Jean-Baptiste Lallement ]
