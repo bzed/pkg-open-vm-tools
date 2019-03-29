@@ -1,3 +1,20 @@
+open-vm-tools (2:10.1.5-5055683-4+deb9u2) stable-security; urgency=medium
+
+  * [34db05f] /tmp/VMwareDnD permissions security fix.
+    Fix possible security issue with the permissions of the intermediate
+    staging directory and path
+    /tmp/VMwareDnD is a staging directory used for DnD and CnP.  It should be
+    a regular directory, but malicious code or user may create the /tmp/VMwareDnD
+    as a symbolic link which points elsewhere on the system.  This may provide
+    user access to user B's files.
+    Do not set the permission of the root directory if the root directory
+    already exists and has the wrong permission.  The permission of the directory
+    must be 1777 if it is created by the VMToolsi.  If not, then the directory
+    has been created or modified by malicious code or user, so just cancel the
+    host to guest DnD or CnP operation. (Closes: #925959)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 29 Mar 2019 14:48:23 +0100
+
 open-vm-tools (2:10.1.5-5055683-4+deb9u1) stretch; urgency=medium
 
   * [dec8df6] Upstream fix for CVE-2015-5191 (Closes: #869633)
