@@ -1,0 +1,54 @@
+commit e88f91b00a715b79255de6576506d80ecfdb064c
+Author: Oliver Kurth <okurth@vmware.com>
+Date:   Tue Jan 29 14:03:19 2019 -0800
+
+    Fix possible security issue with the permissions of the intermediate
+    staging directory and path
+    
+    /tmp/VMwareDnD is a staging directory used for DnD and CnP.  It should be
+    a regular directory, but malicious code or user may create the /tmp/VMwareDnD
+    as a symbolic link which points elsewhere on the system.  This may provide
+    user access to user B's files.
+    
+    Do not set the permission of the root directory if the root directory
+    already exists and has the wrong permission.  The permission of the directory
+    must be 1777 if it is created by the VMToolsi.  If not, then the directory
+    has been created or modified by malicious code or user, so just cancel the
+    host to guest DnD or CnP operation.
+
+--- a/open-vm-tools/services/plugins/dndcp/dnd/dndCommon.c
++++ b/open-vm-tools/services/plugins/dndcp/dnd/dndCommon.c
+@@ -276,12 +276,11 @@ DnDCreateRootStagingDirectory(void)
+    }
+ 
+    if (File_Exists(root)) {
+-      if (!DnDRootDirUsable(root) &&
+-          !DnDSetPermissionsOnRootDir(root)) {
++      if (!DnDRootDirUsable(root)) {
+          /*
+-          * The directory already exists and its permissions are wrong and
+-          * cannot be set, so there's not much we can do.
++          * The directory already exists and its permissions are wrong.
+           */
++         Log("%s: The root dir is not usable.\n", __FUNCTION__);
+          return NULL;
+       }
+    } else {
+--- a/open-vm-tools/services/plugins/dndcp/dnd/dndXdg.c
++++ b/open-vm-tools/services/plugins/dndcp/dnd/dndXdg.c
+@@ -318,12 +318,11 @@ CreateApparentRootDirectory(void)
+    }
+ 
+    if (File_Exists(root)) {
+-      if (   !DnDRootDirUsable(root)
+-          && !DnDSetPermissionsOnRootDir(root)) {
++      if (!DnDRootDirUsable(root)) {
+          /*
+-          * The directory already exists and its permissions are wrong and
+-          * cannot be set, so there's not much we can do.
++          * The directory already exists and its permissions are wrong.
+           */
++         Log_Trivia("dnd: The root dir is not usable.\n");
+          return NULL;
+       }
+    } else {
