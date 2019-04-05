@@ -1,8 +1,110 @@
-open-vm-tools (2:10.3.5-6~bpo9+1) stretch-backports; urgency=medium
+open-vm-tools (2:10.3.10-1~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 26 Feb 2019 16:07:03 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 05 Apr 2019 23:17:10 +0200
+
+open-vm-tools (2:10.3.10-1) unstable; urgency=high
+
+  * [122e511] Update upstream source from tag 'upstream/10.3.10'
+    Update to upstream version '10.3.10'
+    with Debian dir fb12c7cfc99a9497795475c29306e78d08cc3712
+    - Closes: #925940
+    - Bugfix release for the 10.3 series.
+      - Correct and/or improve handling of certain quiesced
+        snapshot failures (shipped as patch in 2:10.3.5-6).
+      - Fix some bad derefs in primary NIC gather code
+      - Fix possible security issue with the permissions of the
+        intermediate staging directory and path.
+        Closes: #925959
+      - CONSTANT_EXPRESSION_RESULT in TimeUtil_StringToDate()
+        Found by coverity.
+      - Deploypkg log files of linux should not be world readable.
+        They might contain sensitive data.
+      - General code clean-up:
+        - Treat local variables "len" consistently as "size_t"
+          type in Posix_Getmntent_r()
+        - Improve readability of error handling logic in
+          ShrinkDoWipeAndShrink() and remove another line of dead code.
+        - Setting "errno" to ENOENT when there is no passwd entry
+          for the user.
+      - Fix NULL pointer dereference and remove three lines of dead code.
+    - Other changes/fixes, not related to Debian:
+      - Update copyright years
+      - Fix CentOS 7.6 detection
+      - Include vmware/tools/log.h to define g_info (fix for SLES)
+      - Special-case profile loading for StartProgram
+        (Win32 only)
+      - Changes to common source files not applicable to
+        open-vm-tools. (Code used by other vmware tools, unrelated
+        to open-vm-tools).
+      - Bump up the SYSIMAGE_VERSION for VMware tools 10.3.10
+      
+  * [18de70f] Removing backported patches, shipped in 10.3.10.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 29 Mar 2019 11:58:17 +0100
+
+open-vm-tools (2:10.3.5-8) unstable; urgency=medium
+
+  [ Jean-Baptiste Lallement ]
+  * [0f35aee] Add modaliases to open-vm-tools-desktop.
+    Added Modaliases to open-vm-tools-desktop to auto-discover and
+    auto-install the driver on Ubuntu via ubuntu-drivers. The driver is then
+    installed at installation time and available on first boot for an
+    improved user experience (LP: #1819207)
+
+  [ Bernd Zeimetz ]
+  * [dc4e1ce] Load vmwgfx module before vmtoolsd starts.
+    As discussed on github in vmware/open-vm-tools#214
+    we need to load the vmwgfx module before starting vmtoolsd
+    for desktop users. Otherwise it is not able to retrieve the KMS
+    resolutions and resizing the VM desktop fails.
+    Thanks to @thomashvmw @rhertzog (Closes: #924518)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 13 Mar 2019 22:15:22 +0100
+
+open-vm-tools (2:10.3.5-7) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * [71b468f] make vgauth service execution more reliable.
+    Since d3d47039 "Start vgauth before vmtoolsd" there is a potential race
+    of starting vgauth so early that it might have issues. This was
+    discussed back in the day in [1] to [2], but confirmed to be ok by
+    VMWare.
+    We were all somewhat convinced by this, but a bad feeling remained not
+    only with me but also with Bernd [4].
+    A recent SRU review denial made me rethink all of it and I think we can
+    make it safer without thwarting the purpose of the original change.
+    Note: Disambiguation of service names used below:
+    vgauth     - open-vm-tools.vgauth.service
+    vmtoolsd   - open-vm-tools.service
+    fs         - systemd-remount-fs.service
+    tmp        - systemd-tmpfiles-setup.service
+    cloud-init - cloud-init-local.service
+    Currently we have these dependency requirements:
+    - vgauth should be before vmtoolsd
+    - cloud init should be before vmtoolsd
+    - cloud init has to be really early in general
+      - therefore this is using DefaultDependencies=No
+    That lead to this graph:
+     fs / tmp -> vmtoolsd -> cloud-init
+    And d3d47039 added it to be like:
+     fs / tmp -> vmtoolsd -> cloud-init
+                   ^
+     vgauth      --|
+    But there is no need to have vgauth without any pre-dependencies at all.
+    It is only needed to be "before" vmtoolsd, therefore we can make it:
+     fs / tmp -> vgauth -> vmtoolsd -> cloud-init
+    That will make execution of vgauth much less error-prone (even though I
+    have no hard issue to report) while at the same time holding up all
+    known required ordering constraints.
+    [1]: https://bugs.launchpad.net/ubuntu/+source/open-vm-tools/+bug/1804287/comments/3
+    [2]: https://bugs.launchpad.net/ubuntu/+source/open-vm-tools/+bug/1804287/comments/12
+    [3]: https://bugs.launchpad.net/ubuntu/+source/open-vm-tools/+bug/1804287/comments/25
+    [4]: https://github.com/bzed/pkg-open-vm-tools/pull/15#issuecomment-447237910
+    Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 Mar 2019 20:02:52 +0100
 
 open-vm-tools (2:10.3.5-6) unstable; urgency=medium
 

@@ -43,6 +43,7 @@ Recommends:
  xauth, xserver-xorg-input-vmmouse,
  xserver-xorg-video-vmware
 Suggests: xdg-utils
+XB-Modaliases: ${modaliases}
 Description: Open VMware Tools for virtual machines hosted on VMware (GUI)
  The Open Virtual Machine Tools (open-vm-tools) project is an open source
  implementation of VMware Tools. It is a suite of virtualization utilities and

@@ -3,6 +3,7 @@ Description=Authentication service for virtual machines hosted on VMware
 Documentation=http://github.com/vmware/open-vm-tools
 ConditionVirtualization=vmware
 DefaultDependencies=no
+After=systemd-remount-fs.service systemd-tmpfiles-setup.service
 PartOf=open-vm-tools.service
 
 [Service]

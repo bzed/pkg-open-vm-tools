@@ -7,7 +7,7 @@ Before=cloud-init-local.service
 After=vgauth.service
 After=apparmor.service
 RequiresMountsFor=/tmp
-After=systemd-remount-fs.service systemd-tmpfiles-setup.service
+After=systemd-remount-fs.service systemd-tmpfiles-setup.service systemd-modules-load.service
 
 [Service]
 ExecStart=/usr/bin/vmtoolsd

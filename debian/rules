@@ -3,6 +3,12 @@
 DEBHELPER_VERSION = $(strip $(shell dpkg-query -f '$${Version}' -W debhelper))
 DEBHELPER_SYSTEMD_OK = $(strip $(shell dpkg --compare-versions $(DEBHELPER_VERSION) ge 10.9.1~; echo $$?))
 
+ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes),yes)
+	VENDOR := UBUNTU
+else
+	VENDOR := DEBIAN
+endif
+
 %:
 	dh ${@} --sourcedirectory=open-vm-tools
 
@@ -71,6 +77,13 @@ override_dh_auto_install:
 	mkdir -p debian/open-vm-tools-desktop/lib/systemd/system/open-vm-tools.service.d
 	cp debian/desktop.conf debian/open-vm-tools-desktop/lib/systemd/system/open-vm-tools.service.d/
 
+override_dh_gencontrol:
+	if [ "${VENDOR}" = "UBUNTU" ]; \
+	then \
+		dh_gencontrol -- -Vmodaliases="vmwgfx(pci:v000015ADd00000405sv*sd*bc*sc*i*)"; \
+	else \
+		dh_gencontrol; \
+	fi
 override_dh_builddeb:
 	dh_builddeb -- -Zxz
 
