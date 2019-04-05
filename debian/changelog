@@ -1,4 +1,4 @@
-open-vm-tools (2:10.1.5-5055683-4+deb9u2) stable-security; urgency=medium
+open-vm-tools (2:10.1.5-5055683-4+deb9u2) stable; urgency=medium
 
   * [34db05f] /tmp/VMwareDnD permissions security fix.
     Fix possible security issue with the permissions of the intermediate
@@ -13,7 +13,7 @@ open-vm-tools (2:10.1.5-5055683-4+deb9u2) stable-security; urgency=medium
     has been created or modified by malicious code or user, so just cancel the
     host to guest DnD or CnP operation. (Closes: #925959)
 
- -- Bernd Zeimetz <bzed@debian.org>  Fri, 29 Mar 2019 14:48:23 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Fri, 05 Apr 2019 23:10:04 +0200
 
 open-vm-tools (2:10.1.5-5055683-4+deb9u1) stretch; urgency=medium
 
