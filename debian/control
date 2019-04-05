@@ -36,7 +36,8 @@ Package: open-vm-tools-desktop
 Architecture: amd64 i386
 Depends: ${misc:Depends}, ${shlibs:Depends},
  open-vm-tools (= ${binary:Version}),
- fuse
+ fuse,
+ kmod,
 Breaks: open-vm-tools (<< 2:10.3.5-2~)
 Replaces: open-vm-tools (<< 2:10.3.5-2~)
 Recommends:
