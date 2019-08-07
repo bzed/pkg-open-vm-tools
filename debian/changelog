@@ -1,3 +1,30 @@
+open-vm-tools (2:10.3.10-2) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * [d79cc9d] d/control: fix postinst missing lsmod/modprobe.
+    Upgrades on open-vm-desktop can trigger errors like the following:
+    /var/lib/dpkg/info/open-vm-tools-desktop.postinst: 5:
+    /var/lib/dpkg/info/open-vm-tools-desktop.postinst: lsmod: not found
+    /var/lib/dpkg/info/open-vm-tools-desktop.postinst: 6:
+    /var/lib/dpkg/info/open-vm-tools-desktop.postinst: modprobe: not found
+    The reason is that kmod isn't a dependency of open-vm-tools-desktop and
+    could be missing e.g. if you installed it in a system container.
+    Once might discuss how useful open-vm-tools-desktop is in that
+    environment but a n issue to fix none the less.
+    Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+
+  [ Bernd Zeimetz ]
+  * [4d3f25f] Fix guest OS reporting for Debian/Buster.
+    Without this fix, open-vm-tools report other4xLinux64Guest instead of
+    Debian/Buster.
+    Reason is the output of lsb_release, which outputs:
+    $ lsb_release -sd
+    Debian GNU/Linux 10 (buster)
+    But the code in open-vm-tools expects '10.'.
+    Thanks to Oliver Kurth (Closes: #934005)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 07 Aug 2019 10:28:52 +0200
+
 open-vm-tools (2:10.3.10-1) unstable; urgency=high
 
   * [122e511] Update upstream source from tag 'upstream/10.3.10'
