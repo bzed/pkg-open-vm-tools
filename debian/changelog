@@ -1,3 +1,17 @@
+open-vm-tools (2:10.3.10-1+deb10u1) buster; urgency=medium
+
+  * [efb4df1] Fix guest OS reporting for Debian/Buster.
+    Without this fix, open-vm-tools report other4xLinux64Guest instead of
+    Debian/Buster.
+    Reason is the output of lsb_release, which outputs:
+    $ lsb_release -sd
+    Debian GNU/Linux 10 (buster)
+    But the code in open-vm-tools expects '10.'.
+    Thanks to Oliver Kurth (Closes: #934005)
+  * [2308b74] Updating gbp.conf for buster.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 07 Aug 2019 21:09:29 +0200
+
 open-vm-tools (2:10.3.10-1) unstable; urgency=high
 
   * [122e511] Update upstream source from tag 'upstream/10.3.10'
