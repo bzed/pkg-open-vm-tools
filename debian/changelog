@@ -1,10 +1,6 @@
 open-vm-tools (2:11.0.0~0-1) experimental; urgency=medium
 
-  ** SNAPSHOT build @1483e9a4449d0d71b24c1997b3fec692cf830d98 **
-
   * [1483e9a] Update upstream source from tag 'upstream/11.0.0_0'
-    Update to upstream version '11.0.0~0'
-    with Debian dir 2759311af25588f2e586b331e7024cad4db55c45
     Should build fine with gcc9 - (Closes: #925794)
   * [b18c976] Merge branch 'experimental' of github.com:bzed/pkg-open-vm-tools into experimental
   * [2ec77d2] fix branch in gbp.conf
