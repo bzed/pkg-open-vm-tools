@@ -29,7 +29,7 @@ License: MIT(**)
 
 Files: debian/*
 Copyright: 2007-2013 Daniel Baumann <mail@daniel-baumann.ch>
-           2014      Bernd Zeimetz <bzed@debian.org>
+           2014-2019 Bernd Zeimetz <bzed@debian.org>
 License: GPL-2+
 
 License: BSD-3
