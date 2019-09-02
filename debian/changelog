@@ -1,11 +1,17 @@
 open-vm-tools (2:11.0.0~0-1) experimental; urgency=medium
 
-  * [1483e9a] Update upstream source from tag 'upstream/11.0.0_0'
-    Should build fine with gcc9 - (Closes: #925794)
+  * Upstream development snapshot.
   * [b18c976] Merge branch 'experimental' of github.com:bzed/pkg-open-vm-tools into experimental
   * [2ec77d2] fix branch in gbp.conf
+  * [1e3f1c8] Merge branch 'upstream' into experimental
+    Update to upstream version '11.0.0~0'
+    (Closes: #925794)
+  * [5793605] Remove snapshot comment from changelog
+  * [6157ec0] re-add .travis.yml
+  * [7bb8ede] Revert "Fix guest OS reporting for Debian/Buster"
+    Applied upstream
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 02 Sep 2019 17:51:26 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 02 Sep 2019 19:02:18 +0200
 
 open-vm-tools (2:10.3.10-2) unstable; urgency=medium
 
