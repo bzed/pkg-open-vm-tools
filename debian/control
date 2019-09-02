@@ -1,6 +1,6 @@
 Source: open-vm-tools
 Section: admin
-Priority: extra
+Priority: optional
 Maintainer: Bernd Zeimetz <bzed@debian.org>
 Build-Depends:
  debhelper (>= 11~), autotools-dev, doxygen, libcunit1-dev,
