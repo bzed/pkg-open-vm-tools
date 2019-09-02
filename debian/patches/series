@@ -1,4 +1,3 @@
 debian/pam-use-common-auth-account
 debian/max_nic_count
 debian/scsi-udev-rule
-fix-buster-OS-reporting
