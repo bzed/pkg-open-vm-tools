@@ -12,7 +12,7 @@ Build-Depends:
  libxmlsec1-dev,
  libudev-dev,
  libdrm-dev,
-Standards-Version: 3.9.6
+Standards-Version: 4.4.0
 Homepage: https://github.com/vmware/open-vm-tools
 Vcs-Git: https://github.com/bzed/pkg-open-vm-tools.git
 Vcs-Browser: https://github.com/bzed/pkg-open-vm-tools
