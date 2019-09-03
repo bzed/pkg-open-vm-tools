@@ -27,8 +27,6 @@ open-vm-tools (2:10.3.10-3) unstable; urgency=medium
   * [9ac710e] Remove autotools-dev dependency.
   * [4296cf4] Fix permissions of udev rules file
   * [ed11c19] A new lintian override
-  * [ea4fa7f] Removing libdumbnet-dev.
-    See https://github.com/vmware/open-vm-tools/issues/368
 
  -- Bernd Zeimetz <bzed@debian.org>  Tue, 03 Sep 2019 18:06:54 +0200
 
