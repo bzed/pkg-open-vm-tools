@@ -1,3 +1,37 @@
+open-vm-tools (2:10.3.10-3) unstable; urgency=medium
+
+  [ Bernd Zeimetz ]
+  * [19c646a] gcc9 compatibility.
+    Upstream commit c68172ef7f2d4f116078e2aba82986a8cab0b16e (Closes: #925794)
+
+  [ Christian Ehrhardt ]
+  * [865763e] Fix other ftbfs with GCC-9
+    * d/rules: disable address-of-packed-member gcc-9 warnings for pre 11.0 code
+    (LP: #1842301)
+    * d/rules: use modern syntax for disabling deprecated-declarations
+    * d/p/gcc9-Remove-GLib-2.32-deprecated-APIs-from-tools.patch: stop using outdated GLib features
+    Upstream commit a7c141fc
+    * d/p/gcc9-drop-obsolete-G_INLINE_FUNC.patch: stop using deprecated GLib Macro
+    * d/p/gcc9-GStaticRecMutex.patch: stop using deprecated GStaticRecMutex
+    Upstream commit 19ca3e36
+    * d/p/gcc9-build-error-in-vmblocktest.c.patch: avoid error due to stringop-truncation
+    Upstream commit 553d1283
+
+  [ Bernd Zeimetz ]
+  * [0ce2ba2] Policy 4.0.1: The extra priority has been deprecated
+  * [c8760c6] Bumping Standards-Version to 4.4.0
+  * [a6ed8ce] Don't override dh_builddeb.
+    debian-rules-should-not-use-custom-compression-settings
+  * [bdfd8b5] Remove add_patch script
+  * [be4d889] Update copyright years.
+  * [9ac710e] Remove autotools-dev dependency.
+  * [4296cf4] Fix permissions of udev rules file
+  * [ed11c19] A new lintian override
+  * [ea4fa7f] Removing libdumbnet-dev.
+    See https://github.com/vmware/open-vm-tools/issues/368
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 03 Sep 2019 18:06:54 +0200
+
 open-vm-tools (2:10.3.10-2) unstable; urgency=medium
 
   [ Christian Ehrhardt ]
