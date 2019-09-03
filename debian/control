@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Bernd Zeimetz <bzed@debian.org>
 Build-Depends:
  debhelper (>= 11~), doxygen, libcunit1-dev,
- libfuse-dev, libgtkmm-3.0-dev, libgtk-3-dev,
+ libdumbnet-dev, libfuse-dev, libgtkmm-3.0-dev, libgtk-3-dev,
  libicu-dev, libnotify-dev, libpam0g-dev, libprocps-dev, libx11-dev,
  libxinerama-dev, libxss-dev, libxtst-dev,
  libmspack-dev,
