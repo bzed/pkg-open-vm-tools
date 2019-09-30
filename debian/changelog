@@ -1,14 +1,19 @@
-open-vm-tools (2:11.0.0-1~1.gbp4959af) unstable; urgency=medium
+open-vm-tools (2:11.0.0-1) unstable; urgency=medium
 
-  ** SNAPSHOT build @4959afd3a4ef217d39134f4401bca2248dc52d3e **
+  [ goldstar611 ]
+  * [c138871] Ensure VGAuthService starts after AppArmor
+    https://gitlab.com/apparmor/apparmor/issues/13
 
-  * [4959afd] Update upstream source from tag 'upstream/11.0.0'
-    Update to upstream version '11.0.0'
-    with Debian dir c35d8832910a6655f9ba67e08d056bf6a171bbb6
-  * [1c3121d] Revert "Revert "Removing libdumbnet-dev.""
+  [ Bernd Zeimetz ]
+  * [28ef841] New upstream version 11.0.0~0
+  * [f78ed2d] New upstream version 11.0.0
+    Closes: #940853
+  * [19efc80] Revert "Revert "Removing libdumbnet-dev.""
     This reverts commit 31177fab964d92687501ab81774440a9b8d09e39.
+  * [bc14a8b] snapshot changelog
+  * [1c5e9ea] Dropping patches that were picked from upstream
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 30 Sep 2019 13:48:08 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 30 Sep 2019 14:37:27 +0200
 
 open-vm-tools (2:10.3.10-3) unstable; urgency=medium
 
