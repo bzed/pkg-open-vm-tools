@@ -1,3 +1,17 @@
+open-vm-tools (2:10.3.10-1+deb10u2) buster; urgency=medium
+
+  * [d512626] Fix memory leaks and error handling.
+    From the upstream stable-10.3.10-vix-memory-leaks branch:
+    commit 26b9edbeb79d1c67b9ae73a0c97c48999c1fb503
+        Fix leaks in ListAliases and ListMappedAliases
+    commit 7b874f37f970aab2adddb063a8363594f47abf70
+        End VGAuth impersonation in the case of error.
+    commit 015db4c06a8be65eb96cf62421e8b5366993452f
+        Fix memory leaks in 'vix' tools plugin.
+    Thanks to Oliver Kurth (Closes: #941955)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 09 Oct 2019 14:18:48 +0200
+
 open-vm-tools (2:10.3.10-1+deb10u1) buster; urgency=medium
 
   * [efb4df1] Fix guest OS reporting for Debian/Buster.
