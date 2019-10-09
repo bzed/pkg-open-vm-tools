@@ -20,7 +20,7 @@ override_dh_auto_configure:
 			--with-pic \
 			--enable-xmlsec1 \
 			--with-gtk3  \
-			CFLAGS="-fPIC $(CFLAGS)" \
+			CFLAGS="-fPIC -Wno-error=deprecated-declarations -Wno-error=address-of-packed-member $(CFLAGS)" \
 			CUSTOM_PROCPS_NAME=procps
 
 override_dh_auto_install:
