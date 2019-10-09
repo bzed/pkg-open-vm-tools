@@ -1,0 +1,80 @@
+From 015db4c06a8be65eb96cf62421e8b5366993452f Mon Sep 17 00:00:00 2001
+From: Oliver Kurth <okurth@vmware.com>
+Date: Wed, 29 Aug 2018 13:29:45 -0700
+Subject: [PATCH] Fix memory leaks in 'vix' tools plugin.
+
+* vix plugin retrieves the power script file paths from the
+config file but doesn't free them and this causes a memory leak.
+Fixed the code to free the filepaths.
+
+* In GuestAuthPasswordAuthenticateImpersonate function, the VGAuth
+handle is not freed when the impersonation fails. Fixed the
+code to call VGAuth_UserHandleFree in the error path.
+
+Note: I executed one guest operation with wrong credentials.
+Every failure leaks 75 bytes of memory. (in Centos 64-bit VM)
+
+* Fixed another minor issue in the code. At couple of places in
+the code, replaced 'err' with 'vgErr' for storing the return value
+of VGAuth_UserHandleAccessToken.
+---
+ open-vm-tools/services/plugins/vix/vixTools.c | 20 +++++++++++++------
+ 1 file changed, 14 insertions(+), 6 deletions(-)
+
+--- a/open-vm-tools/services/plugins/vix/vixTools.c
++++ b/open-vm-tools/services/plugins/vix/vixTools.c
+@@ -2522,10 +2522,10 @@ VixTools_GetToolsPropertiesImpl(GKeyFile
+    char *guestName;
+    int osFamily;
+    char *packageList = NULL;
+-   const char *powerOffScript = NULL;
+-   const char *powerOnScript = NULL;
+-   const char *resumeScript = NULL;
+-   const char *suspendScript = NULL;
++   char *powerOffScript = NULL;
++   char *powerOnScript = NULL;
++   char *resumeScript = NULL;
++   char *suspendScript = NULL;
+    char *osName = NULL;
+    char *osNameFull = NULL;
+    Bool foundHostName;
+@@ -2726,6 +2726,10 @@ abort:
+    free(tempDir);
+    free(osName);
+    free(osNameFull);
++   free(suspendScript);
++   free(resumeScript);
++   free(powerOnScript);
++   free(powerOffScript);
+ #else
+    /*
+     * FreeBSD. We do not require all the properties above.
+@@ -11583,7 +11587,7 @@ GuestAuthPasswordAuthenticateImpersonate
+ 
+ #ifdef _WIN32
+    // this is making a copy of the token, be sure to close it
+-   err = VGAuth_UserHandleAccessToken(ctx, newHandle, userToken);
++   vgErr = VGAuth_UserHandleAccessToken(ctx, newHandle, userToken);
+    if (VGAUTH_FAILED(vgErr)) {
+       err = VixToolsTranslateVGAuthError(vgErr);
+       goto done;
+@@ -11599,6 +11603,10 @@ done:
+    free(username);
+    Util_ZeroFreeString(password);
+ 
++   if (VIX_OK != err) {
++      VGAuth_UserHandleFree(newHandle);
++      newHandle = NULL;
++   }
+    return err;
+ #else
+    return VIX_E_NOT_SUPPORTED;
+@@ -11729,7 +11737,7 @@ impersonate:
+ 
+ #ifdef _WIN32
+    // this is making a copy of the token, be sure to close it
+-   err = VGAuth_UserHandleAccessToken(ctx, newHandle, userToken);
++   vgErr = VGAuth_UserHandleAccessToken(ctx, newHandle, userToken);
+    if (VGAUTH_FAILED(vgErr)) {
+       err = VixToolsTranslateVGAuthError(vgErr);
+       goto done;
