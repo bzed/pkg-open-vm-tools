@@ -2,8 +2,9 @@ open-vm-tools (2:11.0.0-1~bpo10+1) buster-backports; urgency=medium
 
   * Rebuild for buster-backports.
   * [d01f552] Updating gbp.conf for buster-backports.
+  * [5adfc551] No -Wno-error=address-of-packed-member in CFLAGS
 
- -- Bernd Zeimetz <bzed@debian.org>  Sat, 05 Oct 2019 23:50:10 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 09 Oct 2019 18:38:15 +0200
 
 open-vm-tools (2:11.0.0-1) unstable; urgency=medium
 
